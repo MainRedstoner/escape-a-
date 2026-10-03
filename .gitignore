@@ -1,0 +1,12 @@
+# 工具本地产物（安全扫描审计记录 / 会话文件）
+.mimosa/
+.zcode/
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 日志与临时文件
+*.log
+*.tmp
