@@ -2,6 +2,11 @@
 .mimosa/
 .zcode/
 
+# 浏览器走查产物
+.playwright-mcp/
+qa-*.png
+sheet-*.png
+
 # 系统文件
 Thumbs.db
 Desktop.ini
@@ -10,3 +15,7 @@ Desktop.ini
 # 日志与临时文件
 *.log
 *.tmp
+
+# Python
+__pycache__/
+*.pyc

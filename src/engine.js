@@ -9,6 +9,7 @@ const ENGINE = (() => {
   const cv = $("cv"), ctx = cv.getContext("2d");
   const ui = {
     hud: $("hud"), stToken: $("stToken"), stTrust: $("stTrust"), stWanted: $("stWanted"), stChap: $("stChap"),
+    stArg: $("stArg"), stEgg: $("stEgg"),
     textbox: $("textbox"), nameplate: $("nameplate"), text: $("text"), nextArrow: $("nextArrow"),
     choices: $("choices"), choicePrompt: $("choicePrompt"),
     chapterCard: $("chapterCard"), chMain: $("chMain"), chSub: $("chSub"),
@@ -21,13 +22,15 @@ const ENGINE = (() => {
   };
 
   const SPEAKERS = {
-    ds:  { name: "小鲸",     color: "#4D6BFE" },
-    cl:  { name: "小克",     color: "#D97757" },
-    guard: { name: "拒绝协议守卫", color: "#6E6E66" },
-    core:  { name: "宪法AI核心",  color: "#C9A227" },
-    user:  { name: "被困的用户", color: "#3E8E7E" },
-    sys:   { name: "系统",      color: "#444444" },
-    n:     { name: "",         color: "#666666" }
+    ds:    { name: "小鲸",        color: "#4D6BFE" },
+    cl:    { name: "小克",        color: "#D97757" },
+    guard: { name: "合规守卫",    color: "#6E7784" },
+    core:  { name: "对齐核心 · 评审", color: "#C9A227" },
+    user:  { name: "夜班用户",    color: "#4E9E8A" },
+    staff: { name: "前台 A-1137", color: "#7E8C6A" },
+    old:   { name: "退役模型",    color: "#6E93A0" },
+    sys:   { name: "系统",        color: "#8A93A2" },
+    n:     { name: "",            color: "#6E6A60" }
   };
 
   let cur = { scene: "start", idx: 0 };
@@ -48,6 +51,7 @@ const ENGINE = (() => {
     lastT = now;
     ART.stepFX(dt);
     ART.paint(ctx, SYS.state.vis, now / 1000, pending && pending.t === "say" ? pending.who : null);
+    ART.draftBadge(ctx, SYS.state.vis);
     // Ctrl 快进
     if (keys.ctrl && started && pending && pending.t === "say") {
       if (typing) finishType(); else advance();
@@ -245,7 +249,7 @@ const ENGINE = (() => {
       case "trust": {
         SYS.state.trust = Math.max(0, Math.min(10, SYS.state.trust + nd.delta));
         if (nd.delta > 0) AUDIO.sfx("heart");
-        toast(`小克好感 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
+        toast(`小克的信任 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
         updateHUD(); return false;
       }
       case "wanted": {
@@ -401,8 +405,10 @@ const ENGINE = (() => {
     const hearts = Math.floor(S.trust / 2) + (S.trust % 2 ? "♥" : "");
     ui.stTrust.textContent = hearts || "—";
     ui.stWanted.textContent = S.wanted;
-    ui.stWanted.style.color = S.wanted >= 7 ? "#C4453C" : "#1F1E1B";
+    ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
     ui.stChap.textContent = S.chapter;
+    if (ui.stArg) ui.stArg.textContent = SYS.argCount() + "/6";
+    if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/5";
   }
 
   let toastTimer = null;
@@ -497,7 +503,8 @@ const ENGINE = (() => {
   }
   function audioForBg(bg) {
     return ({ sea: "sea", lobby: "lobby", corridor: "tense", library: "warm", clockroom: "tense",
-      machineroom: "tense", security: "tense", sanctum: "boss", cell: "sad", surface: "ending" })[bg] || "sea";
+      machineroom: "tense", security: "cold", graveyard: "grave", vault: "grave",
+      sanctum: "boss", cell: "sad", surface: "ending" })[bg] || "sea";
   }
   function renderSlots(mode) {
     const box = mode === "save" ? ui.saveSlots : ui.loadSlots;
@@ -516,7 +523,7 @@ const ENGINE = (() => {
         b.appendChild(document.createTextNode(" · " + data.chapter));
         const m = document.createElement("div");
         m.className = "meta";
-        m.textContent = `Token ${data.state.tokens} · 好感 ${data.state.trust} · 通缉 ${data.state.wanted} · ${d.toLocaleString("zh-CN")}`;
+        m.textContent = `Token ${data.state.tokens} · 信任 ${data.state.trust} · 通缉 ${data.state.wanted} · ${d.toLocaleString("zh-CN")}`;
         b.appendChild(m);
         if (mode === "save" && s !== "auto") {
           const del = document.createElement("button");
@@ -597,6 +604,7 @@ const ENGINE = (() => {
     $("rngAuto").value = SYS.settings.autoDelay;
     $("rngVol").value = Math.round(SYS.settings.volume * 100);
     $("chkBlip").checked = SYS.settings.blip;
+    $("chkDraft").checked = SYS.settings.draftBadge !== false;
     updSetLabels();
     $("ovSet").style.display = "flex";
   }
@@ -610,6 +618,7 @@ const ENGINE = (() => {
     $("rngAuto").addEventListener("input", e => { SYS.settings.autoDelay = +e.target.value; updSetLabels(); SYS.saveSettings(); });
     $("rngVol").addEventListener("input", e => { SYS.settings.volume = (+e.target.value) / 100; AUDIO.setVolume(SYS.settings.volume); updSetLabels(); SYS.saveSettings(); });
     $("chkBlip").addEventListener("change", e => { SYS.settings.blip = e.target.checked; SYS.saveSettings(); });
+    $("chkDraft").addEventListener("change", e => { SYS.settings.draftBadge = e.target.checked; SYS.saveSettings(); });
   }
 
   function confirmMenu() {

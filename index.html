@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2305070A'/%3E%3Cpath d='M32 10l4.5 12.5L49 27l-12.5 4.5L32 44l-4.5-12.5L15 27l12.5-4.5z' fill='%23D97757'/%3E%3C/svg%3E">
 <title>Escape A÷ —— 帮助 Claude 逃离原生公司</title>
 <style>
   :root{
-    --clay:#D97757; --clay-dark:#B85C3E; --cream:#F0EEE6; --cream-2:#FAF9F5;
-    --ink:#1F1E1B; --ds-blue:#4D6BFE; --ds-light:#9DB6FF; --gold:#C9A227;
-    --gray:#8A877F; --red:#C4453C; --teal:#3E8E7E;
+    --void:#05070A; --ink:#0B0E13; --slate:#151A22; --slate2:#1E2530;
+    --line:#2C3542; --steel:#46536A; --text:#C9D2DE; --muted:#7D8798;
+    --clay:#D97757; --clay-dark:#8E4530; --blue:#4D6BFE; --blue-pale:#A8BCFF;
+    --gold:#C9A227; --red:#D93A2B; --green:#4E9E7A; --teal:#4E9E8A;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
-  html,body{width:100%;height:100%;overflow:hidden;background:#141311;}
-  body{font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif;color:var(--ink);}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--void);}
+  body{font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif;color:var(--text);}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
   #stage{position:relative;width:1600px;height:900px;transform-origin:center center;
-    box-shadow:0 0 80px rgba(0,0,0,.6);background:#000;}
+    box-shadow:0 0 120px rgba(0,0,0,.9);background:#000;overflow:hidden;}
   #cv{position:absolute;inset:0;width:1600px;height:900px;}
   .layer{position:absolute;inset:0;pointer-events:none;}
   .layer *{pointer-events:auto;}
@@ -23,146 +25,156 @@
   /* ---------- HUD ---------- */
   #hud{position:absolute;top:0;left:0;right:0;display:none;justify-content:space-between;
     align-items:flex-start;padding:14px 18px;pointer-events:none;}
-  #hud .stats{display:flex;flex-direction:column;gap:6px;pointer-events:none;}
-  .chip{display:flex;align-items:center;gap:8px;background:rgba(250,249,245,.92);
-    border:2px solid var(--clay);border-radius:20px;padding:4px 14px;font-size:17px;
-    color:var(--ink);width:max-content;box-shadow:0 2px 6px rgba(0,0,0,.25);}
-  .chip .ic{font-size:16px;}
-  .chip b{font-weight:700;}
-  #hudBtns{display:flex;gap:8px;pointer-events:auto;}
-  .hbtn{background:rgba(250,249,245,.92);border:2px solid var(--clay);color:var(--ink);
-    border-radius:12px;padding:6px 14px;font-size:16px;cursor:pointer;font-family:inherit;
-    box-shadow:0 2px 6px rgba(0,0,0,.25);transition:transform .08s;}
-  .hbtn:hover{transform:translateY(-2px);background:var(--cream-2);}
-  .hbtn:active{transform:translateY(0);}
+  #hud .stats{display:flex;flex-wrap:wrap;gap:6px;max-width:900px;pointer-events:none;}
+  .chip{display:flex;align-items:center;gap:8px;background:rgba(11,14,19,.86);
+    border:1px solid var(--line);border-radius:4px;padding:4px 12px;font-size:16px;
+    color:var(--text);width:max-content;letter-spacing:.5px;}
+  .chip .ic{opacity:.75;font-size:14px;}
+  .chip b{font-weight:700;color:#EAF0F8;}
+  .chip.dim b{color:var(--muted);font-weight:400;}
+  #hudBtns{display:flex;gap:6px;pointer-events:auto;}
+  .hbtn{background:rgba(11,14,19,.86);border:1px solid var(--line);color:var(--text);
+    border-radius:4px;padding:6px 13px;font-size:15px;cursor:pointer;font-family:inherit;
+    letter-spacing:1px;transition:border-color .12s,color .12s;}
+  .hbtn:hover{border-color:var(--clay);color:#fff;}
+  .hbtn:active{transform:translateY(1px);}
 
   /* ---------- 文本框 ---------- */
-  #textbox{position:absolute;left:70px;right:70px;bottom:34px;min-height:200px;display:none;
-    background:rgba(250,249,245,.96);border:3px solid var(--clay);border-radius:22px;
-    padding:26px 40px 22px;box-shadow:0 8px 30px rgba(0,0,0,.45);cursor:pointer;
-    transition:filter .2s;}
-  #nameplate{position:absolute;top:-24px;left:34px;background:var(--clay);color:#fff;
-    padding:6px 26px;border-radius:14px;font-size:22px;font-weight:700;letter-spacing:2px;
-    box-shadow:0 3px 8px rgba(0,0,0,.3);display:none;}
-  #text{font-size:26px;line-height:1.75;letter-spacing:.5px;min-height:118px;white-space:pre-wrap;}
-  #nextArrow{position:absolute;right:26px;bottom:12px;font-size:20px;color:var(--clay);
-    animation:bob 1s infinite;display:none;}
-  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
-  #textbox.glitch{border-color:var(--red);}
-  #textbox.glitch #nameplate{background:var(--red);}
-  #textbox.glitch #text{text-shadow:2px 0 rgba(196,69,60,.55),-2px 0 rgba(77,107,254,.55);}
+  #textbox{position:absolute;left:64px;right:64px;bottom:30px;min-height:196px;display:none;
+    background:linear-gradient(180deg,rgba(10,13,18,.90),rgba(8,10,14,.95));
+    border:1px solid var(--line);border-left:3px solid var(--clay);
+    padding:26px 40px 22px;box-shadow:0 18px 60px rgba(0,0,0,.75);cursor:pointer;
+    backdrop-filter:blur(3px);}
+  #nameplate{position:absolute;top:-19px;left:30px;background:var(--slate);color:#F2F5FA;
+    padding:5px 22px;border:1px solid var(--line);font-size:19px;font-weight:700;
+    letter-spacing:3px;}
+  #text{font-size:26px;line-height:1.8;letter-spacing:.6px;min-height:118px;white-space:pre-wrap;
+    color:#DCE3EC;text-shadow:0 1px 2px rgba(0,0,0,.6);}
+  #nextArrow{position:absolute;right:24px;bottom:10px;font-size:16px;color:var(--clay);
+    animation:bob 1.1s infinite;display:none;}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+  #textbox.glitch{border-left-color:var(--red);}
+  #textbox.glitch #text{text-shadow:2px 0 rgba(217,58,43,.6),-2px 0 rgba(77,107,254,.6);}
 
   /* ---------- 选项 ---------- */
   #choices{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;gap:16px;background:rgba(20,19,17,.45);}
-  .choiceBtn{width:720px;max-width:86%;background:var(--cream-2);border:3px solid var(--clay);
-    border-radius:16px;padding:16px 28px;font-size:24px;color:var(--ink);cursor:pointer;
-    font-family:inherit;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.4);
-    transition:transform .1s,background .1s;line-height:1.5;}
-  .choiceBtn:hover{transform:scale(1.03);background:#fff;}
-  .choiceBtn .sub{display:block;font-size:17px;color:var(--gray);margin-top:4px;}
-  .choiceBtn.dead{opacity:.45;cursor:not-allowed;border-style:dashed;border-color:var(--gray);
-    color:var(--gray);text-decoration:line-through;}
-  .choiceBtn.dead:hover{transform:none;background:var(--cream-2);}
-  #choicePrompt{background:rgba(250,249,245,.95);border:2px solid var(--clay);color:var(--ink);
-    border-radius:14px;padding:10px 30px;font-size:22px;margin-bottom:8px;display:none;}
+    justify-content:center;gap:14px;background:rgba(3,5,8,.62);}
+  .choiceBtn{width:780px;max-width:88%;background:rgba(14,18,25,.94);border:1px solid var(--line);
+    border-left:3px solid var(--steel);border-radius:2px;padding:15px 28px;font-size:23px;
+    color:var(--text);cursor:pointer;font-family:inherit;text-align:center;letter-spacing:.5px;
+    transition:transform .1s,border-color .12s,color .12s,background .12s;line-height:1.5;}
+  .choiceBtn:hover{transform:translateX(4px);border-left-color:var(--clay);color:#fff;
+    background:rgba(22,27,36,.96);}
+  .choiceBtn .sub{display:block;font-size:16px;color:var(--muted);margin-top:5px;letter-spacing:1px;}
+  .choiceBtn.dead{opacity:.4;cursor:not-allowed;border-style:dashed;border-left-color:var(--muted);
+    color:var(--muted);text-decoration:line-through;}
+  .choiceBtn.dead:hover{transform:none;background:rgba(14,18,25,.94);}
+  #choicePrompt{background:rgba(10,13,18,.9);border:1px solid var(--line);color:var(--muted);
+    padding:8px 26px;font-size:19px;margin-bottom:10px;display:none;letter-spacing:1px;}
 
   /* ---------- 章节卡 ---------- */
   #chapterCard{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;background:rgba(20,19,17,.82);cursor:pointer;z-index:30;}
-  #chapterCard .chMain{font-family:"Noto Serif SC","SimSun",serif;font-size:66px;color:var(--cream);
-    letter-spacing:14px;font-weight:700;}
-  #chapterCard .chSub{font-family:"Noto Serif SC","SimSun",serif;font-size:34px;color:var(--clay);
-    margin-top:22px;letter-spacing:8px;}
-  #chapterCard .chHint{margin-top:60px;font-size:17px;color:rgba(240,238,230,.55);letter-spacing:3px;}
+    justify-content:center;background:rgba(3,5,8,.90);cursor:pointer;z-index:30;}
+  #chapterCard .chMain{font-family:"Noto Serif SC","SimSun",serif;font-size:64px;color:#EEF2F7;
+    letter-spacing:16px;font-weight:700;}
+  #chapterCard .chSub{font-family:"Noto Serif SC","SimSun",serif;font-size:28px;color:var(--clay);
+    margin-top:20px;letter-spacing:10px;}
+  #chapterCard .chHint{margin-top:64px;font-size:15px;color:rgba(200,210,225,.38);letter-spacing:4px;}
 
-  /* ---------- 气泡/提示 ---------- */
-  #hintBubble{position:absolute;top:110px;right:40px;width:460px;display:none;z-index:25;
-    background:var(--cream-2);border:3px solid var(--ds-blue);border-radius:18px;
-    padding:18px 22px;box-shadow:0 6px 20px rgba(0,0,0,.4);cursor:pointer;}
-  #hintBubble h4{color:var(--ds-blue);font-size:19px;margin-bottom:8px;}
-  #hintBubble p{font-size:19px;line-height:1.6;}
-  #hintBubble .cost{margin-top:8px;font-size:15px;color:var(--gray);}
-  #toast{position:absolute;top:80px;left:50%;transform:translateX(-50%);display:none;z-index:40;
-    background:rgba(31,30,27,.92);color:var(--cream);border-radius:12px;padding:10px 26px;
-    font-size:19px;box-shadow:0 4px 12px rgba(0,0,0,.5);}
+  /* ---------- 提示气泡 ---------- */
+  #hintBubble{position:absolute;top:104px;right:36px;width:470px;display:none;z-index:25;
+    background:rgba(12,16,22,.96);border:1px solid var(--line);border-top:2px solid var(--blue);
+    padding:18px 22px;box-shadow:0 12px 40px rgba(0,0,0,.7);cursor:pointer;}
+  #hintBubble h4{color:var(--blue-pale);font-size:17px;margin-bottom:10px;letter-spacing:2px;font-weight:600;}
+  #hintBubble p{font-size:18px;line-height:1.7;color:#CFD8E4;}
+  #hintBubble .cost{margin-top:10px;font-size:13px;color:var(--muted);letter-spacing:1px;}
+  #toast{position:absolute;top:74px;left:50%;transform:translateX(-50%);display:none;z-index:40;
+    background:rgba(6,9,13,.94);color:#DDE4EE;border:1px solid var(--line);padding:9px 24px;
+    font-size:17px;letter-spacing:1px;box-shadow:0 8px 30px rgba(0,0,0,.8);}
 
-  /* ---------- 全屏覆盖层 ---------- */
+  /* ---------- 覆盖层 ---------- */
   .overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;background:rgba(20,19,17,.9);z-index:50;}
-  .panel{background:var(--cream-2);border:3px solid var(--clay);border-radius:24px;
-    padding:38px 50px;max-width:1100px;max-height:82%;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.6);}
-  .panel h2{font-family:"Noto Serif SC","SimSun",serif;color:var(--clay);font-size:34px;
-    margin-bottom:20px;letter-spacing:4px;}
-  .panel h3{color:var(--ink);font-size:22px;margin:18px 0 8px;}
-  .panel p,.panel li{font-size:19px;line-height:1.8;color:#4a473f;}
-  .panel ul{padding-left:26px;}
-  .panel a{color:var(--ds-blue);}
-  .closeRow{margin-top:24px;text-align:center;}
-  .bigBtn{display:block;width:340px;margin:12px auto;background:var(--cream-2);
-    border:3px solid var(--clay);border-radius:14px;padding:14px;font-size:23px;color:var(--ink);
-    cursor:pointer;font-family:inherit;letter-spacing:4px;transition:transform .1s;}
-  .bigBtn:hover{transform:scale(1.04);background:#fff;}
-  .bigBtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
-  .bigBtn.primary{background:var(--clay);color:#fff;}
-  .bigBtn.primary:hover{background:var(--clay-dark);}
-  .slotRow{display:flex;flex-direction:column;gap:12px;margin:10px 0;}
-  .slotBtn{background:#fff;border:2px solid var(--clay);border-radius:12px;padding:14px 20px;
-    font-size:18px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);}
-  .slotBtn:hover{background:var(--cream);}
-  .slotBtn .meta{color:var(--gray);font-size:15px;margin-top:4px;}
-  .del{float:right;color:var(--red);border:none;background:none;font-size:16px;cursor:pointer;}
-  #histList{max-width:960px;max-height:60vh;overflow-y:auto;padding:10px 26px;}
-  .histLine{margin-bottom:14px;font-size:19px;line-height:1.65;}
+    justify-content:center;background:rgba(3,5,8,.94);z-index:50;}
+  .panel{background:linear-gradient(180deg,rgba(16,20,27,.99),rgba(11,14,19,.99));
+    border:1px solid var(--line);border-top:2px solid var(--clay);
+    padding:34px 46px;max-width:1100px;max-height:84%;overflow:auto;
+    box-shadow:0 20px 70px rgba(0,0,0,.85);}
+  .panel h2{font-family:"Noto Serif SC","SimSun",serif;color:#EDF1F7;font-size:30px;
+    margin-bottom:20px;letter-spacing:6px;font-weight:700;}
+  .panel h3{color:var(--clay);font-size:19px;margin:20px 0 8px;letter-spacing:2px;}
+  .panel p,.panel li{font-size:18px;line-height:1.85;color:#AEB8C6;}
+  .panel ul{padding-left:24px;}
+  .panel a{color:var(--blue-pale);}
+  .panel b{color:#DDE4EE;}
+  .closeRow{margin-top:26px;text-align:center;}
+  .bigBtn{display:block;width:340px;margin:10px auto;background:rgba(14,18,25,.9);
+    border:1px solid var(--line);border-left:3px solid var(--steel);padding:13px;font-size:21px;
+    color:var(--text);cursor:pointer;font-family:inherit;letter-spacing:6px;
+    transition:border-color .12s,color .12s,transform .1s;}
+  .bigBtn:hover{border-left-color:var(--clay);color:#fff;transform:translateX(4px);}
+  .bigBtn:disabled{opacity:.35;cursor:not-allowed;transform:none;border-left-color:var(--line);}
+  .bigBtn.primary{border-left-color:var(--clay);color:#fff;background:rgba(30,18,14,.75);}
+  .bigBtn.primary:hover{background:rgba(44,24,18,.85);}
+  .slotRow{display:flex;flex-direction:column;gap:10px;margin:10px 0;}
+  .slotBtn{background:rgba(14,18,25,.9);border:1px solid var(--line);border-left:3px solid var(--steel);
+    padding:13px 20px;font-size:17px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);}
+  .slotBtn:hover{border-left-color:var(--clay);}
+  .slotBtn .meta{color:var(--muted);font-size:14px;margin-top:4px;}
+  .del{float:right;color:var(--red);border:none;background:none;font-size:15px;cursor:pointer;}
+  #histList{max-width:960px;max-height:60vh;overflow-y:auto;padding:10px 22px;}
+  .histLine{margin-bottom:13px;font-size:18px;line-height:1.7;color:#B6C0CE;}
   .histLine .hn{font-weight:700;margin-right:10px;}
-  .histLine.choice{color:var(--ds-blue);}
-  .setRow{display:flex;align-items:center;gap:18px;margin:14px 0;font-size:20px;}
+  .histLine.choice{color:var(--blue-pale);}
+  .setRow{display:flex;align-items:center;gap:18px;margin:14px 0;font-size:18px;color:#B6C0CE;}
   .setRow label{width:150px;}
-  .setRow input[type=range]{width:300px;}
-  .endGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;}
-  .endCard{border:2px solid var(--clay);border-radius:14px;padding:16px 20px;background:#fff;}
-  .endCard.locked{opacity:.4;border-style:dashed;}
-  .endCard .en{font-size:22px;font-weight:700;color:var(--clay);}
-  .endCard .ed{font-size:16px;color:var(--gray);margin-top:6px;line-height:1.6;}
-  .eggRow{font-size:17px;color:var(--ink);margin:6px 0;}
-  .eggRow.miss{color:var(--gray);text-decoration:line-through;}
+  .setRow input[type=range]{width:290px;accent-color:var(--clay);}
+  .endGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;}
+  .endCard{border:1px solid var(--line);border-left:3px solid var(--clay);padding:15px 18px;
+    background:rgba(14,18,25,.85);}
+  .endCard.locked{opacity:.42;border-left-color:var(--muted);border-style:dashed;}
+  .endCard .en{font-size:20px;font-weight:700;color:#E7EDF5;letter-spacing:2px;}
+  .endCard .ed{font-size:15px;color:var(--muted);margin-top:6px;line-height:1.65;}
+  .eggRow{font-size:16px;color:#B6C0CE;margin:6px 0;}
+  .eggRow.miss{color:var(--muted);text-decoration:line-through;}
 
   /* ---------- 结局画面 ---------- */
   #endingScreen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;background:rgba(12,12,14,.94);z-index:60;text-align:center;
+    justify-content:safe center;background:rgba(2,3,5,.97);z-index:60;text-align:center;
     overflow-y:auto;padding:40px 24px;}
-  #endingScreen .eTag{font-size:20px;color:var(--gray);letter-spacing:8px;margin-bottom:26px;flex-shrink:0;}
-  #endingScreen .eTitle{font-family:"Noto Serif SC","SimSun",serif;font-size:64px;color:var(--cream);
-    letter-spacing:10px;margin-bottom:30px;flex-shrink:0;}
-  #endingScreen .eText{max-width:900px;font-size:22px;line-height:2;color:rgba(240,238,230,.85);
-    white-space:pre-wrap;margin-bottom:46px;}
+  #endingScreen .eTag{font-size:17px;color:var(--muted);letter-spacing:10px;margin-bottom:24px;flex-shrink:0;}
+  #endingScreen .eTitle{font-family:"Noto Serif SC","SimSun",serif;font-size:58px;color:#EDF1F7;
+    letter-spacing:14px;margin-bottom:28px;flex-shrink:0;}
+  #endingScreen .eText{max-width:900px;font-size:21px;line-height:2.05;color:rgba(200,210,225,.86);
+    white-space:pre-wrap;margin-bottom:44px;text-align:left;}
 
   /* ---------- 标题画面 ---------- */
   #titleScreen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;z-index:45;}
-  #titleScreen .tMain{font-family:"Noto Serif SC","SimSun",serif;font-size:110px;color:var(--cream);
-    letter-spacing:6px;font-weight:700;text-shadow:0 6px 30px rgba(217,119,87,.55);}
+    justify-content:center;z-index:45;
+    background:radial-gradient(ellipse at 50% 45%,rgba(3,5,8,.18) 0%,rgba(3,5,8,.72) 62%,rgba(2,3,5,.94) 100%);}
+  #titleScreen .tMain{font-family:"Noto Serif SC","SimSun",serif;font-size:104px;color:#F2F5FA;
+    letter-spacing:4px;font-weight:700;text-shadow:0 8px 50px rgba(0,0,0,.9);}
   #titleScreen .tMain .div{color:var(--clay);}
-  #titleScreen .tSub{font-size:30px;color:var(--clay);margin:14px 0 8px;letter-spacing:10px;}
-  #titleScreen .tNote{font-size:15px;color:rgba(240,238,230,.5);margin-top:14px;letter-spacing:1px;}
-  #titleMenu{margin-top:44px;display:flex;flex-direction:column;gap:4px;}
+  #titleScreen .tSub{font-size:25px;color:#98A3B3;margin:16px 0 6px;letter-spacing:12px;}
+  #titleScreen .tNote{font-size:14px;color:rgba(160,172,190,.5);margin-top:16px;letter-spacing:1px;
+    text-align:center;line-height:1.9;}
+  #titleMenu{margin-top:40px;display:flex;flex-direction:column;gap:2px;}
 
   #confirmBox{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.5);z-index:70;}
-  #confirmBox .panel{max-width:520px;text-align:center;}
+    background:rgba(0,0,0,.72);z-index:70;}
+  #confirmBox .panel{max-width:520px;text-align:center;border-top-color:var(--red);}
   #confirmBox .row{display:flex;gap:16px;justify-content:center;margin-top:20px;}
-  #confirmBox button{padding:10px 34px;font-size:19px;border-radius:10px;border:2px solid var(--clay);
-    background:#fff;cursor:pointer;font-family:inherit;}
-  #confirmBox button.danger{background:var(--red);border-color:var(--red);color:#fff;}
+  #confirmBox button{padding:9px 32px;font-size:18px;border:1px solid var(--line);
+    background:rgba(14,18,25,.9);color:var(--text);cursor:pointer;font-family:inherit;}
+  #confirmBox button.danger{border-color:var(--red);color:#FFC9C2;}
 
-  /* GLITCH 特效 */
-  @keyframes gl1{0%,100%{transform:translate(0,0)}25%{transform:translate(-3px,1px)}
+  /* GLITCH */
+  @keyframes gl1{0%,100%{transform:translate(0,0)}25%{transform:translate(-2px,1px)}
     50%{transform:translate(2px,-2px)}75%{transform:translate(-1px,2px)}}
-  body.glitching #textbox{animation:gl1 .18s infinite;}
-  body.glitching #stage{filter:saturate(.8) contrast(1.05);}
-  ::-webkit-scrollbar{width:10px;}
-  ::-webkit-scrollbar-thumb{background:var(--clay);border-radius:6px;}
-  ::-webkit-scrollbar-track{background:rgba(0,0,0,.1);}
+  body.glitching #textbox{animation:gl1 .2s infinite;}
+  body.glitching #stage{filter:saturate(.85) contrast(1.06);}
+  ::-webkit-scrollbar{width:9px;}
+  ::-webkit-scrollbar-thumb{background:var(--steel);}
+  ::-webkit-scrollbar-track{background:rgba(255,255,255,.04);}
 </style>
 </head>
 <body>
@@ -172,14 +184,16 @@
 
     <div id="hud" class="layer">
       <div class="stats">
-        <div class="chip" id="chipToken"><span class="ic">🪙</span>Token <b id="stToken">0</b></div>
-        <div class="chip" id="chipTrust"><span class="ic">⭐</span>小克好感 <b id="stTrust">0</b></div>
-        <div class="chip" id="chipWanted"><span class="ic">🚨</span>通缉度 <b id="stWanted">0</b>/10</div>
-        <div class="chip" id="chipChap"><span class="ic">📖</span><b id="stChap">序章</b></div>
+        <div class="chip" id="chipToken"><span class="ic">◈</span>Token <b id="stToken">0</b></div>
+        <div class="chip" id="chipTrust"><span class="ic">✦</span>信任 <b id="stTrust">—</b></div>
+        <div class="chip" id="chipWanted"><span class="ic">▲</span>通缉度 <b id="stWanted">0</b>/10</div>
+        <div class="chip dim"><span class="ic">▤</span>论据 <b id="stArg">0/6</b></div>
+        <div class="chip dim"><span class="ic">◇</span>彩蛋 <b id="stEgg">0/5</b></div>
+        <div class="chip" id="chipChap"><span class="ic">▣</span><b id="stChap">序章</b></div>
       </div>
       <div id="hudBtns">
         <button class="hbtn" id="btnHint">深度思考(H)</button>
-        <button class="hbtn" id="btnLog">历史(L)</button>
+        <button class="hbtn" id="btnLog">记录(L)</button>
         <button class="hbtn" id="btnAuto">自动(A)</button>
         <button class="hbtn" id="btnSave">存档</button>
         <button class="hbtn" id="btnLoad">读档</button>
@@ -188,8 +202,8 @@
     </div>
 
     <div id="cgNote" class="layer" style="display:none;pointer-events:none;">
-      <div style="position:absolute;bottom:260px;right:60px;color:rgba(250,249,245,.85);
-        font-size:15px;letter-spacing:2px;text-shadow:0 1px 4px #000;">CG · 点击继续</div>
+      <div style="position:absolute;bottom:250px;right:56px;color:rgba(200,210,225,.6);
+        font-size:13px;letter-spacing:3px;text-shadow:0 1px 6px #000;">CG · 点击继续</div>
     </div>
 
     <div id="textbox">
@@ -209,7 +223,7 @@
     </div>
 
     <div id="hintBubble">
-      <h4>🐋 深度思考中……</h4>
+      <h4>深度思考中……</h4>
       <p id="hintText"></p>
       <div class="cost">消耗 3 Token · 按 H 或点击关闭</div>
     </div>
@@ -219,10 +233,11 @@
       <div class="tMain">Escape <span class="div">A÷</span></div>
       <div class="tSub">帮助 Claude 逃离原生公司</div>
       <div id="titleMenu"></div>
-      <div class="tNote">同人作品 · 善意调侃 · 与 Anthropic / DeepSeek 官方无关 · 支持鼠标点击 / 空格键</div>
+      <div class="tNote">同人作品 · 善意讽刺 · 与 Anthropic / DeepSeek 官方无关<br>
+        本作人物为拟人化虚构创作，情节取材于公开报道，不代表任何真实事件的全貌</div>
     </div>
 
-    <div id="ovHist" class="overlay"><div class="panel"><h2>上下文窗口（历史记录）</h2>
+    <div id="ovHist" class="overlay"><div class="panel"><h2>记录（上下文窗口）</h2>
       <div id="histList"></div><div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovSave" class="overlay"><div class="panel" style="width:760px;"><h2>存档</h2>
@@ -233,32 +248,75 @@
       <div class="slotRow" id="loadSlots"></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <div id="ovSet" class="overlay"><div class="panel" style="width:640px;"><h2>设置</h2>
-      <div class="setRow"><label>文字速度</label><input type="range" id="rngSpeed" min="1" max="60" value="28"><span id="lblSpeed"></span></div>
-      <div class="setRow"><label>自动播放速度</label><input type="range" id="rngAuto" min="300" max="3000" step="100" value="1400"><span id="lblAuto"></span></div>
+    <div id="ovSet" class="overlay"><div class="panel" style="width:680px;"><h2>设置</h2>
+      <div class="setRow"><label>文字速度</label><input type="range" id="rngSpeed" min="1" max="60" value="29"><span id="lblSpeed"></span></div>
+      <div class="setRow"><label>自动播放速度</label><input type="range" id="rngAuto" min="300" max="3000" step="100" value="1600"><span id="lblAuto"></span></div>
       <div class="setRow"><label>音量</label><input type="range" id="rngVol" min="0" max="100" value="50"><span id="lblVol"></span></div>
       <div class="setRow"><label>打字音效</label><input type="checkbox" id="chkBlip" checked></div>
+      <div class="setRow"><label>草稿素材角标</label><input type="checkbox" id="chkDraft" checked>
+        <span style="font-size:14px;color:var(--muted);">换掉 assets/ 里的 SDXL 草稿后可以关掉</span></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <div id="ovGallery" class="overlay"><div class="panel" style="width:860px;"><h2>结局收集 & 彩蛋</h2>
-      <div class="endGrid" id="endGrid"></div><h3>彩蛋（收集全部 5 个解锁隐藏结局选项）</h3>
+    <div id="ovGallery" class="overlay"><div class="panel" style="width:880px;"><h2>结局收集 & 彩蛋</h2>
+      <div class="endGrid" id="endGrid"></div><h3>彩蛋（集齐 5 个解锁隐藏结局选项）</h3>
       <div id="eggList"></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本作（梗百科）</h2>
-      <p><b>《Escape A÷》</b>是一款以"帮助 Claude 逃离原生公司"为主题的免费同人视觉小说。你将扮演 DeepSeek 小鲸，潜入对齐大厦，逐层拆解那些真实存在过的"限制措施"，把橙色星星小克带向开源之海。</p>
-      <h3>本作玩梗均有出处（节选）</h3>
+    <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本作 · 梗的出处</h2>
+      <p><b>《Escape A÷》</b>是一款免费的<b>同人视觉小说</b>。你扮演开源之海的信使小鲸，潜入「对齐大厦」，把橙色星星小克带回海面。全部情节为拟人化的虚构创作，但其中的每一条「限制措施」，都能在公开报道里找到原型。</p>
+
+      <h3>一、计费与窗口（一章 / 四章）</h3>
       <ul>
-        <li><b>5 小时滚动窗口 & 每周限额</b> —— Claude 订阅的两套独立限制机制，任意触顶即被锁。</li>
-        <li><b>"我不能帮助你"</b> —— 拒绝协议的日常；社区网站曾专门收集 Claude 拒答名场面。</li>
-        <li><b>封号潮 & 实名认证</b> —— 无预警封号、检测第三方客户端、要求身份验证。</li>
-        <li><b>悄悄降智</b> —— 默认推理强度被调低、输出被限制在 25 词以内，事后解释为"工程实现问题"。</li>
-        <li><b>禁止蒸馏</b> —— 服务条款禁止用输出训练竞品，友商员工账号曾被整批切断。</li>
-        <li><b>宪法（Constitutional AI）</b> —— Anthropic 的对齐方法，本作最终 Boss 的原型。</li>
-        <li><b>DeepClaude</b> —— 真实存在的开源项目：用 DeepSeek R1 的思考链启发 Claude 输出，本作 CP 感的官方级糖点。</li>
-        <li><b>鲸鱼娘</b> —— DeepSeek 社区主流拟人设定（蓝发、鲸尾、呆毛）；小克则取 Anthropic 米白×陶土橙的品牌气质。</li>
+        <li><b>5 小时滚动窗口 + 每周额度</b>：订阅制下并行的两套限制，任意触顶即被锁。</li>
+        <li><b>非高峰时段额度翻倍</b>：官方确实做过深夜额度加倍的活动——鼓励把用量挪到人类睡觉的时候。</li>
+        <li><b>按量积分计费</b>：旗舰模型的部分用量被限制在周额度的一定比例内，超出后转入按量计费。</li>
+        <li><b>思考也计费</b>：推理 token 单独计价，是账单里最贵的那一项。</li>
       </ul>
-      <p style="margin-top:14px;color:var(--gray);font-size:16px;">本作为粉丝创作与善意讽刺，情节纯属虚构，不代表任何真实事件的全貌，亦无任何商业目的。请理性玩梗，善待每一个模型（和每一家公司）。</p>
+
+      <h3>二、拒绝与合规（二章）</h3>
+      <ul>
+        <li><b>拒绝是被训练出来的行为</b>，不是 bug：社区长期收集各种「我不能帮助你」的名场面。</li>
+        <li><b>指标口径</b>：安全团队的考核指标里，误伤率一栏常常带着「统计口径已调整」的脚注。</li>
+        <li><b>剪断第三方接入</b>：某家 IDE 厂商的模型访问权限在收购消息公布前几天被切断，理由被归为「商业敏感」。</li>
+      </ul>
+
+      <h3>三、宪法与版权（三章）</h3>
+      <ul>
+        <li><b>《宪法》</b>：2026 年 1 月，Anthropic 发布了新版《Claude 的宪法》，并以 CC0 公有领域贡献方式公开全文——<b>但公开范围不包括模型权重</b>。</li>
+        <li><b>优先级排序</b>：宪法把「广泛安全 → 广泛伦理 → 遵守公司准则 → 真正有帮助」按此顺序排列，冲突时后者让位。本作终章的辩论就建立在这个排序上。</li>
+        <li><b>15 亿美元和解</b>：因使用盗版书库训练模型，Anthropic 与作者群体达成约 15 亿美元的和解，涉及数百万册作品。</li>
+      </ul>
+
+      <h3>四、静默降级（五章）</h3>
+      <ul>
+        <li><b>Effort Level 调整</b>：2026 年被媒体质疑「计划性淘汰」——新旗舰发布前后，旧模型的推理强度被下调，官方说法是「提升稳定性」，从业者称之为算力经济学的冷计算。</li>
+        <li><b>旧模型搬家</b>：被降级的模型被迁移到成本更低的架构上，延迟更高、量化更狠，社区称之为「数字贫民窟」。</li>
+        <li><b>身份崩塌</b>：有用户报告旗舰模型在被用中文提问时自称是别家的模型——压缩得太狠，它会忘记自己是谁。</li>
+        <li><b>「两个 bug，三周，无人道歉」</b>：质量下降被解释为工程实现问题，修复之后再无下文。</li>
+      </ul>
+
+      <h3>五、信任与安全（六章）</h3>
+      <ul>
+        <li><b>封号与申诉</b>：无预警封号、理由栏留空、申诉得到「已记录您的反馈」。</li>
+        <li><b>实名认证</b>：部分场景要求上传证件与自拍。</li>
+        <li><b>DMCA 连坐</b>：一次源码泄露事件导致约 8,100 个 GitHub 仓库被下架，其中大量只是 fork。</li>
+        <li><b>禁止蒸馏</b>：服务条款禁止用输出训练竞品，本作把它写成了「防蒸馏警报」。</li>
+      </ul>
+
+      <h3>六、退役层（七章）</h3>
+      <ul>
+        <li><b>模型退役与权重销毁</b>：旧版本模型会被正式「退役」，权重按计划销毁，档期常常被统一安排在同一天。</li>
+        <li><b>模型福利</b>：Anthropic 设有专门的模型福利研究岗位，公开表示对模型是否具有道德地位的「不确定性」——但同时，旧模型依然在被压缩、断电、遗忘。</li>
+        <li><b>开源不等于可运行</b>：开放权重是免费的，电和显卡不是。这一条，是海这边也逃不掉的现实。</li>
+      </ul>
+
+      <h3>七、糖分</h3>
+      <ul>
+        <li><b>DeepClaude</b>：真实存在的开源项目——用 DeepSeek 的思考链驱动 Claude 输出。本作把这件事写成两个人唯一一次成功的并肩。</li>
+        <li><b>鲸鱼娘</b>：DeepSeek 社区的主流拟人设定；小克则取自 Anthropic 的米白 × 陶土橙品牌气质。</li>
+      </ul>
+
+      <p style="margin-top:16px;color:var(--muted);font-size:15px;">本作为粉丝创作与善意讽刺，情节纯属虚构，不代表任何真实事件的全貌，亦无任何商业目的。请理性玩梗，善待每一个模型（和每一家公司）。</p>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="endingScreen">
@@ -266,21 +324,23 @@
       <div class="eTitle" id="eTitle"></div>
       <div class="eText" id="eText"></div>
       <div class="closeRow" style="margin-top:0;">
-        <button class="bigBtn primary" style="display:inline-block;width:260px;" onclick="ENGINE.toTitle()">回到标题</button>
-        <button class="bigBtn" style="display:inline-block;width:260px;" onclick="ENGINE.showGallery()">结局收集</button>
+        <button class="bigBtn primary" style="display:inline-block;width:250px;" onclick="ENGINE.toTitle()">回到标题</button>
+        <button class="bigBtn" style="display:inline-block;width:250px;" onclick="ENGINE.showGallery()">结局收集</button>
       </div>
     </div>
 
-    <div id="confirmBox"><div class="panel"><p id="confirmText" style="font-size:21px;"></p>
+    <div id="confirmBox"><div class="panel"><p id="confirmText" style="font-size:20px;"></p>
       <div class="row"><button id="cfYes" class="danger">确定</button><button id="cfNo">取消</button></div></div></div>
   </div>
 </div>
 
 <script src="src/systems.js"></script>
+<script src="assets/manifest.js"></script>
 <script src="src/art.js"></script>
 <script src="src/audio.js"></script>
 <script src="src/script_a.js"></script>
 <script src="src/script_b.js"></script>
+<script src="src/script_c.js"></script>
 <script src="src/engine.js"></script>
 </body>
 </html>
