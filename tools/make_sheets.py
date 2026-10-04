@@ -63,7 +63,7 @@ VIEWS = [
 ]
 
 
-def gen_view(who, view_tag, seed):
+def gen_view(who, view_name, view_tag, seed):
     """生成一张三视图用的素体（带 LoRA，抠好底）"""
     info = WHO_INFO[who]
     pos = ("%s, %s, character design reference, solo, one girl, only one person, "
@@ -83,7 +83,7 @@ def gen_view(who, view_tag, seed):
         cut = cut.crop(bb)
     h = 1500
     cut = cut.resize((max(1, int(cut.width * h / cut.height)), h), Image.LANCZOS)
-    out = os.path.join(SHEETS, "%s_%s.png" % (who, view_tag))
+    out = os.path.join(SHEETS, "%s_%s.png" % (who, view_name))
     os.makedirs(SHEETS, exist_ok=True)
     pad = Image.new("RGBA", (cut.width + 40, cut.height + 40), (0, 0, 0, 0))
     pad.paste(cut, (20, 20), cut)
@@ -140,7 +140,7 @@ def build_sheet(who):
     for i, (name, tag) in enumerate(VIEWS):
         p = os.path.join(SHEETS, "%s_%s.png" % (who, name))
         if not os.path.exists(p):
-            p = gen_view(who, tag, 71000 + i * 13 + (0 if who == "ds" else 500))
+            p = gen_view(who, name, tag, 71000 + i * 13 + (0 if who == "ds" else 500))
         views.append(p)
 
     W, H = 2600, 2120
@@ -271,13 +271,13 @@ def main():
     if args.who in ("ds", "all"):
         if args.views_only:
             for i, (n, t) in enumerate(VIEWS):
-                gen_view("ds", t, 71000 + i * 13)
+                gen_view("ds", n, t, 71000 + i * 13)
         else:
             build_sheet("ds")
     if args.who in ("cl", "all"):
         if args.views_only:
             for i, (n, t) in enumerate(VIEWS):
-                gen_view("cl", t, 71500 + i * 13)
+                gen_view("cl", n, t, 71500 + i * 13)
         else:
             build_sheet("cl")
     if args.who in ("cast", "all"):
