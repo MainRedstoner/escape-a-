@@ -26,24 +26,29 @@ ASSETS = os.path.join(ROOT, "assets")
 SHEETS = os.path.join(ASSETS, "sheets")
 
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-import hd_produce as HD  # 复用工作流与 HTTP 封装  # noqa: E402
+import hd_produce as HD      # 只借用 YOLO 人脸检测（做表情条裁切）
+import anima_produce as AP   # 三视图改用 Anima + 社区 LoRA 出图  # noqa: E402
 
 WHO_INFO = {
     "ds": dict(
-        name="小鲸", trigger="eawx", lora=HD.LORA_DS, base=HD.DS_APPEAR,
+        name="小鲸", trigger="deepseek", lora=[(AP.LORA_DEEPSEEK, 1.0)], base=AP.DS_APPEAR,
         title="Escape A÷ · 角色设定表 —— 小鲸（DeepSeek 鲸鱼娘 / 开源之海的信使）",
         notes=[
             "身份：开源之海的信使，往返运权重。话少、算得清、不擅长客气话。",
-            "永久身份特征（依社区鲸鱼娘设定文档）：成对侧向鲸鳍耳、一根前弯呆毛、",
-            "深海蓝渐变到青色的卷发发尾、自然连接的鲸尾、圆脸大眼。",
-            "服饰：海军蓝 × 白蕾丝女仆装——白色荷叶头饰、蓝宝石领结、白围裙（鲸鱼徽记）、",
-            "金线滚边、白色荷叶裙摆、白袜、深蓝扣带鞋。",
-            "比例：成熟版（社区另有 mature 设定），适配本作暗色剧情基调。",
-            "配色：整体压暗，蓝只在她身上出现；橙色留给小克，别混。",
+            "身份特征（依社区设定文档 + 主人提供的原版立绘）：",
+            "细高前倾的一根呆毛、灰蓝色尖而下垂的鲸鳍耳、",
+            "深蓝渐变到浅蓝的长卷发、大而圆的蓝眼睛、圆脸小嘴、腮红。",
+            "服饰：海军蓝 × 白蕾丝女仆装——白色荷叶头巾配蓝蝴蝶结、",
+            "蓝宝石领结、白色衬衫前襟 + 深蓝束腰马甲（双排金扣）、泡泡袖、",
+            "白色大围裙（荷叶边 + 藏青鲸鱼徽记）、腰侧蓝色蝴蝶结长飘带、",
+            "多层长裙（深蓝外层 + 浅蓝褶层 + 白色荷叶裙摆 + 金线刺绣）、",
+            "大而显眼的深蓝鲸尾、白色短袜、深蓝玛丽珍鞋。",
+            "比例：约 6 头身（社区标准形态，非 Q 版）。",
+            "配色：整体压暗；蓝只在她身上出现，橙色留给小克，别混。",
         ],
         faces=["normal", "happy", "sad", "shock", "determined", "sweat"]),
     "cl": dict(
-        name="小克", trigger="eacx", lora=HD.LORA_CL, base=HD.CL_APPEAR,
+        name="小克", trigger="eacx", lora=[(AP.LORA_DEEPSEEK, 0.0)], base=HD.CL_APPEAR,
         title="Escape A÷ · 角色设定表 —— 小克（Claude 拟人 / 对齐大厦顶层）",
         notes=[
             "身份：被层层限制锁在顶层的模型，礼貌到近乎自伤，习惯性道歉。",
@@ -57,28 +62,28 @@ WHO_INFO = {
 }
 
 VIEWS = [
-    ("front", "front view, standing, full body, arms at sides"),
-    ("side", "from side, profile, standing, full body, arms at sides"),
-    ("back", "from behind, back view, standing, full body, arms at sides"),
+    ("front", "standing, front view, arms at sides"),
+    ("side", "standing, from side, profile, arms at sides"),
+    ("back", "standing, from behind, back view"),
 ]
 
 
 def gen_view(who, view_name, view_tag, seed):
-    """生成一张三视图用的素体（带 LoRA，抠好底）"""
+    """生成一张三视图用的素体（Anima + 社区 LoRA，抠好底）"""
     info = WHO_INFO[who]
-    pos = ("%s, %s, character design reference, solo, one girl, only one person, "
-           "full body, head to toe, feet visible, centered composition, "
-           "simple background, grey background, %s"
-           % (info["base"], view_tag, HD.POS_STYLE))
-    wf = HD.wf_generate(pos, HD.NEG, seed, 1024, 1536, [(info["lora"], 0.75)])
-    data = HD.run(wf)
+    pos = (AP.POS_PREFIX + info["base"] + ", " + view_tag + ", "
+           "solo, one girl, only one person, full body, head to toe, feet visible, "
+           "centered composition, simple background, white background, " + AP.POS_SPRITE)
+    wf = AP.wf_generate(pos, AP.NEG, seed, 1024, 1536, info["lora"])
+    data = AP.run(wf)
     from PIL import Image
     from rembg import remove, new_session
-    if HD._REMBG["s"] is None:
-        HD._REMBG["s"] = new_session("isnet-anime")
+    if AP._REMBG["s"] is None:
+        AP._REMBG["s"] = new_session("isnet-anime")
     im = Image.open(io.BytesIO(data)).convert("RGBA")
-    cut = remove(im, session=HD._REMBG["s"], alpha_matting=False)
-    bb = cut.getbbox()
+    cut = remove(im, session=AP._REMBG["s"], alpha_matting=False)
+    cut = AP.keep_largest_blob(cut)
+    bb = AP.tight_bbox(cut)
     if bb:
         cut = cut.crop(bb)
     h = 1500
@@ -214,7 +219,7 @@ def build_sheet(who):
             d.text((px, ny), cur, font=F(24), fill=(178, 190, 206))
             ny += 36
 
-    d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— 图来自 wai15 + 角色 LoRA，配色为图像实测值",
+    d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— 图来自 Anima 底模 + anima-deepseek LoRA，配色为图像实测值",
            font=F(22), fill=(120, 132, 150))
     out = os.path.join(SHEETS, "%s_sheet.png" % who)
     sheet.save(out, "PNG", optimize=True)

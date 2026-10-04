@@ -77,7 +77,8 @@
 
 * **小鲸（DeepSeek 鲸鱼娘）**——按其社区设定文档的「永久身份特征」绘制：成对侧向鲸鳍耳、一根前弯呆毛、深海蓝渐变到青色的卷发发尾、自然连接的鲸尾、圆脸大眼；服饰取该设定的 canonical：海军蓝 × 白蕾丝女仆装（白色荷叶头饰、蓝宝石领结、白围裙带鲸鱼徽记、金线滚边、白袜、深蓝扣带鞋）。
   * 参考：[deepseek-whalechan](https://github.com/Neko3000/deepseek-whalechan)（角色设定文档与参考图库）、[deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（社区二创资源库）。两者均为**非官方社区项目**。
-  * 比例说明：社区默认是 semi-chibi（半 Q 版），本作是暗色剧情向作品，因此采用**成熟比例**（社区另有 mature 设定表），并在生成与训练时用负向词锁死，不混入 Q 版。
+  * 立绘管线：**circlestone-labs/Anima** 底模（Aesthetic v1.1）+ 社区 LoRA **SAkizuki/anima-deepseek**（触发词 `deepseek`），按原版参考图逐项对齐；比例约 6 头身（社区标准形态，非 Q 版）。Anima 为非商用许可、LoRA 为 MIT，本作为免费同人作品。
+  * 用到的社区模型：<https://huggingface.co/SAkizuki/anima-deepseek> · <https://huggingface.co/circlestone-labs/Anima>
 * **小克（Claude 拟人）**——采用 **thebes（[@voooooogel](https://x.com/voooooogel)）以 CC0 公有领域发布的 flower-Claude 角色设计**：长橙发微卷、棕色眼睛、黑色缎带发结、橙色小花发饰、米白维多利亚洋装、黑色缎带与束腰。
   * 来源：[claudius-web](https://github.com/NoahBPeterson/claudius-web)（代码 MIT，**角色 CC0 by thebes**）。CC0 允许任何用途，本项目在此署名致谢。
 

@@ -57,6 +57,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--draft", type=int, default=1, help="1=标记为 AI 草稿（显示角标）")
     ap.add_argument("--model", default="WAI_NSFW-illustrious-SDXL_v15")
+    ap.add_argument("--final-model", default="circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA",
+                    help="已完成 HD 化的素材所用的管线（写进清单便于区分来源）")
     ap.add_argument("--final", default="",
                     help="逗号分隔的 id 前缀；这些素材视为正式版，不显示草稿角标（例如 ds_ 表示小鲸已做完 HD 版）")
     args = ap.parse_args()
@@ -68,7 +70,9 @@ def main():
         for k, v in scan(sub).items():
             entry = {"src": v}
             is_final = bool(final_prefixes) and k.startswith(final_prefixes)
-            if args.draft and not is_final:
+            if is_final:
+                entry["pipeline"] = args.final_model
+            elif args.draft:
                 entry["draft"] = True
                 if seeds.get(k):
                     entry["seed"] = seeds[k]

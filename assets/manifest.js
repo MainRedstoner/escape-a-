@@ -179,22 +179,28 @@ window.EA_ASSETS = {
       "seed": 22504
     },
     "ds_determined": {
-      "src": "assets/chara/ds_determined.png"
+      "src": "assets/chara/ds_determined.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "ds_happy": {
-      "src": "assets/chara/ds_happy.png"
+      "src": "assets/chara/ds_happy.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "ds_normal": {
-      "src": "assets/chara/ds_normal.png"
+      "src": "assets/chara/ds_normal.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "ds_sad": {
-      "src": "assets/chara/ds_sad.png"
+      "src": "assets/chara/ds_sad.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "ds_shock": {
-      "src": "assets/chara/ds_shock.png"
+      "src": "assets/chara/ds_shock.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "ds_sweat": {
-      "src": "assets/chara/ds_sweat.png"
+      "src": "assets/chara/ds_sweat.png",
+      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
     },
     "guard_angry": {
       "src": "assets/chara/guard_angry.png",

@@ -106,7 +106,7 @@ assets/
 
 | 部分 | 状态 |
 | --- | --- |
-| 小鲸 6 张立绘 | ✅ **HD 正式版已交付**（高度 2448，LoRA + hires + 脸/手局部重绘，`manifest.js` 里不再挂草稿角标） |
+| 小鲸 6 张立绘 | ✅ **HD 正式版已交付**（高度 2448，Anima + 社区 DeepSeek-chan LoRA，严格对齐原版参考图；`manifest.js` 里带 `pipeline` 标注、不挂草稿角标） |
 | 小鲸设定表 `sheets/ds_sheet.png` | ✅ 已交付（三视图 + 表情条 + 实测配色 + 设定要点） |
 | 小克 8 张立绘 | ⏳ 仍是第一代草稿（设计已定稿为 thebes 的 CC0 flower-Claude，待按同一管线重出） |
 | 其余 5 个配角立绘 | ⏳ 第一代草稿 |
@@ -115,7 +115,7 @@ assets/
 
 
 
-* **小鲸**：按社区「鲸鱼娘」设定文档的**永久身份特征**——成对侧向鲸鳍耳、一根前弯呆毛、深海蓝渐变到青色的卷发发尾、自然连接的鲸尾、圆脸大眼；服饰取该设定的 canonical：海军蓝 × 白蕾丝女仆装（白色荷叶头饰、蓝宝石领结、白围裙带**鲸鱼徽记**、金线滚边、白袜、深蓝扣带鞋）。比例用成熟版，适配本作暗色基调。
+* **小鲸**（以主人提供的原版立绘为准，逐项对齐）：细高前倾的一根呆毛、灰蓝色尖而下垂的鲸鳍耳、深蓝渐变到浅蓝的长卷发、大而圆的蓝眼睛、圆脸小嘴腮红；白色荷叶头巾配蓝蝴蝶结、蓝宝石领结、白衬衫前襟 + 深蓝束腰马甲（双排金扣）、泡泡袖、白色大围裙（荷叶边 + **藏青鲸鱼徽记**）、腰侧蓝色蝴蝶结长飘带、多层长裙（深蓝外层 + 浅蓝褶层 + 白色荷叶裙摆 + 金线刺绣）、大而显眼的深蓝鲸尾、白色短袜、深蓝玛丽珍鞋。比例约 **6 头身**（社区标准形态，非 Q 版）。
   * 来源：[deepseek-whalechan](https://github.com/Neko3000/deepseek-whalechan)（角色设定文档与参考图库）、[deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（社区二创资源库）。均为非官方社区项目。
 * **小克**：采用 **thebes（[@voooooogel](https://x.com/voooooogel)）以 CC0 发布的 flower-Claude 角色设计**——长橙发微卷、棕色眼睛、黑色缎带发结、橙色小花发饰、米白维多利亚洋装、黑色缎带与束腰、高领长袖。
   * 来源：[claudius-web](https://github.com/NoahBPeterson/claudius-web)（代码 MIT / **角色 CC0 by thebes**）。CC0 允许任何用途，本项目在此署名致谢。
@@ -142,17 +142,23 @@ python tools/gen_manifest.py --draft 0
 
 **第一代：草稿（`tools/comfy_art.py`）** —— 纯文生图，无 LoRA，只用来定构图与色调。
 
-**第二代：正式版（`tools/hd_produce.py` + 角色 LoRA）** —— 目前**小鲸的 6 张立绘**已经走到这一代：
+**第二代：正式版（`tools/anima_produce.py` + 社区模型）** —— 小鲸的 6 张立绘走的是这一代：
 
 | 项目 | 值 |
 | --- | --- |
-| 底模 | `WAI_NSFW-illustrious-SDXL_v15.safetensors`（Illustrious 系 SDXL） |
-| 角色 LoRA | `ea_whale_v1` / `ea_claude_v1`（双人 CG 时两个叠加，权重 0.6~0.8） |
-| 采样 | `dpmpp_2m` + `karras`，32 步 CFG 6.0 → 潜变量 ×1.5 **hires 二次采样**（18 步，denoise 0.45） |
-| 局部重绘 | `face_yolov8m` / `hand_yolov8s` 检出脸和手 → 裁切放大 → denoise 0.36/0.30 重画 → 羽化贴回 |
-| 立绘 | 1024×1536 基底 → hires 到 1536×2304 → 局部重绘 → `rembg(isnet-anime)` 抠图 → 高度 2400 透明 PNG |
-| 背景 / CG | 1344×768 基底 → hires 到 2016×1152 → 缩放到 2560×1440 JPEG q92 |
-| 随机种子 | 每张固定，写在 `tools/hd_produce.py` 的 `BGS` / `CGS` / `SPRITES` 里 |
+| 底模 | **circlestone-labs/Anima**（2B 动漫模型，ComfyUI 原生支持；Aesthetic v1.1，30 步 CFG 4.5） |
+| 角色 LoRA | **SAkizuki/anima-deepseek**（社区训练的 DeepSeek-chan LoRA，触发词 `deepseek`，权重 1.0） |
+| 文本编码器 / VAE | `qwen_3_06b_base.safetensors` / `qwen_image_vae.safetensors` |
+| 采样 | `er_sde` + `simple`；Turbo 变体（12 步 CFG 1）留作快速迭代 |
+| 放大 | 生成 1024×1536 → `4x-AnimeSharp` 超分 → 裁切到高度 2400 |
+| 抠图 | `rembg(isnet-anime)` + 只保留最大连通域 + 收紧裁切框 |
+| 差分一致性 | 同一角色所有表情**共用同一 seed**，只换表情标签 |
+
+> 为什么换管线：第一代正式版是我自己拿 SDXL(wai15) 训的 LoRA，比例/脸型/服装细节都偏离了原版设定。
+> 现在这条路是**直接在原版设定的数据上训练的社区模型**，用来严格对齐原版。
+> 许可：Anima 底模为 **CircleStone Labs 非商用许可**，LoRA 为 MIT —— 本作是免费同人作品，非商用，符合许可条件。
+
+**第一代：草稿（`tools/comfy_art.py` + `tools/hd_produce.py`）** —— 小克、配角、背景、CG 目前仍是这一代（SDXL/wai15）。
 
 **LoRA 怎么训的**（权重文件不进仓库，`tools/` 里是全部可复现的脚本）：
 
