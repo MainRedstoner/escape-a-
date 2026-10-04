@@ -57,21 +57,29 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--draft", type=int, default=1, help="1=标记为 AI 草稿（显示角标）")
     ap.add_argument("--model", default="WAI_NSFW-illustrious-SDXL_v15")
+    ap.add_argument("--final-kind-model", default="circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大",
+                    help="--final-kind 指定类别所用的管线标注")
     ap.add_argument("--final-model", default="circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA",
                     help="已完成 HD 化的素材所用的管线（写进清单便于区分来源）")
+    ap.add_argument("--final-kind", default="",
+                    help="逗号分隔的类别（bg/cg/chara）；整类都算正式版（例：--final-kind bg）")
     ap.add_argument("--final", default="",
                     help="逗号分隔的 id 前缀；这些素材视为正式版，不显示草稿角标（例如 ds_ 表示小鲸已做完 HD 版）")
     args = ap.parse_args()
 
     final_prefixes = tuple(p for p in args.final.split(",") if p)
+    final_kinds = set(x.strip() for x in args.final_kind.split(",") if x.strip())
     seeds = seeds_from_jobs()
     man = {"version": 1, "spec": SPEC, "model": args.model, "bg": {}, "cg": {}, "chara": {}}
     for sub in ("bg", "cg", "chara"):
         for k, v in scan(sub).items():
             entry = {"src": v}
-            is_final = bool(final_prefixes) and k.startswith(final_prefixes)
+            is_final = (bool(final_prefixes) and k.startswith(final_prefixes)) \
+                or (sub in final_kinds)
             if is_final:
-                entry["pipeline"] = args.final_model
+                entry["pipeline"] = (args.final_kind_model
+                                     if (sub in final_kinds and not (final_prefixes and k.startswith(final_prefixes)))
+                                     else args.final_model)
             elif args.draft:
                 entry["draft"] = True
                 if seeds.get(k):

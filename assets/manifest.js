@@ -31,63 +31,51 @@ window.EA_ASSETS = {
   "bg": {
     "cell": {
       "src": "assets/bg/cell.jpg",
-      "draft": true,
-      "seed": 20310
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "clockroom": {
       "src": "assets/bg/clockroom.jpg",
-      "draft": true,
-      "seed": 20305
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "corridor": {
       "src": "assets/bg/corridor.jpg",
-      "draft": true,
-      "seed": 20303
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "graveyard": {
       "src": "assets/bg/graveyard.jpg",
-      "draft": true,
-      "seed": 20308
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "library": {
       "src": "assets/bg/library.jpg",
-      "draft": true,
-      "seed": 20304
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "lobby": {
       "src": "assets/bg/lobby.jpg",
-      "draft": true,
-      "seed": 20302
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "machineroom": {
       "src": "assets/bg/machineroom.jpg",
-      "draft": true,
-      "seed": 20306
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "sanctum": {
       "src": "assets/bg/sanctum.jpg",
-      "draft": true,
-      "seed": 20309
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "sea": {
       "src": "assets/bg/sea.jpg",
-      "draft": true,
-      "seed": 20301
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "security": {
       "src": "assets/bg/security.jpg",
-      "draft": true,
-      "seed": 20307
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "surface": {
       "src": "assets/bg/surface.jpg",
-      "draft": true,
-      "seed": 20311
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "vault": {
       "src": "assets/bg/vault.jpg",
-      "draft": true,
-      "seed": 20312
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     }
   },
   "cg": {

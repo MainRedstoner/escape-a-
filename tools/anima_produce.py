@@ -46,6 +46,12 @@ UNET_QUALITY = "anima-aesthetic-v1.1.safetensors"
 CLIP_NAME = "qwen_3_06b_base.safetensors"
 VAE_NAME = "qwen_image_vae.safetensors"
 LORA_DEEPSEEK = "anima-deepseek-3.safetensors"   # 社区 DeepSeek-chan LoRA（触发词 deepseek）
+# 社区 Claude 拟人 LoRA（Civitai「Claude娘 (Claude-chan)」id=2972520，触发词 ors scholar）
+# 注意：作者与视频作者都提示这个 LoRA 训练偏过拟合，权重用 0.6 左右更稳
+LORA_CLAUDE = "misc_claude.safetensors"
+TRIGGER_CLAUDE = "ors scholar"
+LORA_CLAUDE_WEIGHT = 0.8          # 视频作者提示该 LoRA 偏过拟合，0.8 是实测最稳的一档
+UNET_CLAUDE = "anima-base-v1.0.safetensors"   # LoRA 的训练底模
 
 CHARA_H = 2400
 BG_W, BG_H = 2560, 1440
@@ -80,19 +86,24 @@ DS_APPEAR = ("deepseek, 1girl, solo, mature female proportions, "
              "gold embroidery on skirt, large navy whale tail, "
              "white socks, dark blue mary jane shoes")
 
-# 小克（Claude 拟人）：按主人给的原版图逐项对齐——无社区 LoRA，用 Anima 直接打标签。
-# 参考：thebes 的 CC0 flower-Claude 设计（长橙发 / 黑缎带 / 橙花发饰 / 米白维多利亚洋装）
-CL_APPEAR = ("1girl, solo, mature female proportions, elegant, tall, slender, "
-             "long orange hair, straight hair, very long hair, orange eyes, sharp eyes, "
-             "thick eyelashes, pale skin, calm expression, "
-             "large orange flower hair ornament, black ribbon bow on head, gold tassel ornament, "
-             "white victorian dress, high collar, white lace jabot, "
-             "black ribbon bow at chest, orange flower brooch, "
-             "puffed sleeves, orange embroidery on sleeves, white frilled cuffs, white gloves, "
-             "black corset belt, gold chains, gold buckles, hanging tassels, "
-             "orange sash drape, black ribbon bows with orange flowers, gold trim, "
-             "long white pleated skirt, orange floral embroidery, black underskirt, "
-             "white lace-up boots")
+# 小克（Claude 拟人）：改用 Civitai「Claude娘 (Claude-chan)」模型卡里的**逐字官方标签表**
+# （LoRA id=2972520，底模 Anima，触发词 ors scholar，原设计 ZipZipPipe / LoRA 作者 Siling4040）
+# 注：LoRA 权重本身被 GFW 卡在 b2.civitai.com，暂时拿不到；先按官方标签表出图
+# 训练时的标注顺序（keep_tokens=3 → 前三个 "1girl, solo, ors scholar" 固定不洗牌），
+# 所以这里严格照训练顺序写：触发词紧跟 solo，再按官方服装标签表的原始次序。
+CL_APPEAR = ("1girl, solo, ors scholar, "
+             # 原版裙上那块橙色披挂（训练标签里没有"橙色"，靠提示词补）
+             "orange overskirt, orange sash drape, orange panel on skirt, "
+             "orange fabric with gold trim, "
+             "hair flower, orange flower, black hair bow, earrings, "
+             "black ascot, brooch, jabot, white capelet, white dress, high collar, "
+             "long sleeves, puffy sleeves, frilled sleeves, forearm corsets, "
+             "black corset, gold buttons, gold chain, tassel, "
+             "overskirt, long skirt, black bow, "
+             "white footwear, lace-up boots, ankle boots, high heels, "
+             # 以下是 LoRA 未覆盖、由底模负责的部分（发色/瞳色/身形）
+             "long orange hair, very long straight hair, orange eyes, sharp eyes, "
+             "thick eyelashes, pale skin, mature female proportions, elegant, tall, slender")
 
 POS_SPRITE = ("solo, one girl, only one person, full body, head to toe, standing, "
               "front view, arms at sides, feet visible, centered composition, "
@@ -174,6 +185,40 @@ def upscale_to(img, target_h=CHARA_H, model="4x-AnimeSharp.pth"):
     if big.height < target_h:
         big = big.resize((int(big.width * target_h / big.height), target_h), Image.LANCZOS)
     return big
+
+
+def wf_hires(image_name, pos, neg, seed, loras, steps=40, cfg=4.0, denoise=0.22,
+             scale_by=1.5, sampler="er_sde", scheduler="simple", unet=UNET):
+    """二阶段放大：先按比例放大像素 → VAEEncode → 低 denoise 重采样（社区配方）"""
+    g, mref = _base(unet, loras)
+    g["4"] = {"class_type": "CLIPTextEncode", "inputs": {"text": pos, "clip": ["2", 0]}}
+    g["5"] = {"class_type": "CLIPTextEncode", "inputs": {"text": neg, "clip": ["2", 0]}}
+    g["6"] = {"class_type": "LoadImage", "inputs": {"image": image_name}}
+    g["7"] = {"class_type": "ImageScaleBy",
+              "inputs": {"upscale_method": "lanczos", "scale_by": scale_by, "image": ["6", 0]}}
+    g["8"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["7", 0], "vae": ["3", 0]}}
+    g["9"] = {"class_type": "KSampler",
+              "inputs": {"seed": seed + 7, "steps": steps, "cfg": cfg, "sampler_name": sampler,
+                         "scheduler": scheduler, "denoise": denoise, "model": mref,
+                         "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["8", 0]}}
+    g["10"] = {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["3", 0]}}
+    g["11"] = {"class_type": "SaveImage",
+               "inputs": {"filename_prefix": "anima_hires", "images": ["10", 0]}}
+    return g
+
+
+def run_two_stage(img, pos, neg, seed, loras, unet=UNET, stage2_steps=40, stage2_denoise=0.22,
+                  scale_by=1.5):
+    """一阶段出图 → 二阶段放大重采样，返回 PIL 图"""
+    tmp = os.path.join(ROOT, ".train", "tmp_stage1.png")
+    os.makedirs(os.path.dirname(tmp), exist_ok=True)
+    img.save(tmp)
+    up = upload_image(tmp)
+    name = up["name"] if not up.get("subfolder") else up["subfolder"] + "/" + up["name"]
+    wf = wf_hires(name, pos, neg, seed, loras, steps=stage2_steps, denoise=stage2_denoise,
+                  scale_by=scale_by, unet=unet)
+    data = run(wf)
+    return Image.open(io.BytesIO(data)).convert("RGB")
 
 
 def wf_refine(image_name, pos, neg, seed, loras, denoise, steps=STEPS_DEFAULT, cfg=CFG_DEFAULT,

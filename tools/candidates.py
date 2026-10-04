@@ -89,6 +89,10 @@ def main():
     OUT = os.path.join(ROOT, ".train", "candidates_" + args.who)
     os.makedirs(OUT, exist_ok=True)
     APPEAR = AP.DS_APPEAR if args.who == "ds" else AP.CL_APPEAR
+    if args.who == "ds":
+        LORAS, UNET = [(AP.LORA_DEEPSEEK, 1.0)], AP.UNET
+    else:
+        LORAS, UNET = [(AP.LORA_CLAUDE, AP.LORA_CLAUDE_WEIGHT)], AP.UNET_CLAUDE
     POSELIST = POSES if args.who == "ds" else POSES_CL
     print("角色:", args.who)
     files = []
@@ -104,8 +108,8 @@ def main():
                    + pose + ", solo, one girl, only one person, centered composition, "
                    "simple background, grey background, " + STYLE)
             t0 = time.time()
-            wf = AP.wf_generate(pos, AP.NEG, seed, 1024, 1536, [(AP.LORA_DEEPSEEK, 1.0)],
-                                steps=args.steps, cfg=AP.CFG_DEFAULT)
+            wf = AP.wf_generate(pos, AP.NEG, seed, 1024, 1536, LORAS,
+                                steps=args.steps, cfg=AP.CFG_DEFAULT, unet=UNET)
             img = Image.open(io.BytesIO(AP.run(wf))).convert("RGB")
             try:
                 img = AP.upscale_to(img, 1500)
@@ -124,8 +128,8 @@ def main():
                + PORTRAIT[1] + ", solo, one girl, centered composition, "
                "simple background, grey background, " + STYLE)
         t0 = time.time()
-        wf = AP.wf_generate(pos, AP.NEG, seed, 1024, 1536, [(AP.LORA_DEEPSEEK, 1.0)],
-                            steps=args.steps, cfg=AP.CFG_DEFAULT)
+        wf = AP.wf_generate(pos, AP.NEG, seed, 1024, 1536, LORAS,
+                            steps=args.steps, cfg=AP.CFG_DEFAULT, unet=UNET)
         img = Image.open(io.BytesIO(AP.run(wf))).convert("RGB")
         try:
             img = AP.upscale_to(img, 1500)
