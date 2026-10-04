@@ -145,7 +145,7 @@ def build_sheet(who):
     for i, (name, tag) in enumerate(VIEWS):
         p = os.path.join(SHEETS, "%s_%s.png" % (who, name))
         if not os.path.exists(p):
-            p = gen_view(who, name, tag, 71000 + i * 13 + (0 if who == "ds" else 500))
+            p = gen_view(who, name, tag, AP.SEED_DEFAULT + (0 if who == "ds" else 500))
         views.append(p)
 
     W, H = 2600, 2120
@@ -208,16 +208,10 @@ def build_sheet(who):
     ny = py + 40
     d.text((px, ny - 48), "设定要点", font=F(32, True), fill=(217, 119, 87))
     for line in info["notes"]:
-        cur = ""
-        for ch in line:
-            cur += ch
-            if len(cur) >= 17 and ch in "：，。、）（":
-                d.text((px, ny), cur, font=F(24), fill=(178, 190, 206))
-                ny += 36
-                cur = ""
-        if cur:
-            d.text((px, ny), cur, font=F(24), fill=(178, 190, 206))
-            ny += 36
+        # 硬折行：中文没有空格，按固定字数断行最稳（不依赖标点位置）
+        for i in range(0, len(line), 15):
+            d.text((px, ny), line[i:i + 15], font=F(23), fill=(178, 190, 206))
+            ny += 34
 
     d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— 图来自 Anima 底模 + anima-deepseek LoRA，配色为图像实测值",
            font=F(22), fill=(120, 132, 150))
@@ -276,13 +270,13 @@ def main():
     if args.who in ("ds", "all"):
         if args.views_only:
             for i, (n, t) in enumerate(VIEWS):
-                gen_view("ds", n, t, 71000 + i * 13)
+                gen_view("ds", n, t, AP.SEED_DEFAULT)
         else:
             build_sheet("ds")
     if args.who in ("cl", "all"):
         if args.views_only:
             for i, (n, t) in enumerate(VIEWS):
-                gen_view("cl", n, t, 71500 + i * 13)
+                gen_view("cl", n, t, AP.SEED_DEFAULT + 500)
         else:
             build_sheet("cl")
     if args.who in ("cast", "all"):

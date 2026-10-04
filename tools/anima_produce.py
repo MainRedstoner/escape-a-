@@ -60,6 +60,9 @@ NEG = ("worst quality, low quality, score_1, score_2, score_3, blurry, jpeg arti
 # Turbo 12 步/CFG1 更快但颜色偏浅、线条略糙，留作快速迭代用）
 STEPS_DEFAULT = 30
 CFG_DEFAULT = 4.5
+# 立绘基准种子：主人从 15 张候选里挑中的 A4（见 tools/candidates.py 的编号规则）
+# 六张表情差分全部用这一个种子，只换表情标签 → 构图/服装/比例完全一致
+SEED_DEFAULT = 90611
 
 # 触发词 + 外观（按主人给的原版参考图逐项对齐：长裙/马甲金扣/大围裙鲸鱼徽记/
 # 腰部蝴蝶结飘带/大鲸尾/尖下垂鳍耳/细高呆毛/白色荷叶头饰+蓝蝴蝶结/白袜玛丽珍鞋）
@@ -379,7 +382,7 @@ def main():
         return probe(args)
 
     # VN 立绘差分：同角色所有表情共用同一 seed，只换表情标签（否则构图/服装长度都会变）
-    jobs = [dict(id=k, kind="chara", seed=88000, face=v) for k, v in FACES.items()]
+    jobs = [dict(id=k, kind="chara", seed=SEED_DEFAULT, face=v) for k, v in FACES.items()]
     if args.list:
         for j in jobs:
             print("%-16s seed=%s" % (j["id"], j["seed"]))
