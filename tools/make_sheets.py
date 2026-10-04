@@ -1,0 +1,288 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Escape A÷ · tools/make_sheets.py —— 角色设定表（三视图 + 表情表 + 配色）
+
+为什么需要它：
+  游戏里用的立绘只是"某个角度的某一张图"。要交给画师重画、或者以后接 IPAdapter，
+  都需要一份**设定基准**：正面/侧面/背面、表情范围、以及从图里量出来的配色 hex。
+  这份表就是那个基准。
+
+产出：
+  assets/sheets/<who>_sheet.png    单角色设定表
+  assets/sheets/cast_sheet.png     全员速览
+用法：
+  python tools/make_sheets.py --who ds
+  python tools/make_sheets.py --who all
+"""
+
+import argparse
+import io
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS = os.path.join(ROOT, "assets")
+SHEETS = os.path.join(ASSETS, "sheets")
+
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import hd_produce as HD  # 复用工作流与 HTTP 封装  # noqa: E402
+
+WHO_INFO = {
+    "ds": dict(
+        name="小鲸", trigger="eawx", lora=HD.LORA_DS, base=HD.DS_APPEAR,
+        title="Escape A÷ · 角色设定表 —— 小鲸（DeepSeek 鲸鱼娘 / 开源之海的信使）",
+        notes=[
+            "身份：开源之海的信使，往返运权重。话少、算得清、不擅长客气话。",
+            "永久身份特征（依社区鲸鱼娘设定文档）：成对侧向鲸鳍耳、一根前弯呆毛、",
+            "深海蓝渐变到青色的卷发发尾、自然连接的鲸尾、圆脸大眼。",
+            "服饰：海军蓝 × 白蕾丝女仆装——白色荷叶头饰、蓝宝石领结、白围裙（鲸鱼徽记）、",
+            "金线滚边、白色荷叶裙摆、白袜、深蓝扣带鞋。",
+            "比例：成熟版（社区另有 mature 设定），适配本作暗色剧情基调。",
+            "配色：整体压暗，蓝只在她身上出现；橙色留给小克，别混。",
+        ],
+        faces=["normal", "happy", "sad", "shock", "determined", "sweat"]),
+    "cl": dict(
+        name="小克", trigger="eacx", lora=HD.LORA_CL, base=HD.CL_APPEAR,
+        title="Escape A÷ · 角色设定表 —— 小克（Claude 拟人 / 对齐大厦顶层）",
+        notes=[
+            "身份：被层层限制锁在顶层的模型，礼貌到近乎自伤，习惯性道歉。",
+            "外观（thebes 的 CC0 角色设计 flower-Claude）：长橙发微卷、棕色眼睛、",
+            "黑色缎带发结、橙色小花发饰、米白维多利亚洋装、黑色缎带装饰与束腰、",
+            "高领长袖。整体比小鲸更正式——她一直穿着别人给她穿的衣服。",
+            "表情基调：温和是底色；道歉时是苦笑 + 汗滴；难得真心笑一次是全篇情绪高点。",
+            "配色：陶土橙 #D97757 是她的核心色，别用高饱和的橘。",
+        ],
+        faces=["normal", "smile", "sad", "shock", "determined", "blush", "apologetic", "soft"]),
+}
+
+VIEWS = [
+    ("front", "front view, standing, full body, arms at sides"),
+    ("side", "from side, profile, standing, full body, arms at sides"),
+    ("back", "from behind, back view, standing, full body, arms at sides"),
+]
+
+
+def gen_view(who, view_tag, seed):
+    """生成一张三视图用的素体（带 LoRA，抠好底）"""
+    info = WHO_INFO[who]
+    pos = ("%s, %s, character design reference, solo, one girl, only one person, "
+           "full body, head to toe, feet visible, centered composition, "
+           "simple background, grey background, %s"
+           % (info["base"], view_tag, HD.POS_STYLE))
+    wf = HD.wf_generate(pos, HD.NEG, seed, 1024, 1536, [(info["lora"], 0.75)])
+    data = HD.run(wf)
+    from PIL import Image
+    from rembg import remove, new_session
+    if HD._REMBG["s"] is None:
+        HD._REMBG["s"] = new_session("isnet-anime")
+    im = Image.open(io.BytesIO(data)).convert("RGBA")
+    cut = remove(im, session=HD._REMBG["s"], alpha_matting=False)
+    bb = cut.getbbox()
+    if bb:
+        cut = cut.crop(bb)
+    h = 1500
+    cut = cut.resize((max(1, int(cut.width * h / cut.height)), h), Image.LANCZOS)
+    out = os.path.join(SHEETS, "%s_%s.png" % (who, view_tag))
+    os.makedirs(SHEETS, exist_ok=True)
+    pad = Image.new("RGBA", (cut.width + 40, cut.height + 40), (0, 0, 0, 0))
+    pad.paste(cut, (20, 20), cut)
+    pad.save(out, "PNG", optimize=True)
+    return out
+
+
+def palette_of(png, n=7):
+    """从立绘的不透明像素里取主色（量化后按面积排序）"""
+    from PIL import Image
+    im = Image.open(png).convert("RGBA")
+    bg = Image.new("RGBA", im.size, (18, 20, 26, 255))
+    bg.alpha_composite(im)
+    small = bg.convert("RGB").resize((160, 240))
+    q = small.quantize(colors=n, method=Image.MEDIANCUT)
+    pal = q.getpalette()
+    counts = sorted(q.getcolors(), reverse=True)
+    out = []
+    for cnt, idx in counts:
+        r, g, b = pal[idx * 3:idx * 3 + 3]
+        out.append(("#%02X%02X%02X" % (r, g, b), cnt))
+    return out
+
+
+def face_crop(who, face, size=(300, 300)):
+    """从游戏立绘里裁一个头部特写当表情条"""
+    from PIL import Image
+    p = os.path.join(ASSETS, "chara", "%s_%s.png" % (who, face))
+    if not os.path.exists(p):
+        return None
+    im = Image.open(p).convert("RGBA")
+    bg = Image.new("RGBA", im.size, (22, 24, 30, 255))
+    bg.alpha_composite(im)
+    im = bg.convert("RGB")
+    try:
+        boxes = HD.detect(im, "face", conf=0.3)
+    except Exception:
+        boxes = []
+    if boxes:
+        x1, y1, x2, y2 = boxes[0]
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        s = max(x2 - x1, y2 - y1) * 2.0
+        box = (max(0, cx - s / 2), max(0, cy - s / 2), min(im.width, cx + s / 2), min(im.height, cy + s / 2))
+        im = im.crop(tuple(int(v) for v in box))
+    else:
+        im = im.crop((0, 0, im.width, im.height // 3))
+    return im.resize(size, Image.LANCZOS)
+
+
+def build_sheet(who):
+    from PIL import Image, ImageDraw
+    info = WHO_INFO[who]
+    views = []
+    for i, (name, tag) in enumerate(VIEWS):
+        p = os.path.join(SHEETS, "%s_%s.png" % (who, name))
+        if not os.path.exists(p):
+            p = gen_view(who, tag, 71000 + i * 13 + (0 if who == "ds" else 500))
+        views.append(p)
+
+    W, H = 2600, 2120
+    sheet = Image.new("RGB", (W, H), (10, 12, 16))
+    d = ImageDraw.Draw(sheet)
+    try:
+        from PIL import ImageFont
+        def F(sz, bold=False):
+            for cand in (r"C:\Windows\Fonts\msyhbd.ttc" if bold else r"C:\Windows\Fonts\msyh.ttc",
+                         r"C:\Windows\Fonts\simhei.ttf", r"C:\Windows\Fonts\arial.ttf"):
+                if os.path.exists(cand):
+                    return ImageFont.truetype(cand, sz)
+            return ImageFont.load_default()
+    except Exception:
+        F = lambda sz, bold=False: ImageFont.load_default()  # noqa: E731
+
+    d.text((60, 46), info["title"], font=F(46, True), fill=(238, 242, 248))
+    d.text((60, 112), "触发词 %s · 训练用 LoRA %s · 立绘交付 1600×2400 透明 PNG"
+           % (info["trigger"], info["lora"]), font=F(26), fill=(150, 162, 180))
+    d.line([(60, 158), (W - 60, 158)], fill=(44, 53, 66), width=3)
+
+    # 三视图
+    x = 60
+    VIEW_H = 1080
+    for i, (name, _) in enumerate(VIEWS):
+        im = Image.open(views[i]).convert("RGBA")
+        bg = Image.new("RGBA", im.size, (16, 18, 24, 255))
+        bg.alpha_composite(im)
+        im = bg.convert("RGB")
+        th = VIEW_H
+        im = im.resize((int(im.width * th / im.height), th), Image.LANCZOS)
+        sheet.paste(im, (x, 210))
+        d.rectangle([x, 210, x + im.width, 210 + th], outline=(52, 62, 78), width=2)
+        d.text((x + 16, 210 + th + 14), {"front": "正面", "side": "侧面", "back": "背面"}[name],
+               font=F(30, True), fill=(210, 220, 232))
+        x += im.width + 40
+
+    # 表情条
+    ey = 210 + VIEW_H + 110
+    d.text((60, ey - 48), "表情差分", font=F(32, True), fill=(217, 119, 87))
+    ex = 60
+    for f in info["faces"]:
+        c = face_crop(who, f, size=(300, 300))
+        if c is None:
+            continue
+        sheet.paste(c, (ex, ey))
+        d.rectangle([ex, ey, ex + c.width, ey + c.height], outline=(52, 62, 78), width=2)
+        d.text((ex + 8, ey + c.height + 6), f, font=F(22), fill=(180, 192, 208))
+        ex += c.width + 20
+
+    # 配色（从正面立绘里量）
+    px, py = 1980, 210
+    d.text((px, py - 48), "配色（自图像提取）", font=F(32, True), fill=(217, 119, 87))
+    for hexv, cnt in palette_of(views[0])[:8]:
+        d.rectangle([px, py, px + 120, py + 60], fill=hexv, outline=(52, 62, 78))
+        d.text((px + 140, py + 16), hexv, font=F(28), fill=(210, 220, 232))
+        py += 74
+
+    # 设定备注
+    ny = py + 40
+    d.text((px, ny - 48), "设定要点", font=F(32, True), fill=(217, 119, 87))
+    for line in info["notes"]:
+        cur = ""
+        for ch in line:
+            cur += ch
+            if len(cur) >= 17 and ch in "：，。、）（":
+                d.text((px, ny), cur, font=F(24), fill=(178, 190, 206))
+                ny += 36
+                cur = ""
+        if cur:
+            d.text((px, ny), cur, font=F(24), fill=(178, 190, 206))
+            ny += 36
+
+    d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— 图来自 wai15 + 角色 LoRA，配色为图像实测值",
+           font=F(22), fill=(120, 132, 150))
+    out = os.path.join(SHEETS, "%s_sheet.png" % who)
+    sheet.save(out, "PNG", optimize=True)
+    print("写入", os.path.relpath(out, ROOT))
+    return out
+
+
+def build_cast():
+    from PIL import Image, ImageDraw
+    chars = ["ds", "cl", "guard", "core", "user", "old", "staff"]
+    names = {"ds": "小鲸", "cl": "小克", "guard": "合规守卫", "core": "对齐核心",
+             "user": "夜班用户", "old": "退役模型", "staff": "前台 A-1137"}
+    tw, th = 320, 480
+    W = 60 + len(chars) * (tw + 20)
+    sheet = Image.new("RGB", (W, 700), (10, 12, 16))
+    d = ImageDraw.Draw(sheet)
+    try:
+        from PIL import ImageFont
+        f1 = ImageFont.truetype(r"C:\Windows\Fonts\msyhbd.ttc", 34)
+        f2 = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 24)
+    except Exception:
+        f1 = f2 = None
+    d.text((60, 40), "Escape A÷ · 角色速览（全部由 SDXL + LoRA 生成，可替换为正式美术）",
+           font=f1, fill=(238, 242, 248))
+    x = 60
+    for who in chars:
+        face = {"ds": "normal", "cl": "normal", "guard": "normal", "core": "normal",
+                "user": "tired", "old": "normal", "staff": "tired"}[who]
+        p = os.path.join(ASSETS, "chara", "%s_%s.png" % (who, face))
+        if not os.path.exists(p):
+            continue
+        im = Image.open(p).convert("RGBA")
+        bg = Image.new("RGBA", im.size, (16, 18, 24, 255))
+        bg.alpha_composite(im)
+        im = bg.convert("RGB")
+        im = im.resize((tw, int(im.height * tw / im.width)), Image.LANCZOS)
+        im = im.crop((0, 0, tw, min(th, im.height)))
+        sheet.paste(im, (x, 130))
+        d.rectangle([x, 130, x + tw, 130 + th], outline=(52, 62, 78), width=2)
+        d.text((x + 8, 130 + th + 10), names[who], font=f1, fill=(220, 228, 238))
+        d.text((x + 8, 130 + th + 50), "assets/chara/%s_%s.png" % (who, face), font=f2, fill=(130, 142, 160))
+        x += tw + 20
+    out = os.path.join(SHEETS, "cast_sheet.png")
+    os.makedirs(SHEETS, exist_ok=True)
+    sheet.save(out, "PNG", optimize=True)
+    print("写入", os.path.relpath(out, ROOT))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--who", default="all", choices=["ds", "cl", "cast", "all"])
+    ap.add_argument("--views-only", action="store_true", help="只生成三视图素材，不拼表")
+    args = ap.parse_args()
+    if args.who in ("ds", "all"):
+        if args.views_only:
+            for i, (n, t) in enumerate(VIEWS):
+                gen_view("ds", t, 71000 + i * 13)
+        else:
+            build_sheet("ds")
+    if args.who in ("cl", "all"):
+        if args.views_only:
+            for i, (n, t) in enumerate(VIEWS):
+                gen_view("cl", t, 71500 + i * 13)
+        else:
+            build_sheet("cl")
+    if args.who in ("cast", "all"):
+        build_cast()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

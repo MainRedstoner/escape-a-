@@ -19,3 +19,7 @@ Desktop.ini
 # Python
 __pycache__/
 *.pyc
+
+# 训练产物（数据集 / venv / sd-scripts / LoRA 权重输出）
+# 这些体积大且可由 tools/lora_dataset.py + tools/train_lora.py 复现，不进仓库
+.train/

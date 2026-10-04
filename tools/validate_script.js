@@ -28,7 +28,8 @@ const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "
 const FXS = ["shake", "flash", "alarm", "alarmOff", "glitch", "glitchOff"];
 const BGS = ["sea", "lobby", "corridor", "library", "clockroom", "machineroom",
              "security", "graveyard", "vault", "sanctum", "cell", "surface"];
-const CGS = ["memory", "monitor", "reunion", "trueend", "stay", "reset"];
+const CGS = ["memory", "monitor", "reunion", "trueend", "stay", "reset",
+             "nameplate", "departure", "epilogue"];
 
 /* ---- 在沙箱里跑剧本文件 ---- */
 const sandbox = {

@@ -179,34 +179,22 @@ window.EA_ASSETS = {
       "seed": 22504
     },
     "ds_determined": {
-      "src": "assets/chara/ds_determined.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_determined.png"
     },
     "ds_happy": {
-      "src": "assets/chara/ds_happy.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_happy.png"
     },
     "ds_normal": {
-      "src": "assets/chara/ds_normal.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_normal.png"
     },
     "ds_sad": {
-      "src": "assets/chara/ds_sad.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_sad.png"
     },
     "ds_shock": {
-      "src": "assets/chara/ds_shock.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_shock.png"
     },
     "ds_sweat": {
-      "src": "assets/chara/ds_sweat.png",
-      "draft": true,
-      "seed": 22501
+      "src": "assets/chara/ds_sweat.png"
     },
     "guard_angry": {
       "src": "assets/chara/guard_angry.png",

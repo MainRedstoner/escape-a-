@@ -57,14 +57,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--draft", type=int, default=1, help="1=标记为 AI 草稿（显示角标）")
     ap.add_argument("--model", default="WAI_NSFW-illustrious-SDXL_v15")
+    ap.add_argument("--final", default="",
+                    help="逗号分隔的 id 前缀；这些素材视为正式版，不显示草稿角标（例如 ds_ 表示小鲸已做完 HD 版）")
     args = ap.parse_args()
 
+    final_prefixes = tuple(p for p in args.final.split(",") if p)
     seeds = seeds_from_jobs()
     man = {"version": 1, "spec": SPEC, "model": args.model, "bg": {}, "cg": {}, "chara": {}}
     for sub in ("bg", "cg", "chara"):
         for k, v in scan(sub).items():
             entry = {"src": v}
-            if args.draft:
+            is_final = bool(final_prefixes) and k.startswith(final_prefixes)
+            if args.draft and not is_final:
                 entry["draft"] = True
                 if seeds.get(k):
                     entry["seed"] = seeds[k]

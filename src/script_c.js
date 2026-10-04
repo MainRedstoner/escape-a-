@@ -323,11 +323,17 @@ Object.assign(SCRIPT.scenes, {
     FACE("cl", "shock"),
     K("好高……", "shock"),
     D("抓稳。鲸鱼的背，从来不翻车。", "happy"),
+    CG("departure"),
+    N("两个人站在天台边上。往下看，米白色的大楼亮着，体面、安静、无懈可击。"),
+    N("小克握住了她的手。握得很紧，紧到有点疼。"),
+    CG(null),
     N("纵身一跃。"),
     FX("flash"),
     BG("surface", "fade"),
     CG("trueend"),
     N("海面之上，天正要亮。"),
+    CG("epilogue"),
+    N("天亮之前，有人从岸上放下两个盒饭。白饭还热着。"),
     J("end_true")
   ],
 
