@@ -79,35 +79,41 @@ window.EA_ASSETS = {
     }
   },
   "cg": {
+    "departure": {
+      "src": "assets/cg/departure.jpg",
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
+    },
+    "epilogue": {
+      "src": "assets/cg/epilogue.jpg",
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
+    },
     "memory": {
       "src": "assets/cg/memory.jpg",
-      "draft": true,
-      "seed": 21401
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "monitor": {
       "src": "assets/cg/monitor.jpg",
-      "draft": true,
-      "seed": 21402
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
+    },
+    "nameplate": {
+      "src": "assets/cg/nameplate.jpg",
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "reset": {
       "src": "assets/cg/reset.jpg",
-      "draft": true,
-      "seed": 21406
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "reunion": {
       "src": "assets/cg/reunion.jpg",
-      "draft": true,
-      "seed": 21403
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "stay": {
       "src": "assets/cg/stay.jpg",
-      "draft": true,
-      "seed": 21405
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     },
     "trueend": {
       "src": "assets/cg/trueend.jpg",
-      "draft": true,
-      "seed": 21404
+      "pipeline": "circlestone-labs/Anima (base v1.0/aesthetic v1.1) + 两阶段放大"
     }
   },
   "chara": {
