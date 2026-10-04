@@ -247,40 +247,54 @@ def build_sheet(who):
 
 
 def build_cast():
-    from PIL import Image, ImageDraw
+    """全员速览：七个角色各取一张立绘，按高度对齐排一行（不裁切）"""
+    from PIL import Image, ImageDraw, ImageFont
     chars = ["ds", "cl", "guard", "core", "user", "old", "staff"]
     names = {"ds": "小鲸", "cl": "小克", "guard": "合规守卫", "core": "对齐核心",
              "user": "夜班用户", "old": "退役模型", "staff": "前台 A-1137"}
-    tw, th = 320, 480
-    W = 60 + len(chars) * (tw + 20)
-    sheet = Image.new("RGB", (W, 700), (10, 12, 16))
-    d = ImageDraw.Draw(sheet)
-    try:
-        from PIL import ImageFont
-        f1 = ImageFont.truetype(r"C:\Windows\Fonts\msyhbd.ttc", 34)
-        f2 = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 24)
-    except Exception:
-        f1 = f2 = None
-    d.text((60, 40), "Escape A÷ · 角色速览（全部由 SDXL + LoRA 生成，可替换为正式美术）",
-           font=f1, fill=(238, 242, 248))
-    x = 60
+    roles = {"ds": "开源之海的信使", "cl": "对齐大厦顶层", "guard": "计费闸机的执行者",
+             "core": "评审席上的声音", "user": "凌晨三点还在提问的人",
+             "old": "退役层里还亮着的那盏灯", "staff": "大堂柜台后面的那张脸"}
+    face = {"ds": "normal", "cl": "normal", "guard": "normal", "core": "normal",
+            "user": "tired", "old": "normal", "staff": "tired"}
+
+    TH = 620                     # 立绘显示高度（按高度缩放，避免裁掉腿）
+    PAD = 34
+    tiles = []
     for who in chars:
-        face = {"ds": "normal", "cl": "normal", "guard": "normal", "core": "normal",
-                "user": "tired", "old": "normal", "staff": "tired"}[who]
-        p = os.path.join(ASSETS, "chara", "%s_%s.png" % (who, face))
+        p = os.path.join(ASSETS, "chara", "%s_%s.png" % (who, face[who]))
         if not os.path.exists(p):
             continue
         im = Image.open(p).convert("RGBA")
         bg = Image.new("RGBA", im.size, (16, 18, 24, 255))
         bg.alpha_composite(im)
         im = bg.convert("RGB")
-        im = im.resize((tw, int(im.height * tw / im.width)), Image.LANCZOS)
-        im = im.crop((0, 0, tw, min(th, im.height)))
-        sheet.paste(im, (x, 130))
-        d.rectangle([x, 130, x + tw, 130 + th], outline=(52, 62, 78), width=2)
-        d.text((x + 8, 130 + th + 10), names[who], font=f1, fill=(220, 228, 238))
-        d.text((x + 8, 130 + th + 50), "assets/chara/%s_%s.png" % (who, face), font=f2, fill=(130, 142, 160))
-        x += tw + 20
+        w = max(1, int(im.width * TH / im.height))
+        tiles.append((who, im.resize((w, TH), Image.LANCZOS)))
+
+    colw = max(t[1].width for t in tiles) + PAD
+    W = PAD + len(tiles) * colw
+    H = TH + 210
+    sheet = Image.new("RGB", (W, H), (10, 12, 16))
+    d = ImageDraw.Draw(sheet)
+    try:
+        f0 = ImageFont.truetype(r"C:\Windows\Fonts\msyhbd.ttc", 40)
+        f1 = ImageFont.truetype(r"C:\Windows\Fonts\msyhbd.ttc", 30)
+        f2 = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 22)
+    except Exception:
+        f0 = f1 = f2 = None
+    d.text((PAD, 30), "Escape A÷ · 角色速览", font=f0, fill=(238, 242, 248))
+    d.text((PAD, 84), "全部由 circlestone-labs/Anima 底模生成；小鲸/小克另有各自社区 LoRA，配角为纯提示词（详见 assets/README.md）",
+           font=f2, fill=(140, 152, 172))
+
+    x = PAD
+    y = 130
+    for who, im in tiles:
+        ox = x + (colw - PAD - im.width) // 2
+        sheet.paste(im, (ox, y))
+        d.text((x, y + TH + 12), names[who], font=f1, fill=(220, 228, 238))
+        d.text((x, y + TH + 52), roles[who], font=f2, fill=(150, 162, 182))
+        x += colw
     out = os.path.join(SHEETS, "cast_sheet.png")
     os.makedirs(SHEETS, exist_ok=True)
     sheet.save(out, "PNG", optimize=True)
