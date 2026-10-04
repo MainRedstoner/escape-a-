@@ -113,43 +113,35 @@ window.EA_ASSETS = {
   "chara": {
     "cl_apologetic": {
       "src": "assets/chara/cl_apologetic.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_blush": {
       "src": "assets/chara/cl_blush.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_determined": {
       "src": "assets/chara/cl_determined.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_normal": {
       "src": "assets/chara/cl_normal.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_sad": {
       "src": "assets/chara/cl_sad.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_shock": {
       "src": "assets/chara/cl_shock.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_smile": {
       "src": "assets/chara/cl_smile.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "cl_soft": {
       "src": "assets/chara/cl_soft.png",
-      "draft": true,
-      "seed": 22502
+      "pipeline": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)"
     },
     "core_angry": {
       "src": "assets/chara/core_angry.png",
@@ -168,27 +160,27 @@ window.EA_ASSETS = {
     },
     "ds_determined": {
       "src": "assets/chara/ds_determined.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "ds_happy": {
       "src": "assets/chara/ds_happy.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "ds_normal": {
       "src": "assets/chara/ds_normal.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "ds_sad": {
       "src": "assets/chara/ds_sad.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "ds_shock": {
       "src": "assets/chara/ds_shock.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "ds_sweat": {
       "src": "assets/chara/ds_sweat.png",
-      "pipeline": "circlestone-labs/Anima + SAkizuki/anima-deepseek LoRA"
+      "pipeline": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA"
     },
     "guard_angry": {
       "src": "assets/chara/guard_angry.png",

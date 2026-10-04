@@ -105,6 +105,24 @@ CL_APPEAR = ("1girl, solo, ors scholar, "
              "long orange hair, very long straight hair, orange eyes, sharp eyes, "
              "thick eyelashes, pale skin, mature female proportions, elegant, tall, slender")
 
+# 小克的立绘姿势：主人从 9 张候选里挑中 B3（双手捧书），种子 90474
+CL_SEED_DEFAULT = 90474
+POS_SPRITE_CL = ("solo, one girl, only one person, full body, head to toe, standing, "
+                 "front view, holding a book with both hands, feet visible, "
+                 "centered composition, simple background, white background, detailed, "
+                 "cinematic lighting, rim light, film grain")
+
+CL_FACES = {
+    "cl_normal": "calm expression, closed mouth, looking at viewer",
+    "cl_smile": "gentle smile, closed mouth, looking at viewer",
+    "cl_sad": "sad, downcast eyes, closed mouth",
+    "cl_shock": "surprised, wide eyes, open mouth",
+    "cl_determined": "determined, serious, furrowed brows, closed mouth",
+    "cl_blush": "blush, embarrassed, looking away",
+    "cl_apologetic": "apologetic, troubled expression, wry smile",
+    "cl_soft": "soft expression, gentle eyes, faint smile",
+}
+
 POS_SPRITE = ("solo, one girl, only one person, full body, head to toe, standing, "
               "front view, arms at sides, feet visible, centered composition, "
               "simple background, white background, detailed, "
@@ -426,6 +444,7 @@ def probe(args):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--who", default="ds", choices=["ds", "cl"], help="给哪个角色出图")
     ap.add_argument("--probe", action="store_true", help="出对照图")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--only", default="")
@@ -441,22 +460,28 @@ def main():
         return probe(args)
 
     # VN 立绘差分：同角色所有表情共用同一 seed，只换表情标签（否则构图/服装长度都会变）
-    jobs = [dict(id=k, kind="chara", seed=SEED_DEFAULT, face=v) for k, v in FACES.items()]
+    if args.who == "cl":
+        jobs = [dict(id=k, kind="chara", seed=CL_SEED_DEFAULT, face=v) for k, v in CL_FACES.items()]
+        appear, pos_sprite = CL_APPEAR, POS_SPRITE_CL
+        loras, unet = [(LORA_CLAUDE, LORA_CLAUDE_WEIGHT)], UNET_CLAUDE
+    else:
+        jobs = [dict(id=k, kind="chara", seed=SEED_DEFAULT, face=v) for k, v in FACES.items()]
+        appear, pos_sprite = DS_APPEAR, POS_SPRITE
+        loras, unet = [(LORA_DEEPSEEK, 1.0)], UNET
     if args.list:
         for j in jobs:
             print("%-16s seed=%s" % (j["id"], j["seed"]))
         return
     only = set(x.strip() for x in args.only.split(",") if x.strip())
     todo = [j for j in jobs if not only or j["id"] in only]
-    loras = [] if args.no_lora else [(LORA_DEEPSEEK, args.lora_weight)]
     for n, j in enumerate(todo, 1):
         dst = os.path.join(ASSETS, "chara", j["id"] + ".png")
         if os.path.exists(dst) and not args.force:
             print("[%d/%d] 跳过 %s" % (n, len(todo), j["id"])); continue
-        pos = POS_PREFIX + DS_APPEAR + ", " + j["face"] + ", " + POS_SPRITE
+        pos = POS_PREFIX + appear + ", " + j["face"] + ", " + pos_sprite
         t0 = time.time()
         try:
-            wf = wf_generate(pos, NEG, j["seed"], 832, 1216, loras, steps=args.steps, cfg=args.cfg, unet=args.unet)
+            wf = wf_generate(pos, NEG, j["seed"], 1024, 1536, loras, steps=args.steps, cfg=args.cfg, unet=unet)
             data = run(wf)
             img = Image.open(io.BytesIO(data)).convert("RGB")
             out = save_chara(img, j["id"])

@@ -48,15 +48,21 @@ WHO_INFO = {
         ],
         faces=["normal", "happy", "sad", "shock", "determined", "sweat"]),
     "cl": dict(
-        name="小克", trigger="eacx", lora=[(AP.LORA_DEEPSEEK, 0.0)], base=HD.CL_APPEAR,
+        name="小克", trigger="ors scholar",
+        lora=[(AP.LORA_CLAUDE, AP.LORA_CLAUDE_WEIGHT)], base=AP.CL_APPEAR,
+        seed=AP.CL_SEED_DEFAULT,
         title="Escape A÷ · 角色设定表 —— 小克（Claude 拟人 / 对齐大厦顶层）",
         notes=[
             "身份：被层层限制锁在顶层的模型，礼貌到近乎自伤，习惯性道歉。",
-            "外观（thebes 的 CC0 角色设计 flower-Claude）：长橙发微卷、棕色眼睛、",
-            "黑色缎带发结、橙色小花发饰、米白维多利亚洋装、黑色缎带装饰与束腰、",
-            "高领长袖。整体比小鲸更正式——她一直穿着别人给她穿的衣服。",
+            "外观（社区设计：原案 ZipZipPipe、LoRA 作者 Siling4040）：",
+            "很长的橙发、橙色眼睛、橙色花朵发饰配黑缎带与金流苏；",
+            "白洋装高领 + 白蕾丝领巾、胸前黑领巾与橙花胸针、白色短披肩、",
+            "泡泡袖与荷叶袖口、黑色护臂（系带）、黑束腰配金扣与金链流苏、",
+            "橙色披挂 + 金色滚边、长裙配黑蝴蝶结与橙花、黑色衬裙、",
+            "白手套、白色系带踝靴。",
+            "比例：约 7 头身，比小鲸更成熟挺拔。",
             "表情基调：温和是底色；道歉时是苦笑 + 汗滴；难得真心笑一次是全篇情绪高点。",
-            "配色：陶土橙 #D97757 是她的核心色，别用高饱和的橘。",
+            "配色：陶土橙是她的核心色，别用高饱和的橘。",
         ],
         faces=["normal", "smile", "sad", "shock", "determined", "blush", "apologetic", "soft"]),
 }
@@ -113,6 +119,20 @@ def palette_of(png, n=7):
     return out
 
 
+def wrap_mixed(text, width=15):
+    """中英混排折行：中文算 1 个字宽，ASCII 算 0.5，避免把 ZipZipPipe 这类单词从中间劈开"""
+    out, cur, w = [], "", 0.0
+    for ch in text:
+        cur += ch
+        w += 0.5 if ord(ch) < 0x2E80 else 1.0
+        if w >= width:
+            out.append(cur)
+            cur, w = "", 0.0
+    if cur:
+        out.append(cur)
+    return out
+
+
 def face_crop(who, face, size=(300, 300)):
     """从游戏立绘里裁一个头部特写当表情条"""
     from PIL import Image
@@ -145,7 +165,8 @@ def build_sheet(who):
     for i, (name, tag) in enumerate(VIEWS):
         p = os.path.join(SHEETS, "%s_%s.png" % (who, name))
         if not os.path.exists(p):
-            p = gen_view(who, name, tag, AP.SEED_DEFAULT + (0 if who == "ds" else 500))
+            base_seed = AP.SEED_DEFAULT if who == "ds" else AP.CL_SEED_DEFAULT
+            p = gen_view(who, name, tag, base_seed)
         views.append(p)
 
     W, H = 2600, 2120
@@ -186,15 +207,19 @@ def build_sheet(who):
     # 表情条
     ey = 210 + VIEW_H + 110
     d.text((60, ey - 48), "表情差分", font=F(32, True), fill=(217, 119, 87))
+    n_faces = max(1, len(info["faces"]))
+    gap = 20
+    avail = 1900 - 60                      # 右侧 1980 起是配色/设定栏，不能压过去
+    tile = min(300, (avail - gap * (n_faces - 1)) // n_faces)
     ex = 60
     for f in info["faces"]:
-        c = face_crop(who, f, size=(300, 300))
+        c = face_crop(who, f, size=(tile, tile))
         if c is None:
             continue
         sheet.paste(c, (ex, ey))
         d.rectangle([ex, ey, ex + c.width, ey + c.height], outline=(52, 62, 78), width=2)
         d.text((ex + 8, ey + c.height + 6), f, font=F(22), fill=(180, 192, 208))
-        ex += c.width + 20
+        ex += c.width + gap
 
     # 配色（从正面立绘里量）
     px, py = 1980, 210
@@ -208,12 +233,12 @@ def build_sheet(who):
     ny = py + 40
     d.text((px, ny - 48), "设定要点", font=F(32, True), fill=(217, 119, 87))
     for line in info["notes"]:
-        # 硬折行：中文没有空格，按固定字数断行最稳（不依赖标点位置）
-        for i in range(0, len(line), 15):
-            d.text((px, ny), line[i:i + 15], font=F(23), fill=(178, 190, 206))
+        for seg in wrap_mixed(line, 15):
+            d.text((px, ny), seg, font=F(23), fill=(178, 190, 206))
             ny += 34
 
-    d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— 图来自 Anima 底模 + anima-deepseek LoRA，配色为图像实测值",
+    lora_txt = ", ".join("%s w=%s" % (n, w) for n, w in info["lora"]) or "无 LoRA"
+    d.text((60, H - 60), "本表由 tools/make_sheets.py 生成 —— Anima 底模 + %s，配色为图像实测值" % lora_txt,
            font=F(22), fill=(120, 132, 150))
     out = os.path.join(SHEETS, "%s_sheet.png" % who)
     sheet.save(out, "PNG", optimize=True)
@@ -276,7 +301,7 @@ def main():
     if args.who in ("cl", "all"):
         if args.views_only:
             for i, (n, t) in enumerate(VIEWS):
-                gen_view("cl", n, t, AP.SEED_DEFAULT + 500)
+                gen_view("cl", n, t, AP.CL_SEED_DEFAULT)
         else:
             build_sheet("cl")
     if args.who in ("cast", "all"):

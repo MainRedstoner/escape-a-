@@ -53,6 +53,13 @@ def scan(sub):
     return out
 
 
+# 各角色正式版所用的管线（按 id 前缀区分，写进清单便于溯源）
+FINAL_NOTES = {
+    "ds_": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA",
+    "cl_": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)",
+}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--draft", type=int, default=1, help="1=标记为 AI 草稿（显示角标）")
@@ -77,9 +84,14 @@ def main():
             is_final = (bool(final_prefixes) and k.startswith(final_prefixes)) \
                 or (sub in final_kinds)
             if is_final:
-                entry["pipeline"] = (args.final_kind_model
-                                     if (sub in final_kinds and not (final_prefixes and k.startswith(final_prefixes)))
-                                     else args.final_model)
+                note = None
+                for pre, lbl in FINAL_NOTES.items():
+                    if k.startswith(pre):
+                        note = lbl
+                        break
+                if note is None:
+                    note = (args.final_kind_model if sub in final_kinds else args.final_model)
+                entry["pipeline"] = note
             elif args.draft:
                 entry["draft"] = True
                 if seeds.get(k):
