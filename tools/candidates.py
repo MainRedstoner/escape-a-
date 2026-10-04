@@ -34,6 +34,12 @@ POSES = [
     ("B", "standing, hands clasped in front, gentle smile, front view, feet visible, full body"),
     ("C", "standing, one hand holding the skirt, smiling, front view, feet visible, full body"),
 ]
+# 小克用另一套姿势（她手里常拿书）
+POSES_CL = [
+    ("A", "standing, arms at sides, front view, feet visible, full body"),
+    ("B", "standing, holding a book with both hands, front view, feet visible, full body"),
+    ("C", "standing, one hand on chest, front view, feet visible, full body"),
+]
 PORTRAIT = ("P", "upper body, portrait, looking at viewer, gentle smile, detailed face")
 
 # 质感标签（与 anima_produce 的 POS_SPRITE 同源，但不含姿势约束，姿势由上表给）
@@ -76,19 +82,25 @@ def main():
     ap.add_argument("--portraits", type=int, default=3)
     ap.add_argument("--base-seed", type=int, default=90200)
     ap.add_argument("--steps", type=int, default=AP.STEPS_DEFAULT)
+    ap.add_argument("--who", default="ds", choices=["ds", "cl"])
     args = ap.parse_args()
 
+    global OUT
+    OUT = os.path.join(ROOT, ".train", "candidates_" + args.who)
     os.makedirs(OUT, exist_ok=True)
+    APPEAR = AP.DS_APPEAR if args.who == "ds" else AP.CL_APPEAR
+    POSELIST = POSES if args.who == "ds" else POSES_CL
+    print("角色:", args.who)
     files = []
     n = 0
     total = args.seeds * args.poses + args.portraits
     for s in range(args.seeds):
         seed = args.base_seed + s * 137
-        for p in range(min(args.poses, len(POSES))):
-            tag, pose = POSES[p]
+        for p in range(min(args.poses, len(POSELIST))):
+            tag, pose = POSELIST[p]
             cid = "%s%d" % (tag, s + 1)
             n += 1
-            pos = (AP.POS_PREFIX + AP.DS_APPEAR + ", calm expression, closed mouth, "
+            pos = (AP.POS_PREFIX + APPEAR + ", calm expression, closed mouth, "
                    + pose + ", solo, one girl, only one person, centered composition, "
                    "simple background, grey background, " + STYLE)
             t0 = time.time()
@@ -108,7 +120,7 @@ def main():
         cid = "%s%d" % (PORTRAIT[0], s + 1)
         n += 1
         seed = args.base_seed + 900 + s * 137
-        pos = (AP.POS_PREFIX + AP.DS_APPEAR + ", calm expression, closed mouth, "
+        pos = (AP.POS_PREFIX + APPEAR + ", calm expression, closed mouth, "
                + PORTRAIT[1] + ", solo, one girl, centered composition, "
                "simple background, grey background, " + STYLE)
         t0 = time.time()

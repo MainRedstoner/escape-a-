@@ -80,6 +80,20 @@ DS_APPEAR = ("deepseek, 1girl, solo, mature female proportions, "
              "gold embroidery on skirt, large navy whale tail, "
              "white socks, dark blue mary jane shoes")
 
+# 小克（Claude 拟人）：按主人给的原版图逐项对齐——无社区 LoRA，用 Anima 直接打标签。
+# 参考：thebes 的 CC0 flower-Claude 设计（长橙发 / 黑缎带 / 橙花发饰 / 米白维多利亚洋装）
+CL_APPEAR = ("1girl, solo, mature female proportions, elegant, tall, slender, "
+             "long orange hair, straight hair, very long hair, orange eyes, sharp eyes, "
+             "thick eyelashes, pale skin, calm expression, "
+             "large orange flower hair ornament, black ribbon bow on head, gold tassel ornament, "
+             "white victorian dress, high collar, white lace jabot, "
+             "black ribbon bow at chest, orange flower brooch, "
+             "puffed sleeves, orange embroidery on sleeves, white frilled cuffs, white gloves, "
+             "black corset belt, gold chains, gold buckles, hanging tassels, "
+             "orange sash drape, black ribbon bows with orange flowers, gold trim, "
+             "long white pleated skirt, orange floral embroidery, black underskirt, "
+             "white lace-up boots")
+
 POS_SPRITE = ("solo, one girl, only one person, full body, head to toe, standing, "
               "front view, arms at sides, feet visible, centered composition, "
               "simple background, white background, detailed, "
