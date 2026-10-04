@@ -151,18 +151,15 @@ window.EA_ASSETS = {
     },
     "core_angry": {
       "src": "assets/chara/core_angry.png",
-      "draft": true,
-      "seed": 22504
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（物件，无 LoRA）"
     },
     "core_hurt": {
       "src": "assets/chara/core_hurt.png",
-      "draft": true,
-      "seed": 22504
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（物件，无 LoRA）"
     },
     "core_normal": {
       "src": "assets/chara/core_normal.png",
-      "draft": true,
-      "seed": 22504
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（物件，无 LoRA）"
     },
     "ds_determined": {
       "src": "assets/chara/ds_determined.png",
@@ -190,53 +187,43 @@ window.EA_ASSETS = {
     },
     "guard_angry": {
       "src": "assets/chara/guard_angry.png",
-      "draft": true,
-      "seed": 22503
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "guard_normal": {
       "src": "assets/chara/guard_normal.png",
-      "draft": true,
-      "seed": 22503
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "guard_scan": {
       "src": "assets/chara/guard_scan.png",
-      "draft": true,
-      "seed": 22503
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "old_normal": {
       "src": "assets/chara/old_normal.png",
-      "draft": true,
-      "seed": 22506
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "old_sad": {
       "src": "assets/chara/old_sad.png",
-      "draft": true,
-      "seed": 22506
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "staff_happy": {
       "src": "assets/chara/staff_happy.png",
-      "draft": true,
-      "seed": 22507
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "staff_tired": {
       "src": "assets/chara/staff_tired.png",
-      "draft": true,
-      "seed": 22507
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "user_happy": {
       "src": "assets/chara/user_happy.png",
-      "draft": true,
-      "seed": 22505
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "user_normal": {
       "src": "assets/chara/user_normal.png",
-      "draft": true,
-      "seed": 22505
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     },
     "user_tired": {
       "src": "assets/chara/user_tired.png",
-      "draft": true,
-      "seed": 22505
+      "pipeline": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）"
     }
   }
 };

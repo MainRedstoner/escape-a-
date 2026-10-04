@@ -57,6 +57,11 @@ def scan(sub):
 FINAL_NOTES = {
     "ds_": "circlestone-labs/Anima (aesthetic v1.1) + SAkizuki/anima-deepseek LoRA",
     "cl_": "circlestone-labs/Anima (base v1.0) + Civitai Claude娘 LoRA「ors scholar」(w=0.8)",
+    "guard_": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）",
+    "core_": "circlestone-labs/Anima (base v1.0)，自然语言描述（物件，无 LoRA）",
+    "user_": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）",
+    "old_": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）",
+    "staff_": "circlestone-labs/Anima (base v1.0)，自然语言描述（无 LoRA）",
 }
 
 
