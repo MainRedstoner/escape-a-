@@ -65,7 +65,7 @@ index.html?scene=start&trust=6&wanted=0&tokens=26&flags=egg1,egg2
   * `script_b.js` / `script_c.js` … 后续卷：开头 `"use strict";`，用 `Object.assign(SCRIPT.scenes, { ... })` 追加场景；
   * `index.html` 按 A → B → C 顺序引入，**引擎必须在最后**；
   * 同时把分卷列表填进 `tools/validate_script.js` 和 `tools/simulate_playthrough.js` 的 `FILES` 数组（顺序与 index.html 一致）。
-* **场景命名约定**（沿用旧作惯例，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
+* **场景命名惯例**（推荐，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
 * 剧本是纯数据，**不要**在剧本文件里写函数、不要碰 DOM；要扩展能力就改引擎。
 
 ---
@@ -229,10 +229,10 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
    * `node tools/simulate_playthrough.js 40` —— 五种玩家性格（first / last / smart / reckless / random×120）无头跑全篇：无死路、无死循环、`ENDING_META` 里每个结局都可达、数值不越界。**新增结局后必须跑这个**。
    * 浏览器实测 checklist：标题 → 开场 → 每个分支至少走一遍 → 结局画面 → 结局收集页显示 → 存读档 → `file://` 直开无控制台报错。
 
-### 经验教训（旧作沉淀）
+### 经验教训
 
 * **先写坏结局的可达性**：让 `WAN` 在每个章节都有真实的+1 选项，`bad_end` 才不是摆设；模拟器的 `reckless` 策略就是专门验证它的。
-* **彩蛋藏地点不藏逻辑**：彩蛋放在"探索分支"的深处（`SET("eggN")`），拿不拿得到不影响主线推进；集齐后用 `IF("eggs >= 5", ...)` 在终章解锁隐藏选项。
+* **彩蛋藏地点不藏逻辑**：彩蛋放在"探索分支"的深处（`SET("eggN")`），拿不拿得到不影响主线推进；集齐后用 `IF("eggs >= N", ...)` 在终章解锁隐藏选项（N = 你登记的彩蛋总数）。
 * **论据=后期对话的弹药**：前期发放（`ARG`），终章用 `has('id')` 分流出"有论据/没论据"两种说话方式，收集才有意义。
 * **每章一个 HINT**：深度思考的提示按场景挂（`HINT`），既当弱引导，也是叙事声音的一部分；提示文案写得像角色自言自语而不是攻略。
 * **`IF` 的死循环陷阱**再强调一遍：两个出口都要写。
@@ -251,9 +251,3 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | 引擎默认值 | 入口场景 `start`、坏结局 `bad_end`、`audioForBg` 映射、数值上限，都在 `engine.js` / `systems.js` |
 
 **改完引擎必做**：`node --check src/*.js`、跑两个工具、浏览器过一遍主要流程。
-
----
-
-## 八、旧剧本去哪了
-
-上一部作品的完整剧本（115 个场景 / 四结局 / 彩蛋论据体系）、全部美术与美术生产管线，都在本仓库的 **git 历史**里（本次清理之前的任意 commit，如 `git show 736dfa3:src/script_a.js`）。写新故事时，把它们当作"完整实例"参考：结构怎么组织、分支怎么收束、元数据怎么对应，都是现成的范本。
