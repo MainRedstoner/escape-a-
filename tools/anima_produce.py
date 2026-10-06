@@ -53,6 +53,10 @@ TRIGGER_CLAUDE = "ors scholar"
 LORA_CLAUDE_WEIGHT = 0.8          # 视频作者提示该 LoRA 偏过拟合，0.8 是实测最稳的一档
 UNET_CLAUDE = "anima-base-v1.0.safetensors"   # LoRA 的训练底模
 
+# 生成分辨率按角色分开：小鲸已交付的六张是 832×1216 出的（成品宽度约 1410），
+# 小克是 1024×1536（宽度约 1299）。★ 两者不可混用，否则同一角色的新表情会与旧图构图不一致。
+GEN_SIZE = {"ds": (832, 1216), "cl": (1024, 1536)}
+
 CHARA_H = 2400
 BG_W, BG_H = 2560, 1440
 
@@ -464,10 +468,12 @@ def main():
         jobs = [dict(id=k, kind="chara", seed=CL_SEED_DEFAULT, face=v) for k, v in CL_FACES.items()]
         appear, pos_sprite = CL_APPEAR, POS_SPRITE_CL
         loras, unet = [(LORA_CLAUDE, LORA_CLAUDE_WEIGHT)], UNET_CLAUDE
+        gen_w, gen_h = GEN_SIZE["cl"]
     else:
         jobs = [dict(id=k, kind="chara", seed=SEED_DEFAULT, face=v) for k, v in FACES.items()]
         appear, pos_sprite = DS_APPEAR, POS_SPRITE
         loras, unet = [(LORA_DEEPSEEK, 1.0)], UNET
+        gen_w, gen_h = GEN_SIZE["ds"]
     if args.list:
         for j in jobs:
             print("%-16s seed=%s" % (j["id"], j["seed"]))
@@ -481,7 +487,7 @@ def main():
         pos = POS_PREFIX + appear + ", " + j["face"] + ", " + pos_sprite
         t0 = time.time()
         try:
-            wf = wf_generate(pos, NEG, j["seed"], 1024, 1536, loras, steps=args.steps, cfg=args.cfg, unet=unet)
+            wf = wf_generate(pos, NEG, j["seed"], gen_w, gen_h, loras, steps=args.steps, cfg=args.cfg, unet=unet)
             data = run(wf)
             img = Image.open(io.BytesIO(data)).convert("RGB")
             out = save_chara(img, j["id"])
