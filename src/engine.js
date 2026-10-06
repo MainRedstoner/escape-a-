@@ -294,7 +294,7 @@ const ENGINE = (() => {
     ui.nameplate.style.display = who === "n" ? "none" : "block";
     ui.nameplate.textContent = sp.name;
     ui.nameplate.style.background = sp.color;
-    ui.text.style.color = who === "n" ? "#6E6A60" : "#1F1E1B";
+    ui.text.style.color = who === "n" ? "#ABA59A" : "#DCE3EC";
     ui.textbox.classList.toggle("glitch", SYS.state.vis.glitch && who !== "sys");
     document.body.classList.toggle("glitching", SYS.state.vis.glitch);
     pushHistory(who, text, false);
