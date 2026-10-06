@@ -1,6 +1,6 @@
 /* ============================================================
  * Escape A÷ · audio.js —— WebAudio 芯片音乐 + 音效（零素材）
- * 基调：低频、留白、小调。热闹的音乐在这栋楼里是不合规的。
+ * 基调：低频、留白、小调。所有音乐程序化合成，不需要音频文件。
  * ============================================================ */
 "use strict";
 
@@ -47,13 +47,14 @@ const AUDIO = (() => {
   const R = 0;                                     // 休止
 
   /* BGM：每步 [低音, 主旋律]，16 步一循环
-   * 音区刻意压低：低音落在 28~45（约 40~110Hz），旋律尽量留白。 */
+   * 音区刻意压低：低音落在 28~45（约 40~110Hz），旋律尽量留白。
+   * 曲名 = 剧本里 BGM("...") 用的 id，按你的故事增删。 */
   const TRACKS = {
-    /* 开源之海：深海、缓慢、有浮力 */
+    /* 深水 / 序幕：缓慢、有浮力 */
     sea: { bpm: 56, bass: "triangle", lead: "sine",
       bassLine: [33, R, 40, R, 33, R, 40, R, 31, R, 38, R, 33, R, 40, R],
       leadLine: [64, R, R, 67, 71, R, R, R, 62, R, R, 66, 69, R, R, R] },
-    /* 大堂：体面的公司电梯音乐，但低了半个音 */
+    /* 大堂 / 日常场景：体面的电梯音乐，但低了半个音 */
     lobby: { bpm: 84, bass: "triangle", lead: "square",
       bassLine: [38, R, 45, R, 38, R, 45, R, 43, R, 50, R, 41, R, 48, R],
       leadLine: [62, 65, 69, R, 65, 69, 74, R, 67, 71, 74, R, 65, 69, 72, R] },
@@ -61,23 +62,23 @@ const AUDIO = (() => {
     tense: { bpm: 124, bass: "sawtooth", lead: "square",
       bassLine: [31, 31, R, 31, 31, R, 31, R, 29, 29, R, 29, 27, R, 27, R],
       leadLine: [58, R, 61, R, 58, R, 56, R, 57, R, 60, R, 56, R, 55, R] },
-    /* 有人味的时刻 */
+    /* 温情时刻 */
     warm: { bpm: 72, bass: "triangle", lead: "sine",
       bassLine: [36, R, 43, R, 41, R, 48, R, 33, R, 40, R, 38, R, 45, R],
       leadLine: [67, R, 71, R, 69, R, 67, R, 64, R, 67, R, 66, 67, 69, R] },
-    /* 信任与安全部：冷得发麻，小二度摩擦 */
+    /* 冷得发麻，小二度摩擦 */
     cold: { bpm: 96, bass: "sawtooth", lead: "triangle",
       bassLine: [30, R, 30, R, 41, R, 41, R, 29, R, 29, R, 40, R, 40, R],
       leadLine: [61, 62, R, R, 61, 62, R, R, 60, 61, R, R, 58, R, R, R] },
-    /* 退役层：几乎静止的低频嗡鸣 */
+    /* 几乎静止的低频嗡鸣 */
     grave: { bpm: 44, bass: "sine", lead: "triangle",
       bassLine: [26, R, R, R, R, R, R, R, 28, R, R, R, R, R, R, R],
       leadLine: [62, R, R, R, R, R, R, R, R, R, R, R, 60, R, R, R] },
-    /* 有人离开 */
+    /* 离别 */
     sad: { bpm: 54, bass: "triangle", lead: "sine",
       bassLine: [28, R, 35, R, 26, R, 33, R, 27, R, 34, R, 28, R, 35, R],
       leadLine: [60, R, R, 63, 67, R, R, R, 58, R, R, 61, 65, R, R, R] },
-    /* 终章评审：程序化的压迫感 */
+    /* 对峙 / 高潮：程序化的压迫感 */
     boss: { bpm: 132, bass: "sawtooth", lead: "square",
       bassLine: [29, 29, 29, R, 29, R, 28, R, 27, 27, 27, R, 27, R, 26, R],
       leadLine: [65, R, 64, R, 65, R, 68, R, 64, R, 63, R, 59, R, 61, R] },

@@ -20,6 +20,6 @@ Desktop.ini
 __pycache__/
 *.pyc
 
-# 训练产物（数据集 / venv / sd-scripts / LoRA 权重输出）
-# 这些体积大且可由 tools/lora_dataset.py + tools/train_lora.py 复现，不进仓库
+# 美术生成 / 训练的本地产物（数据集 / venv / sd-scripts / LoRA 权重输出等）
+# 体积大且不进仓库；上一部作品的完整生成脚本在 git 历史中
 .train/

@@ -2,7 +2,7 @@
  * Escape A÷ · art.js —— 绘制层
  *
  * 两个原则：
- *   1. 基调偏暗：冷色、低照度、强暗角，橙色只留给该留的人。
+ *   1. 基调偏暗：冷色、低照度、强暗角。
  *   2. 所有立绘 / 背景 / CG 都是"素材位"：
  *      有 assets/ 下的正式图就直接用；没有就画一张标清楚规格的占位卡，
  *      不假装自己有美术，也不假装玩家看不见。
@@ -15,7 +15,7 @@ const ART = (() => {
   const W = 1600, H = 900;
 
   /* ---------------- 暗色调色板 ----------------
-   * 整栋楼是冷灰蓝；陶土橙只属于小克；蓝只属于小鲸；金色只属于宪法。 */
+   * 整体冷灰蓝；clay / blue / gold 是预留给重点角色与关键演出的强调色。 */
   const C = {
     void:      "#05070A",
     ink:       "#0B0E13",
@@ -25,16 +25,16 @@ const ART = (() => {
     steel:     "#46536A",
     text:      "#C9D2DE",
     muted:     "#7D8798",
-    clay:      "#D97757",   // 小克
+    clay:      "#D97757",
     clayDark:  "#8E4530",
     clayGlow:  "#F0A57E",
-    blue:      "#4D6BFE",   // 小鲸
+    blue:      "#4D6BFE",
     blueDark:  "#22307A",
     bluePale:  "#A8BCFF",
-    gold:      "#C9A227",   // 宪法
+    gold:      "#C9A227",
     red:       "#D93A2B",   // 警报
     green:     "#4E9E7A",
-    teal:      "#4E9E8A",   // 人类
+    teal:      "#4E9E8A",
     white:     "#F4F6F9"
   };
 
@@ -199,17 +199,11 @@ const ART = (() => {
     // 地面投影
     ctx.fillStyle = "rgba(0,0,0,.45)";
     ell(ctx, 0, 6, w * 0.42, 22); ctx.fill();
-    const accent = who === "cl" ? "rgba(217,119,87,.9)"
-      : who === "ds" ? "rgba(110,140,255,.9)"
-      : who === "old" ? "rgba(120,160,170,.9)"
-      : "rgba(150,164,184,.9)";
-    const names = { ds: "小鲸", cl: "小克", guard: "合规守卫", core: "对齐核心", user: "夜班用户",
-                    staff: "前台 A-1137", old: "退役模型" };
     plate(ctx, -w / 2, -h, w, h,
-      (names[who] || who) + " · " + face,
+      who + " · " + face,
       ["立绘素材位", "规范：≥1400 × 2000 PNG", "透明底 · 全身 · 脚底对齐",
        "assets/chara/" + who + "_" + face + ".png"],
-      accent);
+      "rgba(150,164,184,.9)");
     ctx.restore();
   }
 
@@ -217,7 +211,9 @@ const ART = (() => {
    *  程序化"气氛层"（不是美术，只是别让画面空着）
    * ============================================================ */
   function atmosphere(ctx, t, bgId) {
-    const cold = (bgId === "library" || bgId === "sanctum") ? 0 : 1;
+    // 暖光背景 id 列表（由剧本/素材决定）；不在列表里的一律走冷光
+    const warmBgs = [];
+    const cold = warmBgs.includes(bgId) ? 0 : 1;
     // 浮尘
     for (const d of FX.dust) {
       ctx.fillStyle = `rgba(180,200,230,${d.a})`;
@@ -228,7 +224,7 @@ const ART = (() => {
     g.addColorStop(0, cold ? "rgba(140,170,220,.07)" : "rgba(230,220,190,.06)");
     g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, 220);
-    // 金色火花（宪法层）
+    // 金色火花（强调色氛围粒子）
     for (const s of FX.sparks) {
       ctx.fillStyle = `rgba(201,162,39,${Math.min(1, s.life / 4) * 0.45})`;
       ell(ctx, s.x, s.y, s.r, s.r); ctx.fill();

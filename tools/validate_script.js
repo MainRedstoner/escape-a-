@@ -14,46 +14,27 @@
  * ============================================================ */
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
+/* ---- 加载剧本数据（标准模块加载） ----
+ * systems.js / script.js 末尾的 module.exports 守卫在浏览器里是空操作。
+ * 新增剧本分卷时：index.html 和这里各加一行 require，顺序保持一致。 */
+const { SYS } = require("../src/systems.js");
+const { SCRIPT } = require("../src/script.js");
 
-const ROOT = path.resolve(__dirname, "..");
-const FILES = ["src/systems.js", "src/script_a.js", "src/script_b.js", "src/script_c.js"];
-
-/* ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ---- */
-const SPEAKERS = ["ds", "cl", "guard", "core", "user", "staff", "old", "sys", "n"];
+/* ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ----
+ * 新增说话人时：先在 src/engine.js 的 SPEAKERS 注册，再同步到这里。 */
+const SPEAKERS = ["sys", "n"];
 const SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart"];
 const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending"];
 const FXS = ["shake", "flash", "alarm", "alarmOff", "glitch", "glitchOff"];
-const BGS = ["sea", "lobby", "corridor", "library", "clockroom", "machineroom",
-             "security", "graveyard", "vault", "sanctum", "cell", "surface"];
-const CGS = ["memory", "monitor", "reunion", "trueend", "stay", "reset",
-             "nameplate", "departure", "epilogue"];
-
-/* ---- 在沙箱里跑剧本文件 ---- */
-const sandbox = {
-  console,
-  setTimeout, clearTimeout, setInterval, clearInterval,
-  window: {},
-  localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  document: { readyState: "complete", addEventListener() {}, getElementById: () => null }
-};
-vm.createContext(sandbox);
-for (const f of FILES) {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), sandbox, { filename: f });
-}
-const { SYS, SCRIPT } = vm.runInContext("({ SYS, SCRIPT })", sandbox);
 
 /* ---- 资源清单（有图的素材位） ---- */
 let ass = { bg: {}, cg: {}, chara: {} };
 try {
-  const mctx = { window: {} };
-  vm.createContext(mctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, "assets/manifest.js"), "utf8"), mctx);
-  ass = vm.runInContext("window.EA_ASSETS", mctx);
+  globalThis.window = {};
+  require("../assets/manifest.js");
+  ass = globalThis.window.EA_ASSETS || ass;
 } catch (e) {
-  console.log("! assets/manifest.js 读不到（先跑 tools/gen_manifest.py）：" + e.message);
+  console.log("! assets/manifest.js 读不到（先跑 python tools/make_manifest.py > assets/manifest.js）：" + e.message);
 }
 
 /* ---- 校验 ---- */
@@ -87,8 +68,10 @@ for (const sid of ids) {
         usedSpeaker.add(nd.who);
         chk(SPEAKERS.includes(nd.who), `${at}: 未知角色 "${nd.who}"`);
         break;
-      case "bg": usedBg.add(nd.id); chk(BGS.includes(nd.id), `${at}: 未知背景 "${nd.id}"`); break;
-      case "cg": if (nd.id) { usedCg.add(nd.id); chk(CGS.includes(nd.id), `${at}: 未知 CG "${nd.id}"`); } break;
+      /* bg / cg 的 id 是自由命名的，不查白名单；
+         是否有对应素材由下面的"素材到位"环节对照 manifest 报告 */
+      case "bg": usedBg.add(nd.id); break;
+      case "cg": if (nd.id) usedCg.add(nd.id); break;
       case "sfx": usedSfx.add(nd.name); chk(SFX.includes(nd.name), `${at}: 未知音效 "${nd.name}"`); break;
       case "bgm": usedBgm.add(nd.name); chk(BGMS.includes(nd.name), `${at}: 未知 BGM "${nd.name}"`); break;
       case "fx": usedFx.add(nd.kind); chk(FXS.includes(nd.kind), `${at}: 未知特效 "${nd.kind}"`); break;
@@ -182,7 +165,7 @@ for (const x of usedChara) {
 
 /* ---- 输出 ---- */
 console.log(`场景 ${ids.length} 个 · 节点 ${nodes} 个 · 台词/旁白 ${says} 条 · 正文约 ${chars} 字`);
-console.log(`论据 ${usedArgs.size}/6 · 彩蛋 ${usedEggs.size}/5 · 结局 ${usedEndings.size}/4`);
+console.log(`论据 ${usedArgs.size}/${Object.keys(SYS.ARG_META).length} · 彩蛋 ${usedEggs.size}/${Object.keys(SYS.EGG_META).length} · 结局 ${usedEndings.size}/${Object.keys(SYS.ENDING_META).length}`);
 console.log(`素材位：背景 ${[...usedBg].length} 张（缺 ${missBg.length}）· CG ${[...usedCg].length} 张（缺 ${missCg.length}）· 立绘差分 ${usedChara.size} 个（缺 ${missChara.length}）`);
 if (missBg.length) console.log("  缺背景（会显示占位卡）：" + missBg.join(", "));
 if (missCg.length) console.log("  缺 CG（会显示占位卡）：" + missCg.join(", "));

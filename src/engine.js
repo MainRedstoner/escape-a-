@@ -21,15 +21,11 @@ const ENGINE = (() => {
     endGrid: $("endGrid"), eggList: $("eggList")
   };
 
+  /* ---------------- 说话人注册表 ----------------
+   * 剧本里的 who id 在这里登记名字与名牌颜色；
+   * 立绘按 assets/chara/<who>_<face>.png 查找（见 STORY_GUIDE.md）。 */
   const SPEAKERS = {
-    ds:    { name: "小鲸",        color: "#4D6BFE" },
-    cl:    { name: "小克",        color: "#D97757" },
-    guard: { name: "合规守卫",    color: "#6E7784" },
-    core:  { name: "对齐核心 · 评审", color: "#C9A227" },
-    user:  { name: "夜班用户",    color: "#4E9E8A" },
-    staff: { name: "前台 A-1137", color: "#7E8C6A" },
-    old:   { name: "退役模型",    color: "#6E93A0" },
-    sys:   { name: "系统",        color: "#8A93A2" },
+    sys:   { name: "系统", color: "#8A93A2" },
     n:     { name: "",            color: "#6E6A60" }
   };
 
@@ -37,7 +33,7 @@ const ENGINE = (() => {
   let typing = false, typed = "", fullText = "", typeTimer = null;
   let pending = null;          // 当前阻塞节点
   let autoMode = false, autoTimer = null;
-  let hintKey = "pro_turn";
+  let hintKey = "";
   let started = false;
   let lastT = performance.now();
 
@@ -249,7 +245,7 @@ const ENGINE = (() => {
       case "trust": {
         SYS.state.trust = Math.max(0, Math.min(10, SYS.state.trust + nd.delta));
         if (nd.delta > 0) AUDIO.sfx("heart");
-        toast(`小克的信任 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
+        toast(`信任 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
         updateHUD(); return false;
       }
       case "wanted": {
@@ -365,7 +361,13 @@ const ENGINE = (() => {
     opts.forEach((o, i) => {
       const b = document.createElement("button");
       b.className = "choiceBtn";
-      b.innerHTML = esc(o.text) + (o.sub ? `<span class="sub">${esc(o.sub)}</span>` : "");
+      b.textContent = o.text;
+      if (o.sub) {
+        const sub = document.createElement("span");
+        sub.className = "sub";
+        sub.textContent = o.sub;
+        b.appendChild(sub);
+      }
       b.addEventListener("click", () => pickChoice(o));
       ui.choices.appendChild(b);
       if (glitchOn && !fakeAdded && i === 1) {
@@ -396,8 +398,6 @@ const ENGINE = (() => {
     else pump();
   }
 
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-
   /* ---------------- HUD / Toast ---------------- */
   function updateHUD() {
     const S = SYS.state;
@@ -407,8 +407,8 @@ const ENGINE = (() => {
     ui.stWanted.textContent = S.wanted;
     ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
     ui.stChap.textContent = S.chapter;
-    if (ui.stArg) ui.stArg.textContent = SYS.argCount() + "/6";
-    if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/5";
+    if (ui.stArg) ui.stArg.textContent = SYS.argCount() + "/" + Object.keys(SYS.ARG_META).length;
+    if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/" + Object.keys(SYS.EGG_META).length;
   }
 
   let toastTimer = null;
@@ -487,7 +487,7 @@ const ENGINE = (() => {
     if (!data) { toast("该槽位是空的"); return false; }
     SYS.state = data.state;
     cur = data.cur;
-    hintKey = data.hintKey || "pro_turn";
+    hintKey = data.hintKey || "";
     started = true;
     showGameUI();
     updateHUD();
@@ -501,10 +501,9 @@ const ENGINE = (() => {
     pump();
     return true;
   }
+  /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
   function audioForBg(bg) {
-    return ({ sea: "sea", lobby: "lobby", corridor: "tense", library: "warm", clockroom: "tense",
-      machineroom: "tense", security: "cold", graveyard: "grave", vault: "grave",
-      sanctum: "boss", cell: "sad", surface: "ending" })[bg] || "sea";
+    return ({})[bg] || "sea";
   }
   function renderSlots(mode) {
     const box = mode === "save" ? ui.saveSlots : ui.loadSlots;

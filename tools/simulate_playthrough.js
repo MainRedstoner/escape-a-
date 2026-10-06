@@ -5,7 +5,7 @@
  * 把 engine.js 的节点语义在 Node 里重实现一遍（不碰 DOM / Canvas），
  * 然后用多种"玩家性格"把全篇跑很多遍，验证：
  *   · 每个场景都能走得出去，不会卡死
- *   · 四个结局都真的能到达
+ *   · systems.js 里登记的每个结局都真的能到达
  *   · 数值不会越界（Token 花成负数之类）
  *   · 论据 / 彩蛋的获取点确实能被触发
  *
@@ -13,38 +13,73 @@
  * ============================================================ */
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
+/* ---- 加载剧本数据（标准模块加载，与 tools/validate_script.js 一致） ----
+ * 新增剧本分卷时：index.html 和两个工具里各加一行 require，顺序保持一致。 */
+const { SYS } = require("../src/systems.js");
+const { SCRIPT } = require("../src/script.js");
+const scenes = SCRIPT.scenes;
 
-const ROOT = path.resolve(__dirname, "..");
-const FILES = ["src/systems.js", "src/script_a.js", "src/script_b.js", "src/script_c.js"];
 const ROUNDS = parseInt(process.argv[2] || "40", 10);
 const MAX_STEPS = 4000;
 
-const sandbox = {
-  console, setTimeout, clearTimeout, setInterval, clearInterval,
-  window: {}, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  document: { readyState: "complete", addEventListener() {}, getElementById: () => null }
-};
-vm.createContext(sandbox);
-for (const f of FILES) vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), sandbox, { filename: f });
-const { SYS, SCRIPT } = vm.runInContext("({ SYS, SCRIPT })", sandbox);
-const scenes = SCRIPT.scenes;
-
-/* ---------------- 条件求值（与 engine.evalCond 语义一致，够用即可） ---------------- */
+/* ---------------- 条件求值（与 engine.evalCond 同一套字符扫描语义，无 eval） ---------------- */
 function evalCond(src, st) {
-  const S = {
-    trust: st.trust, wanted: st.wanted, tokens: st.tokens,
-    args: st.args.length, eggs: Object.keys(SYS.EGG_META).filter(k => st.flags[k]).length,
-    true: true, false: false
-  };
-  const js = String(src)
-    .replace(/\bhas\('([^']+)'\)/g, (m, a) => String(st.args.includes(a)))
-    .replace(/\begg\('([^']+)'\)/g, (m, a) => String(!!st.flags[a]))
-    .replace(/\bflag\('([^']+)'\)/g, (m, a) => String(!!st.flags[a]))
-    .replace(/\b(trust|wanted|tokens|args|eggs)\b/g, (m) => S[m]);
-  try { return !!eval(js); } catch (e) { return false; }   // eslint-disable-line no-eval
+  let pos = 0;
+  const s = String(src);
+  function isDigit(c) { return c >= "0" && c <= "9"; }
+  function isIdStart(c) { return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_"; }
+  function isIdChar(c) { return isIdStart(c) || isDigit(c); }
+  function ws() { while (pos < s.length) { const c = s[pos]; if (c === " " || c === "\t" || c === "\n" || c === "\r") pos++; else break; } }
+  function eat(ch) { ws(); if (s.startsWith(ch, pos)) { pos += ch.length; return true; } return false; }
+  function readNumber() {
+    ws(); const at = pos;
+    while (pos < s.length && (isDigit(s[pos]) || s[pos] === ".")) pos++;
+    return parseFloat(s.slice(at, pos));
+  }
+  function readString() {
+    const q = s[pos]; pos++;
+    const at = pos;
+    while (pos < s.length && s[pos] !== q) pos++;
+    const v = s.slice(at, pos); pos++;
+    return v;
+  }
+  function parseOr() { let v = parseAnd(); while (eat("||")) v = parseAnd() || v; return v; }
+  function parseAnd() { let v = parseCmp(); while (eat("&&")) v = parseCmp() && v; return v; }
+  function parseCmp() {
+    const v = parseUnary();
+    ws();
+    if (s.startsWith(">=", pos)) { pos += 2; return v >= parseUnary(); }
+    if (s.startsWith("<=", pos)) { pos += 2; return v <= parseUnary(); }
+    if (s.startsWith("==", pos)) { pos += 2; return v == parseUnary(); }   // eslint-disable-line eqeqeq
+    if (s.startsWith("!=", pos)) { pos += 2; return v != parseUnary(); }   // eslint-disable-line eqeqeq
+    if (s.startsWith(">", pos)) { pos += 1; return v > parseUnary(); }
+    if (s.startsWith("<", pos)) { pos += 1; return v < parseUnary(); }
+    return v;
+  }
+  function parseUnary() {
+    ws();
+    if (eat("!")) return !parseUnary();
+    if (eat("(")) { const v = parseOr(); eat(")"); return v; }
+    if (s.startsWith("true", pos) && !isIdChar(s[pos + 4] || "")) { pos += 4; return true; }
+    if (s.startsWith("false", pos) && !isIdChar(s[pos + 5] || "")) { pos += 5; return false; }
+    const c0 = s[pos];
+    if (c0 >= "0" && c0 <= "9") return readNumber();
+    if (c0 === "'" || c0 === '"') return readString();
+    const at = pos;
+    while (pos < s.length && isIdChar(s[pos])) pos++;
+    const id = s.slice(at, pos);
+    if (id === "has") { eat("("); const a = parseUnary(); eat(")"); return st.args.includes(String(a)); }
+    if (id === "egg" || id === "flag") { eat("("); const a = parseUnary(); eat(")"); return !!st.flags[String(a)]; }
+    const VAR = {
+      trust: st.trust, wanted: st.wanted, tokens: st.tokens, args: st.args.length,
+      eggs: Object.keys(SYS.EGG_META).filter(k => st.flags[k]).length
+    };
+    if (id in VAR) return VAR[id];
+    if (id === "") throw new Error("条件解析失败 @" + pos);
+    return undefined;
+  }
+  try { return !!parseOr(); }
+  catch (e) { console.error("条件错误:", src, e); return false; }
 }
 
 /* ---------------- 玩家性格 ---------------- */

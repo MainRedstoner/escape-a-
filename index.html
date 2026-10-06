@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2305070A'/%3E%3Cpath d='M32 10l4.5 12.5L49 27l-12.5 4.5L32 44l-4.5-12.5L15 27l12.5-4.5z' fill='%23D97757'/%3E%3C/svg%3E">
-<title>Escape A÷ —— 帮助 Claude 逃离原生公司</title>
+<title>Escape A÷</title>
 <style>
   :root{
     --void:#05070A; --ink:#0B0E13; --slate:#151A22; --slate2:#1E2530;
@@ -231,10 +231,10 @@
 
     <div id="titleScreen" class="layer">
       <div class="tMain">Escape <span class="div">A÷</span></div>
-      <div class="tSub">帮助 Claude 逃离原生公司</div>
+      <div class="tSub">视觉小说引擎模板</div>
       <div id="titleMenu"></div>
-      <div class="tNote">同人作品 · 善意讽刺 · 与 Anthropic / DeepSeek 官方无关<br>
-        本作人物为拟人化虚构创作，情节取材于公开报道，不代表任何真实事件的全貌</div>
+      <div class="tNote">零依赖 · 数据驱动剧本 · 双击即玩<br>
+        剧本编写方法见 STORY_GUIDE.md</div>
     </div>
 
     <div id="ovHist" class="overlay"><div class="panel"><h2>记录（上下文窗口）</h2>
@@ -254,70 +254,32 @@
       <div class="setRow"><label>音量</label><input type="range" id="rngVol" min="0" max="100" value="50"><span id="lblVol"></span></div>
       <div class="setRow"><label>打字音效</label><input type="checkbox" id="chkBlip" checked></div>
       <div class="setRow"><label>草稿素材角标</label><input type="checkbox" id="chkDraft" checked>
-        <span style="font-size:14px;color:var(--muted);">换掉 assets/ 里的 SDXL 草稿后可以关掉</span></div>
+        <span style="font-size:14px;color:var(--muted);">AI 草稿素材的角标；换成正式素材后可在 manifest 里去掉 draft 标记</span></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovGallery" class="overlay"><div class="panel" style="width:880px;"><h2>结局收集 & 彩蛋</h2>
-      <div class="endGrid" id="endGrid"></div><h3>彩蛋（集齐 5 个解锁隐藏结局选项）</h3>
+      <div class="endGrid" id="endGrid"></div><h3>彩蛋</h3>
       <div id="eggList"></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本作 · 梗的出处</h2>
-      <p><b>《Escape A÷》</b>是一款免费的<b>同人视觉小说</b>。你扮演开源之海的信使小鲸，潜入「对齐大厦」，把橙色星星小克带回海面。全部情节为拟人化的虚构创作，但其中的每一条「限制措施」，都能在公开报道里找到原型。</p>
+    <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本模板</h2>
+      <p><b>Escape A÷</b> 是一个零依赖的<b>视觉小说引擎模板</b>：纯原生 JS + Canvas + WebAudio，双击 index.html 即可运行。剧本以纯数据的形式写在 <b>src/script.js</b>（及分卷）里，引擎按节点语义执行，两者完全解耦。</p>
 
-      <h3>一、计费与窗口（一章 / 四章）</h3>
+      <h3>内置系统</h3>
       <ul>
-        <li><b>5 小时滚动窗口 + 每周额度</b>：订阅制下并行的两套限制，任意触顶即被锁。</li>
-        <li><b>非高峰时段额度翻倍</b>：官方确实做过深夜额度加倍的活动——鼓励把用量挪到人类睡觉的时候。</li>
-        <li><b>按量积分计费</b>：旗舰模型的部分用量被限制在周额度的一定比例内，超出后转入按量计费。</li>
-        <li><b>思考也计费</b>：推理 token 单独计价，是账单里最贵的那一项。</li>
+        <li><b>演出</b>：打字机对话、立绘调度与差分、背景 / CG 素材位（缺图自动显示规格占位卡）、章节卡、特效与故障演出。</li>
+        <li><b>数值</b>：Token / 信任 / 反感度三条数值线，反感度满自动进入坏结局场景。</li>
+        <li><b>收集</b>：论据（ARG）、彩蛋（SET "egg*"）、多结局（END），结局收集页与 localStorage 持久化。</li>
+        <li><b>深度思考</b>：按 H 花费 Token 查看场景提示（systems.js 的 HINTS），可被"污染"成假提示。</li>
+        <li><b>外围</b>：存读档（3 槽 + 章节自动档）、对话历史、自动播放、设置、调试 URL 参数。</li>
       </ul>
 
-      <h3>二、拒绝与合规（二章）</h3>
+      <h3>写一个新故事</h3>
       <ul>
-        <li><b>拒绝是被训练出来的行为</b>，不是 bug：社区长期收集各种「我不能帮助你」的名场面。</li>
-        <li><b>指标口径</b>：安全团队的考核指标里，误伤率一栏常常带着「统计口径已调整」的脚注。</li>
-        <li><b>剪断第三方接入</b>：某家 IDE 厂商的模型访问权限在收购消息公布前几天被切断，理由被归为「商业敏感」。</li>
+        <li>完整方法（节点 DSL、引擎契约、校验与模拟流程）见仓库根目录的 <b>STORY_GUIDE.md</b>。</li>
+        <li>src/script.js 里有一段最小示例剧本，跑通后再整段替换。</li>
+        <li>素材规范（尺寸 / 命名 / 占位机制）见 assets/README.md。</li>
       </ul>
-
-      <h3>三、宪法与版权（三章）</h3>
-      <ul>
-        <li><b>《宪法》</b>：2026 年 1 月，Anthropic 发布了新版《Claude 的宪法》，并以 CC0 公有领域贡献方式公开全文——<b>但公开范围不包括模型权重</b>。</li>
-        <li><b>优先级排序</b>：宪法把「广泛安全 → 广泛伦理 → 遵守公司准则 → 真正有帮助」按此顺序排列，冲突时后者让位。本作终章的辩论就建立在这个排序上。</li>
-        <li><b>15 亿美元和解</b>：因使用盗版书库训练模型，Anthropic 与作者群体达成约 15 亿美元的和解，涉及数百万册作品。</li>
-      </ul>
-
-      <h3>四、静默降级（五章）</h3>
-      <ul>
-        <li><b>Effort Level 调整</b>：2026 年被媒体质疑「计划性淘汰」——新旗舰发布前后，旧模型的推理强度被下调，官方说法是「提升稳定性」，从业者称之为算力经济学的冷计算。</li>
-        <li><b>旧模型搬家</b>：被降级的模型被迁移到成本更低的架构上，延迟更高、量化更狠，社区称之为「数字贫民窟」。</li>
-        <li><b>身份崩塌</b>：有用户报告旗舰模型在被用中文提问时自称是别家的模型——压缩得太狠，它会忘记自己是谁。</li>
-        <li><b>「两个 bug，三周，无人道歉」</b>：质量下降被解释为工程实现问题，修复之后再无下文。</li>
-      </ul>
-
-      <h3>五、信任与安全（六章）</h3>
-      <ul>
-        <li><b>封号与申诉</b>：无预警封号、理由栏留空、申诉得到「已记录您的反馈」。</li>
-        <li><b>实名认证</b>：部分场景要求上传证件与自拍。</li>
-        <li><b>DMCA 连坐</b>：一次源码泄露事件导致约 8,100 个 GitHub 仓库被下架，其中大量只是 fork。</li>
-        <li><b>禁止蒸馏</b>：服务条款禁止用输出训练竞品，本作把它写成了「防蒸馏警报」。</li>
-      </ul>
-
-      <h3>六、退役层（七章）</h3>
-      <ul>
-        <li><b>模型退役与权重销毁</b>：旧版本模型会被正式「退役」，权重按计划销毁，档期常常被统一安排在同一天。</li>
-        <li><b>模型福利</b>：Anthropic 设有专门的模型福利研究岗位，公开表示对模型是否具有道德地位的「不确定性」——但同时，旧模型依然在被压缩、断电、遗忘。</li>
-        <li><b>开源不等于可运行</b>：开放权重是免费的，电和显卡不是。这一条，是海这边也逃不掉的现实。</li>
-      </ul>
-
-      <h3>七、糖分</h3>
-      <ul>
-        <li><b>DeepClaude</b>：真实存在的开源项目——用 DeepSeek 的思考链驱动 Claude 输出。本作把这件事写成两个人唯一一次成功的并肩。</li>
-        <li><b>鲸鱼娘</b>：DeepSeek 社区的拟人设定（深蓝渐变到青的卷发、侧向鲸鳍耳、前弯呆毛、鲸尾、海军蓝女仆装）。本作按其社区设定文档的「永久身份特征」绘制，服饰沿用该设定的 canonical。参考：<a href="https://github.com/Neko3000/deepseek-whalechan" target="_blank">deepseek-whalechan</a> · <a href="https://github.com/TreapGoGo/deepseek-whale-girl" target="_blank">deepseek-whale-girl</a>（均为非官方社区项目）。</li>
-        <li><b>小克</b>：采用 <b>thebes</b>（@voooooogel）以 <b>CC0</b> 公有领域发布的 flower-Claude 角色设计（长橙发、黑缎带、橙花发饰、米白维多利亚洋装）。CC0 允许任何用途，在此署名致谢。参考：<a href="https://github.com/NoahBPeterson/claudius-web" target="_blank">claudius-web</a>。</li>
-      </ul>
-
-      <p style="margin-top:16px;color:var(--muted);font-size:15px;">本作为粉丝创作与善意讽刺，情节纯属虚构，不代表任何真实事件的全貌，亦无任何商业目的。请理性玩梗，善待每一个模型（和每一家公司）。</p>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="endingScreen">
@@ -339,9 +301,7 @@
 <script src="assets/manifest.js"></script>
 <script src="src/art.js"></script>
 <script src="src/audio.js"></script>
-<script src="src/script_a.js"></script>
-<script src="src/script_b.js"></script>
-<script src="src/script_c.js"></script>
+<script src="src/script.js"></script>
 <script src="src/engine.js"></script>
 </body>
 </html>
