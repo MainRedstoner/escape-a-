@@ -61,7 +61,8 @@ const SYS = (() => {
    * key = 结局 id。注意 "bad_end" 是引擎约定：通缉度满 10 时自动跳过去，
    * 如果你的剧本用到通缉度，就提供一个叫这个名字的场景。 */
   const ENDING_META = {
-    sample_end: { name: "示例结局", desc: "模板自带的演示结局；登记你自己的结局时替换这一条。" }
+    test_end: { name: "集成测试通过", desc: "临时测试线的正常结局；写正式剧本时替换这一条。" },
+    bad_end:  { name: "被通缉了", desc: "通缉度满 10 时引擎自动跳入的坏结局，场景 id 固定叫 bad_end。" }
   };
 
   function eggCount() { return Object.keys(EGG_META).filter(k => state.flags[k]).length; }
@@ -83,7 +84,7 @@ const SYS = (() => {
   /* ---------------- 场景提示库（HINT 节点的 key） ----------------
    * 剧本里 HINT("key") 挂到场景，按 H 消耗 3 Token 显示对应文案。 */
   const HINTS = {
-    // sample_hint: "这里写深度思考的提示文案。",
+    t_hint: "（测试用提示：token 模式下，锁到哪一项取决于滑块扫过它时你有没有按 Space。）"
   };
 
   /* ---------------- 结局 / 彩蛋 记录 ---------------- */

@@ -158,6 +158,8 @@ function play(strategy, rngSeed) {
         idx = 0; break;
       }
       case "choice": {
+        /* token 模式（滑道选项框）与按钮模式在此同语义：策略显式挑一个选项。
+           UI 的"不锁定 → 默认选最右"只是呈现层兜底，由 last 策略覆盖得到。 */
         const opts = nd.options.filter(o => !o.hideInGlitch);
         const pick = strategy === "random" ? Math.floor(rnd() * opts.length) : STRATEGIES[strategy](opts, st);
         const o = opts[Math.max(0, Math.min(opts.length - 1, pick))];

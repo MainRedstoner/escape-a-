@@ -90,10 +90,20 @@ for (const sid of ids) {
         break;
       case "choice":
         chk(Array.isArray(nd.options) && nd.options.length >= 2, `${at}: 选项少于 2 个`);
+        /* token 模式（TokenChoice 滑道选项框）的专有字段 */
+        if (nd.mode !== undefined) chk(nd.mode === "token", `${at}: 未知的选项模式 "${nd.mode}"（引擎只实现了 "token"）`);
+        if (nd.mode === "token") {
+          chk(nd.duration === undefined || (typeof nd.duration === "number" && nd.duration > 0),
+              `${at}: duration 应是正数毫秒`);
+          chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
+              `${at}: minShare 应在 [0, 1) 之间`);
+        }
         (nd.options || []).forEach((o, k) => {
           jumps.add(o.jump);
           chk(!!scenes[o.jump], `${at} 选项${k + 1}: 跳转目标不存在 "${o.jump}"`);
           chk(!!o.text, `${at} 选项${k + 1}: 空文案`);
+          chk(o.weight === undefined || (typeof o.weight === "number" && o.weight >= 0),
+              `${at} 选项${k + 1}: weight 应是非负数（token 模式下决定滑道宽度与概率）`);
           if (o.give) { usedArgs.add(o.give); grantedArgs.add(o.give); chk(!!SYS.ARG_META[o.give], `${at}: 选项给出不存在的论据 "${o.give}"`); }
           if (o.set) { usedEggs.add(o.set); grantedEggs.add(o.set); }
         });

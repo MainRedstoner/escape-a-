@@ -175,7 +175,12 @@
   ::-webkit-scrollbar{width:9px;}
   ::-webkit-scrollbar-thumb{background:var(--steel);}
   ::-webkit-scrollbar-track{background:rgba(255,255,255,.04);}
+
+  /* ---------- Token 模式选项框（组件样式在 src/token-choice.css） ---------- */
+  #choiceList{display:flex;flex-direction:column;align-items:center;gap:14px;}
+  #choiceList:empty{display:none;}
 </style>
+<link rel="stylesheet" href="src/token-choice.css">
 </head>
 <body>
 <div id="wrap">
@@ -214,6 +219,8 @@
 
     <div id="choices" class="layer">
       <div id="choicePrompt"></div>
+      <div id="choiceList"></div>
+      <div id="choiceToken" hidden></div>
     </div>
 
     <div id="chapterCard" class="layer">
@@ -301,6 +308,7 @@
 <script src="assets/manifest.js"></script>
 <script src="src/art.js"></script>
 <script src="src/audio.js"></script>
+<script src="src/token-choice.js"></script>
 <script src="src/script.js"></script>
 <script src="src/engine.js"></script>
 </body>
