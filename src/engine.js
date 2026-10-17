@@ -95,8 +95,9 @@ const ENGINE = (() => {
     }
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
-      // 扫描期间 Space/Enter 是「锁定」，其余时候推进对话
+      // 选项界面：列表列完 → 收拢；扫描中 → 锁定当前高亮项（和鼠标点击同一入口）
       if (wheel && wheel.state === "sliding") wheel.lock();
+      else if (wheel && (wheel.state === "list" || wheel.state === "hold")) wheel.click();
       else onMainClick();
     }
     else if (e.key === "h" || e.key === "H") toggleHint();
@@ -406,7 +407,7 @@ const ENGINE = (() => {
    *   - 选项按 weight 升序从左到右排列，宽度与概率成比例；
    *   - 组件固定节奏：选项逐行列出 1 秒 → 停 2 秒 → 1 秒收拢成一行（宽度=概率）→
    *     停 1 秒 → 指针在左侧匀加速 → 入框冲击动画 → 约 1.25 秒匀速扫过 → 锁定 / 默认选中；
-   *   - Space / Enter 由引擎统一分发到 wheel.lock()，与「锁定」按钮同一入口。 */
+   *   - 点击任意处（或 Space / Enter）由引擎统一分发到 wheel.click()：列完 → 收拢，扫描中 → 锁定。 */
   function hideChoices() {
     ui.choices.style.display = "none";
     if (wheel) wheel.close();
@@ -526,7 +527,7 @@ const ENGINE = (() => {
       AUDIO.sfx("deny");
       toast("404 · 该选项不存在，或已存在过。");
       setTimeout(() => {
-        // 原地重扫：跳过登场与 2 秒展示，直接重新加速，不然每次都要白等 2.4 秒
+        // 原地重扫：跳过列表与收拢，直接重新加速，不用白等开场
         if (wheel && ui.choices.style.display !== "none") wheel.start({ intro: false });
       }, 500);
       return;
@@ -959,6 +960,8 @@ const ENGINE = (() => {
 
   /* ---------------- 按钮绑定 ---------------- */
   $("btnHint").addEventListener("click", toggleHint);
+  /* 选项界面：点任意处 = 继续 / 锁定（面板与半透明背景都算），与 Space / Enter 同一入口 */
+  $("choices").addEventListener("click", () => { if (wheel) wheel.click(); });
   $("btnLog").addEventListener("click", showHistory);
   $("btnAuto").addEventListener("click", toggleAuto);
   $("btnSave").addEventListener("click", () => { slotPick = "save"; renderSlots("save"); });

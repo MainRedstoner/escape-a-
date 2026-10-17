@@ -3,16 +3,18 @@
 /**
  * TokenChoice —— “Transformer 选词器”风格的视觉小说选项框。
  *
- * 一次选择的完整节奏（时间轴固定，剧本不需要也不能改）：
- *   1. 列表：选项按行逐个列出（1 秒内全部出现），每个选项一种颜色；
- *   2. 停留：全部选项展示 2 秒；
+ * 一次选择的完整节奏：
+ *   1. 列表：选项按行逐个列出（约 0.6 秒内全部出现），每个选项一种颜色；
+ *   2. 等待：列完后**停住，等玩家点击 / 按键**再继续（不设倒计时，首见的人能看清）；
  *   3. 收拢：每行的宽度变成自己的概率占比，1 秒内平滑收拢到同一行；
  *   4. 等待：成行后停 1 秒；
  *   5. 加速：指针从滑道最左侧由静止匀加速（x = ½·a·t²），目标速度 = 扫描速度；
  *   6. 入框：加速结束的一瞬间指针正好到达选项框左边缘，立刻进入并播放冲击动画；
  *   7. 扫描：约 1.25 秒（1 秒版的 0.8 倍速）匀速划过整个选项框，高亮项同步显示在预览区；
- *   8. 收尾：引擎在 Space / Enter 时调用 lock()（或点「锁定」按钮）→ 选中动画；
+ *   8. 收尾：扫描中**点击任意处**或按 Space / Enter → 选中当前高亮项，播放选中动画；
  *            无人操作则扫到尽头 → 另一套「默认锁定」动画，选中最右侧（权重最高）项。
+ *
+ * 鼠标与键盘同一入口：click() —— 列表阶段跳过余下动画、等待阶段开始收拢、扫描阶段锁定。
  *
  * 宽度规则：
  *   - 宽度严格按概率分配（minShare 只给低概率项一个可见下限），不为了文字去改占比；
@@ -33,8 +35,8 @@
  */
 
 const TC_SWEEP_MS = 1250;      // 指针划过整个选项框的时长（原 1 秒的 0.8 倍速）
-const TC_LIST_MS = 1000;       // 列表逐行列出的总时长
-const TC_HOLD_MS = 2000;       // 列完后停留
+const TC_LIST_MS = 600;        // 列表逐行列出的总时长（加快：0.6 秒内全部出现）
+/* 列完之后不再用计时器自动收拢：停住等玩家点击 / 按键（需求：给首次游玩的人足够时间看清） */
 const TC_MORPH_MS = 1000;      // 收拢成一行的时长
 const TC_READY_MS = 1000;      // 成行后等待，然后开始扫描
 const TC_ENTER_MS = 260;       // 面板淡入
@@ -99,7 +101,6 @@ class TokenChoice extends EventTarget {
       </div>
       <div class="tc-footer">
         <div class="tc-progress"><div class="tc-progress-fill"></div></div>
-        <button type="button" class="tc-lock" disabled>锁定 (Space)</button>
       </div>`;
     this.previewText = this.root.querySelector('.tc-preview-text');
     this.stage = this.root.querySelector('.tc-stage');
@@ -109,13 +110,11 @@ class TokenChoice extends EventTarget {
     this.chipsEl = this.root.querySelector('.tc-chips');
     this.cursor = this.root.querySelector('.tc-cursor');
     this.progressFill = this.root.querySelector('.tc-progress-fill');
-    this.lockBtn = this.root.querySelector('.tc-lock');
   }
 
   _bindEvents() {
-    // 键盘不在这里监听：Space / Enter 由引擎统一分发到 lock()，
-    // 避免组件与引擎各挂一个 window 监听、将来互相打架。
-    this.lockBtn.addEventListener('click', () => this.lock());
+    // 键盘与鼠标都不在组件里各自监听：引擎统一把 Space / Enter / 画布点击
+    // 分发到 click() / lock()，避免组件与引擎各挂一个监听、将来互相打架。
   }
 
   /* ---------------- 定时器 ---------------- */
@@ -215,7 +214,6 @@ class TokenChoice extends EventTarget {
     const intro = opts.intro !== false;
     this.reset();
     this._geometry();          // 先量好加速区，避免登场时界面再跳一下
-    this.lockBtn.disabled = true;
 
     if (!intro) {
       this._layoutFinal();
@@ -229,15 +227,28 @@ class TokenChoice extends EventTarget {
     this._layoutList();
     this.root.classList.add('tc-entering', 'tc-listing');
     this._later(() => this.root.classList.remove('tc-entering'), TC_ENTER_MS);
-    this._later(() => {
-      this.root.classList.remove('tc-listing');
-      this.state = 'hold';
-      this._setPreview('全部选项就位');
-      this._later(() => this._morph(), TC_HOLD_MS);
-    }, TC_LIST_MS);
+    this._later(() => this._endList(), TC_LIST_MS);
   }
 
-  /** 锁定当前高亮项（Space / Enter / 按钮 / 代码调用）。 */
+  /** 列表列完：停住等玩家，不自动收拢（首次游玩需要时间看清）。 */
+  _endList() {
+    if (this.state !== 'list') return;
+    this.root.classList.remove('tc-listing');
+    this.state = 'hold';
+    this._setPreview('点击任意处 / 空格继续');
+  }
+
+  /**
+   * 鼠标点击 / Space / Enter 的统一入口：
+   *   列表 → 立刻列完并停住；等待 → 开始收拢；扫描 → 锁定当前高亮项。
+   */
+  click() {
+    if (this.state === 'list') { this._endList(); return; }
+    if (this.state === 'hold') { this._morph(); return; }
+    if (this.state === 'sliding') { this.lock(); }
+  }
+
+  /** 锁定当前高亮项（扫描中点击 / Space / Enter / 代码调用）。 */
   lock() {
     if (this.state !== 'sliding') return;
     this._finish(this._activeIndex, false);
@@ -253,7 +264,6 @@ class TokenChoice extends EventTarget {
     this.cursor.style.transform = 'translateX(0px)';
     this.cursor.classList.remove('tc-cursor--hit');
     this.progressFill.style.width = '0%';
-    this.lockBtn.disabled = true;
     this.root.classList.remove('tc-entering', 'tc-listing', 'tc-morphing', 'tc-framed', 'tc-picking', 'tc-ended');
     this.frame.classList.remove('tc-frame--hit');
     if (this.labelsEl) {
@@ -264,7 +274,7 @@ class TokenChoice extends EventTarget {
       this.track.style.transition = 'none';
       this.track.style.height = '';
     }
-    this._setPreview('滑动开始后可按 Space 锁定当前选项');
+    this._setPreview('列出后点击任意处继续；扫描中点击或按 Space 锁定');
     this.chipEls.forEach(el => {
       el.classList.remove('tc-chip--active', 'tc-chip--chosen', 'tc-chip--pop', 'tc-chip--settle', 'tc-chip--narrow');
       const text = el.querySelector('.tc-chip-text');
@@ -438,11 +448,10 @@ class TokenChoice extends EventTarget {
   /** 加速结束 → 指针刚好在框的左边缘，立即以固定速度进入（不停顿）。 */
   _enterFrame() {
     this.state = 'sliding';
-    this.lockBtn.disabled = false;
     this.cursor.style.transform = `translateX(${this._runway.toFixed(1)}px)`;
     this._hit();
     this._setActive(0);
-    this._setPreview('按 Space 锁定当前选项');
+    this._setPreview('点击任意处 / 空格 锁定当前选项');
     this._t0 = performance.now();
     this._raf = requestAnimationFrame(this._tickSlide);
   }
@@ -516,7 +525,6 @@ class TokenChoice extends EventTarget {
     if (index < 0) index = this.options.length - 1;
     this.state = 'done';
     cancelAnimationFrame(this._raf);
-    this.lockBtn.disabled = true;
     this._setActive(index);
 
     const chosen = this.chipEls[index];

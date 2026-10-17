@@ -310,24 +310,6 @@
   background: linear-gradient(90deg, #38bdf8, #34d399);
 }
 
-.tc-lock {
-  padding: 7px 16px;
-  border: 1px solid #2b3b5c;
-  border-radius: 8px;
-  background: #1b2436;
-  color: #d7e1f2;
-  font: inherit;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.tc-lock:hover:not(:disabled) { background: #243150; border-color: #3b5178; }
-
-.tc-lock:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 /* ============================================================
  * 引擎接入适配（Escape A÷）
  * 组件挂在 #choices 遮罩下，舞台按 1600×900 缩放，配色接引擎主题变量
@@ -415,15 +397,6 @@
 
 #choiceToken .tc-progress { background: var(--slate, #151A22); }
 #choiceToken .tc-progress-fill { background: linear-gradient(90deg, var(--clay-dark, #8E4530), var(--clay, #D97757)); }
-
-#choiceToken .tc-lock {
-  background: var(--slate, #151A22);
-  border-color: var(--line, #2C3542);
-  color: var(--text, #C9D2DE);
-  font-size: 19px;
-  padding: 12px 26px;
-}
-#choiceToken .tc-lock:hover:not(:disabled) { background: var(--slate2, #1E2530); border-color: var(--clay, #D97757); }
 
 /* 故障演出：与引擎的 glitch 态保持一致 */
 body.glitching #choiceToken { filter: hue-rotate(-40deg) saturate(1.5); }

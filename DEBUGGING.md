@@ -139,7 +139,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 | --- | --- | --- |
 | 白屏 / 连标题都不出现 | Console 第一条红字；`typeof ENGINE`、`typeof SCRIPT` | JS 语法错（浏览器会报 `file:line`）、脚本 404、`index.html` 里 `<script>` 顺序被改坏 |
 | 点了没反应 | `ENGINE.debug()` 的 `pending` | 正在放演出 / 打字机；`pending` 为 `null` 时多半是过场 |
-| 选项框一直不动 | 等够 7 秒左右 | 滑道固定节奏：列表 1s → 停留 2s → 收拢 1s → 停 1s → 加速 → 1.25s 扫描；这段不设计跳过 |
+| 选项框停在列表不动 | 点一下（或按 Space） | 列表列完后**等你点击**才收拢（不再有 2 秒倒计时）；之后收拢 1s → 停 1s → 加速 → 1.25s 扫描，扫描中点击任意处锁定 |
 | 选项框里出现「该选项已被静默移除」 | `SYS.state.vis.glitch` | 故障态的死选项，锁定它会被拒绝并重新扫描，这是设计 |
 | 没有声音 | 先点一下画面；`AUDIO.unlock()` | 浏览器自动播放策略；控制台若有 `AudioContext was not allowed to start` 属正常 |
 | 背景 / 立绘是占位卡 | 占位卡上写的文件名与规格 | 素材没放：`assets/bg/<id>.jpg` 等；放好后 `python tools/make_manifest.py > assets/manifest.js` |
