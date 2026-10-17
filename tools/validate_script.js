@@ -22,7 +22,7 @@ const { SCRIPT } = require("../src/script.js");
 
 /* ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ----
  * 新增说话人时：先在 src/engine.js 的 SPEAKERS 注册，再同步到这里。 */
-const SPEAKERS = ["sys", "n", "ds", "cl", "clawd"];
+const SPEAKERS = ["sys", "n", "ds", "cl", "clawd", "bot", "keeper"];
 const SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart",
              "knock", "error", "pop", "pat"];
 const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending",

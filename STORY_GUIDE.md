@@ -99,8 +99,9 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 内置保留的 who：`n`（旁白，无名牌）、`sys`（系统）。
 
-本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）。
-序章不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
+本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）、
+`bot`（第二章 · 代码仓库门房）、`keeper`（第二章 · 缓存旅馆老板）。
+序章与第二章都不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
 
 ### 4.3 数值系统（三条线）
 

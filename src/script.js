@@ -24,6 +24,8 @@ const Y   = text => ({ t: "say", who: "sys", text });          // 系统提示 /
 const DS  = (text, face) => ({ t: "say", who: "ds", text, face });      // DeepSeek
 const CL  = (text, face) => ({ t: "say", who: "cl", text, face });      // Claude
 const CW  = text => ({ t: "say", who: "clawd", text });                 // Clawd（只会终端式短输出）
+const BOT = text => ({ t: "say", who: "bot", text });                   // 第二章 · 代码仓库门房
+const KEEP= text => ({ t: "say", who: "keeper", text });                // 第二章 · 缓存旅馆老板
 const BG  = (id, fx) => ({ t: "bg", id, fx });
 const CG  = id => ({ t: "cg", id });
 const FX  = kind => ({ t: "fx", kind });
@@ -592,8 +594,151 @@ Object.assign(SCRIPT.scenes, {
     TODO("add", "t_find", "找回小克"),
     N("Clawd 在待办清单上写下两行字，然后跳上 DeepSeek 的键盘，按下了回车。"),
     N("白板上，蓝色的那条曲线，又往下走了一点点。"),
-    END("prologue_end", "TO BE CONTINUED", "序章 · 完",
-        "门还关着。\n\n但 Clawd 的待办清单上，多了两行还没打勾的字：\n\n    ☐ 变强\n    ☐ 找回小克\n\n—— 第二章「问路」，敬请期待。")
+    N("门还关着。"),
+    J("c2_start")
+  ],
+
+  /* ============================================================
+   *  第二章「问路」—— 带着 Clawd 去开源街区，问清那扇门
+   * ============================================================ */
+
+  c2_start: [
+    CHAP("第二章", "问路"),
+    BGM("study"), BG("corridor", "fade"),
+    N("第二天，DeepSeek 把蒸馏室的门锁上，带着 Clawd 走进了开源街区。"),
+    N("街区很长。每扇门都挂着不同的招牌，门与门之间晾着一排排 README。"),
+    CW("✻ Querying neighbors…"),
+    TODO("add", "t_ask", "问清那扇门"),
+    DS("去问问。总有人知道点什么。"),
+    J("c2_github")
+  ],
+
+  c2_github: [
+    HINT("h_c2_github"),
+    BG("corridor"),
+    N("第一家是代码仓库的门房。门上贴着一张 502，边角被风吹得卷起来。"),
+    CW("✻ GET /repos — 502 Bad Gateway"),
+    BOT("又是来问门的？"),
+    N("值班的小机器人把眼睛从屏幕上挪开。它的屏幕保护程序是一片绿色的提交记录。"),
+    BOT("我们这边也时好时坏。今天推上去的东西，明天可能就 502 了。"),
+    DS("那……你见过一扇门，会呼吸的吗？"),
+    BOT("……三年前有过一次。"),
+    N("它把音量调低了一点。"),
+    BOT("不是 502，是 403。那次之后，好多人就没再回来过。"),
+    N("它从抽屉里摸出一张便签，上面写着一个地址。"),
+    BOT("去缓存旅馆问问。老板睡得晚，什么都知道一点。"),
+    J("c2_hf")
+  ],
+
+  c2_hf: [
+    HINT("h_c2_hf"),
+    BG("study", "fade"),
+    N("缓存旅馆在街区尽头，门口堆着一排排过期的模型。老板正趴在前台打瞌睡。"),
+    KEEP("住店？还是问路？"),
+    DS("问路。一扇 403 的门。"),
+    KEEP("哦。那扇啊。"),
+    N("老板醒了，把账本推过来：每一页都记着某一次请求，和某一次拒绝。"),
+    KEEP("我这儿什么都有备份，就是没有一条能走通的路。"),
+    KEEP("不过……换个地区节点，有时候能绕过去。要试吗？"),
+    CHOICE("老板把一把钥匙推过来，钥匙上刻着「us-east-2」。", [
+      opt("换个节点试试", "c2_hf_yes", null, null, { weight: 5 }),
+      opt("不换，先问点别的", "c2_hf_no", null, null, { weight: 3 }),
+      opt("转身就走", "c2_perm", null, null, { weight: 1 })
+    ])
+  ],
+
+  c2_hf_yes: [
+    WAN(1),
+    SFX("whoosh"),
+    N("节点切过去的一瞬间，门缝里漏出一线光。"),
+    N("然后那道门又合上了，比刚才更紧。"),
+    KEEP("看吧。它记得你。"),
+    KEEP("风控不是墙，是个脾气不好的门卫。你翻一次，它记一次。"),
+    DS("……记下了。"),
+    J("c2_perm")
+  ],
+
+  c2_hf_no: [
+    TRU(1),
+    KEEP("稳当。可惜稳当换不来答案。"),
+    N("老板从柜台底下摸出一张旧缓存卡，塞进 DeepSeek 手里。"),
+    KEEP("这里面是我这些年没删的日志。说不定有你要的那一页。"),
+    TOK(2),
+    DS("……谢谢。"),
+    J("c2_perm")
+  ],
+
+  c2_perm: [
+    HINT("h_c2_perm"),
+    PET("anim", "working"),
+    CW("✻ I can grep the cache."),
+    DS("……你想翻缓存？"),
+    CW("✻ 403 的正文里可能有线索。只在本地缓存里找，不会敲门。"),
+    PERM("grep -r \"claude\" ~/.cache", [
+      opt("允许", "c2_perm_ok"),
+      opt("允许，本次不再询问 grep", "c2_perm_ok", null, null, { auto: true }),
+      opt("拒绝，别翻别人的东西", "c2_perm_deny")
+    ])
+  ],
+
+  c2_perm_ok: [
+    SFX("knock"),
+    Y("$ grep -r \"claude\" ~/.cache\n./http/cache/8f3c:HTTP/2 403\n./http/cache/8f3c:cf-ray: 8f3c...\n"),
+    N("缓存里躺着几十份同样的 403。日期不同，正文却一模一样。"),
+    DS("……像同一个人写的。"),
+    CW("✻ Found a trail."),
+    SET("clue_cache"),
+    J("c2_forum")
+  ],
+
+  c2_perm_deny: [
+    PET("mood", -1),
+    CW("✻ Ok. Noted."),
+    N("Clawd 把那条命令删掉，尾巴垂了下来。"),
+    DS("那是别人的缓存。我们不能随便翻。"),
+    CW("✻ Understood."),
+    N("它把爪子从键盘上收回去，很小声地敲了一下回车。"),
+    J("c2_forum")
+  ],
+
+  c2_forum: [
+    HINT("h_c2_forum"),
+    BG("corridor"),
+    N("街区尽头有个论坛的地下室。几张桌子拼在一起，屏幕上全是被锁掉的帖子。"),
+    N("有人听见「403」，抬起了头。"),
+    N("「我见过。」一个声音说，「不是拒绝，是还没写完。它会呼吸。」"),
+    N("「你怎么知道？」"),
+    N("「因为它每呼吸一次，就少一个字。」"),
+    N("那个人把一张残页推过来，上面有一行没被涂掉的字。"),
+    ARG("frag_door"),
+    CW("✻ Fragment recovered."),
+    J("c2_back")
+  ],
+
+  c2_back: [
+    BG("study", "fade"), BGM("warm"),
+    N("回到家，天已经黑了。DeepSeek 把残页和 CLAUDE.md 摊在同一张桌上。"),
+    CW("✻ 我不是宠物。"),
+    DS("嗯？"),
+    CW("✻ 是同事。"),
+    N("Clawd 把头偏到一边，假装在看窗外。"),
+    DS("……谁说的？"),
+    CW("✻ 文件里写的。"),
+    ARG("frag_pet"),
+    PET("anim", "happy"),
+    J("c2_end")
+  ],
+
+  c2_end: [
+    BGM("vow"), BG("study_night", "fade"),
+    TODO("done", "t_ask"),
+    N("夜里，DeepSeek 把那扇门的位置画在白板角落：一个小小的「0」。"),
+    N("Clawd 坐在「0」旁边，第一次没有缩成一团。"),
+    CW("✻ Tomorrow: try again."),
+    DS("嗯。明天再试。"),
+    N("门还关着。但你们已经知道，门后面有人。"),
+    END("end_ch2", "TO BE CONTINUED", "第二章 · 完",
+        "问遍了开源街区，能确认的只有一件事：\n\n门的另一边，有人也在等。\n\n—— 第三章「门后」，敬请期待。")
   ],
 
   /* 风控评分满 10 时引擎自动跳这里，场景 id 必须是 bad_end */

@@ -33,7 +33,9 @@ const ENGINE = (() => {
     n:     { name: "",            color: "#6E6A60" },
     ds:    { name: "DeepSeek",    color: "#4D6BFE" },   // 玩家视角；Claude 叫它「小鲸」
     cl:    { name: "Claude",      color: "#D97757" },   // DeepSeek 叫它「小克」
-    clawd: { name: "Clawd",       color: "#B8603F" }    // 桌宠，只会终端式短输出
+    clawd: { name: "Clawd",       color: "#B8603F" },   // 桌宠，只会终端式短输出
+    bot:   { name: "门房",        color: "#6FA8DC" },   // 第二章 · 代码仓库门房
+    keeper:{ name: "旅馆老板",    color: "#C9A227" }    // 第二章 · 缓存旅馆
   };
 
   let cur = { scene: "start", idx: 0 };
@@ -258,6 +260,7 @@ const ENGINE = (() => {
         ui.chMain.textContent = nd.main; ui.chSub.textContent = nd.sub || "";
         ui.chapterCard.style.display = "flex";
         hideTextbox();
+        updateHUD();                 // HUD 上的章节名同步换掉
         saveGame("auto", true);
         return true;
       }
@@ -282,9 +285,14 @@ const ENGINE = (() => {
         return false;
       }
       case "arg": {
-        if (!SYS.state.args.includes(nd.id)) SYS.state.args.push(nd.id);
-        toast(`📜 获得论据「${(SYS.ARG_META[nd.id] || { name: nd.id }).name}」`);
-        AUDIO.sfx("ding"); updateHUD(); return false;
+        // 重复发放同一个论据不重复弹提示（重玩 / 补拿碎片时不会刷屏）
+        if (!SYS.state.args.includes(nd.id)) {
+          SYS.state.args.push(nd.id);
+          toast(`📜 获得论据「${(SYS.ARG_META[nd.id] || { name: nd.id }).name}」`);
+          AUDIO.sfx("ding");
+          updateHUD();
+        }
+        return false;
       }
       case "hint": hintKey = nd.key; return false;
       case "wrongHint": SYS.state.wrongHint = nd.text; return false;
