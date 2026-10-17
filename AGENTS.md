@@ -58,7 +58,7 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。
 有存档后端后，`file://` 模式和 `python` 服务模式各测一遍。
 
-> 校验工具目前是 Node 脚本（仅开发期使用，不进运行时）。是否迁移到 Python 见 PLAN.md 待定事项。
+> 校验工具目前是 Node 脚本（仅开发期使用，不进运行时；没有 npm 依赖，有 Node 18+ 即可）。是否迁移到 Python 见 PLAN.md 待定事项。
 
 ---
 
