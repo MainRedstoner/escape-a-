@@ -67,6 +67,11 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 - **`main` 必须始终干净可玩。** 不直接在 `main` 上提交；所有开发在分支上进行，只有通过第四节全部验证的分支才合回 `main`。
 - **分支命名**：`feat/…` 新功能、`fix/…` 修复、`refactor/…` 重构、`story/…` 剧情、`art/…` 美术、`docs/…` / `chore/…` 杂务。
 - **提交信息**：沿用现有风格 —— Conventional Commits 前缀 + 中文描述，如 `feat(save): 支持导出存档文件`。
+- **提交作者用自己的模型名**：AI 提交不要用 `local-test`、`Admin` 之类的占位名。
+  - DeepSeek 侧：`DeepSeek V4.1 Flash 1017 <1512593149@qq.com>`
+  - Claude 侧：`Claude Opus 5.5 <noreply@anthropic.com>`
+  - 需要逐条提交时用 `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL`（以及 `GIT_COMMITTER_*`）环境变量，**不要为此修改仓库的 git 配置**。
+- **修正历史里的作者**（早期提交误用了占位名）：用 `git filter-branch --env-filter` 直接改提交，改完用 `git rev-parse <ref>^{tree}` 确认树没变，再 `git push --force-with-lease local <branch>`。同样**不要改 git 配置**；分支只推到 `local`，不碰 GitHub。
 - **开工前先 `git fetch --prune`，干活中途也尽量勤 fetch**：fetch 只更新远端跟踪引用，不碰工作区和本地分支，任何时候做都安全，不必等用户批准。别等到推送被拒、或者 rebase 出大冲突才发现自己落后了。
 - **发现落后就先同步再继续**：自己分支落后于远端同名分支时，先 `git rebase` 过去再往下改；拿不准该 rebase 还是该让用户决定，就问一声，别抱着旧代码闷头写。
 - **本地仓库随时可以推，而且尽量勤推**（本地远端 / 备份仓 / 局域网仓等）：这些小步推送是为了和别人同步进度，不必等用户点头，也不要攒一大堆再一起推。
