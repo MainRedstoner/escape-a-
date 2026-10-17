@@ -1,6 +1,7 @@
 # 工具本地产物（安全扫描审计记录 / 会话文件）
 .mimosa/
 .zcode/
+.qoder/
 
 # 浏览器走查产物
 .playwright-mcp/
