@@ -64,7 +64,7 @@ index.html?scene=start&trust=6&wanted=0&tokens=26&flags=egg1,egg2
   * `script_a.js` 第一卷：声明 `const SCRIPT = { scenes: {} };` 和全部速写助手；
   * `script_b.js` / `script_c.js` … 后续卷：开头 `"use strict";`，用 `Object.assign(SCRIPT.scenes, { ... })` 追加场景；
   * `index.html` 按 A → B → C 顺序引入，**引擎必须在最后**；
-  * 同时把分卷列表填进 `tools/validate_script.js` 和 `tools/simulate_playthrough.js` 的 `FILES` 数组（顺序与 index.html 一致）。
+  * 同时在 `tools/validate_script.js` 和 `tools/simulate_playthrough.js` 开头各加一行 `require`（顺序与 index.html 一致）。
 * **场景命名惯例**（推荐，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
 * 剧本是纯数据，**不要**在剧本文件里写函数、不要碰 DOM；要扩展能力就改引擎。
 

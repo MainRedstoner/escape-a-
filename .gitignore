@@ -24,3 +24,6 @@ __pycache__/
 # 美术生成 / 训练的本地产物（数据集 / venv / sd-scripts / LoRA 权重输出等）
 # 体积大且不进仓库
 .train/
+
+# 存档服务数据目录（server.py 写入）
+saves/

@@ -47,6 +47,8 @@ src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道�
 src/token-choice.css  该组件样式（类名前缀 tc-，配色接引擎主题变量）
 tools/                校验与生成工具（见下）
 STORY_GUIDE.md        剧本编写方法（先读这个）
+AGENTS.md             AI 协作者说明（CLAUDE.md 导入它）
+PLAN.md               重做路线图
 ```
 
 ## 工具链
