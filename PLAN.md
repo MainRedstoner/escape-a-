@@ -156,7 +156,7 @@ SAVE.importFile(file)  → 校验后写入槽位
 
 ## 五、待决定事项
 
-- [?] **校验工具是否迁移到 Python？** `validate_script.js` / `simulate_playthrough.js` 目前用 Node，只在开发期用。迁移后整个仓库只需要 Python，但模拟器要把引擎语义再用 Python 实现一遍，和 JS 引擎保持同步的成本更高。
+- [x] **校验工具迁移到 Python（2026-10 完成）。** `validate_script.py` / `simulate_playthrough.py` 已在 Python 里重实现，输出与旧 Node 版逐字节一致；剧本数据由 `tools/jsdata.py` 用数据子集解析器读入。Node 依赖已彻底移除，模拟器与引擎语义的同步改由 AGENTS 第四节的"新节点必须同步模拟器"保证。
 - [?] 合并方式：squash 还是 `--no-ff`
 - [?] 存档槽位数量（现在是 3 个手动槽 + 1 个自动槽）
 - [?] `main-del0` 上的剧情重写何时处理（目前冻结）

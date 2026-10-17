@@ -5,6 +5,9 @@
 
 > 剧情与引擎完全分离：`src/engine.js` 是通用节点解释器，`src/script.js`（及分卷）是纯数据。
 > 引擎不认识任何具体剧情；剧本不写任何逻辑代码。两者的接口就是本文档。
+>
+> 剧本文件仍必须是 `tools/jsdata.py` 认识的**数据子集**（字面量 / 数组 / 对象 / 速写函数调用），
+> 这样校验与模拟才能在不依赖 Node 的情况下读它；写了循环或模板字符串会直接报"剧本解析失败"。
 
 ---
 
@@ -48,8 +51,8 @@ Object.assign(SCRIPT.scenes, {
 2. 校验 + 模拟：
 
 ```bash
-node tools/validate_script.js         # 静态校验：跳转 / id / 元数据 / 出口 / 可达性
-node tools/simulate_playthrough.js 40 # 无头通关模拟：死路 / 死循环 / 结局可达
+python tools/validate_script.py       # 静态校验：跳转 / id / 元数据 / 出口 / 可达性
+python tools/simulate_playthrough.py 40 # 无头通关模拟：死路 / 死循环 / 结局可达
 ```
 
 3. 双击 `index.html` 试玩。调试时可以 URL 直跳任意场景：
@@ -67,7 +70,7 @@ index.html?scene=start&trust=6&wanted=0&flags=egg1,egg2
   * `script_a.js` 第一卷：声明 `const SCRIPT = { scenes: {} };` 和全部速写助手；
   * `script_b.js` / `script_c.js` … 后续卷：开头 `"use strict";`，用 `Object.assign(SCRIPT.scenes, { ... })` 追加场景；
   * `index.html` 按 A → B → C 顺序引入，**引擎必须在最后**；
-  * 同时在 `tools/validate_script.js` 和 `tools/simulate_playthrough.js` 开头各加一行 `require`（顺序与 index.html 一致）。
+  * 同时在 `tools/jsdata.py` 的 `load_script()` 里按同一顺序追加（校验与模拟都走它）。
 * **场景命名惯例**（推荐，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
 * 剧本是纯数据，**不要**在剧本文件里写函数、不要碰 DOM；要扩展能力就改引擎。
 
@@ -88,7 +91,7 @@ index.html?scene=start&trust=6&wanted=0&flags=egg1,egg2
 
 1. `src/engine.js` 的 `SPEAKERS`：`who id → { name, color }`（名牌颜色）。未注册的 who 一律按旁白渲染。
 2. 立绘文件：`assets/chara/<who>_<face>.png`；查图顺序 `<who>_<face>` → `<who>_normal` → 占位卡。
-3. `tools/validate_script.js` 的 `SPEAKERS` 数组：把新增的 who id 加进去，校验器才认识。
+3. `tools/validate_script.py` 的 `SPEAKERS` 数组：把新增的 who id 加进去，校验器才认识。
 
 然后在剧本文件顶部为常用角色定义速写助手：
 
@@ -338,8 +341,8 @@ CHOICE("要不要回头？", [
 3. **填正文**：逐章写台词与选项，随手挂 `TRU/WAN/ARG/SET/HINT`。数值变化尽量写在对玩家有意义的选择上，而不是白送。
 4. **演出层**：回头补 `SHOW/FACE/CG/FX/SFX` 和 glitch 段落。
 5. **验证**：
-   * `node tools/validate_script.js` —— 六项检查：跳转目标存在；说话人/音效/BGM/特效 id 已实现；论据/彩蛋/结局与元数据一致；hint key 有文案；每个场景有出口；从 start 可达（无孤儿场景）+ 素材到位报告。
-   * `node tools/simulate_playthrough.js 40` —— 五种玩家性格（first / last / smart / reckless / random×120）无头跑全篇：无死路、无死循环、`ENDING_META` 里每个结局都可达、数值不越界。**新增结局后必须跑这个**。
+   * `python tools/validate_script.py` —— 六项检查：跳转目标存在；说话人/音效/BGM/特效 id 已实现；论据/彩蛋/结局与元数据一致；hint key 有文案；每个场景有出口；从 start 可达（无孤儿场景）+ 素材到位报告。
+   * `python tools/simulate_playthrough.py 40` —— 五种玩家性格（first / last / smart / reckless / random×120）无头跑全篇：无死路、无死循环、`ENDING_META` 里每个结局都可达、数值不越界。**新增结局后必须跑这个**。
    * 浏览器实测 checklist：标题 → 开场 → 每个分支至少走一遍 → 结局画面 → 结局收集页显示 → 存读档 → `file://` 直开无控制台报错。
 
 ### 经验教训
@@ -357,10 +360,10 @@ CHOICE("要不要回头？", [
 
 | 想加什么 | 改哪里 |
 | --- | --- |
-| 新角色 | `engine.js` `SPEAKERS` + `validate_script.js` `SPEAKERS` + 立绘文件 |
-| 新 BGM / SFX | `audio.js` `TRACKS` / `sfx()` 分支 + `validate_script.js` 对应白名单 |
-| 新特效 | `art.js` `trigger()` + `validate_script.js` `FXS` |
-| 新节点类型 | `engine.js` `applyNode()` 加 case；`simulate_playthrough.js` 的 `play()` 加同语义分支；`validate_script.js` 加检查 |
+| 新角色 | `engine.js` `SPEAKERS` + `validate_script.py` `SPEAKERS` + 立绘文件 |
+| 新 BGM / SFX | `audio.js` `TRACKS` / `sfx()` 分支 + `validate_script.py` 对应白名单 |
+| 新特效 | `art.js` `trigger()` + `validate_script.py` `FXS` |
+| 新节点类型 | `engine.js` `applyNode()` 加 case；`simulate_playthrough.py` 的 `play()` 加同语义分支；`validate_script.py` 加检查 |
 | 引擎默认值 | 入口场景 `start`、坏结局 `bad_end`、`audioForBg` 映射、数值上限，都在 `engine.js` / `systems.js` |
 
-**改完引擎必做**：`node --check src/*.js`、跑两个工具、浏览器过一遍主要流程。
+**改完引擎必做**：跑两个 Python 工具、浏览器过一遍主要流程（引擎语法/运行错误只能在浏览器里暴露）。

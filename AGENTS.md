@@ -21,18 +21,20 @@
 2. **前端零依赖、零构建。** 不引入 npm 包、打包器、框架。
 3. **后端可选，且只用 Python 标准库。** 存档服务 `server.py` 只负责存取存档文件，接口契约见 [SAVE_API.md](SAVE_API.md)；**后端不解析存档内容**，格式与迁移都归前端。默认只绑 `127.0.0.1`。没有后端时游戏必须完整可用（存档走 localStorage + 下载 / 上传存档文件）。不要用 Node 写后端。
 4. **剧本是纯数据。** 剧本文件里不写函数逻辑、不碰 DOM；要新能力就改引擎并在 STORY_GUIDE.md 登记。
+   剧本只能写 `tools/jsdata.py` 认识的**数据子集**：字面量、数组、对象、`N()/CHOICE()/opt()` 这类速写函数调用；
+   一旦写了循环、条件、模板字符串之类，校验器会直接报"剧本解析失败"，不会静默算错。
 5. **生成文件不手改。** `assets/manifest.js` 由 `python tools/make_manifest.py > assets/manifest.js` 生成。
 
 ## 三、改一处要同步多处
 
 | 改动 | 必须同步的位置 |
 | --- | --- |
-| 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/validate_script.js` 与 `tools/simulate_playthrough.js` 的 `require`，三处顺序一致 |
-| 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.js` `SPEAKERS` + 立绘文件 |
-| 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.js` 白名单 |
+| 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `load_script()` 按同一顺序读，两处一致 |
+| 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.py` `SPEAKERS` + 立绘文件 |
+| 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.py` 白名单 |
 | 新程序化背景 | `src/backdrops.js` 的 `LIST` + `engine.js` 的 `audioForBg`（校验器自动认） |
-| 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.js` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
-| 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.js` 同语义分支 + `tools/validate_script.js` 检查 + STORY_GUIDE.md 节点表 |
+| 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.py` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
+| 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.py` 同语义分支 + `tools/validate_script.py` 检查 + STORY_GUIDE.md 节点表 |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
 | 存档契约 / 后端接口 | `SAVE_API.md` + `server.py` + `tools/test_save_server.py`（前端接入后还有 `src/save.js`） |
 
@@ -43,9 +45,8 @@
 提交前至少跑：
 
 ```bash
-node --check src/*.js                   # 语法
-node tools/validate_script.js           # 剧本静态校验，必须"校验通过"
-node tools/simulate_playthrough.js 40   # 无头通关模拟，必须无死路 / 死循环 / 不可达结局
+python tools/validate_script.py         # 剧本静态校验（顺带检查剧本数据能不能被解析），必须"校验通过"
+python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 / 死循环 / 不可达结局
 ```
 
 改动 `server.py` 或 `SAVE_API.md` 时，还必须跑：
@@ -58,7 +59,7 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。
 有存档后端后，`file://` 模式和 `python` 服务模式各测一遍。
 
-> 校验工具目前是 Node 脚本（仅开发期使用，不进运行时；没有 npm 依赖，有 Node 18+ 即可）。是否迁移到 Python 见 PLAN.md 待定事项。
+> 整仓只用 Python 标准库：运行时零依赖，开发期的校验 / 模拟 / 素材清单也全是纯 Python（不再需要 Node / npm）。剧本的 JS 数据由 `tools/jsdata.py` 解析。
 
 ---
 

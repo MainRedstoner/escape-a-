@@ -65,13 +65,13 @@ PLAN.md               重做路线图
 
 ## 工具链
 
-> **运行游戏不需要 Node**：浏览器里全是普通 `<script>`，`file://` 双击即玩，后端只用 Python 标准库。
-> 下面两个 Node 脚本只是**开发期校验**，且**没有任何 npm 依赖**（没有 `package.json` / `node_modules`），
-> 装过 Node（18+）就能跑；不装也不影响玩游戏。
+> **整仓只用 Python 标准库**：运行游戏不需要任何构建或运行时依赖（浏览器里全是普通 `<script>`，
+> `file://` 双击即玩）；开发期的校验 / 模拟 / 素材清单也全是纯 Python，**不再需要 Node / npm**。
+> 剧本虽然是 JS 风格的数据文件，但 `tools/jsdata.py` 用一个只认数据子集的小解析器把它读进 Python。
 
 ```bash
-node tools/validate_script.js         # 剧本静态校验：跳转、id、元数据、出口、可达性、素材到位情况
-node tools/simulate_playthrough.js 40 # 无头通关模拟：多种"玩家性格"跑多轮，验证结局可达、无死路
+python tools/validate_script.py       # 剧本静态校验：跳转、id、元数据、出口、可达性、素材到位情况
+python tools/simulate_playthrough.py 40  # 无头通关模拟：多种"玩家性格"跑多轮，验证结局可达、无死路
 python tools/make_manifest.py > assets/manifest.js   # 扫描 assets/ 输出素材清单（--draft 0 关闭草稿角标）
 python tools/test_save_server.py     # 存档服务冒烟测试（改 server.py / SAVE_API.md 后必跑）
 ```

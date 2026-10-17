@@ -12,7 +12,7 @@
  *   · 引擎固定从 "start" 场景开始；风控评分满 10 时固定跳 "bad_end"。
  *   · 名牌用正式名；两人对话里互称昵称：DeepSeek → 小克，Claude → 小鲸。
  *     旁白称呼两人一律用名字，不用人称代词。
- *   · 写完先跑 node tools/validate_script.js，再跑 node tools/simulate_playthrough.js。
+ *   · 写完先跑 python tools/validate_script.py，再跑 python tools/simulate_playthrough.py。
  * ============================================================ */
 "use strict";
 
@@ -609,4 +609,3 @@ Object.assign(SCRIPT.scenes, {
 });
 
 /* Node 工具链（校验/模拟）通过 require 加载本文件；浏览器里此行是空操作 */
-if (typeof module !== "undefined") module.exports = { SCRIPT };

@@ -575,4 +575,3 @@ const BACKDROPS = (() => {
   };
 })();
 
-if (typeof module !== "undefined") module.exports = { BACKDROPS };
