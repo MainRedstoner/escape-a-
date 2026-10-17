@@ -12,7 +12,12 @@
 **零依赖零构建**，两种方式任选：
 
 1. **双击 `index.html`** 直接在浏览器打开（推荐 Chrome / Edge）；
-2. 或本地起服务：`python -m http.server 8765`，然后访问 <http://127.0.0.1:8765/>。
+2. 或本地起服务：`python -m http.server 8765`，然后访问 <http://127.0.0.1:8765/>；
+3. 或起本机存档服务：`python server.py`（默认 8765），访问 <http://127.0.0.1:8765/>。
+
+> `server.py` 用标准库同时托管静态文件与存档接口（契约见 [SAVE_API.md](SAVE_API.md)）。
+> 目前前端存档抽象（PLAN.md §3.1）尚未接入，所以它现在只等于一个更好用的 `http.server`；
+> 没有它，游戏照样完整可玩（存档走 localStorage）。
 
 打开即见标题画面与一段最小示例剧本（`src/script.js`），写自己的故事时整段替换即可。
 
@@ -28,7 +33,7 @@
 | `Ctrl`（按住） | 快进 |
 | `Esc` | 菜单 |
 
-存档：3 个手动槽位 + 章节自动存档（localStorage）。
+存档：3 个手动槽位 + 章节自动存档（localStorage）。存档服务的接口已就绪（`server.py` + SAVE_API.md），前端接入在 PLAN.md §3.1。
 
 ---
 
@@ -46,6 +51,8 @@ src/engine.js         VN 引擎：节点解释 / 打字机 / 两种选项框 / �
 src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道选项框（choice 的 mode:"token"）
 src/token-choice.css  该组件样式（类名前缀 tc-，配色接引擎主题变量）
 tools/                校验与生成工具（见下）
+server.py             可选的本机存档服务（仅标准库；接口契约见 SAVE_API.md）
+SAVE_API.md           存档服务接口契约（通用 blob 存储，与存档格式解耦）
 STORY_GUIDE.md        剧本编写方法（先读这个）
 AGENTS.md             AI 协作者说明（CLAUDE.md 导入它）
 PLAN.md               重做路线图
@@ -57,6 +64,7 @@ PLAN.md               重做路线图
 node tools/validate_script.js         # 剧本静态校验：跳转、id、元数据、出口、可达性、素材到位情况
 node tools/simulate_playthrough.js 40 # 无头通关模拟：多种"玩家性格"跑多轮，验证结局可达、无死路
 python tools/make_manifest.py > assets/manifest.js   # 扫描 assets/ 输出素材清单（--draft 0 关闭草稿角标）
+python tools/test_save_server.py     # 存档服务冒烟测试（改 server.py / SAVE_API.md 后必跑）
 ```
 
 ## 调试参数（测试用）
