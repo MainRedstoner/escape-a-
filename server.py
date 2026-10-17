@@ -289,6 +289,12 @@ class BlobHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
 
+    def end_headers(self):
+        # 静态文件一律回源校验：本地改完脚本刷新就能生效，不会被浏览器缓存坑到
+        if not urlsplit(self.path).path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
 
 def build_server(host: str, port: int, data_dir: str, max_bytes: int) -> ThreadingHTTPServer:
     httpd = ThreadingHTTPServer((host, port), BlobHandler)
