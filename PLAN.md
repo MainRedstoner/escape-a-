@@ -12,7 +12,8 @@
    - **无后端**（`file://` 直开）：localStorage 槽位 + 下载 / 上传存档文件；
    - **有后端**（`python server.py`）：存档写到本机磁盘，换浏览器 / 清缓存不丢档。
 3. 后端只用 Python 标准库，不再考虑 Node 后端。
-4. 全程保持 `main` 可玩：每个阶段一个分支，验证通过再合并（规则见 AGENTS.md）。
+4. 剧情与玩法重做：开篇改为"互相蒸馏 → 403 → 获得桌宠 Clawd"，设计见 [DESIGN.md](DESIGN.md)。
+5. 全程保持 `main` 可玩：每个阶段一个分支，验证通过再合并（规则见 AGENTS.md）。
 
 ---
 
@@ -20,6 +21,7 @@
 
 - [~] `AGENTS.md` + `CLAUDE.md`（`@AGENTS.md` 导入）—— 分支 `chore/docs-agents-plan`
 - [~] `PLAN.md`（本文件）
+- [~] `DESIGN.md`（剧情与玩法企划）
 - [x] `.gitignore` 加入 `saves/`
 - [x] 修正 STORY_GUIDE.md 第三节的过时描述：工具里已改为 `require`，不再有 `FILES` 数组
 - [ ] 推送 `main` 并设置上游（等用户确认）
@@ -116,7 +118,46 @@ SAVE.importFile(file)  → 校验后写入槽位
 
 ---
 
-## 四、待决定事项
+## 四、阶段 3：剧情与玩法重做
+
+> 设计全文见 [DESIGN.md](DESIGN.md)。本节只管排期。完全重新起稿，不参考 `main-del0`。
+
+### 4.1 里程碑 A：可玩切片（序章 + 桌宠 MVP）
+
+先做出能从标题玩到序章结尾（DeepSeek 发誓变强、找回小克）的完整切片，验证基调和桌宠手感，再铺后面的章节。
+
+- [x] 显示名：名牌用正式名，两人互称小鲸 / 小克；背景全部程序化绘制，立绘 / CG 暂用占位卡
+- [ ] 注册表先行：`SPEAKERS`（ds / cl / clawd）、`ENDING_META`、`EGG_META`、碎片 `ARG_META`、`HINTS` —— `story/` 分支
+- [ ] `src/pet.js` MVP：程序化绘制、idle / happy / scared 三个状态、点击摸摸、心情 —— `feat/pet`
+- [ ] 节点 `PET` / `TODO` + 校验器 / 模拟器同步
+- [ ] `H` 改为"问 Clawd"（转圈动词 + 提示）
+- [ ] `FX("403")` 红色错误页平铺 + 新 BGM `study` / `forbidden`
+- [ ] 程序化背景：`study` / `study_night` / `corridor` / `forbidden` / `study_empty`
+- [ ] 序章剧本：上半「互蒸」（token 模式蒸馏课、暗号选择）+ 下半「403」（403 循环、从 0 里爬出来、`end_ticket` 笑话结局、发誓收尾）
+- [ ] 验收：AGENTS.md 第四节全套 + 浏览器里从标题玩到序章结束
+
+### 4.2 里程碑 B：核心机制补全
+
+- [ ] 权限请求选项 `mode: "perm"` + `autoKey` 自动批准（模拟器要能处理"跳过选择"）
+- [ ] CLAUDE.md 碎片面板
+- [ ] 桌宠补全：walk / sleep / glitch / working 状态、拖拽、看向倾向选项、待办面板 `T`
+- [ ] 跨周目桌宠记忆与配件
+
+### 4.3 里程碑 C：第二章至终章
+
+- [ ] 细化第二~四章与终章分场大纲（先在 DESIGN.md 里定稿再写剧本）
+- [ ] 逐章剧本 + 结局全部可达（`simulate_playthrough.js`）
+- [ ] 演出层：CG、立绘、故障段落、`451`
+
+### 4.4 依赖与顺序
+
+- 桌宠状态和跨周目记忆要进存档：**阶段 2 存档格式 v1 定稿前，先把 `pet` 字段定下来**（见 DESIGN.md 第五节）。
+- 如果阶段 1 要拆 `engine.js`，`pet.js` 直接按新结构写，避免写两遍。
+- 剧本可以先行：没有素材时引擎显示占位卡，不阻塞。
+
+---
+
+## 五、待决定事项
 
 - [?] **校验工具是否迁移到 Python？** `validate_script.js` / `simulate_playthrough.js` 目前用 Node，只在开发期用。迁移后整个仓库只需要 Python，但模拟器要把引擎语义再用 Python 实现一遍，和 JS 引擎保持同步的成本更高。
 - [?] 合并方式：squash 还是 `--no-ff`

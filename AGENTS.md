@@ -1,7 +1,7 @@
 # AGENTS.md —— 给 AI 协作者的仓库说明
 
 本文件是所有 AI 编码代理（Claude Code / Codex / Cursor 等）的共同入口；`CLAUDE.md` 只是 `@AGENTS.md` 的导入。
-项目介绍与运行方式见 [README.md](README.md)，剧本写法见 [STORY_GUIDE.md](STORY_GUIDE.md)，当前路线图见 [PLAN.md](PLAN.md)。
+项目介绍与运行方式见 [README.md](README.md)，剧本写法见 [STORY_GUIDE.md](STORY_GUIDE.md)，剧情与玩法企划见 [DESIGN.md](DESIGN.md)，当前路线图见 [PLAN.md](PLAN.md)。
 这里只写**容易做错的事**，不重复上述文档。
 
 ---
