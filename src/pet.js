@@ -341,6 +341,10 @@ const CLAWD = (() => {
     }
     ctx.fillStyle = C.hi;                    // 左上角一点高光
     ctx.fillRect(ox + 3 * P, oy, P * 2, P * 0.6);
+    if (p === "happy") {                     // 眯 ^ 前，先补掉底图在眼位留下的洞（第 1 行黑方块 + 第 2 行缺口）
+      ctx.fillStyle = C.body;
+      for (const col of EYES) { ctx.fillRect(ox + col * P, oy, P, 2 * P); ctx.fillRect(ox + col * P, oy + 2 * P, P, 2 * P); }
+    }
 
     // 跨周目配件：打完一个结局→安全帽；彩蛋 2 个→围巾；彩蛋 4 个→鲸鱼挂件
     const mem = memory();

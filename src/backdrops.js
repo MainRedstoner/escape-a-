@@ -397,8 +397,8 @@ const BACKDROPS = (() => {
           ctx.fillStyle = rad(ctx, x + w / 2, y + h / 2, 20, 230, [[0, `rgba(${col},${base + boost + flick})`], [1, `rgba(${col},0)`]]);
           ctx.fillRect(x - 240, y - 200, w + 480, h + 400);
           ctx.restore();
-          if (who === "cl" && Math.floor(t * 1.6) % 2 === 0) {     // 终端光标
-            ctx.fillStyle = "#D97757"; ctx.fillRect(x + 22, y + 100, 7, 12);
+          if (who === "cl" && Math.floor(t * 1.6) % 2 === 0) {     // 终端光标：贴住末行 "$" 的字身
+            ctx.fillStyle = "#D97757"; ctx.fillRect(x + 17, y + 92, 6, 10);
           }
         }
       }
