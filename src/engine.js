@@ -355,7 +355,7 @@ const ENGINE = (() => {
    *   · nd.mode === "token"：TokenChoice 滑道选择器，渲染在 #choiceToken。
    *       - 选项按 weight 升序从左到右排列，宽度与概率成比例；
    *       - 组件固定节奏：登场动画 → 全部选项展示 2 秒 → 指针在左侧匀加速 →
-   *         入框瞬间播放冲击动画 → 1 秒匀速扫过 → 锁定 / 扫到尽头默认选中；
+   *         入框瞬间播放冲击动画 → 约 1.25 秒（0.8 倍速）匀速扫过 → 锁定 / 扫到尽头默认选中；
    *       - Space / Enter / 「锁定」按钮锁住当前高亮项。 */
   function hideChoices() {
     ui.choices.style.display = "none";
@@ -413,7 +413,7 @@ const ENGINE = (() => {
    * 这样回调拿到的 index 与 wheelOpts 一一对应，能取回原选项对象。 */
   function buildWheelChoices(nd, opts, glitchOn) {
     if (!wheel) wheel = new TokenChoice(ui.choiceToken, { onSelect: onWheelSelect });
-    // 扫描时长固定 1 秒（组件内部常量）；剧本的 duration 字段已不再生效
+    // 扫描时长固定（组件内部常量，当前为 1 秒的 0.8 倍速）；剧本的 duration 字段已不再生效
     wheel.minShare = typeof nd.minShare === "number" ? nd.minShare : 0.1;
 
     const w = o => (typeof o.weight === "number" && o.weight >= 0 ? o.weight : 1);

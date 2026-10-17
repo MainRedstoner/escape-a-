@@ -93,7 +93,7 @@ for (const sid of ids) {
         /* token 模式（TokenChoice 滑道选项框）的专有字段 */
         if (nd.mode !== undefined) chk(nd.mode === "token", `${at}: 未知的选项模式 "${nd.mode}"（引擎只实现了 "token"）`);
         if (nd.mode === "token") {
-          /* 扫描节奏固定（登场 → 2 秒展示 → 匀加速 → 1 秒扫过），duration 已废弃 */
+          /* 扫描节奏固定（登场 → 2 秒展示 → 匀加速 → 约 1.25 秒扫过），duration 已废弃 */
           chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
               `${at}: minShare 应在 [0, 1) 之间`);
         }
