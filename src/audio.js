@@ -82,6 +82,18 @@ const AUDIO = (() => {
     boss: { bpm: 132, bass: "sawtooth", lead: "square",
       bassLine: [29, 29, 29, R, 29, R, 28, R, 27, 27, 27, R, 27, R, 26, R],
       leadLine: [65, R, 64, R, 65, R, 68, R, 64, R, 63, R, 59, R, 61, R] },
+    /* 联合蒸馏室的日常：轻快、松弛，像午后的键盘声 */
+    study: { bpm: 92, bass: "triangle", lead: "sine",
+      bassLine: [36, R, 43, R, 40, R, 43, R, 41, R, 45, R, 43, R, 38, R],
+      leadLine: [72, R, 76, 79, R, 76, R, 74, 72, R, 74, 76, R, 79, 77, R] },
+    /* 403 之后：只剩嗡鸣，偶尔一声很高的提示音 */
+    forbidden: { bpm: 60, bass: "sawtooth", lead: "sine",
+      bassLine: [25, R, R, R, 25, R, R, R, 24, R, R, R, 24, R, R, R],
+      leadLine: [R, R, R, R, R, R, 84, R, R, R, R, R, R, R, R, 83] },
+    /* 发誓：从低处一步步往上走 */
+    vow: { bpm: 80, bass: "triangle", lead: "triangle",
+      bassLine: [33, R, 40, R, 36, R, 43, R, 38, R, 45, R, 40, R, 47, R],
+      leadLine: [64, R, 67, R, 69, R, 71, R, 72, R, 74, R, 76, R, 79, R] },
     /* 结局 */
     ending: { bpm: 76, bass: "triangle", lead: "sine",
       bassLine: [33, R, 40, R, 38, R, 45, R, 36, R, 43, R, 35, R, 42, R],
@@ -133,6 +145,18 @@ const AUDIO = (() => {
       case "whoosh": noise(t0, 0.32, 0.09); break;
       case "glitch":
         for (let i = 0; i < 6; i++) tone(160 + Math.random() * 1500, t0 + i * 0.045, 0.045, "sawtooth", 0.045);
+        break;
+      case "knock":    // 敲门：两声闷响
+        for (let i = 0; i < 2; i++) { tone(110, t0 + i * 0.22, 0.12, "sine", 0.28); noise(t0 + i * 0.22, 0.05, 0.10); }
+        break;
+      case "error":    // 403：刺耳的低频蜂鸣
+        tone(92, t0, 0.42, "square", 0.08); tone(97, t0, 0.42, "square", 0.08); tone(1480, t0, 0.07, "sine", 0.05);
+        break;
+      case "pop":      // Clawd 冒出来
+        tone(420, t0, 0.06, "square", 0.06); tone(840, t0 + 0.05, 0.08, "square", 0.05); tone(1260, t0 + 0.1, 0.1, "sine", 0.05);
+        break;
+      case "pat":      // 摸摸
+        tone(660, t0, 0.07, "sine", 0.07); tone(990, t0 + 0.06, 0.12, "sine", 0.06);
         break;
       case "heart": tone(494, t0, 0.1, "sine", 0.09); tone(622, t0 + 0.1, 0.1, "sine", 0.09); tone(740, t0 + 0.2, 0.24, "sine", 0.09); break;
     }

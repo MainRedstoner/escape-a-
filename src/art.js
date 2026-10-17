@@ -112,7 +112,8 @@ const ART = (() => {
   /* ============================================================
    *  特效状态
    * ============================================================ */
-  const FX = { shakeT: -1e9, flashT: -1e9, alarm: 0, glitch: 0, sparks: [], dust: [] };
+  const FX = { shakeT: -1e9, flashT: -1e9, alarm: 0, glitch: 0, sparks: [], dust: [],
+              e403: null };   // 403 错误页平铺：{ start, off, seed }
   function stepFX(dt) {
     for (const s of FX.sparks) { s.y -= s.v * dt; s.life -= dt; }
     FX.sparks = FX.sparks.filter(s => s.life > 0);
@@ -133,6 +134,72 @@ const ART = (() => {
     else if (kind === "alarmOff") FX.alarm = 0;
     else if (kind === "glitch") FX.glitch = 1;
     else if (kind === "glitchOff") FX.glitch = 0;
+    else if (kind === "403") FX.e403 = { start: now, off: null, seed: (FX.e403 ? FX.e403.seed + 1 : 1) };
+    else if (kind === "403Off") { if (FX.e403 && !FX.e403.off) FX.e403.off = now; }
+  }
+
+  /* ============================================================
+   *  403 演出：红色错误页从中心向外一页页铺满屏幕，
+   *  铺满后压淡到半透明（别把门和文字全挡住）；403Off 时一秒内淡出。
+   * ============================================================ */
+  const E403_MSG = [
+    "You don't have permission to access /claude on this server.",
+    "Your region is not supported.",
+    "Request origin does not comply with usage policy.",
+    "Access denied.",
+    "This resource is not available to you.",
+    "Forbidden. If you believe this is an error, contact support."
+  ];
+  let e403Tiles = null, e403Seed = -1;
+  function buildTiles(seed) {
+    let s = seed * 7919 + 13;
+    const r = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const tiles = [];
+    for (let i = 0; i < 64; i++) {
+      // 黄金角螺旋：越往后越靠外
+      const a = i * 2.39996, d = 26 * Math.sqrt(i) * 3.2;
+      tiles.push({
+        x: 800 + Math.cos(a) * d * 1.5 + (r() - 0.5) * 60, y: 420 + Math.sin(a) * d * 0.85 + (r() - 0.5) * 40,
+        w: 240 + r() * 90, h: 120 + r() * 50, rot: (r() - 0.5) * 0.12,
+        at: i * 45 + r() * 30, msg: E403_MSG[Math.floor(r() * E403_MSG.length)]
+      });
+    }
+    return tiles;
+  }
+  function draw403(ctx, nowMs) {
+    const e = FX.e403;
+    if (!e) return;
+    if (e.seed !== e403Seed) { e403Tiles = buildTiles(e.seed); e403Seed = e.seed; }
+    const age = nowMs - e.start;
+    let fade = 1;
+    if (e.off) { fade = 1 - (nowMs - e.off) / 1000; if (fade <= 0) { FX.e403 = null; return; } }
+    const settle = age > 3600 ? 0.5 : age > 2800 ? 1 - (age - 2800) / 1600 : 1;
+    for (const tl of e403Tiles) {
+      const k = (age - tl.at) / 140;
+      if (k <= 0) continue;
+      const pop = Math.min(1, k), sc = 0.85 + 0.15 * pop;
+      ctx.save();
+      ctx.globalAlpha = pop * settle * fade;
+      ctx.translate(tl.x, tl.y); ctx.rotate(tl.rot); ctx.scale(sc, sc);
+      const x = -tl.w / 2, y = -tl.h / 2;
+      ctx.fillStyle = "rgba(0,0,0,.45)"; ctx.fillRect(x + 6, y + 8, tl.w, tl.h);
+      ctx.fillStyle = "#F6E9E6"; ctx.fillRect(x, y, tl.w, tl.h);
+      ctx.fillStyle = "#B3261E"; ctx.fillRect(x, y, tl.w, 26);
+      ctx.fillStyle = "#FFE3DE"; ctx.font = font(14);
+      ctx.fillText("403 Forbidden", x + 10, y + 18);
+      ctx.fillText("✕", x + tl.w - 20, y + 18);
+      ctx.fillStyle = "#B3261E"; ctx.font = "bold 34px 'Noto Sans SC','Microsoft YaHei',sans-serif";
+      ctx.fillText("403", x + 14, y + 66);
+      ctx.fillStyle = "#6A4A46"; ctx.font = "12px 'Consolas','Menlo',monospace";
+      const words = tl.msg.split(" "); let line = "", ly = y + 86;
+      for (const w of words) {
+        const test = line ? line + " " + w : w;
+        if (ctx.measureText(test).width > tl.w - 28 && line) { ctx.fillText(line, x + 14, ly); line = w; ly += 15; }
+        else line = test;
+      }
+      if (line && ly < y + tl.h - 4) ctx.fillText(line, x + 14, ly);
+      ctx.restore();
+    }
   }
 
   /* ============================================================
@@ -208,12 +275,35 @@ const ART = (() => {
   }
 
   /* ============================================================
+   *  程序化背景（src/backdrops.js）：静态层画进离屏缓存，动态层每帧叠加
+   * ============================================================ */
+  const BD = typeof BACKDROPS !== "undefined" ? BACKDROPS : null;
+  const bdCache = {};
+  function drawBackdrop(ctx, id, t, speaking) {
+    const bd = BD && BD.get(id);
+    if (!bd) return false;
+    let off = bdCache[id];
+    if (!off) {
+      off = document.createElement("canvas");
+      off.width = W; off.height = H;
+      bd.draw(off.getContext("2d"));
+      bdCache[id] = off;
+    }
+    ctx.drawImage(off, 0, 0);
+    if (bd.anim) bd.anim(ctx, t, speaking);
+    return true;
+  }
+  function toneOf(id) {
+    const bd = BD && BD.get(id);
+    return bd ? bd.tone : "cold";
+  }
+
+  /* ============================================================
    *  程序化"气氛层"（不是美术，只是别让画面空着）
    * ============================================================ */
   function atmosphere(ctx, t, bgId) {
     // 暖光背景 id 列表（由剧本/素材决定）；不在列表里的一律走冷光
-    const warmBgs = [];
-    const cold = warmBgs.includes(bgId) ? 0 : 1;
+    const cold = toneOf(bgId) === "warm" ? 0 : 1;
     // 浮尘
     for (const d of FX.dust) {
       ctx.fillStyle = `rgba(180,200,230,${d.a})`;
@@ -288,7 +378,7 @@ const ART = (() => {
     if (bgRec) {
       cover(ctx, bgRec.img, W, H);
       ctx.fillStyle = "rgba(4,7,12,.18)"; ctx.fillRect(0, 0, W, H);  // 统一压暗
-    } else {
+    } else if (!drawBackdrop(ctx, bgId, t, speaking)) {
       placeholderBG(ctx, bgId, t, "（当前为占位卡：正式美术替换后自动生效）");
     }
     atmosphere(ctx, t, bgId);
@@ -299,6 +389,7 @@ const ART = (() => {
       if (cgRec) { cover(ctx, cgRec.img, W, H); }
       else placeholderCG(ctx, vis.cg);
       post(ctx, t, vis);
+      draw403(ctx, nowMs);
       ctx.restore();
       return;
     }
@@ -307,18 +398,27 @@ const ART = (() => {
     for (const sp of vis.sprites) drawSprite(ctx, sp, t, speaking);
 
     post(ctx, t, vis);
+    draw403(ctx, nowMs);
     ctx.restore();
   }
 
   /* --- 后期：暗角 / 冷调 / 颗粒 / 故障 --- */
+  /* 调色：程序化背景自带 tone，素材图 / 占位卡一律走 cold */
+  const TONES = {
+    cold:  ["rgb(196,214,255)", "rgb(222,228,240)", "rgb(200,208,226)"],
+    warm:  ["rgb(255,236,214)", "rgb(255,242,228)", "rgb(232,218,204)"],
+    night: ["rgb(176,192,240)", "rgb(206,214,238)", "rgb(170,178,206)"],
+    red:   ["rgb(255,206,200)", "rgb(240,214,212)", "rgb(206,176,176)"]
+  };
   function post(ctx, t, vis) {
     const W2 = W, H2 = H;
-    // 冷调压色
+    const tone = TONES[vis.cg ? "cold" : toneOf(vis.bg)] || TONES.cold;
+    // 整体压色
     ctx.globalCompositeOperation = "multiply";
     const cg = ctx.createLinearGradient(0, 0, 0, H2);
-    cg.addColorStop(0, "rgba(196,214,255,1)");
-    cg.addColorStop(0.55, "rgba(222,228,240,1)");
-    cg.addColorStop(1, "rgba(200,208,226,1)");
+    cg.addColorStop(0, tone[0]);
+    cg.addColorStop(0.55, tone[1]);
+    cg.addColorStop(1, tone[2]);
     ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
     ctx.globalCompositeOperation = "source-over";
 
