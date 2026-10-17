@@ -84,6 +84,15 @@ const ENGINE = (() => {
       }
       return;
     }
+    /* 覆盖层打开时，键盘只用来关它：Space / Enter 不能顺手把对话推进一步 */
+    if (overlayOpen()) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (getComputedStyle($("confirmBox")).display !== "none") $("cfNo").click();
+        else closeOverlay();
+      }
+      return;
+    }
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
       // 扫描期间 Space/Enter 是「锁定」，其余时候推进对话
@@ -364,6 +373,7 @@ const ENGINE = (() => {
 
   function advance() {
     if (!pending) return;
+    if (overlayOpen()) return;   // 覆盖层开着时不推进（自动播放 / Ctrl 快进也停下来）
     if (pending.t !== "say" && pending.t !== "chapter") return;
     hideTextbox();
     document.body.classList.remove("glitching");
@@ -374,11 +384,22 @@ const ENGINE = (() => {
 
   function onMainClick() {
     if (!started) return;
+    if (overlayOpen()) return;
     if (typing) { finishType(); return; }
     if (pending && (pending.t === "say" || pending.t === "chapter")) advance();
   }
   ui.textbox.addEventListener("click", onMainClick);
   ui.chapterCard.addEventListener("click", onMainClick);
+
+  /* 点背景也能推进：只认"真空白"（画布 / 舞台 / CG 提示层）。
+     HUD、桌宠、气泡、滑道、覆盖层、标题按钮都有各自的交互，点它们不推进对话。 */
+  $("stage").addEventListener("click", e => {
+    if (overlayOpen()) return;
+    const t = e.target;
+    const isBackground = t.id === "cv" || t.id === "stage" || !!t.closest("#cgNote");
+    if (!isBackground) return;
+    onMainClick();
+  });
 
   /* ---------------- 选项 ----------------
    * 只有一种呈现：TokenChoice 滑道选择器（#choiceToken）。选中后统一走 pickChoice。
@@ -789,6 +810,13 @@ const ENGINE = (() => {
     document.querySelectorAll(".overlay").forEach(o => o.style.display = "none");
   }
 
+  /** 是否有挡住游戏的覆盖层（存档 / 读档 / 记录 / 设置 / 收集 / 关于 / 确认框）。 */
+  function overlayOpen() {
+    const any = [...document.querySelectorAll(".overlay")]
+      .some(o => getComputedStyle(o).display !== "none");
+    return any || getComputedStyle($("confirmBox")).display !== "none";
+  }
+
   /* 记忆碎片：一把还在恢复的 CLAUDE.md —— 已收集的行正常显示，其余仍是 ████ */
   function showFragments() {
     if (!SYS.state.flags.md_seen && SYS.state.args.length === 0) { toast("（还没拿到 CLAUDE.md）"); return; }
@@ -974,7 +1002,11 @@ const ENGINE = (() => {
     buildTitle();
     ui.titleScreen.style.display = "flex";
     requestAnimationFrame(loop);
+    /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
+       等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
+    AUDIO.playBGM("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
+    window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
     // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「继续游戏」；失败只提示，不阻塞游戏
     SAVE.init({ validate: validateSnapshot }).then(() => {
       if (!started) buildTitle();
