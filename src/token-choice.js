@@ -144,6 +144,7 @@ class TokenChoice extends EventTarget {
       .map(o => ({
         text: String(o.text ?? ''),
         weight: (typeof o.weight === 'number' && o.weight >= 0) ? o.weight : 1,
+        dead: !!o.dead,
       }))
       .sort((a, b) => a.weight - b.weight); // 升序：左低右高
 
@@ -180,7 +181,8 @@ class TokenChoice extends EventTarget {
       if (showProb) {
         const p = document.createElement('span');
         p.className = 'tc-chip-prob';
-        p.textContent = (this._probs[i] * 100).toFixed(1) + '%';
+        // 故障死选项概率为 0、但靠 minShare 仍占可见宽度，别标成 0.0% 误导
+        p.textContent = opt.dead ? '—' : (this._probs[i] * 100).toFixed(1) + '%';
         el.appendChild(p);
       }
       this.chipsEl.appendChild(el);

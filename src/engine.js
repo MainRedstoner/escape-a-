@@ -415,9 +415,10 @@ const ENGINE = (() => {
     const src = glitchOn ? [{ text: DEAD_TEXT, weight: 0, dead: true }, ...opts] : opts.slice();
     wheelOpts = src.map(o => ({ o, w: w(o) })).sort((a, b) => a.w - b.w).map(x => x.o);
 
-    /* 有权重 = 采样时刻，显示真实概率；全都没写 = 玩家抉择，等宽但不标百分比 */
-    const sampling = wheelOpts.some(o => typeof o.weight === "number");
-    wheel.setOptions(wheelOpts.map(o => ({ text: o.text, weight: o.weight })), { showProb: sampling });
+    /* 有权重 = 采样时刻，显示真实概率；全都没写 = 玩家抉择，等宽但不标百分比。
+       注意只看剧本原本的选项：故障态塞进来的死选项权重是 0，不能它一出现就把抉择变成"采样"。 */
+    const sampling = opts.some(o => typeof o.weight === "number");
+    wheel.setOptions(wheelOpts.map(o => ({ text: o.text, weight: o.weight, dead: !!o.dead })), { showProb: sampling });
     wheel.open();
     petLookAtChoice();
   }
