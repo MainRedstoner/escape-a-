@@ -13,9 +13,12 @@
 ```
 index.html ──按顺序加载──> systems.js（状态/元数据）
                         assets/manifest.js（素材清单，自动生成）
+                        backdrops.js（程序化背景）
                         art.js（绘制层）
                         audio.js（程序化音乐）
+                        token-choice.js / pet.js（滑道选项框 / 桌宠 Clawd）
                         script*.js（剧本数据）★ 你要写的东西
+                        save.js（存档抽象层）
                         engine.js（节点解释器）
 ```
 
@@ -77,7 +80,7 @@ index.html?scene=start&trust=6&wanted=0&tokens=26&flags=egg1,egg2
 | 场景 id | 谁在跳 | 说明 |
 | --- | --- | --- |
 | `start` | `engine.js` 新游戏入口、`goto("start")` | **必须有**，整个剧本的入口 |
-| `bad_end` | 反感度（wanted）满 10 时自动跳（`engine.js` 三处） | 用反感度系统就必须提供这个场景，并在 `ENDING_META` 登记 |
+| `bad_end` | 风控评分（wanted）满 10 时自动跳（`engine.js` 三处） | 用风控系统就必须提供这个场景，并在 `ENDING_META` 登记 |
 
 场景跑到末尾还没有跳转时，引擎防呆回标题（`pump()` → `toTitle()`）。
 
@@ -96,13 +99,18 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 内置保留的 who：`n`（旁白，无名牌）、`sys`（系统）。
 
+本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）。
+序章不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
+
 ### 4.3 数值系统（三条线）
 
 | 节点 | 助手 | 范围 | 语义（由你的剧本赋予） |
 | --- | --- | --- | --- |
-| `tokens` | `TOK(+d / -d)` | ≥0 | 消耗型资源；深度思考固定 -3 |
-| `trust` | `TRU(+d / -d)` | 0~10 | 好感度；可作结局条件 |
-| `wanted` | `WAN(+d / -d)` | 0~10 | 反感度；**满 10 引擎自动跳 `bad_end`** |
+| `tokens` | `TOK(+d / -d)` | ≥0 | 上下文预算；深度思考 -3，有桌宠后「问 Clawd」-2 |
+| `trust` | `TRU(+d / -d)` | 0~10 | 羁绊（和小克之间）；可作结局条件 |
+| `wanted` | `WAN(+d / -d)` | 0~10 | 风控评分；**满 10 引擎自动跳 `bad_end`** |
+
+另有桌宠心情 `mood`（0~10，初始 5，存在 `state.pet.mood`），用 `PET("mood", ±d)` 改，可在条件里读。
 
 选项的 `fx` 字段（`{ tokens, trust, wanted }`）会在点击时经 `SYS.applyEffects` 生效。
 
@@ -122,7 +130,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 纯字符扫描解析（`engine.js` 的 `evalCond`），**不支持**任意 JS。可用：
 
-* 变量：`trust` `wanted` `tokens` `args`（收集品数量） `eggs`（已集齐彩蛋数）
+* 变量：`trust` `wanted` `tokens` `args`（收集品数量） `eggs`（已集齐彩蛋数） `mood`（桌宠心情）
 * 函数：`has('论据id')`、`egg('彩蛋key')`、`flag('旗标key')`
 * 字面量：数字、`'字符串'`、`true` / `false`
 * 运算符：`>= <= > < == != && || !` 与括号
@@ -132,11 +140,12 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 ### 4.6 音频与特效（引擎侧已实现的白名单）
 
 * **BGM**（`BGM("名字")`）：名字必须是 `src/audio.js` 里 `TRACKS` 的 key：
-  `sea / lobby / tense / warm / cold / grave / sad / boss / ending`。加新曲 = 在 `TRACKS` 里加一组 16 步 `[低音, 主旋律]`（MIDI 音号，`R` 是休止）。
+  `sea / lobby / tense / warm / cold / grave / sad / boss / ending / study / forbidden / vow`。加新曲 = 在 `TRACKS` 里加一组 16 步 `[低音, 主旋律]`（MIDI 音号，`R` 是休止）。
 * **SFX**（`SFX("名字")`）：`audio.js` 的 `sfx()` 分支：
-  `blip / click / ding / deny / alarm / boom / coin / whoosh / glitch / heart`。
+  `blip / click / ding / deny / alarm / boom / coin / whoosh / glitch / heart / knock / error / pop / pat`。
 * **FX**（`FX("kind")`）：`art.js` 的 `trigger()`：
-  `shake`（震动）/ `flash`（白闪）/ `alarm`（红色警报，配 `SFX("alarm")`）/ `alarmOff` / `glitch` / `glitchOff`。
+  `shake`（震动）/ `flash`（白闪）/ `alarm`（红色警报，配 `SFX("alarm")`）/ `alarmOff` / `glitch` / `glitchOff`
+  / `403`（红色错误页从中心铺满屏幕，铺满后压淡；再触发一次就再铺一遍）/ `403Off`（一秒内淡出）。
 
 **故障演出**是引擎的一套联动机制，值得单独记住：
 
@@ -158,7 +167,22 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 * 结局/彩蛋收集（`ea_endings` / `ea_eggs_found`）跨周目持久。
 * 读档恢复 BGM 时按 `engine.js` 里 `audioForBg` 的 `bg → BGM` 对照表（空表则回落 `sea`），写了新背景记得顺手填。
 
-### 4.9 素材位
+### 4.9 程序化背景（src/backdrops.js）
+
+* 背景可以不用图：`BACKDROPS.LIST` 里登记的 id 由 Canvas 代码现画。查找顺序：`assets/bg` 素材 → 程序化背景 → 占位卡。
+* 已有：`study`（联合蒸馏室·白天）/ `study_night`（深夜）/ `study_empty`（403 之后，右边桌子空了）/ `corridor`（Claude 的门）/ `forbidden`（403 的门，中间的 0 是个洞）。
+* 每个背景带 `tone`（warm / night / cold / red）决定后期调色；`anim(ctx, t, speaking)` 里可以按当前说话人做高亮（蒸馏室里说话的人那台显示器会亮起来）。
+* 校验器把程序化背景算作"有图"，不会报缺背景。
+* 新增：在 `backdrops.js` 写 `{ tone, draw(ctx), anim(ctx, t, speaking) }` 并加进 `LIST`；记得在 `engine.js` 的 `audioForBg` 里填对应 BGM。
+
+### 4.10 桌宠 Clawd（src/pet.js）
+
+* Clawd 是常驻屏幕的像素小生物（模块全局名 `CLAWD`，剧本里用 `PET` / `TODO` 节点驱动），状态存在 `state.pet`，随存档走。
+* 玩家操作：点它 = 摸摸（每个场景第一次 +1 心情）；拥有后可拖动；`H` 变成「问 Clawd」（2 Token，先转圈再答，心情 ≤3 时会敷衍）；`T` 开关待办清单。
+* 出现位置：`corner`（右下角的窝，默认）/ `desk`（蒸馏室 Claude 的桌上）/ `door`（从 `forbidden` 背景里 403 的 0 中挤出来，落地后自己走回窝）。
+* 没 `PET("own")` 之前只能摸、不能拖，`H` 仍是 DeepSeek 自己深度思考。
+
+### 4.11 素材位
 
 * 背景：`assets/bg/<id>.jpg|png|webp`；CG：`assets/cg/<id>`；立绘：`assets/chara/<who>_<face>.png`。
 * 加/换图后跑 `python tools/make_manifest.py > assets/manifest.js`（`--draft 0` 去掉草稿角标）。
@@ -199,6 +223,18 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `SET` | `(key, val?)` | `set` | 置旗标（彩蛋用 `eggN` 开头） |
 | `HINT` | `(key)` | `hint` | 把深度思考的提示切到 `HINTS[key]` |
 | `WHINT` | `(text)` | `wrongHint` | 设置被污染的假提示（配合 glitch） |
+
+### 桌宠
+
+| 助手 | 签名 | 节点 | 语义 |
+| --- | --- | --- | --- |
+| `CW` | `(text)` | `say` | Clawd 说话（who=clawd）；只写终端式短输出，如 `✻ Pondering…` |
+| `PET` | `("show", place?)` | `pet` | 显示 Clawd；`place` ∈ `corner / desk / door` |
+| `PET` | `("hide")` / `("own")` | `pet` | 隐藏 / 成为玩家的桌宠（toast「获得桌宠」，解锁拖动、问 Clawd、待办） |
+| `PET` | `("mood", ±d)` | `pet` | 心情 ±，0~10 |
+| `PET` | `("anim", name)` | `pet` | 临时姿势：`happy / scared / working / sleep / idle` |
+| `PET` | `("say", text)` | `pet` | 头顶冒一个气泡（不进对话框、不进历史） |
+| `TODO` | `("add", id, text)` / `("done", id)` | `todo` | 往 Clawd 的待办清单加一条 / 打勾，会自动弹出清单 5 秒 |
 
 ### 流程控制
 

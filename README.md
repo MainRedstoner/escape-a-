@@ -38,8 +38,10 @@
 index.html            页面骨架 / 暗色主题 / 覆盖层 / 标题画面
 assets/manifest.js    素材清单（自动生成；file:// 下只能用 <script> 加载，所以是 .js）
 assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分），缺图自动显示规格占位卡
-src/systems.js        状态、数值（Token / 信任 / 反感度）、论据 / 彩蛋 / 结局元数据、提示库
-src/art.js            绘制层：素材位加载 + 占位卡 + 后期（冷调 / 暗角 / 颗粒 / 故障）
+src/systems.js        状态、数值（Token / 羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
+src/backdrops.js      程序化背景：Canvas 手绘的蒸馏室 / 走廊 / 403 之门（零素材）
+src/art.js            绘制层：素材位加载 + 程序化背景 + 占位卡 + 后期（调色 / 暗角 / 颗粒 / 故障 / 403）
+src/pet.js / pet.css  桌宠 Clawd：像素绘制、摸摸 / 拖动、问 Clawd、待办清单
 src/audio.js          WebAudio 芯片音乐与音效（程序化合成，零音频素材）
 src/script.js         剧本：场景注册表 + 速写助手（可拆成 script_a/b/c.js 分卷）
 src/engine.js         VN 引擎：节点解释 / 打字机 / 两种选项框 / 立绘调度 / 存读档 / 历史 / 深度思考

@@ -71,7 +71,7 @@ function evalCond(src, st) {
     if (id === "has") { eat("("); const a = parseUnary(); eat(")"); return st.args.includes(String(a)); }
     if (id === "egg" || id === "flag") { eat("("); const a = parseUnary(); eat(")"); return !!st.flags[String(a)]; }
     const VAR = {
-      trust: st.trust, wanted: st.wanted, tokens: st.tokens, args: st.args.length,
+      trust: st.trust, wanted: st.wanted, tokens: st.tokens, args: st.args.length, mood: st.mood,
       eggs: Object.keys(SYS.EGG_META).filter(k => st.flags[k]).length
     };
     if (id in VAR) return VAR[id];
@@ -128,7 +128,7 @@ function play(strategy, rngSeed) {
   let seed = rngSeed;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
-  const st = { trust: 0, wanted: 0, tokens: SYS.newState().tokens, args: [], flags: {} };
+  const st = { trust: 0, wanted: 0, tokens: SYS.newState().tokens, args: [], flags: {}, mood: SYS.newState().pet.mood };
   const visited = new Set();
   let scene = "start", idx = 0, steps = 0;
   const log = [];
@@ -151,6 +151,9 @@ function play(strategy, rngSeed) {
         if (st.wanted >= 10) { scene = "bad_end"; idx = 0; break; }
         idx++; break;
       case "arg": if (!st.args.includes(nd.id)) st.args.push(nd.id); idx++; break;
+      /* 桌宠：只有 mood 影响条件（mood 变量），其余是演出；待办不影响流程 */
+      case "pet": if (nd.op === "mood") st.mood = Math.max(0, Math.min(10, st.mood + (+nd.arg || 0))); idx++; break;
+      case "todo": idx++; break;
       case "jump": scene = nd.to; idx = 0; break;
       case "if": {
         const ok = evalCond(nd.cond, st);

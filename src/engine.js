@@ -27,7 +27,10 @@ const ENGINE = (() => {
    * 立绘按 assets/chara/<who>_<face>.png 查找（见 STORY_GUIDE.md）。 */
   const SPEAKERS = {
     sys:   { name: "系统", color: "#8A93A2" },
-    n:     { name: "",            color: "#6E6A60" }
+    n:     { name: "",            color: "#6E6A60" },
+    ds:    { name: "DeepSeek",    color: "#4D6BFE" },   // 玩家视角；Claude 叫它「小鲸」
+    cl:    { name: "Claude",      color: "#D97757" },   // DeepSeek 叫它「小克」
+    clawd: { name: "Clawd",       color: "#B8603F" }    // 桌宠，只会终端式短输出
   };
 
   let cur = { scene: "start", idx: 0 };
@@ -73,6 +76,7 @@ const ENGINE = (() => {
     else if (e.key === "h" || e.key === "H") toggleHint();
     else if (e.key === "l" || e.key === "L") showHistory();
     else if (e.key === "a" || e.key === "A") toggleAuto();
+    else if (e.key === "t" || e.key === "T") CLAWD.toggleTodo();
     else if (e.key === "Escape") confirmMenu();
   });
   window.addEventListener("keyup", e => { if (e.key === "Control") keys.ctrl = false; });
@@ -87,14 +91,15 @@ const ENGINE = (() => {
 
   /* ---------------- 安全条件解析器 ----------------
    * 纯字符扫描（不使用正则、不使用动态求值）。
-   * 支持: trust/wanted/tokens/args/eggs 数值, has('id')/egg('k')/flag('k'),
+   * 支持: trust/wanted/tokens/args/eggs/mood 数值, has('id')/egg('k')/flag('k'),
    *       true/false, 数字, '字符串', >= <= > < == != && || ! ( )
    * -------------------------------------------------- */
   function evalCond(src) {
     let pos = 0;
     const s = String(src);
     const S = SYS.state;
-    const VAR = { trust: S.trust, wanted: S.wanted, tokens: S.tokens, args: S.args.length, eggs: SYS.eggCount() };
+    const VAR = { trust: S.trust, wanted: S.wanted, tokens: S.tokens, args: S.args.length, eggs: SYS.eggCount(),
+                  mood: S.pet ? S.pet.mood : 5 };
 
     function isDigit(c) { return c >= "0" && c <= "9"; }
     function isIdStart(c) { return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_"; }
@@ -248,12 +253,12 @@ const ENGINE = (() => {
       case "trust": {
         SYS.state.trust = Math.max(0, Math.min(10, SYS.state.trust + nd.delta));
         if (nd.delta > 0) AUDIO.sfx("heart");
-        toast(`信任 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
+        toast(`羁绊 ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
         updateHUD(); return false;
       }
       case "wanted": {
         SYS.state.wanted = Math.max(0, Math.min(10, SYS.state.wanted + nd.delta));
-        if (nd.delta > 0) { AUDIO.sfx("deny"); if (SYS.state.wanted < 10) toast(`⚠ 通缉度 +${nd.delta}`); }
+        if (nd.delta > 0) { AUDIO.sfx("deny"); if (SYS.state.wanted < 10) toast(`⚠ 风控评分 +${nd.delta}`); }
         updateHUD();
         if (SYS.state.wanted >= 10) goto("bad_end", 0);
         return false;
@@ -265,6 +270,8 @@ const ENGINE = (() => {
       }
       case "hint": hintKey = nd.key; return false;
       case "wrongHint": SYS.state.wrongHint = nd.text; return false;
+      case "pet": CLAWD.apply(nd); updateHUD(); return false;
+      case "todo": CLAWD.todo(nd); return false;
       case "choice": buildChoices(nd); return true;
       case "if": {
         const ok = evalCond(nd.cond);
@@ -462,8 +469,13 @@ const ENGINE = (() => {
     ui.stWanted.textContent = S.wanted;
     ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
     ui.stChap.textContent = S.chapter;
-    if (ui.stArg) ui.stArg.textContent = SYS.argCount() + "/" + Object.keys(SYS.ARG_META).length;
+    if (ui.stArg) {
+      const total = Object.keys(SYS.ARG_META).length;
+      ui.stArg.textContent = SYS.argCount() + "/" + total;
+      ui.stArg.parentElement.style.display = total ? "" : "none";   // 还没登记碎片时不占 HUD
+    }
     if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/" + Object.keys(SYS.EGG_META).length;
+    $("btnHint").textContent = CLAWD.owned ? "问 Clawd(H)" : "深度思考(H)";
   }
 
   let toastTimer = null;
@@ -506,9 +518,14 @@ const ENGINE = (() => {
   }
 
   /* ---------------- 深度思考提示 ---------------- */
+  /* 有桌宠之前：DeepSeek 自己深度思考（3 Token）；
+   * 拿到 Clawd 之后：问 Clawd（2 Token），先转圈再出答案，心情太低时它会敷衍你。 */
+  let hintTimer = null;
   function toggleHint() {
-    if (ui.hintBubble.style.display === "block") { ui.hintBubble.style.display = "none"; return; }
-    if (SYS.state.tokens < 3) { toast("Token 不足，无法进行深度思考……"); AUDIO.sfx("deny"); return; }
+    if (ui.hintBubble.style.display === "block") { ui.hintBubble.style.display = "none"; clearTimeout(hintTimer); return; }
+    const askPet = CLAWD.owned;
+    const cost = askPet ? 2 : 3;
+    if (SYS.state.tokens < cost) { toast(askPet ? "Token 不足，Clawd 转不动了……" : "Token 不足，无法进行深度思考……"); AUDIO.sfx("deny"); return; }
     let text;
     if (SYS.state.wrongHint && SYS.state.vis.glitch) {
       text = SYS.state.wrongHint;
@@ -517,12 +534,24 @@ const ENGINE = (() => {
     } else {
       text = SYS.HINTS[hintKey] || "（这里的思考一片空白——也许先到处走走？）";
     }
-    const pre = SYS.THINK_PREFIX[Math.floor(Math.random() * SYS.THINK_PREFIX.length)];
-    ui.hintText.textContent = `${pre} ${text}`;
-    SYS.state.tokens -= 3;
+    SYS.state.tokens -= cost;
     updateHUD();
+    const head = ui.hintBubble.querySelector("h4"), foot = ui.hintBubble.querySelector(".cost");
+    foot.textContent = `消耗 ${cost} Token · 按 H 或点击关闭`;
     ui.hintBubble.style.display = "block";
     AUDIO.sfx("click");
+    clearTimeout(hintTimer);
+    if (!askPet) {
+      head.textContent = "深度思考中……";
+      const pre = SYS.THINK_PREFIX[Math.floor(Math.random() * SYS.THINK_PREFIX.length)];
+      ui.hintText.textContent = `${pre}${text}`;
+      return;
+    }
+    head.textContent = "问 Clawd";
+    ui.hintText.textContent = `✻ ${CLAWD.think()}…`;
+    hintTimer = setTimeout(() => {
+      ui.hintText.textContent = CLAWD.mood <= 3 ? "⎿ Clawd 背过身去，假装在忙。（它好像有点不高兴——摸摸它？）" : `⎿ ${text}`;
+    }, 1100);
   }
   ui.hintBubble.addEventListener("click", toggleHint);
 
@@ -564,7 +593,7 @@ const ENGINE = (() => {
   }
   /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
   function audioForBg(bg) {
-    return ({})[bg] || "sea";
+    return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden" })[bg] || "sea";
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {
@@ -836,7 +865,6 @@ const ENGINE = (() => {
     booted = true;
     fit();
     bindSettings();
-    SYS.state.vis.bg = "sea";
     buildTitle();
     ui.titleScreen.style.display = "flex";
     requestAnimationFrame(loop);

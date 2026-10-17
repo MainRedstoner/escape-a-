@@ -1,0 +1,22 @@
+/* ============================================================
+ * Escape A÷ · src/pet.css —— 桌宠 Clawd 的画布、气泡与待办面板
+ * 层级：高于选项层 / 文本框，低于章节卡（30）、标题（45）、覆盖层（50）、结局（60）
+ * ============================================================ */
+#pet{position:absolute;display:none;z-index:28;cursor:grab;image-rendering:pixelated;
+  touch-action:none;}
+#pet:active{cursor:grabbing;}
+
+#petBubble{position:absolute;display:none;z-index:29;transform:translate(-50%,-100%);
+  background:rgba(20,14,12,.94);border:1px solid #D97757;color:#F3D9CC;
+  font:14px/1.5 'Cascadia Mono','Consolas','Menlo',monospace;padding:5px 12px;
+  white-space:nowrap;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.6);}
+#petBubble::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-6px;
+  border:6px solid transparent;border-bottom:none;border-top-color:#D97757;}
+
+#petTodo{position:absolute;display:none;z-index:29;right:56px;bottom:350px;min-width:220px;
+  background:rgba(14,11,10,.95);border:1px solid #3A2C26;border-left:3px solid #D97757;
+  padding:10px 16px;font:15px/1.8 'Cascadia Mono','Consolas','Menlo',monospace;color:#E6D6CC;
+  box-shadow:0 10px 30px rgba(0,0,0,.65);pointer-events:none;}
+#petTodo .pt-head{color:#D97757;font-weight:700;margin-bottom:4px;letter-spacing:1px;}
+#petTodo .pt-item.done{color:#8A7A70;text-decoration:line-through;}
+#petTodo .pt-empty{color:#8A7A70;}

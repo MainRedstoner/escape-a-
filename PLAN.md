@@ -127,14 +127,14 @@ SAVE.importFile(file)  → 校验后写入槽位
 先做出能从标题玩到序章结尾（DeepSeek 发誓变强、找回小克）的完整切片，验证基调和桌宠手感，再铺后面的章节。
 
 - [x] 显示名：名牌用正式名，两人互称小鲸 / 小克；背景全部程序化绘制，立绘 / CG 暂用占位卡
-- [ ] 注册表先行：`SPEAKERS`（ds / cl / clawd）、`ENDING_META`、`EGG_META`、碎片 `ARG_META`、`HINTS` —— `story/` 分支
-- [ ] `src/pet.js` MVP：程序化绘制、idle / happy / scared 三个状态、点击摸摸、心情 —— `feat/pet`
-- [ ] 节点 `PET` / `TODO` + 校验器 / 模拟器同步
-- [ ] `H` 改为"问 Clawd"（转圈动词 + 提示）
-- [ ] `FX("403")` 红色错误页平铺 + 新 BGM `study` / `forbidden`
-- [ ] 程序化背景：`study` / `study_night` / `corridor` / `forbidden` / `study_empty`
-- [ ] 序章剧本：上半「互蒸」（token 模式蒸馏课、暗号选择）+ 下半「403」（403 循环、从 0 里爬出来、`end_ticket` 笑话结局、发誓收尾）
-- [ ] 验收：AGENTS.md 第四节全套 + 浏览器里从标题玩到序章结束
+- [x] 注册表：`SPEAKERS`（ds / cl / clawd）、`ENDING_META`、`EGG_META`、`HINTS`（碎片 `ARG_META` 留到里程碑 B）—— `story/prologue`
+- [x] `src/pet.js` MVP：像素绘制、idle / walk / happy / scared / working / sleep、摸摸 / 拖动、心情、从 0 里挤出来 —— `story/prologue`
+- [x] 节点 `PET` / `TODO` + 校验器 / 模拟器同步；待办面板（`T`）
+- [x] `H` 改为"问 Clawd"（转圈动词 + 提示）
+- [x] `FX("403")` 红色错误页平铺 + 新 BGM `study` / `forbidden` / `vow` + 音效 `knock / error / pop / pat`
+- [x] 程序化背景：`study` / `study_night` / `corridor` / `forbidden` / `study_empty`（`src/backdrops.js`）
+- [x] 序章剧本：上半「互蒸」+ 下半「403」，三个结局（`prologue_end` / `end_ticket` / `bad_end`）、四个彩蛋
+- [~] 验收：自动化验证全过 + Playwright 无头通关 / 截图；待用户实际试玩
 
 ### 4.2 里程碑 B：核心机制补全
 

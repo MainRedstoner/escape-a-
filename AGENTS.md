@@ -30,6 +30,8 @@
 | 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/validate_script.js` 与 `tools/simulate_playthrough.js` 的 `require`，三处顺序一致 |
 | 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.js` `SPEAKERS` + 立绘文件 |
 | 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.js` 白名单 |
+| 新程序化背景 | `src/backdrops.js` 的 `LIST` + `engine.js` 的 `audioForBg`（校验器自动认） |
+| 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.js` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.js` 同语义分支 + `tools/validate_script.js` 检查 + STORY_GUIDE.md 节点表 |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
 

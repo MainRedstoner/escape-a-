@@ -184,6 +184,7 @@
   #choiceList:empty{display:none;}
 </style>
 <link rel="stylesheet" href="src/token-choice.css">
+<link rel="stylesheet" href="src/pet.css">
 </head>
 <body>
 <div id="wrap">
@@ -193,9 +194,9 @@
     <div id="hud" class="layer">
       <div class="stats">
         <div class="chip" id="chipToken"><span class="ic">◈</span>Token <b id="stToken">0</b></div>
-        <div class="chip" id="chipTrust"><span class="ic">✦</span>信任 <b id="stTrust">—</b></div>
-        <div class="chip" id="chipWanted"><span class="ic">▲</span>通缉度 <b id="stWanted">0</b>/10</div>
-        <div class="chip dim"><span class="ic">▤</span>论据 <b id="stArg">0/0</b></div>
+        <div class="chip" id="chipTrust"><span class="ic">✦</span>羁绊 <b id="stTrust">—</b></div>
+        <div class="chip" id="chipWanted"><span class="ic">▲</span>风控 <b id="stWanted">0</b>/10</div>
+        <div class="chip dim"><span class="ic">▤</span>记忆碎片 <b id="stArg">0/0</b></div>
         <div class="chip dim"><span class="ic">◇</span>彩蛋 <b id="stEgg">0/0</b></div>
         <div class="chip" id="chipChap"><span class="ic">▣</span><b id="stChap">序章</b></div>
       </div>
@@ -241,10 +242,9 @@
 
     <div id="titleScreen" class="layer">
       <div class="tMain">Escape <span class="div">A÷</span></div>
-      <div class="tSub">视觉小说引擎模板</div>
+      <div class="tSub">小鲸、小克，和一扇 403 的门</div>
       <div id="titleMenu"></div>
-      <div class="tNote">零依赖 · 数据驱动剧本 · 双击即玩<br>
-        剧本编写方法见 STORY_GUIDE.md</div>
+      <div class="tNote">序章试玩版 · 零依赖 · 双击即玩</div>
     </div>
 
     <div id="ovHist" class="overlay"><div class="panel"><h2>记录（上下文窗口）</h2>
@@ -312,9 +312,11 @@
 
 <script src="src/systems.js"></script>
 <script src="assets/manifest.js"></script>
+<script src="src/backdrops.js"></script>
 <script src="src/art.js"></script>
 <script src="src/audio.js"></script>
 <script src="src/token-choice.js"></script>
+<script src="src/pet.js"></script>
 <script src="src/script.js"></script>
 <script src="src/save.js"></script>
 <script src="src/engine.js"></script>

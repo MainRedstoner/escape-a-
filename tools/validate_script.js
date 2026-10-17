@@ -22,10 +22,20 @@ const { SCRIPT } = require("../src/script.js");
 
 /* ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ----
  * 新增说话人时：先在 src/engine.js 的 SPEAKERS 注册，再同步到这里。 */
-const SPEAKERS = ["sys", "n"];
-const SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart"];
-const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending"];
-const FXS = ["shake", "flash", "alarm", "alarmOff", "glitch", "glitchOff"];
+const SPEAKERS = ["sys", "n", "ds", "cl", "clawd"];
+const SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart",
+             "knock", "error", "pop", "pat"];
+const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending",
+              "study", "forbidden", "vow"];
+const FXS = ["shake", "flash", "alarm", "alarmOff", "glitch", "glitchOff", "403", "403Off"];
+/* 桌宠（src/pet.js）的节点参数 */
+const PET_OPS = ["show", "hide", "own", "mood", "anim", "say"];
+const PET_PLACES = ["corner", "desk", "door"];
+const PET_ANIMS = ["idle", "happy", "scared", "working", "sleep"];
+const TODO_OPS = ["add", "done"];
+
+/* 程序化背景（src/backdrops.js）：有就不算缺图 */
+const { BACKDROPS } = require("../src/backdrops.js");
 
 /* ---- 资源清单（有图的素材位） ---- */
 let ass = { bg: {}, cg: {}, chara: {} };
@@ -85,7 +95,7 @@ for (const sid of ids) {
         if (nd.else) chk(!!scenes[nd.else], `${at}: if else 目标不存在 "${nd.else}"`);
         for (const m of String(nd.cond || "").matchAll(/(?:has|egg|flag)\('([^']+)'\)/g)) {
           if (m[0].startsWith("has")) { usedArgs.add(m[1]); chk(!!SYS.ARG_META[m[1]], `${at}: 条件引用了不存在的论据 "${m[1]}"`); }
-          else usedEggs.add(m[1]);
+          else if (m[1].startsWith("egg")) usedEggs.add(m[1]);   // 普通旗标（如暗号 pass_*）不算彩蛋
         }
         break;
       case "choice":
@@ -105,7 +115,7 @@ for (const sid of ids) {
           chk(o.weight === undefined || (typeof o.weight === "number" && o.weight >= 0),
               `${at} 选项${k + 1}: weight 应是非负数（token 模式下决定滑道宽度与概率）`);
           if (o.give) { usedArgs.add(o.give); grantedArgs.add(o.give); chk(!!SYS.ARG_META[o.give], `${at}: 选项给出不存在的论据 "${o.give}"`); }
-          if (o.set) { usedEggs.add(o.set); grantedEggs.add(o.set); }
+          if (o.set && String(o.set).startsWith("egg")) { usedEggs.add(o.set); grantedEggs.add(o.set); }
         });
         break;
       case "arg": usedArgs.add(nd.id); grantedArgs.add(nd.id); chk(!!SYS.ARG_META[nd.id], `${at}: 不存在的论据 "${nd.id}"`); break;
@@ -115,6 +125,18 @@ for (const sid of ids) {
       case "chapter": chk(!!nd.main, `${at}: 章节卡缺少标题`); break;
       case "wrongHint": chk(!!nd.text, `${at}: 污染提示为空`); break;
       case "tokens": case "trust": case "wanted": chk(typeof nd.delta === "number", `${at}: delta 不是数字`); break;
+      case "pet":
+        chk(PET_OPS.includes(nd.op), `${at}: 未知的桌宠操作 "${nd.op}"`);
+        if (nd.op === "show") chk(nd.arg === undefined || PET_PLACES.includes(nd.arg), `${at}: 未知的出现位置 "${nd.arg}"`);
+        if (nd.op === "anim") chk(PET_ANIMS.includes(nd.arg), `${at}: 未知的桌宠动画 "${nd.arg}"`);
+        if (nd.op === "mood") chk(typeof nd.arg === "number", `${at}: mood 的变化量不是数字`);
+        if (nd.op === "say") chk(typeof nd.arg === "string" && nd.arg.length, `${at}: 气泡文字为空`);
+        break;
+      case "todo":
+        chk(TODO_OPS.includes(nd.op), `${at}: 未知的待办操作 "${nd.op}"`);
+        chk(typeof nd.id === "string" && nd.id.length, `${at}: 待办缺少 id`);
+        if (nd.op === "add") chk(typeof nd.text === "string" && nd.text.length, `${at}: 待办文本为空`);
+        break;
       default: break;
     }
   });
@@ -153,13 +175,13 @@ for (const k in SYS.ENDING_META) if (!usedEndings.has(k)) warns.push(`结局 ${k
 for (const k in SYS.HINTS) if (!usedHints.has(k)) warns.push(`提示 "${k}" 没有被任何场景使用`);
 
 /* ---- 素材到位情况 ---- */
-const missBg = [...usedBg].filter(x => !(ass.bg || {})[x]);
+const missBg = [...usedBg].filter(x => !(ass.bg || {})[x] && !BACKDROPS.has(x));
 const missCg = [...usedCg].filter(x => !(ass.cg || {})[x]);
 const charaKeys = Object.keys(ass.chara || {});
 const usedChara = new Set();
 for (const sid of ids) for (const nd of scenes[sid]) {
-  // say / show / face 三种节点都会让引擎去要一张立绘差分
-  if ((nd.t === "say" || nd.t === "show" || nd.t === "face") && nd.who && nd.who !== "n" && nd.who !== "sys") {
+  // show / face 会让引擎去要一张立绘差分；say 只有带 face 时才会换差分（没 SHOW 过的角色不画立绘）
+  if ((nd.t === "show" || nd.t === "face" || (nd.t === "say" && nd.face)) && nd.who && nd.who !== "n" && nd.who !== "sys") {
     usedChara.add(nd.who + "_" + (nd.face || "normal"));
   }
 }
