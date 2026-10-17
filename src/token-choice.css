@@ -297,8 +297,8 @@
  * ============================================================ */
 
 #choiceToken {
-  width: 1180px;
-  max-width: 94%;
+  width: 1480px;
+  max-width: 96%;
   box-sizing: border-box;
   --tc-accent: var(--clay, #D97757);
 }
@@ -312,12 +312,12 @@
   color: var(--text, #C9D2DE);
 }
 
-#choiceToken .tc-preview { color: var(--muted, #7D8798); font-size: 27px; }
+#choiceToken .tc-preview { color: var(--muted, #7D8798); font-size: 30px; }
 #choiceToken .tc-preview-text--locked { color: var(--clay, #D97757); }
 #choiceToken .tc-preview-text--auto { color: #E0A458; }
 
 #choiceToken .tc-track {
-  height: 92px;
+  height: 108px;
   background: rgba(5, 7, 10, .9);
   border-color: var(--line, #2C3542);
 }
@@ -333,8 +333,8 @@
 #choiceToken .tc-frame { border-left-color: var(--line, #2C3542); }
 
 #choiceToken .tc-chip { background: var(--slate, #151A22); }
-#choiceToken .tc-chip-text { font-size: 19px; }
-#choiceToken .tc-chip-prob { font-size: 13px; color: var(--muted, #7D8798); }
+#choiceToken .tc-chip-text { font-size: 20px; }
+#choiceToken .tc-chip-prob { font-size: 14px; color: var(--muted, #7D8798); }
 
 #choiceToken .tc-chip--active {
   background: #2A3A55;
@@ -394,8 +394,8 @@
   background: var(--slate, #151A22);
   border-color: var(--line, #2C3542);
   color: var(--text, #C9D2DE);
-  font-size: 17px;
-  padding: 9px 20px;
+  font-size: 19px;
+  padding: 12px 26px;
 }
 #choiceToken .tc-lock:hover:not(:disabled) { background: var(--slate2, #1E2530); border-color: var(--clay, #D97757); }
 
