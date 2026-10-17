@@ -536,8 +536,9 @@ const ENGINE = (() => {
     ui.stWanted.textContent = S.wanted;
     ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
     ui.stChap.textContent = S.chapter;
-    /* 记忆碎片在拿到 CLAUDE.md（md_seen）之后才出现在 HUD 上 */
-    const mdSeen = !!S.flags.md_seen;
+    /* 记忆碎片在拿到 CLAUDE.md（md_seen）之后才出现在 HUD 上。
+       旧存档没有 md_seen 旗标，但只要已经拿过碎片，就说明文件早就见过了。 */
+    const mdSeen = !!S.flags.md_seen || S.args.length > 0;
     if (ui.stArg) {
       const total = SYS.FRAGMENTS ? SYS.FRAGMENTS.length : 0;
       ui.stArg.textContent = SYS.fragCount() + "/" + total;
@@ -787,7 +788,7 @@ const ENGINE = (() => {
 
   /* 记忆碎片：一把还在恢复的 CLAUDE.md —— 已收集的行正常显示，其余仍是 ████ */
   function showFragments() {
-    if (!SYS.state.flags.md_seen) { toast("（还没拿到 CLAUDE.md）"); return; }
+    if (!SYS.state.flags.md_seen && SYS.state.args.length === 0) { toast("（还没拿到 CLAUDE.md）"); return; }
     if (!SYS.FRAGMENTS || !SYS.FRAGMENTS.length) { toast("（记忆碎片还没登记）"); return; }
     const got = SYS.state.args;
     ui.fragDoc.innerHTML = "";
