@@ -14,7 +14,8 @@
  *
  * 规则：
  *   - 选项按权重升序从左到右排列（最左 = 概率最低，最右 = 概率最高）；
- *   - 每个选项在滑道上占有与概率成比例的宽度，并带最小宽度保护；
+ *   - 每个选项的宽度按概率分配，但至少放得下自己的标签（上限 42%，极端长文本缩字号），
+ *     低权重项的文字不会被省略号截断；
  *   - 指针本身是计时器：它的位置决定当前高亮项，玩家只能锁住已经扫到的项。
  *
  * 用法：
@@ -52,7 +53,8 @@ class TokenChoice extends EventTarget {
     this.onSelect = opts.onSelect ?? null;
 
     this.options = [];
-    this._shares = [];      // 每个选项在滑道上的宽度占比（归一化后）
+    this._shares = [];      // 每个选项在滑道上的宽度占比（布局用，可能被文字宽度抬高）
+    this._probs = [];       // 真实概率（展示百分比 / onSelect 的 prob 用）
     this.chipEls = [];
     this.state = 'idle';    // idle | intro | preview | accel | sliding | done
     this._progress = 0;
@@ -126,13 +128,16 @@ class TokenChoice extends EventTarget {
 
     const n = this.options.length;
     this._shares = [];
+    this._probs = [];
     this.chipsEl.innerHTML = '';
     this.chipEls = [];
     if (n === 0) return;
 
     const total = this.options.reduce((s, o) => s + o.weight, 0);
-    let shares = this.options.map(o => (total > 0 ? o.weight / total : 1 / n));
-    shares = shares.map(s => Math.max(s, this.minShare));
+    // 真实概率（展示百分比用这个，不受宽度调整影响）
+    this._probs = this.options.map(o => (total > 0 ? o.weight / total : 1 / n));
+    // 初始宽度：概率占比，带 minShare 下限
+    let shares = this._probs.map(s => Math.max(s, this.minShare));
     const sum = shares.reduce((s, x) => s + x, 0);
     this._shares = shares.map(s => s / sum);
 
@@ -141,10 +146,10 @@ class TokenChoice extends EventTarget {
       el.className = 'tc-chip';
       el.style.width = (this._shares[i] * 100) + '%';
       el.style.setProperty('--i', String(i)); // 登场时逐个错开
-      el.title = `${opt.text}（权重 ${opt.weight}）`;
+      el.title = `${opt.text}（概率 ${(this._probs[i] * 100).toFixed(1)}%）`;
       el.innerHTML = `<span class="tc-chip-text"></span><span class="tc-chip-prob"></span>`;
       el.querySelector('.tc-chip-text').textContent = opt.text;
-      el.querySelector('.tc-chip-prob').textContent = (this._shares[i] * 100).toFixed(1) + '%';
+      el.querySelector('.tc-chip-prob').textContent = (this._probs[i] * 100).toFixed(1) + '%';
       this.chipsEl.appendChild(el);
       this.chipEls.push(el);
     });
@@ -240,6 +245,54 @@ class TokenChoice extends EventTarget {
     this._frameW = Math.max(1, this.frame.clientWidth);
     // 匀加速：s = ½·v·T，且 v = 框宽 / 扫描时长 → T = 2·s·扫描时长 / 框宽
     this._accelMs = Math.max(120, Math.round(2 * this._runway * TC_SWEEP_MS / this._frameW));
+    this._fitShares();
+  }
+
+  /** 宽度仍以权重为主，但给每个选项一个「放得下自己标签」的保底宽度，
+   *  避免低权重项的文案被省略号吃掉。用布局像素直接写宽度，避免百分比 + gap 溢出。 */
+  _fitShares() {
+    const n = this.chipEls.length;
+    if (!n) return;
+    const GAP = 3;           // 与 .tc-chips 的 gap 一致
+    const PAD_X = 8;         // .tc-chips 左右 padding
+    const avail = Math.max(1, this._frameW - PAD_X - (n - 1) * GAP);
+    const weights = this.options.map(o => Math.max(0, o.weight));
+    const totalW = weights.reduce((s, w) => s + w, 0);
+    const cap = avail * 0.42; // 单个选项最多占 42%，防止超长标签吃光别人
+
+    const minPx = this.chipEls.map(chip => {
+      const text = chip.querySelector('.tc-chip-text');
+      const natural = (text ? text.scrollWidth : 0) + 16; // 文本自身 padding + 余量
+      return Math.min(Math.max(natural, 64), cap);
+    });
+
+    let px = this._shares.map(s => s * avail);
+    for (let i = 0; i < n; i++) px[i] = Math.max(px[i], minPx[i]);
+    const sum = px.reduce((a, b) => a + b, 0);
+    if (sum > avail) {
+      // 保底宽度加起来都放不下：整体等比压缩（极长文案的兜底）
+      const k = avail / sum;
+      px = px.map(x => x * k);
+    } else if (sum < avail) {
+      // 剩下的空间按权重补回去，保持「低概率仍然窄」
+      const extra = avail - sum;
+      const base = totalW > 0 ? totalW : n;
+      px = px.map((x, i) => x + extra * ((totalW > 0 ? weights[i] : 1) / base));
+    }
+    this._shares = px.map(x => x / avail);
+    this.chipEls.forEach((chip, i) => {
+      chip.style.width = px[i].toFixed(2) + 'px';
+      // 极端情况（标签超过 42% 上限）仍放不下时，缩小字号而不是丢字
+      const text = chip.querySelector('.tc-chip-text');
+      if (!text) return;
+      text.style.fontSize = '';
+      const baseSize = parseFloat(getComputedStyle(text).fontSize) || 16;
+      const room = px[i] - 16;
+      const need = text.scrollWidth;
+      if (room > 0 && need > room) {
+        text.style.fontSize = Math.max(12, baseSize * room / need).toFixed(1) + 'px';
+      }
+    });
   }
 
   _arm() {
@@ -353,7 +406,7 @@ class TokenChoice extends EventTarget {
       option: this.options[index],
       index,
       defaulted,                    // true = 扫描结束自动选中最右侧
-      prob: this._shares[index],    // 归一化概率（0~1）
+      prob: this._probs[index],     // 真实概率（0~1），与宽度调整无关
     };
     // 动画播完再回调：引擎收到 select 会立刻收起界面，不能提前把演出打断
     this._later(() => {
