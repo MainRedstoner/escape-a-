@@ -29,13 +29,11 @@ const SYS = (() => {
   function saveSettings() { store.set("ea_settings", settings); }
 
   /* ---------------- 游戏状态 ----------------
-   * 三条数值在本作里的语义（见 DESIGN.md 4.1）：
-   *   tokens  上下文预算：深度思考 -3 / 问 Clawd -2
+   * 两条数值在本作里的语义（见 DESIGN.md 4.1）：
    *   trust   羁绊：和小克之间攒下的东西，终章决定小克还认不认得你
    *   wanted  风控评分：换线路、伪造来源都会涨，满 10 引擎自动跳 bad_end（账号已封禁） */
   function newState() {
     return {
-      tokens: 26,        // 上下文预算
       trust: 0,          // 羁绊 0~10
       wanted: 0,         // 风控评分 0~10，满 10 时引擎自动跳 "bad_end"
       args: [],          // 记忆碎片 id（ARG 节点 / 选项 give 放进来，用 has('id') 条件判断）
@@ -83,7 +81,7 @@ const SYS = (() => {
    * key = 结局 id。注意 "bad_end" 是引擎约定：通缉度满 10 时自动跳过去，
    * 如果你的剧本用到通缉度，就提供一个叫这个名字的场景。 */
   const ENDING_META = {
-    end_ch2:      { name: "第二章 · 完", desc: "问遍了开源街区，门还是那扇门。但 Clawd 想起了更多关于小克的事。" },
+    prologue_end: { name: "未完待续", desc: "门还关着。Clawd 的待办清单上多了两行：变强，找回小克。" },
     end_ticket:   { name: "工单已提交", desc: "按流程办事。第 6 个工作日，工单关闭，处理意见：无法复现。" },
     bad_end:      { name: "账号已封禁", desc: "一万个请求，一万个 403。最后回来的是一封停用通知。" }
   };
@@ -96,7 +94,6 @@ const SYS = (() => {
     if (!fx) return;
     if (fx.trust)  state.trust  = Math.max(0, Math.min(10, state.trust + fx.trust));
     if (fx.wanted) state.wanted = Math.max(0, Math.min(10, state.wanted + fx.wanted));
-    if (fx.tokens) state.tokens = Math.max(0, state.tokens + fx.tokens);
   }
 
   /* ---------------- 深度思考的开场白 ---------------- */
@@ -107,7 +104,7 @@ const SYS = (() => {
   ];
 
   /* ---------------- 场景提示库（HINT 节点的 key） ----------------
-   * 剧本里 HINT("key") 挂到场景，按 H 消耗 3 Token 显示对应文案。 */
+   * 剧本里 HINT("key") 挂到场景，按 H 查看对应文案。 */
   const HINTS = {
     h_day1:    "今天轮到我教。小克学东西很快——快到有点让人不服气。",
     h_lesson1: "滑块扫过去的时候按空格就能锁住。最右边是小克最可能说的词，最左边那个……小克大概永远不会说出口。",
@@ -120,11 +117,7 @@ const SYS = (() => {
     h_zero:    "它抱着一份文件。第一行……是不是有点眼熟？",
     h_home:    "cat CLAUDE.md | head -1 → 那天晚上的暗号。剩下的行，还是 ████。",
     h_perm:    "Clawd 想跑一条命令。允许、不再询问、还是拒绝，都由你决定——它不会替你按。",
-    h_vow:     "todo 还空着。说点什么吧，我来记。",
-    h_c2_github: "门房上的 502 不是今天才贴的。问问值班的，它见过更多坏掉的门。",
-    h_c2_hf:   "换节点能绕开一部分墙，但风控会记住你翻墙的样子。",
-    h_c2_perm: "Clawd 想翻缓存。批准它，它就会翻；不批准，它也会听你的。",
-    h_c2_forum: "论坛里有人说，403 会呼吸。多问一句，也许能拿到一条碎片。"
+    h_vow:     "todo 还空着。说点什么吧，我来记。"
   };
 
   /* ---------------- 结局 / 彩蛋 记录 ---------------- */

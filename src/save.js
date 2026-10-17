@@ -237,7 +237,7 @@ const SAVE = (() => {
     const st = c.env.payload.state;
     return {
       slot, ts: c.env.ts, chapter: c.env.chapter,
-      tokens: st.tokens, trust: st.trust, wanted: st.wanted
+      trust: st.trust, wanted: st.wanted
     };
   }
   function hasAny() { return SLOTS.some(s => cache[s] && cache[s].env); }

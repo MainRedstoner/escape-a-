@@ -6,7 +6,7 @@
  * 然后用多种"玩家性格"把全篇跑很多遍，验证：
  *   · 每个场景都能走得出去，不会卡死
  *   · systems.js 里登记的每个结局都真的能到达
- *   · 数值不会越界（Token 花成负数之类）
+ *   · 数值不会越界（风控 / 羁绊超出范围之类）
  *   · 论据 / 彩蛋的获取点确实能被触发
  *
  * 用法：node tools/simulate_playthrough.js [每策略轮数]
@@ -71,7 +71,7 @@ function evalCond(src, st) {
     if (id === "has") { eat("("); const a = parseUnary(); eat(")"); return st.args.includes(String(a)); }
     if (id === "egg" || id === "flag") { eat("("); const a = parseUnary(); eat(")"); return !!st.flags[String(a)]; }
     const VAR = {
-      trust: st.trust, wanted: st.wanted, tokens: st.tokens, args: st.args.length, mood: st.mood,
+      trust: st.trust, wanted: st.wanted, args: st.args.length, mood: st.mood,
       eggs: Object.keys(SYS.EGG_META).filter(k => st.flags[k]).length
     };
     if (id in VAR) return VAR[id];
@@ -91,7 +91,6 @@ function scoreOption(o, st) {
   if (o.fx) {
     s += (o.fx.trust || 0) * 8;
     s -= (o.fx.wanted || 0) * 12;
-    s += (o.fx.tokens || 0) * 0.2;
   }
   const target = scenes[o.jump] || [];
   for (const nd of target.slice(0, 24)) {
@@ -128,7 +127,7 @@ function play(strategy, rngSeed) {
   let seed = rngSeed;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
-  const st = { trust: 0, wanted: 0, tokens: SYS.newState().tokens, args: [], flags: {}, mood: SYS.newState().pet.mood };
+  const st = { trust: 0, wanted: 0, args: [], flags: {}, mood: SYS.newState().pet.mood };
   const visited = new Set();
   let scene = "start", idx = 0, steps = 0;
   const log = [];
@@ -144,7 +143,6 @@ function play(strategy, rngSeed) {
       case "show": case "hide": case "face": case "hint": case "wrongHint":
         idx++; break;
       case "set": st.flags[nd.key] = nd.val !== undefined ? nd.val : true; idx++; break;
-      case "tokens": st.tokens = Math.max(0, st.tokens + nd.delta); idx++; break;
       case "trust": st.trust = Math.max(0, Math.min(10, st.trust + nd.delta)); idx++; break;
       case "wanted":
         st.wanted = Math.max(0, Math.min(10, st.wanted + nd.delta));
@@ -178,8 +176,7 @@ function play(strategy, rngSeed) {
         if (o.fx) {
           st.trust = Math.max(0, Math.min(10, st.trust + (o.fx.trust || 0)));
           st.wanted = Math.max(0, Math.min(10, st.wanted + (o.fx.wanted || 0)));
-          st.tokens = Math.max(0, st.tokens + (o.fx.tokens || 0));
-        }
+          }
         if (o.set) st.flags[o.set] = true;
         if (o.give && !st.args.includes(o.give)) st.args.push(o.give);
         log.push(scene + " → " + o.text.slice(0, 18));
@@ -187,7 +184,7 @@ function play(strategy, rngSeed) {
         scene = o.jump; idx = 0; break;
       }
       case "ending":
-        return { ending: nd.id, steps, trust: st.trust, wanted: st.wanted, tokens: st.tokens,
+        return { ending: nd.id, steps, trust: st.trust, wanted: st.wanted,
                  args: st.args.length, eggs: Object.keys(SYS.EGG_META).filter(k => st.flags[k]).length,
                  scenes: visited.size, log };
       default: idx++; break;

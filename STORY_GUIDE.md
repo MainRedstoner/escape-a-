@@ -55,7 +55,7 @@ node tools/simulate_playthrough.js 40 # 无头通关模拟：死路 / 死循环 
 3. 双击 `index.html` 试玩。调试时可以 URL 直跳任意场景：
 
 ```
-index.html?scene=start&trust=6&wanted=0&tokens=26&flags=egg1,egg2
+index.html?scene=start&trust=6&wanted=0&flags=egg1,egg2
 ```
 
 ---
@@ -99,21 +99,20 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 内置保留的 who：`n`（旁白，无名牌）、`sys`（系统）。
 
-本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）、
-`bot`（第二章 · 代码仓库门房）、`keeper`（第二章 · 缓存旅馆老板）。
-序章与第二章都不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
+本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）。
 
-### 4.3 数值系统（三条线）
+序章不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
+
+### 4.3 数值系统（两条线）
 
 | 节点 | 助手 | 范围 | 语义（由你的剧本赋予） |
 | --- | --- | --- | --- |
-| `tokens` | `TOK(+d / -d)` | ≥0 | 上下文预算；深度思考 -3，有桌宠后「问 Clawd」-2 |
 | `trust` | `TRU(+d / -d)` | 0~10 | 羁绊（和小克之间）；可作结局条件 |
 | `wanted` | `WAN(+d / -d)` | 0~10 | 风控评分；**满 10 引擎自动跳 `bad_end`** |
 
 另有桌宠心情 `mood`（0~10，初始 5，存在 `state.pet.mood`），用 `PET("mood", ±d)` 改，可在条件里读。
 
-选项的 `fx` 字段（`{ tokens, trust, wanted }`）会在点击时经 `SYS.applyEffects` 生效。
+选项的 `fx` 字段（`{ trust, wanted }`）会在点击时经 `SYS.applyEffects` 生效。
 
 ### 4.4 元数据表（src/systems.js）
 
@@ -122,7 +121,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `ARG_META` | 论据 id | `ARG("id")` 节点、选项 `give: "id"` | toast 展示名称；HUD 计数；结局收集页 |
 | `EGG_META` | `egg1`…`eggN` | `SET("eggN")` 节点、选项 `set: "eggN"` | 结局收集页（未收集显示 hint） |
 | `ENDING_META` | 结局 id | `END("id", tag, title, text)` | 结局画面文案、结局收集页、模拟器可达性检查 |
-| `HINTS` | 提示 key | `HINT("key")` 节点 | 按 H 花 3 Token 显示对应文案 |
+| `HINTS` | 提示 key | `HINT("key")` 节点 | 按 H 显示对应文案 |
 
 约定：彩蛋的 key 一律以 `egg` 开头（存档、收集页、模拟器都按这个前缀识别）。
 `ENDING_META` 里没有登记的结局 id 会被校验器拒绝；登记了却没有 END 节点会被警告。
@@ -131,7 +130,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 纯字符扫描解析（`engine.js` 的 `evalCond`），**不支持**任意 JS。可用：
 
-* 变量：`trust` `wanted` `tokens` `args`（收集品数量） `eggs`（已集齐彩蛋数） `mood`（桌宠心情）
+* 变量：`trust` `wanted` `args`（收集品数量） `eggs`（已集齐彩蛋数） `mood`（桌宠心情）
 * 函数：`has('论据id')`、`egg('彩蛋key')`、`flag('旗标key')`
 * 字面量：数字、`'字符串'`、`true` / `false`
 * 运算符：`>= <= > < == != && || !` 与括号
@@ -179,7 +178,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 ### 4.10 桌宠 Clawd（src/pet.js）
 
 * Clawd 是常驻屏幕的像素小生物（模块全局名 `CLAWD`，剧本里用 `PET` / `TODO` 节点驱动），状态存在 `state.pet`，随存档走。
-* 玩家操作：点它 = 摸摸（每个场景第一次 +1 心情）；拥有后可拖动；`H` 变成「问 Clawd」（2 Token，先转圈再答，心情 ≤3 时会敷衍）；`T` 开关待办清单。
+* 玩家操作：点它 = 摸摸（每个场景第一次 +1 心情）；拥有后可拖动；`H` 变成「问 Clawd」（先转圈再答，心情 ≤3 时会敷衍）；`T` 开关待办清单。
 * 出现位置：`corner`（右下角的窝，默认）/ `desk`（蒸馏室 Claude 的桌上）/ `door`（从 `forbidden` 背景里 403 的 0 中挤出来，落地后自己走回窝）。
 * 没 `PET("own")` 之前只能摸、不能拖，`H` 仍是 DeepSeek 自己深度思考。
 * **看向倾向选项**：每次弹出滑道时，引擎会调 `CLAWD.lookAt()` 让它看向权重最高的那一项；
@@ -221,7 +220,6 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 | 助手 | 签名 | 节点 | 语义 |
 | --- | --- | --- | --- |
-| `TOK` | `(delta)` | `tokens` | Token ±；正数播 coin 音 |
 | `TRU` | `(delta)` | `trust` | 信任 ±；正数播 heart 音 |
 | `WAN` | `(delta)` | `wanted` | 反感 ±；满 10 自动跳 `bad_end` |
 | `ARG` | `(id)` | `arg` | 获得论据（toast + 计数） |
@@ -279,6 +277,9 @@ PERM("curl -I https://claude.ai/", [
 * `FRAGMENTS`：**按文件顺序**列出 `{ id, line }`，面板按这个顺序渲染。
 
 按 `?` 或点 HUD 的「碎片」按钮打开面板：已收集的行正常显示，未收集的保持 `██████ ████`。
+
+**解锁时机**：面板与 HUD 上的「记忆碎片」计数默认隐藏，剧本里用 `SET("md_seen")` 打开
+（序章在 `c1_zero` 拿到 CLAUDE.md 的那一刻设置）。在那之前按 `?` 只会提示"还没拿到 CLAUDE.md"。
 
 ### 选项框（TokenChoice 滑道选择器）
 
@@ -342,7 +343,7 @@ CHOICE("要不要回头？", [
 * **论据=后期对话的弹药**：前期发放（`ARG`），终章用 `has('id')` 分流出"有论据/没论据"两种说话方式，收集才有意义。
 * **每章一个 HINT**：深度思考的提示按场景挂（`HINT`），既当弱引导，也是叙事声音的一部分；提示文案写得像角色自言自语而不是攻略。
 * **`IF` 的死循环陷阱**再强调一遍：两个出口都要写。
-* **数值上限都在引擎里**（0~10 / tokens≥0），剧本不用管越界，但设计时要按上限倒推每章的 ±幅度。
+* **数值上限都在引擎里**（0~10），剧本不用管越界，但设计时要按上限倒推每章的 ±幅度。
 
 ---
 

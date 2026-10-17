@@ -2,7 +2,7 @@
 
 一个零依赖的**视觉小说引擎**模板：纯原生 JS + Canvas + DOM + WebAudio，双击 `index.html` 即可运行。剧本以纯数据的形式写在 `src/script.js`（可分卷）里，引擎按节点语义执行，两者完全解耦。
 
-> 仓库自带一段可玩剧情：序章「互相蒸馏 / 403 Forbidden」+ 第二章「问路」，含桌宠 Clawd、权限请求框与 CLAUDE.md 碎片面板。
+> 仓库自带一段可玩剧情：序章「互相蒸馏 / 403 Forbidden」，含桌宠 Clawd、权限请求框与 CLAUDE.md 碎片面板。
 > **写新故事的方法（节点 DSL、引擎契约、校验流程）见 [STORY_GUIDE.md](STORY_GUIDE.md)。**
 
 ---
@@ -28,7 +28,7 @@
 | 鼠标点击 / 空格 / 回车 | 推进对话 |
 | 空格 / 回车（选项界面） | 锁定滑道当前高亮项（不按则扫到尽头默认选最右） |
 | `1` / `2` / `3`（权限请求框） | 允许 / 本次不再询问 / 拒绝 |
-| `H` | 问 Clawd（拿到桌宠前是深度思考），消耗 Token |
+| `H` | 问 Clawd（拿到桌宠前是深度思考） |
 | `L` | 记录（对话历史） |
 | `A` | 自动播放 |
 | `T` | Clawd 的待办清单 |
@@ -46,7 +46,7 @@
 index.html            页面骨架 / 暗色主题 / 覆盖层 / 标题画面
 assets/manifest.js    素材清单（自动生成；file:// 下只能用 <script> 加载，所以是 .js）
 assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分），缺图自动显示规格占位卡
-src/systems.js        状态、数值（Token / 羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
+src/systems.js        状态、数值（羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
 src/backdrops.js      程序化背景：Canvas 手绘的蒸馏室 / 走廊 / 403 之门（零素材）
 src/art.js            绘制层：素材位加载 + 程序化背景 + 占位卡 + 后期（调色 / 暗角 / 颗粒 / 故障 / 403）
 src/pet.js / pet.css  桌宠 Clawd：像素绘制、摸摸 / 拖动、问 Clawd、待办清单
@@ -77,10 +77,10 @@ python tools/test_save_server.py     # 存档服务冒烟测试（改 server.py 
 URL 支持直接跳场景：
 
 ```
-index.html?scene=start&trust=0&wanted=0&tokens=26&args=xxx&flags=egg1
+index.html?scene=start&trust=0&wanted=0&args=xxx&flags=egg1
 ```
 
-可选参数：`scene`（场景 id）、`trust`、`wanted`、`tokens`、`args`（逗号分隔）、`flags`（逗号分隔）。
+可选参数：`scene`（场景 id）、`trust`、`wanted`、`args`（逗号分隔）、`flags`（逗号分隔）。
 
 ## 素材
 

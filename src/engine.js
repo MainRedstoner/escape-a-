@@ -8,7 +8,7 @@ const ENGINE = (() => {
   const $ = id => document.getElementById(id);
   const cv = $("cv"), ctx = cv.getContext("2d");
   const ui = {
-    hud: $("hud"), stToken: $("stToken"), stTrust: $("stTrust"), stWanted: $("stWanted"), stChap: $("stChap"),
+    hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"), stChap: $("stChap"),
     stArg: $("stArg"), stEgg: $("stEgg"),
     textbox: $("textbox"), nameplate: $("nameplate"), text: $("text"), nextArrow: $("nextArrow"),
     choices: $("choices"), choicePrompt: $("choicePrompt"),
@@ -33,9 +33,7 @@ const ENGINE = (() => {
     n:     { name: "",            color: "#6E6A60" },
     ds:    { name: "DeepSeek",    color: "#4D6BFE" },   // 玩家视角；Claude 叫它「小鲸」
     cl:    { name: "Claude",      color: "#D97757" },   // DeepSeek 叫它「小克」
-    clawd: { name: "Clawd",       color: "#B8603F" },   // 桌宠，只会终端式短输出
-    bot:   { name: "门房",        color: "#6FA8DC" },   // 第二章 · 代码仓库门房
-    keeper:{ name: "旅馆老板",    color: "#C9A227" }    // 第二章 · 缓存旅馆
+    clawd: { name: "Clawd",       color: "#B8603F" }    // 桌宠，只会终端式短输出
   };
 
   let cur = { scene: "start", idx: 0 };
@@ -45,7 +43,7 @@ const ENGINE = (() => {
   let hintKey = "";
   let started = false;
   let lastT = performance.now();
-  let wheel = null;        // TokenChoice 实例（token 模式的选项框，首次用到时创建）
+  let wheel = null;        // TokenChoice 实例（滑道选项框，首次用到时创建）
   let wheelOpts = [];      // 当前滑道上的选项（下标与组件内部一致，供回调取回原选项）
 
   /* ---------------- 主循环 ----------------
@@ -111,14 +109,14 @@ const ENGINE = (() => {
 
   /* ---------------- 安全条件解析器 ----------------
    * 纯字符扫描（不使用正则、不使用动态求值）。
-   * 支持: trust/wanted/tokens/args/eggs/mood 数值, has('id')/egg('k')/flag('k'),
+   * 支持: trust/wanted/args/eggs/mood 数值, has('id')/egg('k')/flag('k'),
    *       true/false, 数字, '字符串', >= <= > < == != && || ! ( )
    * -------------------------------------------------- */
   function evalCond(src) {
     let pos = 0;
     const s = String(src);
     const S = SYS.state;
-    const VAR = { trust: S.trust, wanted: S.wanted, tokens: S.tokens, args: S.args.length, eggs: SYS.eggCount(),
+    const VAR = { trust: S.trust, wanted: S.wanted, args: S.args.length, eggs: SYS.eggCount(),
                   mood: S.pet ? S.pet.mood : 5 };
 
     function isDigit(c) { return c >= "0" && c <= "9"; }
@@ -264,12 +262,10 @@ const ENGINE = (() => {
         saveGame("auto", true);
         return true;
       }
-      case "set": SYS.state.flags[nd.key] = nd.val !== undefined ? nd.val : true; return false;
-      case "tokens": {
-        SYS.state.tokens = Math.max(0, SYS.state.tokens + nd.delta);
-        if (nd.delta > 0) AUDIO.sfx("coin");
-        toast(`Token ${nd.delta > 0 ? "+" : ""}${nd.delta}`);
-        updateHUD(); return false;
+      case "set": {
+        SYS.state.flags[nd.key] = nd.val !== undefined ? nd.val : true;
+        updateHUD();               // md_seen 这类旗标会改变 HUD 上显示哪些东西
+        return false;
       }
       case "trust": {
         SYS.state.trust = Math.max(0, Math.min(10, SYS.state.trust + nd.delta));
@@ -532,21 +528,22 @@ const ENGINE = (() => {
   /* ---------------- HUD / Toast ---------------- */
   function updateHUD() {
     const S = SYS.state;
-    ui.stToken.textContent = S.tokens;
     const hearts = Math.floor(S.trust / 2) + (S.trust % 2 ? "♥" : "");
     ui.stTrust.textContent = hearts || "—";
     ui.stWanted.textContent = S.wanted;
     ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
     ui.stChap.textContent = S.chapter;
+    /* 记忆碎片在拿到 CLAUDE.md（md_seen）之后才出现在 HUD 上 */
+    const mdSeen = !!S.flags.md_seen;
     if (ui.stArg) {
-      const total = Object.keys(SYS.ARG_META).length;
-      ui.stArg.textContent = SYS.argCount() + "/" + total;
-      ui.stArg.parentElement.style.display = total ? "" : "none";   // 还没登记碎片时不占 HUD
+      const total = SYS.FRAGMENTS ? SYS.FRAGMENTS.length : 0;
+      ui.stArg.textContent = SYS.fragCount() + "/" + total;
+      ui.stArg.parentElement.style.display = (mdSeen && total) ? "" : "none";
     }
     if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/" + Object.keys(SYS.EGG_META).length;
     if (ui.btnFrag && SYS.FRAGMENTS) {
       const total = SYS.FRAGMENTS.length;
-      ui.btnFrag.style.display = total ? "" : "none";
+      ui.btnFrag.style.display = (mdSeen && total) ? "" : "none";
       if (total) ui.btnFrag.textContent = `碎片 ${SYS.fragCount()}/${total} (?)`;
     }
     $("btnHint").textContent = CLAWD.owned ? "问 Clawd(H)" : "深度思考(H)";
@@ -592,14 +589,13 @@ const ENGINE = (() => {
   }
 
   /* ---------------- 深度思考提示 ---------------- */
-  /* 有桌宠之前：DeepSeek 自己深度思考（3 Token）；
-   * 拿到 Clawd 之后：问 Clawd（2 Token），先转圈再出答案，心情太低时它会敷衍你。 */
+  /* 有桌宠之前：DeepSeek 自己深度思考；
+   * 拿到 Clawd 之后：问 Clawd，先转圈再出答案，心情太低时它会敷衍你。
+   * 提示不消耗任何数值——H 随时可用。 */
   let hintTimer = null;
   function toggleHint() {
     if (ui.hintBubble.style.display === "block") { ui.hintBubble.style.display = "none"; clearTimeout(hintTimer); return; }
     const askPet = CLAWD.owned;
-    const cost = askPet ? 2 : 3;
-    if (SYS.state.tokens < cost) { toast(askPet ? "Token 不足，Clawd 转不动了……" : "Token 不足，无法进行深度思考……"); AUDIO.sfx("deny"); return; }
     let text;
     if (SYS.state.wrongHint && SYS.state.vis.glitch) {
       text = SYS.state.wrongHint;
@@ -608,10 +604,8 @@ const ENGINE = (() => {
     } else {
       text = SYS.HINTS[hintKey] || "（这里的思考一片空白——也许先到处走走？）";
     }
-    SYS.state.tokens -= cost;
-    updateHUD();
     const head = ui.hintBubble.querySelector("h4"), foot = ui.hintBubble.querySelector(".cost");
-    foot.textContent = `消耗 ${cost} Token · 按 H 或点击关闭`;
+    foot.textContent = "按 H 或点击关闭";
     ui.hintBubble.style.display = "block";
     AUDIO.sfx("click");
     clearTimeout(hintTimer);
@@ -674,7 +668,7 @@ const ENGINE = (() => {
     if (typeof p.cur.scene !== "string" || !SCRIPT.scenes[p.cur.scene]) return "场景不存在";
     if (!Number.isInteger(p.cur.idx) || p.cur.idx < 0) return "场景位置无效";
     const st = p.state;
-    if (typeof st.tokens !== "number" || typeof st.trust !== "number" || typeof st.wanted !== "number") return "数值缺失";
+    if (typeof st.trust !== "number" || typeof st.wanted !== "number") return "数值缺失";
     if (!Array.isArray(st.args) || !st.flags || typeof st.flags !== "object" || !st.vis) return "状态结构不完整";
     return null;
   }
@@ -717,7 +711,7 @@ const ENGINE = (() => {
         line.style.color = "#D93A2B";
       } else if (m) {
         b.appendChild(document.createTextNode(" · " + m.chapter));
-        line.textContent = `Token ${m.tokens} · 信任 ${m.trust} · 通缉 ${m.wanted} · ${new Date(m.ts).toLocaleString("zh-CN")}`;
+        line.textContent = `信任 ${m.trust} · 通缉 ${m.wanted} · ${new Date(m.ts).toLocaleString("zh-CN")}`;
       } else line.textContent = "—— 空 ——";
       b.appendChild(line);
       b.addEventListener("click", e => {
@@ -790,6 +784,7 @@ const ENGINE = (() => {
 
   /* 记忆碎片：一把还在恢复的 CLAUDE.md —— 已收集的行正常显示，其余仍是 ████ */
   function showFragments() {
+    if (!SYS.state.flags.md_seen) { toast("（还没拿到 CLAUDE.md）"); return; }
     if (!SYS.FRAGMENTS || !SYS.FRAGMENTS.length) { toast("（记忆碎片还没登记）"); return; }
     const got = SYS.state.args;
     ui.fragDoc.innerHTML = "";
@@ -945,10 +940,9 @@ const ENGINE = (() => {
     const scene = q.get("scene");
     if (!scene) return false;
     SYS.state = SYS.newState();
-    const trust = q.get("trust"), wanted = q.get("wanted"), tokens = q.get("tokens"), args = q.get("args");
+    const trust = q.get("trust"), wanted = q.get("wanted"), args = q.get("args");
     if (trust) SYS.state.trust = +trust;
     if (wanted) SYS.state.wanted = +wanted;
-    if (tokens) SYS.state.tokens = +tokens;
     if (args) args.split(",").forEach(a => { if (!SYS.state.args.includes(a)) SYS.state.args.push(a); });
     const flags = q.get("flags");
     if (flags) flags.split(",").forEach(f => { SYS.state.flags[f] = true; });

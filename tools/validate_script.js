@@ -22,7 +22,7 @@ const { SCRIPT } = require("../src/script.js");
 
 /* ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ----
  * 新增说话人时：先在 src/engine.js 的 SPEAKERS 注册，再同步到这里。 */
-const SPEAKERS = ["sys", "n", "ds", "cl", "clawd", "bot", "keeper"];
+const SPEAKERS = ["sys", "n", "ds", "cl", "clawd"];
 const SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart",
              "knock", "error", "pop", "pat"];
 const BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending",
@@ -117,7 +117,7 @@ for (const sid of ids) {
           chk(!!scenes[o.jump], `${at} 选项${k + 1}: 跳转目标不存在 "${o.jump}"`);
           chk(!!o.text, `${at} 选项${k + 1}: 空文案`);
           chk(o.weight === undefined || (typeof o.weight === "number" && o.weight >= 0),
-              `${at} 选项${k + 1}: weight 应是非负数（token 模式下决定滑道宽度与概率）`);
+              `${at} 选项${k + 1}: weight 应是非负数（决定滑道宽度与概率）`);
           if (o.give) { usedArgs.add(o.give); grantedArgs.add(o.give); chk(!!SYS.ARG_META[o.give], `${at}: 选项给出不存在的论据 "${o.give}"`); }
           if (o.set && String(o.set).startsWith("egg")) { usedEggs.add(o.set); grantedEggs.add(o.set); }
         });
@@ -128,7 +128,7 @@ for (const sid of ids) {
       case "ending": usedEndings.add(nd.id); chk(!!SYS.ENDING_META[nd.id], `${at}: 未登记的结局 "${nd.id}"`); break;
       case "chapter": chk(!!nd.main, `${at}: 章节卡缺少标题`); break;
       case "wrongHint": chk(!!nd.text, `${at}: 污染提示为空`); break;
-      case "tokens": case "trust": case "wanted": chk(typeof nd.delta === "number", `${at}: delta 不是数字`); break;
+      case "trust": case "wanted": chk(typeof nd.delta === "number", `${at}: delta 不是数字`); break;
       case "pet":
         chk(PET_OPS.includes(nd.op), `${at}: 未知的桌宠操作 "${nd.op}"`);
         if (nd.op === "show") chk(nd.arg === undefined || PET_PLACES.includes(nd.arg), `${at}: 未知的出现位置 "${nd.arg}"`);
