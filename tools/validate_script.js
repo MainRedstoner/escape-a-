@@ -100,14 +100,9 @@ for (const sid of ids) {
         break;
       case "choice":
         chk(Array.isArray(nd.options) && nd.options.length >= 2, `${at}: 选项少于 2 个`);
-        /* token 模式（TokenChoice 滑道选项框）的专有字段 */
-        if (nd.mode !== undefined) chk(nd.mode === "token", `${at}: 未知的选项模式 "${nd.mode}"（引擎只实现了 "token"）`);
-        if (nd.mode === "token") {
-          chk(nd.duration === undefined || (typeof nd.duration === "number" && nd.duration > 0),
-              `${at}: duration 应是正数毫秒`);
-          chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
-              `${at}: minShare 应在 [0, 1) 之间`);
-        }
+        /* 滑道选项框的专有字段（所有 choice 都走滑道；mode / duration 已废弃） */
+        chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
+            `${at}: minShare 应在 [0, 1) 之间`);
         (nd.options || []).forEach((o, k) => {
           jumps.add(o.jump);
           chk(!!scenes[o.jump], `${at} 选项${k + 1}: 跳转目标不存在 "${o.jump}"`);

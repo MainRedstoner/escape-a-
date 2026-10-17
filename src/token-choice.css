@@ -9,6 +9,9 @@
   color: #d7e1f2;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   user-select: none;
+  --runway: 0px;          /* 左侧加速区宽度，_geometry() 时写入 */
+  --stagger: 0ms;         /* 列表逐行登场的间隔，_layoutList() 时写入 */
+  --tc-accent: #7dd3fc;   /* 指针 / 入框冲击的主色 */
 }
 
 .tc-root *, .tc-root *::before, .tc-root *::after { box-sizing: inherit; }
@@ -28,38 +31,136 @@
 }
 
 .tc-preview-text--locked { color: #34d399; }
+.tc-preview-text--auto { color: #fbbf24; }   /* 扫到尽头默认锁定 */
 
-/* 滑道 */
+/* 面板登场（与逐行列出同时进行，只是让它别硬切出来） */
+.tc-root.tc-entering { animation: tc-enter 0.26s ease-out both; }
+
+@keyframes tc-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------- 滑道上方的摘要标签行 ---------------- */
+
+.tc-stage {
+  position: relative;
+  padding-top: 26px;   /* 给滑道上方的摘要标签留位置 */
+}
+
+.tc-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 24px;
+  pointer-events: none;
+}
+
+.tc-label {
+  position: absolute;
+  top: 0;
+  font-size: 15px;
+  line-height: 24px;
+  white-space: nowrap;
+  opacity: 0;
+  animation: tc-label-in 0.25s ease-out 0.05s forwards;
+}
+
+@keyframes tc-label-in {
+  to { opacity: 1; }
+}
+
+/* ---------------- 滑道 / 加速区 / 选项框 ---------------- */
+
 .tc-track {
   position: relative;
-  height: 64px;
-  border: 1px solid #26314a;
+  height: 108px;
   border-radius: 10px;
-  background: #0b0f16;
   overflow: hidden;
 }
 
+/* 左侧加速区：指针进入选项框之前的跑道 */
+.tc-runway {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--runway, 0px);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: repeating-linear-gradient(135deg,
+    rgba(125, 211, 252, .07) 0 6px, transparent 6px 14px);
+  border-right: 1px dashed rgba(125, 211, 252, .35);
+}
+
+/* 大框和加速区只在收拢时出现：列表阶段就是纯列表 */
+.tc-root.tc-framed .tc-runway { opacity: 1; }
+
+.tc-runway::before {
+  content: "加速";
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(125, 211, 252, .45);
+}
+
+/* 大框：默认隐藏，收拢成一行时才淡入（列表阶段不画框） */
+.tc-frame {
+  position: absolute;
+  left: var(--runway, 0px);
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px solid #26314a;
+  border-radius: 10px;
+  background: #0b0f16;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tc-root.tc-framed .tc-frame { opacity: 1; }
+
+.tc-frame--hit { animation: tc-frame-hit 0.34s ease-out; }
+
+@keyframes tc-frame-hit {
+  0% {
+    box-shadow: inset 0 0 0 2px rgba(125, 211, 252, .85),
+                inset 0 0 26px rgba(125, 211, 252, .45);
+  }
+  100% {
+    box-shadow: inset 0 0 0 2px rgba(125, 211, 252, 0),
+                inset 0 0 26px rgba(125, 211, 252, 0);
+  }
+}
+
+/* 选项区：绝对定位在滑道上，列表阶段占满整条，收拢后挪进大框里 */
 .tc-chips {
   position: absolute;
   inset: 0;
-  display: flex;
-  gap: 3px;
-  padding: 4px;
+  z-index: 1;
 }
 
+/* 色块：颜色由每个选项自己的 --opt-* 变量决定 */
 .tc-chip {
-  flex: 0 0 auto;
-  min-width: 0;
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  border-radius: 6px;
-  background: #1b2436;
-  border: 1px solid transparent;
+  border-radius: 8px;
+  border: 1px solid var(--opt-line, transparent);
+  background: var(--opt-bg, #1b2436);
   overflow: hidden;
-  transition: background 0.06s linear, border-color 0.06s linear;
+  will-change: left, top, width, height;
 }
 
 .tc-chip-text {
@@ -73,36 +174,118 @@
 
 .tc-chip-prob {
   font-size: 0.7rem;
-  color: #6b7d9e;
+  color: rgba(226, 234, 245, .62);
 }
 
+/* 列表阶段：逐行登场（只动透明度与位移，位置由 JS 定） */
+.tc-listing .tc-chip {
+  animation: tc-row-in 0.26s cubic-bezier(.2, .9, .3, 1.1) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger, 0ms));
+}
+
+@keyframes tc-row-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 当前高亮：用该选项自己的颜色 */
 .tc-chip--active {
-  background: #1e3a5f;
-  border-color: #7dd3fc;
-  box-shadow: 0 0 10px rgba(125, 211, 252, 0.35) inset;
+  background: var(--opt-bg-strong, #1e3a5f);
+  border-color: var(--opt-color, #7dd3fc);
+  box-shadow: inset 0 0 14px var(--opt-bg-strong, rgba(125, 211, 252, .35));
 }
 
-.tc-chip--active .tc-chip-prob { color: #a5d8ff; }
+.tc-chip--active .tc-chip-prob { color: rgba(240, 246, 255, .85); }
 
+/* 最终锁定 */
 .tc-chip--chosen {
-  background: #14532d;
-  border-color: #34d399;
-  box-shadow: 0 0 12px rgba(52, 211, 153, 0.45) inset;
+  background: var(--opt-bg-strong, #14532d);
+  border-color: var(--opt-color, #34d399);
+  box-shadow: 0 0 18px var(--opt-bg-strong, rgba(52, 211, 153, .45)) inset;
 }
 
-.tc-chip--chosen .tc-chip-prob { color: #86efac; }
+/* 主动选中：选项弹一下（与「默认锁定」的 settle 不同） */
+.tc-chip--pop { animation: tc-chip-pop 0.34s cubic-bezier(.2, .9, .3, 1.5); }
 
-/* 滑块光标 */
+@keyframes tc-chip-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------- 指针 ---------------- */
+
 .tc-cursor {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: 0;
   width: 2px;
-  background: #7dd3fc;
+  background: var(--tc-accent);
   box-shadow: 0 0 10px 2px rgba(125, 211, 252, 0.6);
   will-change: transform;
   pointer-events: none;
+  z-index: 2;
+}
+
+/* 入框冲击环：单独用伪元素，避免和 translateX 的内联 transform 打架 */
+.tc-cursor::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  border: 2px solid var(--tc-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tc-cursor--hit { animation: tc-cursor-hit 0.34s ease-out; }
+.tc-cursor--hit::after { animation: tc-ring 0.4s ease-out; }
+
+@keyframes tc-cursor-hit {
+  0%   { box-shadow: 0 0 26px 8px var(--tc-accent), 0 0 60px 18px rgba(125, 211, 252, .5); }
+  100% { box-shadow: 0 0 10px 2px rgba(125, 211, 252, .6); }
+}
+
+@keyframes tc-ring {
+  0%   { opacity: .9; transform: scale(.3); }
+  100% { opacity: 0; transform: scale(3.2); }
+}
+
+/* 选中捕获：指针收束后熄灭 */
+.tc-root.tc-picking .tc-cursor { animation: tc-cursor-capture 0.34s ease-in forwards; }
+
+@keyframes tc-cursor-capture {
+  0%   { opacity: 1; width: 2px; }
+  60%  { opacity: 1; width: 9px; box-shadow: 0 0 22px 6px var(--tc-accent); }
+  100% { opacity: 0; width: 2px; }
+}
+
+/* 扫到尽头默认锁定：指针滑出去淡掉，选项轻轻沉一下（另一套演出） */
+.tc-root.tc-ended .tc-cursor { animation: tc-cursor-exit 0.52s cubic-bezier(.4, 0, .7, 1) forwards; }
+
+@keyframes tc-cursor-exit {
+  0%   { opacity: 1; box-shadow: 0 0 10px 2px rgba(125, 211, 252, .6); }
+  100% { opacity: 0; box-shadow: 0 0 30px 10px rgba(125, 211, 252, 0); }
+}
+
+.tc-root.tc-ended .tc-chip--chosen { animation: tc-chip-settle 0.52s ease-out; }
+
+@keyframes tc-chip-settle {
+  0%   { transform: scale(.985); filter: brightness(1.5); }
+  60%  { transform: scale(1.015); filter: brightness(1.12); }
+  100% { transform: scale(1); filter: none; }
+}
+
+.tc-root.tc-ended .tc-progress-fill { animation: tc-progress-flash 0.52s ease-out; }
+
+@keyframes tc-progress-flash {
+  0%   { filter: brightness(1.8); }
+  100% { filter: none; }
 }
 
 /* 底部：进度条 + 锁定按钮 */
@@ -152,9 +335,11 @@
  * ============================================================ */
 
 #choiceToken {
-  width: 1180px;
-  max-width: 94%;
+  width: 1480px;
+  max-width: 96%;
   box-sizing: border-box;
+  --tc-accent: var(--clay, #D97757);
+  padding: 18px 22px 16px;
 }
 
 /* 引擎用 hidden 属性控制显隐，防止被组件样式覆盖 */
@@ -166,36 +351,66 @@
   color: var(--text, #C9D2DE);
 }
 
-#choiceToken .tc-preview { color: var(--muted, #7D8798); font-size: 27px; }
+#choiceToken .tc-preview { color: var(--muted, #7D8798); font-size: 30px; }
 #choiceToken .tc-preview-text--locked { color: var(--clay, #D97757); }
+#choiceToken .tc-preview-text--auto { color: #E0A458; }
 
-#choiceToken .tc-track {
-  height: 92px;
+#choiceToken .tc-label { font-size: 15px; }
+
+#choiceToken .tc-track { height: 108px; }
+
+/* 大框的配色（列表阶段隐藏，收拢时才淡入） */
+#choiceToken .tc-frame {
   background: rgba(5, 7, 10, .9);
   border-color: var(--line, #2C3542);
 }
 
-#choiceToken .tc-chip { background: var(--slate, #151A22); }
-#choiceToken .tc-chip-text { font-size: 19px; }
-#choiceToken .tc-chip-prob { font-size: 13px; color: var(--muted, #7D8798); }
-
-#choiceToken .tc-chip--active {
-  background: #2A3A55;
-  border-color: var(--blue-pale, #A8BCFF);
-  box-shadow: 0 0 12px rgba(168, 188, 255, .35) inset;
+/* 加速区：暗底 + 斜纹 + 一条虚线起点，和选项框明显区分 */
+#choiceToken .tc-runway {
+  background: repeating-linear-gradient(135deg,
+    rgba(217, 119, 87, .07) 0 6px, transparent 6px 14px);
+  border-right-color: rgba(217, 119, 87, .38);
 }
-#choiceToken .tc-chip--active .tc-chip-prob { color: var(--blue-pale, #A8BCFF); }
+#choiceToken .tc-runway::before { color: rgba(217, 119, 87, .5); }
 
-#choiceToken .tc-chip--chosen {
-  background: #3A2418;
-  border-color: var(--clay, #D97757);
-  box-shadow: 0 0 14px rgba(217, 119, 87, .45) inset;
-}
-#choiceToken .tc-chip--chosen .tc-chip-prob { color: var(--clay, #D97757); }
+#choiceToken .tc-chip-text { font-size: 20px; }
+#choiceToken .tc-chip-prob { font-size: 14px; color: rgba(214, 223, 236, .6); }
 
 #choiceToken .tc-cursor {
   background: var(--clay, #D97757);
   box-shadow: 0 0 12px 2px rgba(217, 119, 87, .6);
+}
+
+/* 入框冲击：引擎配色下的同一套动画 */
+#choiceToken .tc-cursor--hit { animation: tc-cursor-hit-clay 0.34s ease-out; }
+@keyframes tc-cursor-hit-clay {
+  0%   { box-shadow: 0 0 26px 8px var(--clay, #D97757), 0 0 60px 18px rgba(217, 119, 87, .45); }
+  100% { box-shadow: 0 0 12px 2px rgba(217, 119, 87, .6); }
+}
+
+#choiceToken .tc-frame--hit { animation: tc-frame-hit-clay 0.34s ease-out; }
+@keyframes tc-frame-hit-clay {
+  0% {
+    box-shadow: inset 0 0 0 2px rgba(217, 119, 87, .8),
+                inset 0 0 26px rgba(217, 119, 87, .4);
+  }
+  100% {
+    box-shadow: inset 0 0 0 2px rgba(217, 119, 87, 0),
+                inset 0 0 26px rgba(217, 119, 87, 0);
+  }
+}
+
+#choiceToken.tc-picking .tc-cursor { animation-name: tc-cursor-capture-clay; }
+@keyframes tc-cursor-capture-clay {
+  0%   { opacity: 1; width: 2px; }
+  60%  { opacity: 1; width: 9px; box-shadow: 0 0 22px 6px var(--clay, #D97757); }
+  100% { opacity: 0; width: 2px; }
+}
+
+#choiceToken.tc-ended .tc-cursor { animation-name: tc-cursor-exit-clay; }
+@keyframes tc-cursor-exit-clay {
+  0%   { opacity: 1; box-shadow: 0 0 12px 2px rgba(217, 119, 87, .6); }
+  100% { opacity: 0; box-shadow: 0 0 30px 10px rgba(217, 119, 87, 0); }
 }
 
 #choiceToken .tc-progress { background: var(--slate, #151A22); }
@@ -205,8 +420,8 @@
   background: var(--slate, #151A22);
   border-color: var(--line, #2C3542);
   color: var(--text, #C9D2DE);
-  font-size: 17px;
-  padding: 9px 20px;
+  font-size: 19px;
+  padding: 12px 26px;
 }
 #choiceToken .tc-lock:hover:not(:disabled) { background: var(--slate2, #1E2530); border-color: var(--clay, #D97757); }
 

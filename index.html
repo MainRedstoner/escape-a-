@@ -16,7 +16,7 @@
   html,body{width:100%;height:100%;overflow:hidden;background:var(--void);}
   body{font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif;color:var(--text);}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
-  #stage{position:relative;width:1600px;height:900px;transform-origin:center center;
+  #stage{position:relative;width:1600px;height:900px;flex:0 0 auto;transform-origin:center center;
     box-shadow:0 0 120px rgba(0,0,0,.9);background:#000;overflow:hidden;}
   #cv{position:absolute;inset:0;width:1600px;height:900px;}
   .layer{position:absolute;inset:0;pointer-events:none;}
@@ -59,16 +59,6 @@
   /* ---------- 选项 ---------- */
   #choices{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
     justify-content:center;gap:14px;background:rgba(3,5,8,.62);}
-  .choiceBtn{width:780px;max-width:88%;background:rgba(14,18,25,.94);border:1px solid var(--line);
-    border-left:3px solid var(--steel);border-radius:2px;padding:15px 28px;font-size:23px;
-    color:var(--text);cursor:pointer;font-family:inherit;text-align:center;letter-spacing:.5px;
-    transition:transform .1s,border-color .12s,color .12s,background .12s;line-height:1.5;}
-  .choiceBtn:hover{transform:translateX(4px);border-left-color:var(--clay);color:#fff;
-    background:rgba(22,27,36,.96);}
-  .choiceBtn .sub{display:block;font-size:16px;color:var(--muted);margin-top:5px;letter-spacing:1px;}
-  .choiceBtn.dead{opacity:.4;cursor:not-allowed;border-style:dashed;border-left-color:var(--muted);
-    color:var(--muted);text-decoration:line-through;}
-  .choiceBtn.dead:hover{transform:none;background:rgba(14,18,25,.94);}
   #choicePrompt{background:rgba(10,13,18,.9);border:1px solid var(--line);color:var(--muted);
     padding:8px 26px;font-size:19px;margin-bottom:10px;display:none;letter-spacing:1px;}
 
@@ -179,9 +169,7 @@
   ::-webkit-scrollbar-thumb{background:var(--steel);}
   ::-webkit-scrollbar-track{background:rgba(255,255,255,.04);}
 
-  /* ---------- Token 模式选项框（组件样式在 src/token-choice.css） ---------- */
-  #choiceList{display:flex;flex-direction:column;align-items:center;gap:14px;}
-  #choiceList:empty{display:none;}
+  /* ---------- 选项框（组件样式在 src/token-choice.css） ---------- */
 </style>
 <link rel="stylesheet" href="src/token-choice.css">
 <link rel="stylesheet" href="src/pet.css">
@@ -223,7 +211,6 @@
 
     <div id="choices" class="layer">
       <div id="choicePrompt"></div>
-      <div id="choiceList"></div>
       <div id="choiceToken" hidden></div>
     </div>
 

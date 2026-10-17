@@ -242,36 +242,45 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | --- | --- | --- | --- |
 | `J` | `(to)` | `jump` | 无条件跳转 |
 | `IF` | `(cond, jump, else?)` | `if` | 条件跳转。**注意：这是"分支"不是"跳过"**——条件不成立时跳 `else`，没写 `else` 就**重跳本场景开头**（死循环陷阱）。两个出口都要显式给 |
-| `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面。`prompt` 可为 `null`；至少 2 个选项。`extra` 里 `{ mode: "token" }` 换成滑道选择器（见下） |
-| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`sub` 是灰色小字（token 模式不渲染）；`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }` |
+| `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（所有选项都走滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
+| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
 | `END` | `(id, tag, title, text)` | `ending` | 结局：显示结局画面、记录进结局收集。id 必须在 `ENDING_META` 登记 |
 
-### token 模式选项框（TokenChoice 滑道选择器）
+### 选项框（TokenChoice 滑道选择器）
 
-`CHOICE(prompt, options, { mode: "token" })` 会把这一屏换成模仿 Transformer 选词器的滑道
-（组件在 `src/token-choice.js` + `src/token-choice.css`，由引擎的 `buildWheelChoices` 调用）：
+所有 `CHOICE` 都用模仿 Transformer 选词器的滑道（组件在 `src/token-choice.js` + `src/token-choice.css`，
+由引擎的 `buildChoices` 调用）——**没有按钮列表模式了**，旧剧本里的 `mode` / `duration` 字段会被忽略：
 
 * 选项按 `weight`（默认 1）**升序**从左到右排列：最左 = 概率最低，最右 = 概率最高；
-  每个选项在滑道上占的宽度与归一化概率成比例，下方标注百分比；
-* `minShare`（默认 `0.1`）保证低权重选项也占有最小宽度，能被扫到、能被选中；
-* 滑块用 `duration`（默认 `4000` ms）从左向右匀速扫过，高亮项同步显示在上方预览区；
-* 滑动中按 **Space** / **Enter** 或点「锁定」→ 选中当前高亮项；
-* 扫到最右端仍未选择 → **默认选中最右侧（权重最高）**的一项（`onSelect` 的 `defaulted` 为 `true`）；
-* 选中之后与普通选项完全同义：`fx` / `set` / `give` / `jump` 一律照常生效，历史里同样记一条「选择」；
+  每个选项一种颜色，滑道宽度严格按概率分配，下方标注的是**真实概率**；
+* 色块窄到放不下文案时，完整文案会作为摘要写在滑道上方的标签行里（颜色与色块一致），
+  不会被省略号截断，也不会为了文字去改宽度占比；
+* `minShare`（默认 `0.1`）是宽度的可见下限，保证低权重选项能被扫到、能被选中；
+* 节奏由组件固定，剧本不用配：
+  1. 选项以**列表**形式逐行列出（**1 秒**内全部出现，每行一个颜色；此时还没有滑道外框）；
+  2. 全部选项停留 **2 秒**；
+  3. 每行的宽度变成自己的概率占比，**1 秒**内平滑收拢到同一行，滑道外框在这一步淡入；
+  4. 停 **1 秒**，指针开始在滑道左侧由静止**匀加速**；
+  5. 加速结束的瞬间指针正好抵达选项框左边缘，立刻进入并播放入框冲击动画；
+  6. 指针在 **约 1.25 秒**（原 1 秒的 0.8 倍速）内匀速划过整个选项框，高亮项同步显示在预览区；
+* 滑动中按 **Space** / **Enter** 或点「锁定」→ 选中当前高亮项，播放选中动画；
+* 扫到最右端仍未选择 → **默认选中最右侧（权重最高）**的一项（`onSelect` 的 `defaulted` 为 `true`），
+  播放另一套「默认锁定」动画；
+* 选中之后统一走同一套处理：`fx` / `set` / `give` / `jump` 一律照常生效，历史里记一条「选择」；
 * `glitch` 期间滑道最左端会多出一条权重 0 的死选项「该选项已被静默移除」，
-  锁定它会被拒绝（deny 音 + toast）并重新滑动；`hideInGlitch: true` 的选项在两种模式下都会被滤掉。
+  锁定它会被拒绝（deny 音 + toast）并原地重新加速（跳过列表 / 收拢，不用白等 5 秒）；
+  `hideInGlitch: true` 的选项会被滤掉。
 
 ```js
 CHOICE("要不要回头？", [
   opt("继续往前走", "ch2_go",   null, { trust: 1 }, { weight: 6 }),
   opt("回头看一眼", "ch2_back", null, null,          { weight: 3 }),
   opt("留在原地",   "ch2_wait", null, { wanted: 1 }, { weight: 1 })
-], { mode: "token", duration: 5000 })
+])
 ```
 
-两点提示：`sub` 在 token 模式不渲染（滑道空间有限，权重与概率由组件自己标注）；
-`weight` 只在 token 模式有意义，普通按钮模式会忽略它——所以同一条 choice 想换呈现方式，
-只要增删 `mode: "token"` 即可，选项数据不用动。
+两点提示：`weight` 决定滑道宽度与概率，不写就是 1（均分）；
+键盘由引擎统一分发——选项扫描期间 Space / Enter 是「锁定」，其余时候仍是推进对话。
 
 ### 场景的三条铁律
 

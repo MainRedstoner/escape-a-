@@ -12,7 +12,7 @@ const ENGINE = (() => {
     stArg: $("stArg"), stEgg: $("stEgg"),
     textbox: $("textbox"), nameplate: $("nameplate"), text: $("text"), nextArrow: $("nextArrow"),
     choices: $("choices"), choicePrompt: $("choicePrompt"),
-    choiceList: $("choiceList"), choiceToken: $("choiceToken"),
+    choiceToken: $("choiceToken"),
     chapterCard: $("chapterCard"), chMain: $("chMain"), chSub: $("chSub"),
     hintBubble: $("hintBubble"), hintText: $("hintText"), toast: $("toast"),
     titleScreen: $("titleScreen"), titleMenu: $("titleMenu"),
@@ -72,7 +72,12 @@ const ENGINE = (() => {
   window.addEventListener("keydown", e => {
     if (e.key === "Control") keys.ctrl = true;
     if (!started) return;
-    if (e.key === " " || e.key === "Enter") { e.preventDefault(); onMainClick(); }
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      // 扫描期间 Space/Enter 是「锁定」，其余时候推进对话
+      if (wheel && wheel.state === "sliding") wheel.lock();
+      else onMainClick();
+    }
     else if (e.key === "h" || e.key === "H") toggleHint();
     else if (e.key === "l" || e.key === "L") showHistory();
     else if (e.key === "a" || e.key === "A") toggleAuto();
@@ -357,21 +362,22 @@ const ENGINE = (() => {
   ui.chapterCard.addEventListener("click", onMainClick);
 
   /* ---------------- 选项 ----------------
-   * 同一份 choice 数据有两种呈现方式，选中后的语义完全一致（都走 pickChoice）：
-   *   · 默认 "list"：一列按钮，渲染在 #choiceList；
-   *   · nd.mode === "token"：TokenChoice 滑道选择器，渲染在 #choiceToken。
-   *       - 选项按 weight 升序从左到右排列，宽度与概率成比例；
-   *       - 滑块从左向右匀速扫过，Space / Enter / 「锁定」按钮锁住当前高亮项；
-   *       - 扫到最右端仍未选择，则默认选中最右侧（权重最高）的一项。 */
+   * 只有一种呈现：TokenChoice 滑道选择器（#choiceToken）。选中后统一走 pickChoice。
+   *   - 选项按 weight 升序从左到右排列，宽度与概率成比例；
+   *   - 组件固定节奏：选项逐行列出 1 秒 → 停 2 秒 → 1 秒收拢成一行（宽度=概率）→
+   *     停 1 秒 → 指针在左侧匀加速 → 入框冲击动画 → 约 1.25 秒匀速扫过 → 锁定 / 默认选中；
+   *   - Space / Enter 由引擎统一分发到 wheel.lock()，与「锁定」按钮同一入口。 */
   function hideChoices() {
     ui.choices.style.display = "none";
     if (wheel) wheel.close();
   }
 
+  /* 故障演出的死选项文案（glitch 时塞到滑道最左端，锁定它会被拒绝并重扫） */
+  const DEAD_TEXT = "（该选项已被静默移除）";
+
   function buildChoices(nd) {
     hideTextbox();
     ui.choices.style.display = "flex";
-    ui.choiceList.innerHTML = "";
     if (nd.prompt) { ui.choicePrompt.style.display = "block"; ui.choicePrompt.textContent = nd.prompt; }
     else ui.choicePrompt.style.display = "none";
 
@@ -381,45 +387,8 @@ const ENGINE = (() => {
     document.body.classList.toggle("glitching", glitchOn);
     const opts = nd.options.filter(o => !(glitchOn && o.hideInGlitch));
 
-    if (nd.mode === "token") { buildWheelChoices(nd, opts, glitchOn); return; }
-    if (wheel) wheel.close();
-
-    let fakeAdded = false;
-    opts.forEach((o, i) => {
-      const b = document.createElement("button");
-      b.className = "choiceBtn";
-      b.textContent = o.text;
-      if (o.sub) {
-        const sub = document.createElement("span");
-        sub.className = "sub";
-        sub.textContent = o.sub;
-        b.appendChild(sub);
-      }
-      b.addEventListener("click", () => pickChoice(o));
-      ui.choiceList.appendChild(b);
-      if (glitchOn && !fakeAdded && i === 1) {
-        fakeAdded = true;
-        ui.choiceList.appendChild(deadChoiceBtn());
-      }
-    });
-  }
-
-  /* 故障演出的死选项：点了什么也不会发生（两种模式共用同一套文案） */
-  const DEAD_TEXT = "（该选项已被静默移除）";
-  function deadChoiceBtn() {
-    const dead = document.createElement("button");
-    dead.className = "choiceBtn dead";
-    dead.textContent = DEAD_TEXT;
-    dead.addEventListener("click", () => { AUDIO.sfx("deny"); toast("404 · 该选项不存在，或已存在过。"); });
-    return dead;
-  }
-
-  /* token 模式：把选项交给 TokenChoice。剧本里的 weight 决定滑道宽度与概率。
-   * 引擎先按权重升序排好再交给组件（组件内部同样是稳定升序排序），
-   * 这样回调拿到的 index 与 wheelOpts 一一对应，能取回原选项对象。 */
-  function buildWheelChoices(nd, opts, glitchOn) {
     if (!wheel) wheel = new TokenChoice(ui.choiceToken, { onSelect: onWheelSelect });
-    wheel.duration = nd.duration > 0 ? nd.duration : 4000;
+    // 扫描时长固定（组件内部常量，当前为 1 秒的 0.8 倍速）；剧本的 duration 字段已不再生效
     wheel.minShare = typeof nd.minShare === "number" ? nd.minShare : 0.1;
 
     const w = o => (typeof o.weight === "number" && o.weight >= 0 ? o.weight : 1);
@@ -437,7 +406,10 @@ const ENGINE = (() => {
     if (o.dead) {
       AUDIO.sfx("deny");
       toast("404 · 该选项不存在，或已存在过。");
-      setTimeout(() => { if (wheel && ui.choices.style.display !== "none") wheel.start(); }, 500);
+      setTimeout(() => {
+        // 原地重扫：跳过登场与 2 秒展示，直接重新加速，不然每次都要白等 2.4 秒
+        if (wheel && ui.choices.style.display !== "none") wheel.start({ intro: false });
+      }, 500);
       return;
     }
     pickChoice(o);
