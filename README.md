@@ -21,7 +21,7 @@
 | 按键 | 功能 |
 | --- | --- |
 | 鼠标点击 / 空格 / 回车 | 推进对话 |
-| 空格 / 回车（选项界面） | 普通模式：点按钮选择；token 模式：锁定滑块当前高亮项（不按则扫到尽头默认选最右） |
+| 空格 / 回车（选项界面） | 锁定滑道当前高亮项（不按则扫到尽头默认选最右） |
 | `H` | 深度思考（消耗 3 Token，显示场景提示） |
 | `L` | 记录（对话历史） |
 | `A` | 自动播放 |
@@ -42,8 +42,8 @@ src/systems.js        状态、数值（Token / 信任 / 反感度）、论据 /
 src/art.js            绘制层：素材位加载 + 占位卡 + 后期（冷调 / 暗角 / 颗粒 / 故障）
 src/audio.js          WebAudio 芯片音乐与音效（程序化合成，零音频素材）
 src/script.js         剧本：场景注册表 + 速写助手（可拆成 script_a/b/c.js 分卷）
-src/engine.js         VN 引擎：节点解释 / 打字机 / 两种选项框 / 立绘调度 / 存读档 / 历史 / 深度思考
-src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道选项框（choice 的 mode:"token"）
+src/engine.js         VN 引擎：节点解释 / 打字机 / 选项调度 / 立绘调度 / 存读档 / 历史 / 深度思考
+src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道选项框（所有 choice 都用它）
 src/token-choice.css  该组件样式（类名前缀 tc-，配色接引擎主题变量）
 tools/                校验与生成工具（见下）
 STORY_GUIDE.md        剧本编写方法（先读这个）

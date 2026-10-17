@@ -9,7 +9,7 @@
  *   3. 加速：指针从滑道最左侧由静止匀加速（x = ½·a·t²），目标速度 = 扫描速度；
  *   4. 入框：加速结束的一瞬间指针正好到达选项框左边缘，立刻进入并播放冲击动画；
  *   5. 扫描：约 1.25 秒（1 秒版的 0.8 倍速）匀速划过整个选项框，高亮项同步显示在上方预览区；
- *   6. 收尾：按 Space / Enter / 「锁定」→ 选中动画；
+ *   6. 收尾：引擎在 Space / Enter 时调用 lock()（或点「锁定」按钮）→ 选中动画；
  *            无人操作则扫到尽头 → 另一套「默认锁定」动画，选中最右侧（权重最高）项。
  *
  * 规则：
@@ -95,17 +95,8 @@ class TokenChoice extends EventTarget {
   }
 
   _bindEvents() {
-    this._onKey = (e) => {
-      if (this.root.hidden) return;
-      const tag = e.target && e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.repeat) return;
-      if ((e.code === 'Space' || e.code === 'Enter') && this.state === 'sliding') {
-        e.preventDefault();
-        this.lock();
-      }
-    };
-    window.addEventListener('keydown', this._onKey);
+    // 键盘不在这里监听：Space / Enter 由引擎统一分发到 lock()，
+    // 避免组件与引擎各挂一个 window 监听、将来互相打架。
     this.lockBtn.addEventListener('click', () => this.lock());
   }
 
@@ -230,7 +221,6 @@ class TokenChoice extends EventTarget {
   destroy() {
     cancelAnimationFrame(this._raf);
     this._clearTimers();
-    window.removeEventListener('keydown', this._onKey);
     this.root.innerHTML = '';
     this.root.classList.remove('tc-root');
   }
