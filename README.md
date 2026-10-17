@@ -70,6 +70,7 @@ PLAN.md               重做路线图
 > 剧本虽然是 JS 风格的数据文件，但 `tools/jsdata.py` 用一个只认数据子集的小解析器把它读进 Python。
 
 ```bash
+python tools/check_js.py              # 运行时 JS 结构检查：括号 / 字符串 / 注释有没有闭合（不是完整语法）
 python tools/validate_script.py       # 剧本静态校验：跳转、id、元数据、出口、可达性、素材到位情况
 python tools/simulate_playthrough.py 40  # 无头通关模拟：多种"玩家性格"跑多轮，验证结局可达、无死路
 python tools/make_manifest.py > assets/manifest.js   # 扫描 assets/ 输出素材清单（--draft 0 关闭草稿角标）

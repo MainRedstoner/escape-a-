@@ -45,6 +45,7 @@
 提交前至少跑：
 
 ```bash
+python tools/check_js.py               # 运行时 JS 的括号 / 字符串 / 注释结构检查（不是完整语法）
 python tools/validate_script.py         # 剧本静态校验（顺带检查剧本数据能不能被解析），必须"校验通过"
 python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 / 死循环 / 不可达结局
 ```

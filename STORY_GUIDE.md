@@ -366,4 +366,4 @@ CHOICE("要不要回头？", [
 | 新节点类型 | `engine.js` `applyNode()` 加 case；`simulate_playthrough.py` 的 `play()` 加同语义分支；`validate_script.py` 加检查 |
 | 引擎默认值 | 入口场景 `start`、坏结局 `bad_end`、`audioForBg` 映射、数值上限，都在 `engine.js` / `systems.js` |
 
-**改完引擎必做**：跑两个 Python 工具、浏览器过一遍主要流程（引擎语法/运行错误只能在浏览器里暴露）。
+**改完引擎必做**：`python tools/check_js.py` 查结构、跑校验与模拟、浏览器过一遍主要流程（完整 JS 语法与运行错误只能在浏览器里暴露）。
