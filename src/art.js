@@ -138,6 +138,18 @@ const ART = (() => {
     else if (kind === "403Off") { if (FX.e403 && !FX.e403.off) FX.e403.off = now; }
   }
 
+  /** 立刻撤掉 403 平铺（不做淡出）：换背景 / 回标题时用，避免旧错误页串场。 */
+  function clear403() { FX.e403 = null; }
+
+  /** 清掉所有「跨场景」的特效状态（换背景 / 回标题 / 新游戏 / 读档时调用）。 */
+  function resetFX() {
+    FX.e403 = null;
+    FX.alarm = 0;
+    FX.glitch = 0;
+    FX.shakeT = -1e9;
+    FX.flashT = -1e9;
+  }
+
   /* ============================================================
    *  403 演出：红色错误页从中心向外一页页铺满屏幕，
    *  铺满后压淡到半透明（别把门和文字全挡住）；403Off 时一秒内淡出。
@@ -489,7 +501,7 @@ const ART = (() => {
   }
 
   return {
-    W, H, C, FX, trigger, stepFX, paint, draftBadge,
+    W, H, C, FX, trigger, clear403, resetFX, stepFX, paint, draftBadge,
     get assets() { return { loaded, total, manifest: MANIFEST }; }
   };
 })();

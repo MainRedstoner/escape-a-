@@ -228,6 +228,8 @@ const ENGINE = (() => {
         return false;
       }
       case "bg": {
+        // 换背景 = 离开原来那片区域：旧的 403 平铺不能跟到新场景里
+        if (SYS.state.vis.bg !== nd.id) ART.clear403();
         SYS.state.vis.bg = nd.id;
         SYS.state.vis.cg = null;
         ui.cgNote.style.display = "none";
@@ -648,6 +650,7 @@ const ENGINE = (() => {
     try { data = await SAVE.read(slot); }
     catch (e) { toast("读档失败：" + SAVE.describe(e)); AUDIO.sfx("deny"); return false; }
     SYS.state = data.state;
+    ART.resetFX();               // 读档时清掉上一局的跨场景特效（403 / 警报 / 故障）
     cur = data.cur;
     hintKey = data.hintKey || "";
     started = true;
@@ -812,6 +815,9 @@ const ENGINE = (() => {
     AUDIO.sfx("click");
   }
   function showGallery() {
+    /* 结局画面上点「结局收集」：先退回标题（隐藏结局层、清特效），再开面板，
+       否则结局层 z-index 更高，会把收集面板整个挡在后面。 */
+    if (ui.endingScreen.style.display !== "none") toTitle();
     const unlocked = SYS.unlockedEndings();
     ui.endGrid.innerHTML = "";
     for (const id in SYS.ENDING_META) {
@@ -889,6 +895,7 @@ const ENGINE = (() => {
 
   function newGame() {
     SYS.state = SYS.newState();
+    ART.resetFX();
     started = true;
     showGameUI();
     AUDIO.playBGM("sea");
@@ -907,6 +914,7 @@ const ENGINE = (() => {
   }
   function toTitle() {
     started = false;
+    ART.resetFX();               // 回标题时别把 403 平铺带回来
     hideTextbox();
     hideChoices();
     ui.hud.style.display = "none";
