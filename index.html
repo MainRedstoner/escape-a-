@@ -24,7 +24,11 @@
 
   /* ---------- HUD ---------- */
   #hud{position:absolute;top:0;left:0;right:0;display:none;justify-content:space-between;
-    align-items:flex-start;padding:14px 18px;pointer-events:none;}
+    align-items:flex-start;padding:14px 18px;pointer-events:none;z-index:46;}
+  /* 选项列表阶段：HUD 在上，功能键可点；收拢开始后 body 加 .tc-blocking，遮罩升到 HUD 之上 */
+  body.tc-blocking #hudBtns{pointer-events:none;opacity:.45;}
+  body.tc-blocking #pet, body.tc-blocking #hintBubble{pointer-events:none;}
+  body.tc-blocking #choices{z-index:47;}
   #hud .stats{display:flex;flex-wrap:wrap;gap:6px;max-width:900px;pointer-events:none;}
   .chip{display:flex;align-items:center;gap:8px;background:rgba(11,14,19,.86);
     border:1px solid var(--line);border-radius:4px;padding:4px 12px;font-size:16px;
@@ -58,7 +62,7 @@
 
   /* ---------- 选项 ---------- */
   #choices{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;gap:14px;background:rgba(3,5,8,.62);}
+    justify-content:center;gap:14px;background:rgba(3,5,8,.62);z-index:24;}
   #choicePrompt{background:rgba(10,13,18,.9);border:1px solid var(--line);color:var(--muted);
     padding:8px 26px;font-size:19px;margin-bottom:10px;display:none;letter-spacing:1px;}
 
@@ -78,7 +82,7 @@
   #hintBubble h4{color:var(--blue-pale);font-size:17px;margin-bottom:10px;letter-spacing:2px;font-weight:600;}
   #hintBubble p{font-size:18px;line-height:1.7;color:#CFD8E4;}
   #hintBubble .cost{margin-top:10px;font-size:13px;color:var(--muted);letter-spacing:1px;}
-  #toast{position:absolute;top:74px;left:50%;transform:translateX(-50%);display:none;z-index:40;
+  #toast{position:absolute;top:74px;left:50%;transform:translateX(-50%);display:none;z-index:55;
     background:rgba(6,9,13,.94);color:#DDE4EE;border:1px solid var(--line);padding:9px 24px;
     font-size:17px;letter-spacing:1px;box-shadow:0 8px 30px rgba(0,0,0,.8);}
 

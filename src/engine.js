@@ -45,6 +45,18 @@ const ENGINE = (() => {
   let lastT = performance.now();
   let wheel = null;        // TokenChoice 实例（滑道选项框，首次用到时创建）
   let wheelOpts = [];      // 当前滑道上的选项（下标与组件内部一致，供回调取回原选项）
+  let choiceBlocking = false;   // 收拢 → 选完：选项模块完全挡在最上层
+
+  /* 选项分两段挡：
+     · 列表 / 等待阶段：HUD 功能键、桌宠、提示气泡都还能点（还没开始选）；
+     · 从收拢开始到选完：body 加 .tc-blocking，#choices 升到 HUD 之上，功能键让位。 */
+  function syncChoiceBlock() {
+    const blocking = !!(wheel && ["morph", "ready", "accel", "sliding", "done"].includes(wheel.state));
+    if (blocking === choiceBlocking) return;
+    choiceBlocking = blocking;
+    document.body.classList.toggle("tc-blocking", blocking);
+    if (blocking && ui.hintBubble.style.display === "block") ui.hintBubble.style.display = "none";
+  }
 
   /* ---------------- 主循环 ----------------
    * rAF 在后台标签页会被浏览器节流，加一个低频 interval 兜底：
@@ -55,6 +67,7 @@ const ENGINE = (() => {
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     ART.stepFX(dt);
+    syncChoiceBlock();
     ART.paint(ctx, SYS.state.vis, now / 1000, pending && pending.t === "say" ? pending.who : null);
     ART.draftBadge(ctx, SYS.state.vis);
     // Ctrl 快进
@@ -100,6 +113,8 @@ const ENGINE = (() => {
       else if (wheel && (wheel.state === "list" || wheel.state === "hold")) wheel.click();
       else onMainClick();
     }
+    /* 收拢开始 → 选完之前：功能键、气泡、菜单全部让位，键盘只留给 Space / Enter */
+    else if (document.body.classList.contains("tc-blocking")) { /* 忽略 */ }
     else if (e.key === "h" || e.key === "H") toggleHint();
     else if (e.key === "l" || e.key === "L") showHistory();
     else if (e.key === "a" || e.key === "A") toggleAuto();
