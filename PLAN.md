@@ -68,7 +68,7 @@ SAVE.importFile(file)  → 校验后写入槽位
 两种实现，启动时自动选择：
 
 - **LocalBackend**：localStorage（现有逻辑迁移过来）。
-- **ServerBackend**：页面经 `http://` 打开且 `GET /api/ping` 成功时启用。
+- **ServerBackend**：页面经 `http://` 打开且 `GET /api/ping` 成功时启用（`file://` 下不探测：跨源 + 安全）。
 - 后端不可用 / 请求失败时回落到 LocalBackend 并提示，不阻塞游戏。
 
 ### 3.2 存档文件格式
@@ -89,19 +89,15 @@ SAVE.importFile(file)  → 校验后写入槽位
 
 ### 3.3 Python 存档服务 `server.py`
 
+- [x] 契约定稿：[SAVE_API.md](SAVE_API.md)（通用「key → 不透明字节」，与存档格式解耦）。
+- [x] 后端实现 + 冒烟测试：`server.py` + `tools/test_save_server.py`（19 项全绿）—— 分支 `feat/save-server`。
 - 仅标准库（`http.server` + `json`），单文件，`python server.py [--port 8765]`。
 - 同时提供静态文件服务，替代现在的 `python -m http.server`。
-- 默认只绑定 `127.0.0.1`。
-- 存档数据目录 `saves/`（进 `.gitignore`），每个槽位一个 JSON 文件。
-- API 草案：
-
-  | 方法 | 路径 | 说明 |
-  | --- | --- | --- |
-  | GET | `/api/ping` | 探测后端 |
-  | GET | `/api/saves` | 槽位列表（元信息） |
-  | GET / PUT / DELETE | `/api/saves/<slot>` | 读 / 写 / 删单个槽位 |
-
-- 安全：槽位名白名单（`auto` / `1`~`N`），拒绝路径穿越；限制请求体大小；写文件先写临时文件再原子替换。
+- 默认只绑定 `127.0.0.1`，无鉴权（只服务本机单人）。
+- 存档数据目录 `saves/`（已在 `.gitignore`），一条 key 一个文件，内容为原始字节。
+- 路由（完整语义见 SAVE_API.md）：`GET /api/ping`、`GET /api/blobs`、`GET|PUT|DELETE /api/blobs/<key>`。
+- 安全：key 白名单、静态路径拒 `.git` 等隐藏目录与数据目录、请求体上限、临时文件 + `fsync` + `os.replace` 原子替换、`ETag` / `If-Match` 发现并发写。
+- 后端**不解析**存档内容：前端换格式、拆 key、加新数据都不必动它。
 
 ### 3.4 UI
 

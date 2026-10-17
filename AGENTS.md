@@ -19,7 +19,7 @@
 
 1. **`file://` 直开必须能玩。** 不能依赖 `fetch()`、ES module（`import`/`export`）、构建步骤或 CDN。新文件用 `<script>` 引入；数据文件写成给 `window` 赋值的 `.js`（参考 `assets/manifest.js`）。
 2. **前端零依赖、零构建。** 不引入 npm 包、打包器、框架。
-3. **后端可选，且只用 Python 标准库。** 存档服务（规划中，见 PLAN.md）只负责存取存档文件；没有后端时游戏必须完整可用（存档走 localStorage + 下载 / 上传存档文件）。不要用 Node 写后端。
+3. **后端可选，且只用 Python 标准库。** 存档服务 `server.py` 只负责存取存档文件，接口契约见 [SAVE_API.md](SAVE_API.md)；**后端不解析存档内容**，格式与迁移都归前端。默认只绑 `127.0.0.1`。没有后端时游戏必须完整可用（存档走 localStorage + 下载 / 上传存档文件）。不要用 Node 写后端。
 4. **剧本是纯数据。** 剧本文件里不写函数逻辑、不碰 DOM；要新能力就改引擎并在 STORY_GUIDE.md 登记。
 5. **生成文件不手改。** `assets/manifest.js` 由 `python tools/make_manifest.py > assets/manifest.js` 生成。
 
@@ -34,6 +34,7 @@
 | 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.js` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.js` 同语义分支 + `tools/validate_script.js` 检查 + STORY_GUIDE.md 节点表 |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
+| 存档契约 / 后端接口 | `SAVE_API.md` + `server.py` + `tools/test_save_server.py`（前端接入后还有 `src/save.js`） |
 
 ---
 
@@ -45,6 +46,12 @@
 node --check src/*.js                   # 语法
 node tools/validate_script.js           # 剧本静态校验，必须"校验通过"
 node tools/simulate_playthrough.js 40   # 无头通关模拟，必须无死路 / 死循环 / 不可达结局
+```
+
+改动 `server.py` 或 `SAVE_API.md` 时，还必须跑：
+
+```bash
+python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
 
 改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测：
