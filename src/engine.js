@@ -21,7 +21,7 @@ const ENGINE = (() => {
     titleScreen: $("titleScreen"), titleMenu: $("titleMenu"),
     endingScreen: $("endingScreen"), eTag: $("eTag"), eTitle: $("eTitle"), eText: $("eText"),
     cgNote: $("cgNote"),
-    histList: $("histList"), saveSlots: $("saveSlots"), loadSlots: $("loadSlots"),
+    histList: $("histList"), saveSlots: $("saveSlots"),
     endGrid: $("endGrid"), eggList: $("eggList")
   };
 
@@ -717,33 +717,45 @@ const ENGINE = (() => {
     return null;
   }
 
-  /* 存档面板的点选模式：save（写入槽位）/ export（把槽位导出成文件）/ import（从文件导入到槽位） */
-  let slotPick = "save";
+  /* ---------------- 存档 / 读档（合并面板） ----------------
+   * 点槽位 → 展开该槽位的操作：读取 / 保存 / 导出 / 导入 / 删除。
+   * 覆盖已有存档、删除、导入覆盖都会先弹确认；空槽直接保存不打扰。 */
+  let openSlot = null;          // 当前展开动作的槽位（null = 全部收起）
   let importTarget = null;
-  function setSlotPick(mode) {
-    slotPick = slotPick === mode ? "save" : mode;
-    renderSlots("save");
-  }
+
   function slotName(s) { return s === "auto" ? "自动存档" : "槽位 " + s; }
-  function renderSlots(mode) {
-    const box = mode === "save" ? ui.saveSlots : ui.loadSlots;
+
+  /** 通用确认框：返回 Promise<boolean>。 */
+  function askConfirm(text, okText, danger = true) {
+    return new Promise(resolve => {
+      const box = $("confirmBox");
+      $("confirmText").textContent = text;
+      const yes = $("cfYes"), no = $("cfNo");
+      yes.textContent = okText || "确定";
+      yes.classList.toggle("danger", danger);
+      yes.onclick = () => { box.style.display = "none"; resolve(true); };
+      no.onclick = () => { box.style.display = "none"; resolve(false); };
+      box.style.display = "flex";
+    });
+  }
+
+  function openSavePanel() {
+    openSlot = null;
+    renderSaveSlots();
+  }
+
+  function renderSaveSlots() {
+    const box = ui.saveSlots;
     box.innerHTML = "";
-    if (mode === "save") {
-      $("saveWhere").textContent = `存档位置：${SAVE.label}` +
-        (slotPick === "export" ? " · 点选要导出的槽位" : slotPick === "import" ? " · 点选要导入到的槽位" : "");
-      $("btnExport").classList.toggle("on", slotPick === "export");
-      $("btnImport").classList.toggle("on", slotPick === "import");
-    }
-    const slots = ["1", "2", "3", "auto"];
-    for (const s of slots) {
+    $("saveWhere").textContent = `存档位置：${SAVE.label}` +
+      (started ? "" : " · 标题画面：可读取 / 导入 / 导出 / 删除");
+    for (const s of ["1", "2", "3", "auto"]) {
       const m = SAVE.meta(s);
+      const card = document.createElement("div");
+      card.className = "slotCard" + (openSlot === s ? " open" : "");
+
       const b = document.createElement("button");
       b.className = "slotBtn";
-      if (mode === "save" && slotPick === "save" && m && s !== "auto") {
-        const del = document.createElement("button");
-        del.className = "del"; del.textContent = "删除"; del.dataset.slot = s;
-        b.appendChild(del);
-      }
       const t1 = document.createElement("span");
       t1.style.cssText = `font-weight:700;color:${m && !m.error ? "#D97757" : "#8A877F"};`;
       t1.textContent = slotName(s);
@@ -758,35 +770,74 @@ const ENGINE = (() => {
         line.textContent = `信任 ${m.trust} · 通缉 ${m.wanted} · ${new Date(m.ts).toLocaleString("zh-CN")}`;
       } else line.textContent = "—— 空 ——";
       b.appendChild(line);
-      b.addEventListener("click", e => {
-        if (e.target.classList && e.target.classList.contains("del")) {
-          SAVE.remove(s).catch(err => { toast("删除失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); })
-            .then(() => renderSlots(mode));
-          return;
-        }
-        if (mode === "load") { loadGame(s); return; }
-        if (slotPick === "export") {
-          try { SAVE.exportSlot(s); toast(`已导出${slotName(s)}`); }
-          catch (err) { toast("导出失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); }
-          return;
-        }
-        if (slotPick === "import") {
-          if (s === "auto") { toast("不能导入到自动存档"); return; }
-          importTarget = s;
-          if (!m) { $("importFile").click(); return; }
-          const cb = $("confirmBox");
-          $("confirmText").textContent = `用存档文件覆盖${slotName(s)}？`;
-          cb.style.display = "flex";
-          $("cfYes").onclick = () => { cb.style.display = "none"; $("importFile").click(); };
-          $("cfNo").onclick = () => { cb.style.display = "none"; };
-          return;
-        }
-        if (s === "auto") { toast("自动存档不可覆盖"); return; }
-        saveGame(s).then(() => renderSlots("save"));
+      b.addEventListener("click", () => {
+        openSlot = openSlot === s ? null : s;
+        renderSaveSlots();
       });
-      box.appendChild(b);
+      card.appendChild(b);
+
+      if (openSlot === s) card.appendChild(buildSlotActions(s, m));
+      box.appendChild(card);
     }
-    (mode === "save" ? $("ovSave") : $("ovLoad")).style.display = "flex";
+    $("ovSave").style.display = "flex";
+  }
+
+  function buildSlotActions(s, m) {
+    const row = document.createElement("div");
+    row.className = "slotActions";
+    const add = (label, cls, fn, disabled) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "hbtn" + (cls ? " " + cls : "");
+      b.textContent = label;
+      b.disabled = !!disabled;
+      b.addEventListener("click", e => { e.stopPropagation(); if (!b.disabled) fn(); });
+      row.appendChild(b);
+    };
+
+    add("读取", "", () => loadGame(s), !m || m.error);
+    if (started && s !== "auto") add("保存", "", () => confirmSave(s, m));
+    add("导出", "", () => {
+      try { SAVE.exportSlot(s); toast(`已导出${slotName(s)}`); }
+      catch (err) { toast("导出失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); }
+    }, !m || m.error);
+    if (started) add("导入", "", () => confirmImport(s, m), s === "auto");
+    add("删除", "danger", () => confirmDelete(s), !m || m.error);
+    return row;
+  }
+
+  async function confirmSave(s, m) {
+    if (s === "auto") { toast("自动存档不可手动写入"); return; }
+    if (m && !m.error) {
+      const ok = await askConfirm(`覆盖${slotName(s)}？该槽位现有的存档会被替换。`, "覆盖");
+      if (!ok) return;
+    }
+    const done = await saveGame(s);
+    if (done) { openSlot = null; renderSaveSlots(); }
+  }
+
+  function confirmImport(s, m) {
+    if (s === "auto") { toast("不能导入到自动存档"); return; }
+    importTarget = s;
+    if (!m || m.error) { $("importFile").click(); return; }
+    askConfirm(`用存档文件覆盖${slotName(s)}？`, "覆盖").then(ok => {
+      if (ok) $("importFile").click();
+    });
+  }
+
+  async function confirmDelete(s) {
+    const ok = await askConfirm(`删除${slotName(s)}？删除后无法恢复。`, "删除");
+    if (!ok) return;
+    try {
+      await SAVE.remove(s);
+      toast(`已删除${slotName(s)}`);
+      AUDIO.sfx("click");
+    } catch (err) {
+      toast("删除失败：" + SAVE.describe(err));
+      AUDIO.sfx("deny");
+    }
+    openSlot = null;
+    renderSaveSlots();
   }
 
   /* 导入：SAVE.importFile 先完整解码 + 校验，全部通过才写入，坏文件不会覆盖现有存档 */
@@ -798,13 +849,10 @@ const ENGINE = (() => {
     if (!file || !slot) return;
     SAVE.importFile(file, slot).then(() => {
       toast(`已导入到${slotName(slot)}`); AUDIO.sfx("ding");
-      slotPick = "save";
     }, err => {
       toast("导入失败：" + SAVE.describe(err)); AUDIO.sfx("deny");
-    }).then(() => renderSlots("save"));
+    }).then(() => { openSlot = null; renderSaveSlots(); });
   });
-  $("btnExport").addEventListener("click", () => setSlotPick("export"));
-  $("btnImport").addEventListener("click", () => setSlotPick("import"));
 
   /* ---------------- 结局 ---------------- */
   function showEnding(nd) {
@@ -922,7 +970,7 @@ const ENGINE = (() => {
     ui.titleMenu.innerHTML = "";
     const items = [
       ["开始游戏", () => { AUDIO.unlock(); newGame(); }, true],
-      ["继续游戏", () => { AUDIO.unlock(); continueGame(); }, false],
+      ["读档", () => { AUDIO.unlock(); openSavePanel(); }, false],
       ["结局收集", () => { AUDIO.unlock(); showGallery(); }, false],
       ["设置", () => { showSettings(); }, false],
       ["关于本作", () => { $("ovAbout").style.display = "flex"; }, false]
@@ -944,11 +992,6 @@ const ENGINE = (() => {
     showGameUI();
     AUDIO.playBGM("sea");
     goto("start", 0);
-  }
-  function continueGame() {
-    const bestSlot = SAVE.latest();
-    if (bestSlot) loadGame(bestSlot);
-    else toast("没有找到任何存档");
   }
   function showGameUI() {
     ui.titleScreen.style.display = "none";
@@ -979,8 +1022,7 @@ const ENGINE = (() => {
   $("choices").addEventListener("click", () => { if (wheel) wheel.click(); });
   $("btnLog").addEventListener("click", showHistory);
   $("btnAuto").addEventListener("click", toggleAuto);
-  $("btnSave").addEventListener("click", () => { slotPick = "save"; renderSlots("save"); });
-  $("btnLoad").addEventListener("click", () => renderSlots("load"));
+  $("btnSave").addEventListener("click", openSavePanel);
   $("btnFrag").addEventListener("click", showFragments);
   $("btnMenu").addEventListener("click", confirmMenu);
 
@@ -1025,7 +1067,7 @@ const ENGINE = (() => {
     AUDIO.playBGM("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
-    // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「继续游戏」；失败只提示，不阻塞游戏
+    // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「读档」按钮；失败只提示，不阻塞游戏
     SAVE.init({ validate: validateSnapshot }).then(() => {
       if (!started) buildTitle();
     }, e => toast("存档初始化失败：" + SAVE.describe(e)));

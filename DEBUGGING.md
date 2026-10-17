@@ -100,7 +100,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 
 ## 4. 存档怎么调
 
-1. **确认后端**：控制台 `SAVE.label`。想强制用服务端就 `python server.py` 再打开页面。
+1. **确认后端**：控制台 `SAVE.label`。想强制用服务端就 `python server.py` 再打开页面。面板里点槽位会展开操作（读取 / 保存 / 导出 / 导入 / 删除），覆盖已有档与删除都会先弹确认。
 2. **服务端在存哪**：默认 `saves/`，文件名是 `save-1`、`save-auto`（就是信封原文，没有 `.json` 后缀）。
    可以直接打开看，或者 `curl -s http://127.0.0.1:8765/api/blobs` 看列表。
 3. **造一个坏档**：

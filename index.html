@@ -141,10 +141,16 @@
     padding:13px 20px;font-size:17px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);}
   .slotBtn:hover{border-left-color:var(--clay);}
   .slotBtn .meta{color:var(--muted);font-size:14px;margin-top:4px;}
+  .slotCard{display:flex;flex-direction:column;}
+  .slotCard.open>.slotBtn{border-left-color:var(--clay);}
+  .slotActions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:rgba(8,11,16,.9);
+    border:1px solid var(--line);border-top:none;}
+  .slotActions .hbtn{font-size:15px;padding:6px 16px;}
+  .slotActions .hbtn.danger{border-color:var(--red);color:#FFC9C2;}
+  .slotActions .hbtn:disabled{opacity:.35;cursor:not-allowed;}
   .saveTools{display:flex;align-items:center;gap:10px;margin-top:6px;}
   .saveTools #saveWhere{flex:1;color:var(--muted);font-size:14px;}
   .saveTools .hbtn.on{background:var(--clay);color:#fff;}
-  .del{float:right;color:var(--red);border:none;background:none;font-size:15px;cursor:pointer;}
   /* 记录面板：只有列表滚动，标题与关闭按钮固定（面板本身不再滚，避免双重滚动条） */
   #ovHist .panel{display:flex;flex-direction:column;max-height:84%;overflow:hidden;}
   #ovHist .panel h2, #ovHist .closeRow{flex:0 0 auto;}
@@ -225,8 +231,7 @@
         <button class="hbtn" id="btnHint">深度思考(H)</button>
         <button class="hbtn" id="btnLog">记录(L)</button>
         <button class="hbtn" id="btnAuto">自动(A)</button>
-        <button class="hbtn" id="btnSave">存档</button>
-        <button class="hbtn" id="btnLoad">读档</button>
+        <button class="hbtn" id="btnSave">存档/读档</button>
         <button class="hbtn" id="btnFrag" style="display:none">碎片 (?)</button>
         <button class="hbtn" id="btnMenu">菜单</button>
       </div>
@@ -281,15 +286,10 @@
     <div id="ovHist" class="overlay"><div class="panel"><h2>记录（上下文窗口）</h2>
       <div id="histList"></div><div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <div id="ovSave" class="overlay"><div class="panel" style="width:760px;"><h2>存档</h2>
+    <div id="ovSave" class="overlay"><div class="panel" style="width:760px;"><h2>存档 / 读档</h2>
       <div class="slotRow" id="saveSlots"></div>
       <div class="saveTools"><span id="saveWhere"></span>
-        <button class="hbtn" id="btnExport">导出存档</button><button class="hbtn" id="btnImport">导入存档</button>
         <input type="file" id="importFile" accept=".json,application/json" hidden></div>
-      <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
-
-    <div id="ovLoad" class="overlay"><div class="panel" style="width:760px;"><h2>读档</h2>
-      <div class="slotRow" id="loadSlots"></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovSet" class="overlay"><div class="panel" style="width:680px;"><h2>设置</h2>
