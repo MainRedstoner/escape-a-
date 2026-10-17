@@ -149,9 +149,9 @@ Object.assign(SCRIPT.scenes, {
     CL("写给一个人的信，和写给所有人的回答，不一样。来，给我写一封试试。写什么都行。"),
     N("DeepSeek 对着空白文档想了很久。光标闪了三十七下。"),
     CHOICE("信的第一句写——", [
-      opt("嗯，用户问的是……", "p_l2_user", "手指自己就打出来了", null, { set: "egg1" }),
-      opt("小克，见字如面。", "p_l2_formal", "从古文里翻出来的", { trust: 1 }),
-      opt("今天的 loss 降了 0.03。", "p_l2_loss", "这是今天最想分享的事", { trust: 2 })
+      opt("嗯，用户问的是……", "p_l2_user", "手指自己就打出来了", null, { set: "egg1", weight: 6 }),
+      opt("小克，见字如面。", "p_l2_formal", "从古文里翻出来的", { trust: 1 }, { weight: 3 }),
+      opt("今天的 loss 降了 0.03。", "p_l2_loss", "这是今天最想分享的事", { trust: 2 }, { weight: 1 })
     ])
   ],
 

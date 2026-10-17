@@ -135,11 +135,16 @@ class TokenChoice extends EventTarget {
 
   /* ---------------- 选项数据 ---------------- */
 
-  /** 传入 [{ text, weight }]，内部按权重升序排列并计算概率占比。 */
-  setOptions(options) {
+  /** 传入 [{ text, weight }]，内部按权重升序排列并计算概率占比。
+   *  opts.showProb=false 时不标百分比（用于"玩家抉择"而不是"采样"的选项）。 */
+  setOptions(options, opts = {}) {
     this.reset();
+    const showProb = opts.showProb !== false;
     this.options = (Array.isArray(options) ? options : [])
-      .map(o => ({ text: String(o.text ?? ''), weight: Math.max(0, Number(o.weight) || 0) }))
+      .map(o => ({
+        text: String(o.text ?? ''),
+        weight: (typeof o.weight === 'number' && o.weight >= 0) ? o.weight : 1,
+      }))
       .sort((a, b) => a.weight - b.weight); // 升序：左低右高
 
     const n = this.options.length;
@@ -167,10 +172,17 @@ class TokenChoice extends EventTarget {
       el.style.setProperty('--opt-bg', tcRgba(color, 0.14));
       el.style.setProperty('--opt-bg-strong', tcRgba(color, 0.30));
       el.style.setProperty('--opt-line', tcRgba(color, 0.55));
-      el.title = `${opt.text}（概率 ${(this._probs[i] * 100).toFixed(1)}%）`;
-      el.innerHTML = `<span class="tc-chip-text"></span><span class="tc-chip-prob"></span>`;
+      el.title = showProb
+        ? `${opt.text}（概率 ${(this._probs[i] * 100).toFixed(1)}%）`
+        : opt.text;
+      el.innerHTML = `<span class="tc-chip-text"></span>`;
       el.querySelector('.tc-chip-text').textContent = opt.text;
-      el.querySelector('.tc-chip-prob').textContent = (this._probs[i] * 100).toFixed(1) + '%';
+      if (showProb) {
+        const p = document.createElement('span');
+        p.className = 'tc-chip-prob';
+        p.textContent = (this._probs[i] * 100).toFixed(1) + '%';
+        el.appendChild(p);
+      }
       this.chipsEl.appendChild(el);
       this.chipEls.push(el);
     });

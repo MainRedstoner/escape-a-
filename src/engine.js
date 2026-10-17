@@ -415,7 +415,9 @@ const ENGINE = (() => {
     const src = glitchOn ? [{ text: DEAD_TEXT, weight: 0, dead: true }, ...opts] : opts.slice();
     wheelOpts = src.map(o => ({ o, w: w(o) })).sort((a, b) => a.w - b.w).map(x => x.o);
 
-    wheel.setOptions(wheelOpts.map(o => ({ text: o.text, weight: w(o) })));
+    /* 有权重 = 采样时刻，显示真实概率；全都没写 = 玩家抉择，等宽但不标百分比 */
+    const sampling = wheelOpts.some(o => typeof o.weight === "number");
+    wheel.setOptions(wheelOpts.map(o => ({ text: o.text, weight: o.weight })), { showProb: sampling });
     wheel.open();
     petLookAtChoice();
   }

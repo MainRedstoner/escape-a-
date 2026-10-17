@@ -107,6 +107,15 @@ for (const sid of ids) {
           chk(typeof nd.cmd === "string" && nd.cmd.trim() !== "", `${at}: 权限请求缺少 cmd（要执行的命令）`);
           const autos = (nd.options || []).filter(o => o.auto);
           chk(autos.length <= 1, `${at}: 权限请求最多只能有一个「不再询问」选项`);
+          if ((nd.options || []).some(o => o.weight !== undefined)) {
+            warns.push(`${at}: 权限请求不使用 weight（会被忽略）`);
+          }
+        } else {
+          /* 有权重 = 采样场景（显示概率）；全都没写 = 玩家抉择（等宽、不标百分比） */
+          const withW = (nd.options || []).filter(o => o.weight !== undefined).length;
+          if (withW > 0 && withW < (nd.options || []).length) {
+            warns.push(`${at}: 只有部分选项写了 weight（其余按 1 计），确认是否有意`);
+          }
         }
         /* 滑道选项框的专有字段 */
         chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
