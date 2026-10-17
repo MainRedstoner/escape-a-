@@ -76,9 +76,7 @@
 .tc-track {
   position: relative;
   height: 108px;
-  border: 1px solid #26314a;
   border-radius: 10px;
-  background: #0b0f16;
   overflow: hidden;
 }
 
@@ -90,10 +88,15 @@
   bottom: 0;
   width: var(--runway, 0px);
   overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.4s ease;
   background: repeating-linear-gradient(135deg,
     rgba(125, 211, 252, .07) 0 6px, transparent 6px 14px);
   border-right: 1px dashed rgba(125, 211, 252, .35);
 }
+
+/* 大框和加速区只在收拢时出现：列表阶段就是纯列表 */
+.tc-root.tc-framed .tc-runway { opacity: 1; }
 
 .tc-runway::before {
   content: "加速";
@@ -107,17 +110,23 @@
   color: rgba(125, 211, 252, .45);
 }
 
-/* 真正的选项框：指针加速到头正好落在它的左边缘 */
+/* 大框：默认隐藏，收拢成一行时才淡入（列表阶段不画框） */
 .tc-frame {
   position: absolute;
   left: var(--runway, 0px);
   top: 0;
   right: 0;
   bottom: 0;
-  border-left: 1px solid #26314a;
-  border-radius: 0 9px 9px 0;
-  overflow: hidden;
+  border: 1px solid #26314a;
+  border-radius: 10px;
+  background: #0b0f16;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: 0;
 }
+
+.tc-root.tc-framed .tc-frame { opacity: 1; }
 
 .tc-frame--hit { animation: tc-frame-hit 0.34s ease-out; }
 
@@ -132,10 +141,11 @@
   }
 }
 
-/* 选项区：所有色块绝对定位，left/top/width/height 由 JS 驱动 */
+/* 选项区：绝对定位在滑道上，列表阶段占满整条，收拢后挪进大框里 */
 .tc-chips {
   position: absolute;
   inset: 0;
+  z-index: 1;
 }
 
 /* 色块：颜色由每个选项自己的 --opt-* 变量决定 */
@@ -347,8 +357,10 @@
 
 #choiceToken .tc-label { font-size: 15px; }
 
-#choiceToken .tc-track {
-  height: 108px;
+#choiceToken .tc-track { height: 108px; }
+
+/* 大框的配色（列表阶段隐藏，收拢时才淡入） */
+#choiceToken .tc-frame {
   background: rgba(5, 7, 10, .9);
   border-color: var(--line, #2C3542);
 }
@@ -360,8 +372,6 @@
   border-right-color: rgba(217, 119, 87, .38);
 }
 #choiceToken .tc-runway::before { color: rgba(217, 119, 87, .5); }
-
-#choiceToken .tc-frame { border-left-color: var(--line, #2C3542); }
 
 #choiceToken .tc-chip-text { font-size: 20px; }
 #choiceToken .tc-chip-prob { font-size: 14px; color: rgba(214, 223, 236, .6); }

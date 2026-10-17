@@ -38,8 +38,8 @@ const TC_HOLD_MS = 2000;       // 列完后停留
 const TC_MORPH_MS = 1000;      // 收拢成一行的时长
 const TC_READY_MS = 1000;      // 成行后等待，然后开始扫描
 const TC_ENTER_MS = 260;       // 面板淡入
-const TC_ROW_H = 46;           // 列表阶段的行高
-const TC_ROW_GAP = 6;          // 列表阶段的行间距
+const TC_ROW_H = 64;           // 列表阶段的行高
+const TC_ROW_GAP = 10;         // 列表阶段的行间距
 const TC_FINAL_H = 100;        // 收拢后色块高度
 const TC_RUNWAY_RATIO = 0.1525; // 加速区占滑道宽度的比例
 const TC_HIT_MS = 340;         // 入框冲击动画
@@ -92,9 +92,8 @@ class TokenChoice extends EventTarget {
         <div class="tc-labels" hidden></div>
         <div class="tc-track">
           <div class="tc-runway" aria-hidden="true"></div>
-          <div class="tc-frame">
-            <div class="tc-chips"></div>
-          </div>
+          <div class="tc-frame"></div>
+          <div class="tc-chips"></div>
           <div class="tc-cursor" hidden></div>
         </div>
       </div>
@@ -241,7 +240,7 @@ class TokenChoice extends EventTarget {
     this.cursor.classList.remove('tc-cursor--hit');
     this.progressFill.style.width = '0%';
     this.lockBtn.disabled = true;
-    this.root.classList.remove('tc-entering', 'tc-listing', 'tc-morphing', 'tc-picking', 'tc-ended');
+    this.root.classList.remove('tc-entering', 'tc-listing', 'tc-morphing', 'tc-framed', 'tc-picking', 'tc-ended');
     this.frame.classList.remove('tc-frame--hit');
     if (this.labelsEl) {
       this.labelsEl.innerHTML = '';
@@ -286,7 +285,7 @@ class TokenChoice extends EventTarget {
   _layoutList() {
     const n = this.chipEls.length;
     if (!n) return;
-    const W = Math.max(1, this._frameW - 8);
+    const W = Math.max(1, this.track.clientWidth); // 列表阶段用整条滑道，居中
     const rowH = TC_ROW_H;
     const gap = TC_ROW_GAP;
     const listH = 8 + n * rowH + (n - 1) * gap;
@@ -299,19 +298,19 @@ class TokenChoice extends EventTarget {
 
     this.chipEls.forEach((chip, i) => {
       chip.style.transition = 'none';
-      chip.style.left = '4px';
+      chip.style.left = '0px';
       chip.style.top = (4 + i * (rowH + gap)) + 'px';
       chip.style.width = W + 'px';
       chip.style.height = rowH + 'px';
     });
   }
 
-  /** 收拢阶段：宽度变成概率占比，1 秒内平滑并到同一行。 */
+  /** 收拢阶段：宽度变成概率占比，1 秒内平滑并到同一行；大框同时淡入。 */
   _morph() {
     if (this.state !== 'hold') return;
     this.state = 'morph';
     this._setPreview('收拢成滑道…');
-    this.root.classList.add('tc-morphing');
+    this.root.classList.add('tc-morphing', 'tc-framed');
 
     const n = this.chipEls.length;
     const W = Math.max(1, this._frameW - 8);
@@ -322,7 +321,7 @@ class TokenChoice extends EventTarget {
     this.track.style.transition = `height ${TC_MORPH_MS}ms ${ease}`;
     this.track.style.height = (TC_FINAL_H + 8) + 'px';
 
-    let x = 4;
+    let x = this._runway + 4;
     this.chipEls.forEach((chip, i) => {
       const w = avail * this._shares[i];
       chip.style.transition = `left ${TC_MORPH_MS}ms ${ease}, top ${TC_MORPH_MS}ms ${ease},` +
@@ -347,13 +346,14 @@ class TokenChoice extends EventTarget {
   _layoutFinal() {
     const n = this.chipEls.length;
     if (!n) return;
+    this.root.classList.add('tc-framed');
     const W = Math.max(1, this._frameW - 8);
     const gap = 3;
     const avail = Math.max(1, W - (n - 1) * gap);
     this.track.style.transition = 'none';
     this.track.style.height = (TC_FINAL_H + 8) + 'px';
 
-    let x = 4;
+    let x = this._runway + 4;
     this.chipEls.forEach((chip, i) => {
       const w = avail * this._shares[i];
       chip.style.transition = 'none';
@@ -390,7 +390,7 @@ class TokenChoice extends EventTarget {
     let right = -1e9;
     for (const { span, chip } of items) {
       const w = span.offsetWidth || 0;
-      let x = this._runway + chip.offsetLeft;
+      let x = chip.offsetLeft; // 色块现在挂在滑道坐标系里，不用再加跑道
       x = Math.max(4, Math.min(x, stageW - w - 4));
       x = Math.max(x, right + 10);
       span.style.left = x + 'px';
