@@ -42,8 +42,9 @@ const FACE = (who, face) => ({ t: "face", who, face });
 /* 选项项：extra 里常用的有 { give: "论据id" }、{ set: "egg1" }、
  * { hideInGlitch: true }（故障态隐藏）、{ weight: 4 }（token 模式的滑道权重）。 */
 const opt  = (text, jump, sub, fx, extra) => Object.assign({ text, jump, sub, fx }, extra || {});
-/* 选项界面：extra 常用 { mode: "token", duration: 3000, minShare: 0.1 }
- * —— mode: "token" 时换成 TokenChoice 滑道选择器（按 weight 升序左低右高）。 */
+/* 选项界面：extra 常用 { mode: "token", minShare: 0.1 }
+ * —— mode: "token" 时换成 TokenChoice 滑道选择器（按 weight 升序左低右高；
+ *    登场 → 展示 2 秒 → 左侧匀加速 → 1 秒扫过，节奏固定，不需要配 duration）。 */
 const CHOICE = (prompt, options, extra) => Object.assign({ t: "choice", prompt, options }, extra || {});
 
 /* ============================================================
@@ -58,12 +59,13 @@ Object.assign(SCRIPT.scenes, {
     CHAP("集成测试", "TokenChoice 滑道选项框"),
     N("（这是一条临时测试线，用来验证 token 模式的选项框；不是正文。）"),
     Y("【测试 1】token 模式：选项按 weight 升序从左到右排列，滑道宽度与概率成比例。" +
-      "滑动中按 Space / Enter 或点「锁定」选中高亮项；不按则 3 秒后默认选中最右侧（权重最高）的一项。"),
+      "登场后先展示 2 秒，指针从左侧匀加速冲进选项框、1 秒扫完；" +
+      "滑动中按 Space / Enter 或点「锁定」选中高亮项，不按则扫到尽头默认选中最右侧（权重最高）的一项。"),
     CHOICE("测试 1：锁定一个选项", [
       opt("低权重选项", "t_low", null, null, { weight: 1 }),
       opt("中权重选项", "t_mid", null, { tokens: 1 }, { weight: 3 }),
       opt("高权重选项", "t_high", null, { trust: 1 }, { weight: 6 })
-    ], { mode: "token", duration: 3000 })
+    ], { mode: "token" })
   ],
 
   t_low: [
@@ -96,7 +98,7 @@ Object.assign(SCRIPT.scenes, {
     CHOICE("测试 3：故障态下再锁一次", [
       opt("正常选项一", "t_end", null, { trust: 1 }, { weight: 2 }),
       opt("正常选项二", "t_end", null, null, { weight: 5 })
-    ], { mode: "token", duration: 6000 })
+    ], { mode: "token" })
   ],
 
   t_end: [

@@ -354,8 +354,9 @@ const ENGINE = (() => {
    *   · 默认 "list"：一列按钮，渲染在 #choiceList；
    *   · nd.mode === "token"：TokenChoice 滑道选择器，渲染在 #choiceToken。
    *       - 选项按 weight 升序从左到右排列，宽度与概率成比例；
-   *       - 滑块从左向右匀速扫过，Space / Enter / 「锁定」按钮锁住当前高亮项；
-   *       - 扫到最右端仍未选择，则默认选中最右侧（权重最高）的一项。 */
+   *       - 组件固定节奏：登场动画 → 全部选项展示 2 秒 → 指针在左侧匀加速 →
+   *         入框瞬间播放冲击动画 → 1 秒匀速扫过 → 锁定 / 扫到尽头默认选中；
+   *       - Space / Enter / 「锁定」按钮锁住当前高亮项。 */
   function hideChoices() {
     ui.choices.style.display = "none";
     if (wheel) wheel.close();
@@ -412,7 +413,7 @@ const ENGINE = (() => {
    * 这样回调拿到的 index 与 wheelOpts 一一对应，能取回原选项对象。 */
   function buildWheelChoices(nd, opts, glitchOn) {
     if (!wheel) wheel = new TokenChoice(ui.choiceToken, { onSelect: onWheelSelect });
-    wheel.duration = nd.duration > 0 ? nd.duration : 4000;
+    // 扫描时长固定 1 秒（组件内部常量）；剧本的 duration 字段已不再生效
     wheel.minShare = typeof nd.minShare === "number" ? nd.minShare : 0.1;
 
     const w = o => (typeof o.weight === "number" && o.weight >= 0 ? o.weight : 1);
@@ -430,7 +431,10 @@ const ENGINE = (() => {
     if (o.dead) {
       AUDIO.sfx("deny");
       toast("404 · 该选项不存在，或已存在过。");
-      setTimeout(() => { if (wheel && ui.choices.style.display !== "none") wheel.start(); }, 500);
+      setTimeout(() => {
+        // 原地重扫：跳过登场与 2 秒展示，直接重新加速，不然每次都要白等 2.4 秒
+        if (wheel && ui.choices.style.display !== "none") wheel.start({ intro: false });
+      }, 500);
       return;
     }
     pickChoice(o);
