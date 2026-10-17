@@ -59,6 +59,7 @@ tools/                校验与生成工具（见下）
 server.py             可选的本机存档服务（仅标准库；接口契约见 SAVE_API.md）
 SAVE_API.md           存档服务接口契约（通用 blob 存储，与存档格式解耦）
 STORY_GUIDE.md        剧本编写方法（先读这个）
+DEBUGGING.md          调试与排错手册（控制台速查 / URL 直达 / 存档排查 / 故障清单）
 AGENTS.md             AI 协作者说明（CLAUDE.md 导入它）
 PLAN.md               重做路线图
 ```
@@ -76,6 +77,8 @@ python tools/simulate_playthrough.py 40  # 无头通关模拟：多种"玩家性
 python tools/make_manifest.py > assets/manifest.js   # 扫描 assets/ 输出素材清单（--draft 0 关闭草稿角标）
 python tools/test_save_server.py     # 存档服务冒烟测试（改 server.py / SAVE_API.md 后必跑）
 ```
+
+> 排错与调试手段（控制台速查、URL 直达场景、存档排查、常见故障清单）见 [DEBUGGING.md](DEBUGGING.md)。
 
 ## 调试参数（测试用）
 

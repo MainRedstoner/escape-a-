@@ -1,7 +1,7 @@
 # AGENTS.md —— 给 AI 协作者的仓库说明
 
 本文件是所有 AI 编码代理（Claude Code / Codex / Cursor 等）的共同入口；`CLAUDE.md` 只是 `@AGENTS.md` 的导入。
-项目介绍与运行方式见 [README.md](README.md)，剧本写法见 [STORY_GUIDE.md](STORY_GUIDE.md)，剧情与玩法企划见 [DESIGN.md](DESIGN.md)，当前路线图见 [PLAN.md](PLAN.md)。
+项目介绍与运行方式见 [README.md](README.md)，剧本写法见 [STORY_GUIDE.md](STORY_GUIDE.md)，剧情与玩法企划见 [DESIGN.md](DESIGN.md)，当前路线图见 [PLAN.md](PLAN.md)，调试与排错见 [DEBUGGING.md](DEBUGGING.md)。
 这里只写**容易做错的事**，不重复上述文档。
 
 ---
@@ -56,7 +56,7 @@ python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 /
 python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
 
-改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测：
+改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测（具体手段见 [DEBUGGING.md](DEBUGGING.md)）：
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。
 有存档后端后，`file://` 模式和 `python` 服务模式各测一遍。
 

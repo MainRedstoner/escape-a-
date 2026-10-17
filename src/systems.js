@@ -146,5 +146,4 @@ const SYS = (() => {
   return api;
 })();
 
-/* Node 工具链（校验/模拟）通过 require 加载本文件；浏览器里此行是空操作 */
 
