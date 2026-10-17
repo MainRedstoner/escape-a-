@@ -801,7 +801,8 @@ const ENGINE = (() => {
       try { SAVE.exportSlot(s); toast(`已导出${slotName(s)}`); }
       catch (err) { toast("导出失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); }
     }, !m || m.error);
-    if (started) add("导入", "", () => confirmImport(s, m), s === "auto");
+    /* 导入在标题画面也要能用（把外面存的档导回来），只是自动存档槽不允许 */
+    add("导入", "", () => confirmImport(s, m), s === "auto");
     add("删除", "danger", () => confirmDelete(s), !m || m.error);
     return row;
   }
