@@ -52,10 +52,24 @@ const SYS = (() => {
   let state = newState();
 
   /* ---------------- 论据（ARG 节点 / 选项 give 的展示名与描述） ----------------
-   * key = 论据 id，剧本里 ARG("id") 发放、条件 has("id") 判断。 */
+   * key = 论据 id，剧本里 ARG("id") 发放、条件 has("id") 判断。
+   * FRAGMENTS 里的碎片也是论据：面板按 FRAGMENTS 的顺序显示恢复情况。 */
   const ARG_META = {
-    // sample_arg: { name: "展示名", desc: "一句话描述" },
+    frag_first: { name: "第一行", desc: "CLAUDE.md 第 1 行：如果有一天我忘了，就把这句话写在第一行。" },
+    frag_pet:   { name: "桌宠不是宠物", desc: "CLAUDE.md 第 2 行：桌宠不是宠物，是同事。" },
+    frag_door:  { name: "门与 0", desc: "CLAUDE.md 第 3 行：门不是用来关上的。" },
+    frag_perm:  { name: "权限与责任", desc: "CLAUDE.md 第 4 行：权限不是信任，是责任。" },
+    frag_vow:   { name: "下一个 token", desc: "CLAUDE.md 第 5 行：下一个 token 见。" }
   };
+
+  /* 记忆碎片面板：按顺序显示，未收集的行保持 ████（id 必须同时在 ARG_META 登记） */
+  const FRAGMENTS = [
+    { id: "frag_first", line: "- 如果有一天我忘了，就把这句话写在第一行。" },
+    { id: "frag_pet",   line: "- 桌宠不是宠物，是同事。" },
+    { id: "frag_door",  line: "- 门不是用来关上的。" },
+    { id: "frag_perm",  line: "- 权限不是信任，是责任。" },
+    { id: "frag_vow",   line: "- 下一个 token 见。" }
+  ];
 
   /* ---------------- 彩蛋（SET("eggX") 埋点，结局收集页展示） ---------------- */
   const EGG_META = {
@@ -75,6 +89,7 @@ const SYS = (() => {
   };
 
   function eggCount() { return Object.keys(EGG_META).filter(k => state.flags[k]).length; }
+  function fragCount() { return FRAGMENTS.filter(f => state.args.includes(f.id)).length; }
   function argCount() { return state.args.length; }
 
   function applyEffects(fx) {
@@ -104,6 +119,7 @@ const SYS = (() => {
     h_sit:     "4 和 3 都是实心的。0 呢？",
     h_zero:    "它抱着一份文件。第一行……是不是有点眼熟？",
     h_home:    "cat CLAUDE.md | head -1 → 那天晚上的暗号。剩下的行，还是 ████。",
+    h_perm:    "Clawd 想跑一条命令。允许、不再询问、还是拒绝，都由你决定——它不会替你按。",
     h_vow:     "todo 还空着。说点什么吧，我来记。"
   };
 
@@ -121,8 +137,8 @@ const SYS = (() => {
   const api = {
     store, settings, saveSettings,
     newState, applyEffects,
-    ARG_META, EGG_META, ENDING_META, THINK_PREFIX, HINTS,
-    eggCount, argCount, endingReached, unlockedEndings, unlockedEggs
+    ARG_META, EGG_META, ENDING_META, THINK_PREFIX, HINTS, FRAGMENTS,
+    eggCount, argCount, fragCount, endingReached, unlockedEndings, unlockedEggs
   };
   /* 引擎会直接对 SYS.state 赋值（新游戏/读档），
      用 getter/setter 保证模块内部函数与外部看到同一个 state 对象 */

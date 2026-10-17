@@ -106,11 +106,11 @@ SAVE.importFile(file)  → 校验后写入槽位
 
 ### 3.5 验收
 
-- [ ] `file://` 下：存 → 刷新 → 读；导出 → 清 localStorage → 导入 → 读，进度一致
-- [ ] 服务模式下：存 → 换浏览器 → 读
-- [ ] 服务中途关掉：回落本地并提示，游戏不卡死
+- [ ] `file://` 下：存 → 刷新 → 读；导出 → 清 localStorage → 导入 → 读，进度一致（Playwright 无法开 file://，留给用户双击实测）
+- [x] 服务模式下：存 → 换浏览器 → 读（清空 localStorage 后重载，仍能「继续游戏」读到服务端存档）
+- [x] 服务中途关掉：回落本地并提示，游戏不卡死（`SAVE` 遇网络错误自动切 LocalBackend 并 toast）
 - [ ] 导入坏文件 / 旧版本文件：有提示，现有存档不受影响
-- [ ] 结局 / 彩蛋收集跨周目持久照常
+- [x] 结局 / 彩蛋收集跨周目持久照常（`ea_endings` / `ea_eggs_found` 驱动桌宠记忆与配件）
 
 ---
 
@@ -132,17 +132,17 @@ SAVE.importFile(file)  → 校验后写入槽位
 - [x] 序章剧本：上半「互蒸」+ 下半「403」，三个结局（`prologue_end` / `end_ticket` / `bad_end`）、四个彩蛋
 - [~] 验收：自动化验证全过 + Playwright 无头通关 / 截图；待用户实际试玩
 
-### 4.2 里程碑 B：核心机制补全
+### 4.2 里程碑 B：核心机制补全【已完成 · feat/integration】
 
-- [ ] 权限请求选项 `mode: "perm"` + `autoKey` 自动批准（模拟器要能处理"跳过选择"）
-- [ ] CLAUDE.md 碎片面板
-- [ ] 桌宠补全：walk / sleep / glitch / working 状态、拖拽、看向倾向选项、待办面板 `T`
-- [ ] 跨周目桌宠记忆与配件
+- [x] 权限请求选项 `mode: "perm"` + `auto` 自动批准（模拟器同步处理"跳过选择"）
+- [x] CLAUDE.md 碎片面板（`?` / HUD 按钮；`FRAGMENTS` + `ARG_META`，序章 5 条碎片）
+- [x] 桌宠补全：walk / sleep / glitch / working 状态、拖拽、看向倾向选项（`CLAWD.lookAt`）、待办面板 `T`
+- [x] 跨周目桌宠记忆与配件（`✻ Resuming session…`；安全帽 / 围巾 / 鲸鱼挂件按解锁数自动佩戴）
 
 ### 4.3 里程碑 C：第二章至终章
 
-- [ ] 细化第二~四章与终章分场大纲（先在 DESIGN.md 里定稿再写剧本）
-- [ ] 逐章剧本 + 结局全部可达（`simulate_playthrough.js`）
+- [x] 细化第二~四章与终章分场大纲（见 DESIGN.md）
+- [ ] 逐章剧本 + 结局全部可达（`simulate_playthrough.js`）—— 下一步
 - [ ] 演出层：CG、立绘、故障段落、`451`
 
 ### 4.4 依赖与顺序

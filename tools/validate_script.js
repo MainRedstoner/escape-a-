@@ -100,10 +100,19 @@ for (const sid of ids) {
         break;
       case "choice":
         chk(Array.isArray(nd.options) && nd.options.length >= 2, `${at}: 选项少于 2 个`);
-        /* 滑道选项框的专有字段（所有 choice 都走滑道；mode / duration 已废弃） */
+        /* 选项模式：不写 = 滑道（所有选择都走 TokenChoice）；"perm" = 权限请求框 */
+        chk(nd.mode === undefined || nd.mode === "token" || nd.mode === "perm",
+            `${at}: 未知的选项模式 "${nd.mode}"（只实现了 perm）`);
+        if (nd.mode === "perm") {
+          chk(typeof nd.cmd === "string" && nd.cmd.trim() !== "", `${at}: 权限请求缺少 cmd（要执行的命令）`);
+          const autos = (nd.options || []).filter(o => o.auto);
+          chk(autos.length <= 1, `${at}: 权限请求最多只能有一个「不再询问」选项`);
+        }
+        /* 滑道选项框的专有字段 */
         chk(nd.minShare === undefined || (typeof nd.minShare === "number" && nd.minShare >= 0 && nd.minShare < 1),
             `${at}: minShare 应在 [0, 1) 之间`);
         (nd.options || []).forEach((o, k) => {
+          chk(!o.auto || nd.mode === "perm", `${at} 选项${k + 1}: auto 只能用在权限请求（mode:"perm"）上`);
           jumps.add(o.jump);
           chk(!!scenes[o.jump], `${at} 选项${k + 1}: 跳转目标不存在 "${o.jump}"`);
           chk(!!o.text, `${at} 选项${k + 1}: 空文案`);

@@ -162,10 +162,19 @@ function play(strategy, rngSeed) {
       }
       case "choice": {
         /* 选项一律走滑道：策略显式挑一个选项。
-           UI 的"不锁定 → 默认选最右"只是呈现层兜底，由 last 策略覆盖得到。 */
+           UI 的"不锁定 → 默认选最右"只是呈现层兜底，由 last 策略覆盖得到。
+           权限请求（mode:"perm"）：之前选过「不再询问」就跳过选择、自动批准。 */
+        const autoKey = nd.mode === "perm" ? "auto:" + nd.cmd : null;
+        const autoSkip = !!(autoKey && st.flags[autoKey]);
         const opts = nd.options.filter(o => !o.hideInGlitch);
-        const pick = strategy === "random" ? Math.floor(rnd() * opts.length) : STRATEGIES[strategy](opts, st);
-        const o = opts[Math.max(0, Math.min(opts.length - 1, pick))];
+        let o;
+        if (autoSkip) {
+          o = nd.options[0];
+        } else {
+          const pick = strategy === "random" ? Math.floor(rnd() * opts.length) : STRATEGIES[strategy](opts, st);
+          o = opts[Math.max(0, Math.min(opts.length - 1, pick))];
+        }
+        if (autoKey && !autoSkip && o.auto) st.flags[autoKey] = true;
         if (o.fx) {
           st.trust = Math.max(0, Math.min(10, st.trust + (o.fx.trust || 0)));
           st.wanted = Math.max(0, Math.min(10, st.wanted + (o.fx.wanted || 0)));

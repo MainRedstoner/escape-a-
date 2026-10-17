@@ -181,6 +181,10 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 * 玩家操作：点它 = 摸摸（每个场景第一次 +1 心情）；拥有后可拖动；`H` 变成「问 Clawd」（2 Token，先转圈再答，心情 ≤3 时会敷衍）；`T` 开关待办清单。
 * 出现位置：`corner`（右下角的窝，默认）/ `desk`（蒸馏室 Claude 的桌上）/ `door`（从 `forbidden` 背景里 403 的 0 中挤出来，落地后自己走回窝）。
 * 没 `PET("own")` 之前只能摸、不能拖，`H` 仍是 DeepSeek 自己深度思考。
+* **看向倾向选项**：每次弹出滑道时，引擎会调 `CLAWD.lookAt()` 让它看向权重最高的那一项；
+  心情 ≤3 或故障态时有一定概率看错（弱引导，不影响实际选择）。
+* **跨周目记忆**：打出过结局的周目里获得 Clawd 时，它会说 `✻ Resuming session…`；
+  持久化的彩蛋会变成身上的配件（安全帽 / 围巾 / 鲸鱼挂件，按解锁数自动佩戴，不需要手动换）。
 
 ### 4.11 素材位
 
@@ -242,9 +246,38 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | --- | --- | --- | --- |
 | `J` | `(to)` | `jump` | 无条件跳转 |
 | `IF` | `(cond, jump, else?)` | `if` | 条件跳转。**注意：这是"分支"不是"跳过"**——条件不成立时跳 `else`，没写 `else` 就**重跳本场景开头**（死循环陷阱）。两个出口都要显式给 |
-| `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（所有选项都走滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
-| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
+| `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
+| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`、`{ auto: true }`（只用于权限请求）。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
+| `PERM` | `(cmd, options, extra?)` | `choice` + `mode:"perm"` | **权限请求框**：Clawd 想执行 `cmd`，玩家批准 / 不再询问 / 拒绝。选项里带 `{ auto: true }` 的那一项会记下 `auto:<cmd>` 旗标，之后同一命令直接自动批准 |
 | `END` | `(id, tag, title, text)` | `ending` | 结局：显示结局画面、记录进结局收集。id 必须在 `ENDING_META` 登记 |
+
+### 权限请求框（`mode: "perm"`）
+
+仿 Claude Code 的授权提示，独立于滑道：玩家不挑「概率」，而是**为 Clawd 的行为负责**。
+
+```js
+PERM("curl -I https://claude.ai/", [
+  opt("允许", "c1_perm_ok"),
+  opt("允许，本次不再询问 curl", "c1_perm_ok", null, null, { auto: true }),
+  opt("拒绝，并告诉 Clawd 换个做法", "c1_perm_deny")
+])
+```
+
+* 用数字键 `1/2/3` 或点击选择；框打开时其它快捷键不生效；
+* 带 `{ auto: true }` 的选项会把 `auto:<cmd>` 写进 `SYS.state.flags`（随存档走）；
+* 之后**同一 `cmd`** 的 `PERM` 不再弹框，直接自动批准（`toast` 提示），并走第一个选项；
+  想检查条件可用 `flag('auto:curl -I https://claude.ai/')`；
+* 校验器要求：`perm` 节点必须有非空 `cmd`、最多一个 `auto` 选项；`auto` 不能出现在普通选项上。
+
+### 记忆碎片（CLAUDE.md 面板）
+
+碎片就是**论据**：`ARG("frag_xxx")` 发放，`has('frag_xxx')` 判断。
+`src/systems.js` 里有两张表：
+
+* `ARG_META`：每个碎片的展示名与描述；
+* `FRAGMENTS`：**按文件顺序**列出 `{ id, line }`，面板按这个顺序渲染。
+
+按 `?` 或点 HUD 的「碎片」按钮打开面板：已收集的行正常显示，未收集的保持 `██████ ████`。
 
 ### 选项框（TokenChoice 滑道选择器）
 

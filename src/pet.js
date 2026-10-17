@@ -113,6 +113,24 @@ const CLAWD = (() => {
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+  /* ---------------- 跨周目记忆 ----------------
+   * 结局 / 彩蛋的记录由 SYS 持久化（localStorage 的 ea_endings / ea_eggs_found）。
+   * Clawd 记得你打过结局：新周目第一次获得它时会说 ✻ Resuming session…
+   * 解锁的彩蛋会变成它身上的小配件（自动佩戴，不需要手动换）。 */
+  function memory() {
+    const endings = (typeof SYS !== "undefined" && SYS.unlockedEndings) ? SYS.unlockedEndings() : [];
+    const eggs = (typeof SYS !== "undefined" && SYS.unlockedEggs) ? SYS.unlockedEggs() : {};
+    const eggN = Object.keys(eggs).filter(k => eggs[k]).length;
+    return { endings, eggN };
+  }
+
+  /** 让 Clawd 看向某个方向：x ∈ [-1, 1]（负数看左，正数看右）。 */
+  function lookAt(x, ms) {
+    lookX = clamp(x, -1, 1) * 0.9;
+    lookUntil = performance.now() + (ms || 3000);
+    lastInput = performance.now();
+  }
+
   /* ---------------- 互动 ---------------- */
   function pat() {
     const s = S();
@@ -171,6 +189,11 @@ const CLAWD = (() => {
         if (typeof ENGINE !== "undefined") ENGINE.toast("✻ 获得桌宠：Clawd");
         if (typeof AUDIO !== "undefined") AUDIO.sfx("ding");
         hearts(4);
+        // 打过结局的周目：Clawd 记得上一次会话
+        if (memory().endings.length) {
+          setPose("happy", 1500);
+          say("✻ Resuming session…", 3400);
+        }
         break;
       case "mood": addMood(+nd.arg || 0); break;
       case "anim": setPose(nd.arg); break;
@@ -319,6 +342,24 @@ const CLAWD = (() => {
     ctx.fillStyle = C.hi;                    // 左上角一点高光
     ctx.fillRect(ox + 3 * P, oy, P * 2, P * 0.6);
 
+    // 跨周目配件：打完一个结局→安全帽；彩蛋 2 个→围巾；彩蛋 4 个→鲸鱼挂件
+    const mem = memory();
+    if (mem.endings.length) {
+      ctx.fillStyle = "#2E2A28";
+      ctx.fillRect(ox + 5 * P, oy - 3 * P, 8 * P, 2.2 * P);
+      ctx.fillRect(ox + 4 * P, oy - 1.1 * P, 10 * P, P * 0.9);
+    }
+    if (mem.eggN >= 2) {
+      ctx.fillStyle = "#B33A2B";
+      ctx.fillRect(ox + 3 * P, oy + 6 * P, 12 * P, P * 1.1);
+      ctx.fillRect(ox + 14 * P, oy + 6.6 * P, P * 1.2, P * 2.2);
+    }
+    if (mem.eggN >= 4) {
+      ctx.fillStyle = "#7FC7E8";
+      ctx.fillRect(ox + 15 * P, oy + 8.4 * P, P * 0.9, P * 0.9);
+      ctx.fillRect(ox + 15.6 * P, oy + 7.4 * P, P * 0.7, P * 0.9);
+    }
+
     // 眼睛
     if (performance.now() > blinkAt + 120 && Math.random() < dt / 3.5) blinkAt = performance.now();
     if (performance.now() > lookUntil && Math.random() < dt / 5) { lookX = (Math.random() - 0.5) * 0.7; lookUntil = performance.now() + 1500; }
@@ -380,9 +421,10 @@ const CLAWD = (() => {
   }
 
   return {
-    apply, todo, toggleTodo, think, say,
+    apply, todo, toggleTodo, think, say, lookAt,
     blank,
     get owned() { const s = S(); return !!(s && s.owned); },
-    get mood() { const s = S(); return s ? s.mood : 5; }
+    get mood() { const s = S(); return s ? s.mood : 5; },
+    get lookX() { return lookX; }
   };
 })();

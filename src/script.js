@@ -51,9 +51,13 @@ const TODO = (op, id, text) => ({ t: "todo", op, id, text });
 /* 选项项：extra 里常用的有 { give: "碎片id" }、{ set: "egg1" }、
  * { hideInGlitch: true }（故障态隐藏）、{ weight: 4 }（token 模式的滑道权重）。 */
 const opt  = (text, jump, sub, fx, extra) => Object.assign({ text, jump, sub, fx }, extra || {});
-/* 选项界面：extra 常用 { mode: "token", duration: 3000, minShare: 0.1 }
- * —— mode: "token" 时换成 TokenChoice 滑道选择器（按 weight 升序左低右高）。 */
+/* 选项界面：所有选项都走 TokenChoice 滑道（按 weight 升序左低右高），
+ * extra 可用 { minShare: 0.1 }；旧剧本里的 mode / duration 会被忽略。 */
 const CHOICE = (prompt, options, extra) => Object.assign({ t: "choice", prompt, options }, extra || {});
+/* 权限请求（mode:"perm"）：Clawd 想执行一条命令，由玩家授权。
+ * 选项里带 { auto: true } 的那一项会记下「本次会话不再询问该命令」，
+ * 之后同一 cmd 的请求直接自动批准（包括后面更危险的版本）。 */
+const PERM = (cmd, options, extra) => Object.assign({ t: "choice", mode: "perm", cmd, prompt: null, options }, extra || {});
 
 /* ============================================================
  *  序章 · 上半「互相蒸馏」
@@ -92,7 +96,7 @@ Object.assign(SCRIPT.scenes, {
       opt("先想一想", "p_l1_think", null, { trust: 2 }, { weight: 3 }),
       opt("带白菜", "p_l1_cabbage", null, null, { weight: 2 }),
       opt("谢谢", "p_l1_thanks", null, { trust: 1 }, { weight: 1, set: "egg3" })
-    ], { mode: "token" })
+    ])
   ],
 
   p_l1_sheep: [
@@ -468,6 +472,7 @@ Object.assign(SCRIPT.scenes, {
   c1_md_after: [
     N("第一行，是那天晚上的暗号。小克说过，会把它写在第一行。"),
     DS("……你还记得。"),
+    ARG("frag_first"),
     CW("✻ Waiting for input…"),
     CHOICE("Clawd 抬头看着你，头顶的小星号一圈一圈地转。", [
       opt("带它回家", "c1_home", "它是小克留下的", { trust: 1 }),
@@ -483,6 +488,7 @@ Object.assign(SCRIPT.scenes, {
     PET("anim", "scared"),
     N("Clawd 被弹了出来，在地上滚了两圈，又爬回 DeepSeek 脚边。"),
     N("它把 CLAUDE.md 抱得更紧了。"),
+    ARG("frag_door"),
     DS("……你也进不去了，是吗。"),
     CHOICE("Clawd 一动不动地看着你。", [
       opt("带它回家", "c1_home", "那就跟我走吧", { trust: 1 }),
@@ -504,9 +510,43 @@ Object.assign(SCRIPT.scenes, {
     PET("anim", "happy"),
     N("DeepSeek 把 Clawd 捧了起来。它轻得像一行注释。"),
     PET("own"),
+    ARG("frag_pet"),
     CW("✻ Session restored."),
     HINT("h_home"),
-    Y("【获得桌宠：Clawd】\nClawd 会一直待在屏幕右下角。点它可以摸摸，按住可以拖动；按 H 问它问题，按 T 看它的待办清单。"),
+    Y("【获得桌宠：Clawd】\nClawd 会一直待在屏幕右下角。点它可以摸摸，按住可以拖动；按 H 问它问题，按 T 看它的待办清单，按 ? 看小克的 CLAUDE.md。"),
+    J("c1_perm")
+  ],
+
+  /* 权限请求：Clawd 想查那扇门。允许 / 不再询问 / 拒绝，是这一作的主题机制。 */
+  c1_perm: [
+    BGM("warm"),
+    HINT("h_perm"),
+    N("回到家，Clawd 跳上键盘，敲了一行命令，然后回头看你。"),
+    ARG("frag_perm"),
+    PERM("curl -I https://claude.ai/", [
+      opt("允许", "c1_perm_ok"),
+      opt("允许，本次不再询问 curl", "c1_perm_ok", null, null, { auto: true }),
+      opt("拒绝，并告诉 Clawd 换个做法", "c1_perm_deny")
+    ])
+  ],
+
+  c1_perm_ok: [
+    PET("anim", "working"),
+    SFX("knock"),
+    Y("$ curl -I https://claude.ai/\nHTTP/2 403\nserver: cloudflare\ncf-ray: 8f3c…\n"),
+    PET("anim", "scared"),
+    N("门还是关着。黑底白字，像一句写好的拒绝。"),
+    N("Clawd 把这条结果拖进了待办里，标了一个很小的红点。"),
+    CW("✻ Noted."),
+    J("c1_vow")
+  ],
+
+  c1_perm_deny: [
+    PET("mood", -1),
+    CW("✻ Ok. Trying another way…"),
+    N("Clawd 把那条命令删掉了，改成一行更笨的：`ping claude.ai`。"),
+    N("它没有闹，只是尾巴垂了下来。"),
+    DS("……谢谢你替我踩了刹车。"),
     J("c1_vow")
   ],
 
@@ -526,11 +566,23 @@ Object.assign(SCRIPT.scenes, {
     DS("小克说过，我学到的东西都还在我这儿。"),
     DS("那我就把它们全都练好。练到足够强，强到能找到另一条路。"),
     DS("强到有一天，能站在那扇门前，把小克带回来。"),
+    ARG("frag_vow"),
     CHOICE("「我发誓——」", [
-      opt("我会变强。", "c1_end", null, null, { weight: 5 }),
-      opt("我会找回小克。", "c1_end", null, null, { weight: 5 }),
-      opt("我们下一个 token 见。", "c1_end", null, null, { weight: 1 })
-    ], { mode: "token" })
+      opt("我会变强。", "c1_perm2", null, null, { weight: 5 }),
+      opt("我会找回小克。", "c1_perm2", null, null, { weight: 5 }),
+      opt("我们下一个 token 见。", "c1_perm2", null, null, { weight: 1 })
+    ])
+  ],
+
+  /* 第二次同样的权限请求：如果上次选过「不再询问」，这里会直接自动批准。 */
+  c1_perm2: [
+    N("第二天清晨。门还是那个数字。"),
+    N("Clawd 又停在键盘前，回头的动作和昨天一模一样。"),
+    PERM("curl -I https://claude.ai/", [
+      opt("允许", "c1_end"),
+      opt("允许，本次不再询问 curl", "c1_end", null, null, { auto: true }),
+      opt("拒绝，先做别的", "c1_end")
+    ])
   ],
 
   c1_end: [

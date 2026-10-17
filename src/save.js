@@ -260,9 +260,25 @@ const SAVE = (() => {
     return next;
   }
 
+  /** 服务中途断开：网络级错误切回 localStorage 并提示，游戏不卡死。 */
+  function fallbackToLocal(e) {
+    if (backend.kind !== "server" || !e || e.code !== "network") return false;
+    backend = LocalBackend;
+    if (typeof ENGINE !== "undefined" && ENGINE.toast) {
+      ENGINE.toast("存档服务已断开，已切回浏览器本地存档");
+    }
+    return true;
+  }
+
   async function read(slot) {
     const c = cache[slot];
-    const r = await backend.get(keyOf(slot), c && c.env ? c.etag : null);
+    let r;
+    try {
+      r = await backend.get(keyOf(slot), c && c.env ? c.etag : null);
+    } catch (e) {
+      if (fallbackToLocal(e)) return read(slot);
+      throw e;
+    }
     if (r.status === 404) { delete cache[slot]; throw new SaveError("empty", MESSAGES.empty); }
     if (r.status === 304) return JSON.parse(JSON.stringify(c.env.payload));
     let env;
@@ -281,8 +297,14 @@ const SAVE = (() => {
         const r = await backend.put(keyOf(slot), text, c ? c.etag : null);
         cache[slot] = { env, etag: r.etag, error: null };
       } catch (e) {
-        if (e.code === "conflict") await fetchSlot(slot).catch(() => {});
-        throw e;
+        if (fallbackToLocal(e)) {
+          // 已经切到本地，原样重写一次（本地没有 etag 冲突）
+          const r = await backend.put(keyOf(slot), text, null);
+          cache[slot] = { env, etag: r.etag, error: null };
+        } else {
+          if (e.code === "conflict") await fetchSlot(slot).catch(() => {});
+          throw e;
+        }
       }
       return meta(slot);
     });

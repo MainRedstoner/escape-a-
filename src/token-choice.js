@@ -463,6 +463,18 @@ class TokenChoice extends EventTarget {
     this._setActive(this._indexAt(p));
   }
 
+  /** 第 index 个选项中心在框内的横向比例（0~1），给桌宠「看向」用。 */
+  centerRatio(index) {
+    const shares = this._shares;
+    if (!shares.length) return 0.5;
+    let cum = 0;
+    for (let i = 0; i < shares.length; i++) {
+      if (i === index) return cum + shares[i] / 2;
+      cum += shares[i];
+    }
+    return 0.5;
+  }
+
   _indexAt(p) {
     let cum = 0;
     for (let i = 0; i < this._shares.length; i++) {

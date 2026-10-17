@@ -93,6 +93,33 @@
     margin-bottom:20px;letter-spacing:6px;font-weight:700;}
   .panel h3{color:var(--clay);font-size:19px;margin:20px 0 8px;letter-spacing:2px;}
   .panel p,.panel li{font-size:18px;line-height:1.85;color:#AEB8C6;}
+
+  /* 记忆碎片面板：像一份还在恢复的 CLAUDE.md */
+  .fragDoc{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:18px;
+    line-height:2;white-space:pre-wrap;color:#7D8798;background:rgba(5,7,10,.7);
+    border:1px solid var(--line);padding:18px 22px;margin:14px 0 6px;}
+  .fragDoc .got{color:#E6ECF5;}
+  .fragDoc .locked{color:#4B5666;letter-spacing:2px;}
+  .fragDoc .title{color:var(--clay);letter-spacing:1px;}
+
+  /* 权限请求框（mode: "perm"）：仿 Claude Code 的授权提示 */
+  #ovPerm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(3,5,8,.55);z-index:40;}
+  #ovPerm[hidden]{display:none !important;}
+  .pm-card{width:760px;background:rgba(12,16,22,.98);border:1px solid var(--line);
+    border-left:3px solid var(--clay);padding:22px 26px;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .pm-head{font-size:15px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;}
+  .pm-cmd{font-size:22px;color:#EDF1F7;background:rgba(5,7,10,.85);border:1px solid var(--line);
+    padding:12px 14px;margin-bottom:14px;word-break:break-all;}
+  .pm-cmd::before{content:"$ ";color:var(--clay);}
+  .pm-opts{display:flex;flex-direction:column;gap:8px;}
+  .pm-opt{display:flex;gap:12px;align-items:center;background:rgba(20,25,34,.9);
+    border:1px solid var(--line);color:var(--text);font:inherit;font-size:19px;
+    padding:10px 14px;cursor:pointer;text-align:left;}
+  .pm-opt:hover{border-color:var(--clay);background:rgba(28,34,45,.95);}
+  .pm-opt .num{color:var(--clay);}
+  .pm-opt .auto{margin-left:auto;font-size:13px;color:var(--muted);}
+  .pm-hint{font-size:13px;color:var(--muted);margin-top:12px;letter-spacing:1px;}
   .panel ul{padding-left:24px;}
   .panel a{color:var(--blue-pale);}
   .panel b{color:#DDE4EE;}
@@ -194,6 +221,7 @@
         <button class="hbtn" id="btnAuto">自动(A)</button>
         <button class="hbtn" id="btnSave">存档</button>
         <button class="hbtn" id="btnLoad">读档</button>
+        <button class="hbtn" id="btnFrag" style="display:none">碎片 (?)</button>
         <button class="hbtn" id="btnMenu">菜单</button>
       </div>
     </div>
@@ -212,6 +240,16 @@
     <div id="choices" class="layer">
       <div id="choicePrompt"></div>
       <div id="choiceToken" hidden></div>
+    </div>
+
+    <!-- 权限请求：仿 Claude Code 的授权框（mode: "perm"） -->
+    <div id="ovPerm" class="perm" hidden>
+      <div class="pm-card">
+        <div class="pm-head">Clawd 想要执行</div>
+        <div class="pm-cmd"></div>
+        <div class="pm-opts"></div>
+        <div class="pm-hint">按数字键 1 / 2 / 3 直接选择</div>
+      </div>
     </div>
 
     <div id="chapterCard" class="layer">
@@ -260,6 +298,11 @@
     <div id="ovGallery" class="overlay"><div class="panel" style="width:880px;"><h2>结局收集 & 彩蛋</h2>
       <div class="endGrid" id="endGrid"></div><h3>彩蛋</h3>
       <div id="eggList"></div>
+      <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
+
+    <div id="ovFrag" class="overlay"><div class="panel" style="width:840px;">
+      <h2>CLAUDE.md <span id="fragCount" style="font-size:16px;color:var(--muted);font-weight:400;"></span></h2>
+      <pre id="fragDoc" class="fragDoc"></pre>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本模板</h2>

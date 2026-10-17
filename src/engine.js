@@ -13,6 +13,9 @@ const ENGINE = (() => {
     textbox: $("textbox"), nameplate: $("nameplate"), text: $("text"), nextArrow: $("nextArrow"),
     choices: $("choices"), choicePrompt: $("choicePrompt"),
     choiceToken: $("choiceToken"),
+    permBox: $("ovPerm"), permCmd: $("ovPerm") ? $("ovPerm").querySelector(".pm-cmd") : null,
+    permOpts: $("ovPerm") ? $("ovPerm").querySelector(".pm-opts") : null,
+    fragDoc: $("fragDoc"), fragCount: $("fragCount"), btnFrag: $("btnFrag"),
     chapterCard: $("chapterCard"), chMain: $("chMain"), chSub: $("chSub"),
     hintBubble: $("hintBubble"), hintText: $("hintText"), toast: $("toast"),
     titleScreen: $("titleScreen"), titleMenu: $("titleMenu"),
@@ -72,6 +75,15 @@ const ENGINE = (() => {
   window.addEventListener("keydown", e => {
     if (e.key === "Control") keys.ctrl = true;
     if (!started) return;
+    // 权限请求框打开时，数字键直接选，其它按键不往下传
+    if (permNode) {
+      const i = "12345".indexOf(e.key);
+      if (i >= 0 && i < permNode.options.length) {
+        e.preventDefault();
+        choosePerm(permNode.options[i], permNode);
+      }
+      return;
+    }
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
       // 扫描期间 Space/Enter 是「锁定」，其余时候推进对话
@@ -82,6 +94,7 @@ const ENGINE = (() => {
     else if (e.key === "l" || e.key === "L") showHistory();
     else if (e.key === "a" || e.key === "A") toggleAuto();
     else if (e.key === "t" || e.key === "T") CLAWD.toggleTodo();
+    else if (e.key === "?") showFragments();
     else if (e.key === "Escape") confirmMenu();
   });
   window.addEventListener("keyup", e => { if (e.key === "Control") keys.ctrl = false; });
@@ -370,12 +383,14 @@ const ENGINE = (() => {
   function hideChoices() {
     ui.choices.style.display = "none";
     if (wheel) wheel.close();
+    hidePerm();
   }
 
   /* 故障演出的死选项文案（glitch 时塞到滑道最左端，锁定它会被拒绝并重扫） */
   const DEAD_TEXT = "（该选项已被静默移除）";
 
   function buildChoices(nd) {
+    if (nd.mode === "perm") { buildPerm(nd); return; }
     hideTextbox();
     ui.choices.style.display = "flex";
     if (nd.prompt) { ui.choicePrompt.style.display = "block"; ui.choicePrompt.textContent = nd.prompt; }
@@ -398,6 +413,80 @@ const ENGINE = (() => {
 
     wheel.setOptions(wheelOpts.map(o => ({ text: o.text, weight: w(o) })));
     wheel.open();
+    petLookAtChoice();
+  }
+
+  /** 桌宠看向它倾向的那一项：权重最高的选项（心情低或故障时会看错）。 */
+  function petLookAtChoice() {
+    if (typeof CLAWD === "undefined" || !CLAWD.owned || !wheel) return;
+    const wof = o => (typeof o.weight === "number" && o.weight >= 0 ? o.weight : 1);
+    let idx = 0;
+    for (let i = 1; i < wheelOpts.length; i++) if (wof(wheelOpts[i]) >= wof(wheelOpts[idx])) idx = i;
+    if (SYS.state.vis.glitch || CLAWD.mood <= 3) {
+      if (Math.random() < 0.6) idx = Math.floor(Math.random() * wheelOpts.length);
+    }
+    const ratio = typeof wheel.centerRatio === "function" ? wheel.centerRatio(idx) : 0.5;
+    CLAWD.lookAt(ratio * 2 - 1, 4600);
+  }
+
+  /* ---------------- 权限请求（mode: "perm"） ----------------
+   * 仿 Claude Code 的授权框：Clawd 想执行一条命令，由玩家决定。
+   * 选「不再询问」会记旗标 auto:<cmd>，之后同一命令再出现就跳过 UI、自动批准
+   * （包括后面更危险的版本）——这是全作"方便 vs 掌控"的主题机制。 */
+  let permNode = null;
+
+  function permAutoKey(nd) { return "auto:" + String(nd.cmd || ""); }
+
+  function hidePerm() {
+    permNode = null;
+    if (ui.permBox) ui.permBox.hidden = true;
+  }
+
+  function buildPerm(nd) {
+    hideTextbox();
+    ui.choices.style.display = "none";
+    if (wheel) wheel.close();
+    permNode = nd;
+
+    if (SYS.state.flags[permAutoKey(nd)]) {
+      // 之前批准过「本次不再询问」：不再弹框，按允许处理
+      toast("✻ 自动批准：" + (nd.cmd || ""));
+      AUDIO.sfx("click");
+      setTimeout(() => {
+        if (permNode === nd) { hidePerm(); pickChoice(nd.options[0]); }
+      }, 520);
+      return;
+    }
+
+    ui.permCmd.textContent = nd.cmd || "claude";
+    ui.permOpts.innerHTML = "";
+    nd.options.forEach((o, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pm-opt";
+      const num = document.createElement("span");
+      num.className = "num"; num.textContent = (i + 1) + ".";
+      const txt = document.createElement("span");
+      txt.textContent = o.text;
+      b.appendChild(num); b.appendChild(txt);
+      if (o.auto) {
+        const tag = document.createElement("span");
+        tag.className = "auto"; tag.textContent = "本次会话不再询问";
+        b.appendChild(tag);
+      }
+      b.addEventListener("click", () => choosePerm(o, nd));
+      ui.permOpts.appendChild(b);
+    });
+    ui.permBox.hidden = false;
+    document.body.classList.toggle("glitching", !!SYS.state.vis.glitch);
+    AUDIO.sfx("knock");
+  }
+
+  function choosePerm(o, nd) {
+    if (permNode !== nd) return;
+    if (o.auto) SYS.state.flags[permAutoKey(nd)] = true;
+    hidePerm();
+    pickChoice(o);
   }
 
   function onWheelSelect(d) {
@@ -447,6 +536,11 @@ const ENGINE = (() => {
       ui.stArg.parentElement.style.display = total ? "" : "none";   // 还没登记碎片时不占 HUD
     }
     if (ui.stEgg) ui.stEgg.textContent = SYS.eggCount() + "/" + Object.keys(SYS.EGG_META).length;
+    if (ui.btnFrag && SYS.FRAGMENTS) {
+      const total = SYS.FRAGMENTS.length;
+      ui.btnFrag.style.display = total ? "" : "none";
+      if (total) ui.btnFrag.textContent = `碎片 ${SYS.fragCount()}/${total} (?)`;
+    }
     $("btnHint").textContent = CLAWD.owned ? "问 Clawd(H)" : "深度思考(H)";
   }
 
@@ -685,6 +779,31 @@ const ENGINE = (() => {
   function closeOverlay() {
     document.querySelectorAll(".overlay").forEach(o => o.style.display = "none");
   }
+
+  /* 记忆碎片：一把还在恢复的 CLAUDE.md —— 已收集的行正常显示，其余仍是 ████ */
+  function showFragments() {
+    if (!SYS.FRAGMENTS || !SYS.FRAGMENTS.length) { toast("（记忆碎片还没登记）"); return; }
+    const got = SYS.state.args;
+    ui.fragDoc.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "title";
+    head.textContent = "# CLAUDE.md";
+    ui.fragDoc.appendChild(head);
+    for (const f of SYS.FRAGMENTS) {
+      const line = document.createElement("div");
+      if (got.includes(f.id)) {
+        line.className = "got";
+        line.textContent = f.line;
+      } else {
+        line.className = "locked";
+        line.textContent = "██████ ████ ██████████";
+      }
+      ui.fragDoc.appendChild(line);
+    }
+    ui.fragCount.textContent = `${SYS.fragCount()} / ${SYS.FRAGMENTS.length} 行已恢复`;
+    $("ovFrag").style.display = "flex";
+    AUDIO.sfx("click");
+  }
   function showGallery() {
     const unlocked = SYS.unlockedEndings();
     ui.endGrid.innerHTML = "";
@@ -801,6 +920,7 @@ const ENGINE = (() => {
   $("btnAuto").addEventListener("click", toggleAuto);
   $("btnSave").addEventListener("click", () => { slotPick = "save"; renderSlots("save"); });
   $("btnLoad").addEventListener("click", () => renderSlots("load"));
+  $("btnFrag").addEventListener("click", showFragments);
   $("btnMenu").addEventListener("click", confirmMenu);
 
   function toggleAuto() {
