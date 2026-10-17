@@ -530,16 +530,22 @@ const ENGINE = (() => {
   function snapshot() {
     return JSON.parse(JSON.stringify({ cur, hintKey, state: SYS.state }));
   }
+  /* 写档走 SAVE（异步）。返回 Promise<boolean>，不会 reject：
+   * 手动存档成功 / 失败都如实 toast；自动存档 fire-and-forget，只在失败时提示，不阻塞推进。 */
   function saveGame(slot, silent) {
-    const data = snapshot();
-    data.ts = Date.now();
-    data.chapter = SYS.state.chapter;
-    SYS.store.set("ea_save_" + slot, data);
-    if (!silent) { toast("已保存到槽位 " + slot); AUDIO.sfx("ding"); }
+    return SAVE.write(slot, snapshot(), { chapter: SYS.state.chapter }).then(() => {
+      if (!silent) { toast("已保存到槽位 " + slot); AUDIO.sfx("ding"); }
+      return true;
+    }, e => {
+      toast((silent ? "自动存档失败：" : "保存失败：") + SAVE.describe(e));
+      AUDIO.sfx("deny");
+      return false;
+    });
   }
-  function loadGame(slot) {
-    const data = SYS.store.get("ea_save_" + slot, null);
-    if (!data) { toast("该槽位是空的"); return false; }
+  async function loadGame(slot) {
+    let data;
+    try { data = await SAVE.read(slot); }
+    catch (e) { toast("读档失败：" + SAVE.describe(e)); AUDIO.sfx("deny"); return false; }
     SYS.state = data.state;
     cur = data.cur;
     hintKey = data.hintKey || "";
@@ -560,54 +566,104 @@ const ENGINE = (() => {
   function audioForBg(bg) {
     return ({})[bg] || "sea";
   }
+  /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
+  function validateSnapshot(p) {
+    if (typeof p.cur.scene !== "string" || !SCRIPT.scenes[p.cur.scene]) return "场景不存在";
+    if (!Number.isInteger(p.cur.idx) || p.cur.idx < 0) return "场景位置无效";
+    const st = p.state;
+    if (typeof st.tokens !== "number" || typeof st.trust !== "number" || typeof st.wanted !== "number") return "数值缺失";
+    if (!Array.isArray(st.args) || !st.flags || typeof st.flags !== "object" || !st.vis) return "状态结构不完整";
+    return null;
+  }
+
+  /* 存档面板的点选模式：save（写入槽位）/ export（把槽位导出成文件）/ import（从文件导入到槽位） */
+  let slotPick = "save";
+  let importTarget = null;
+  function setSlotPick(mode) {
+    slotPick = slotPick === mode ? "save" : mode;
+    renderSlots("save");
+  }
+  function slotName(s) { return s === "auto" ? "自动存档" : "槽位 " + s; }
   function renderSlots(mode) {
     const box = mode === "save" ? ui.saveSlots : ui.loadSlots;
     box.innerHTML = "";
+    if (mode === "save") {
+      $("saveWhere").textContent = `存档位置：${SAVE.label}` +
+        (slotPick === "export" ? " · 点选要导出的槽位" : slotPick === "import" ? " · 点选要导入到的槽位" : "");
+      $("btnExport").classList.toggle("on", slotPick === "export");
+      $("btnImport").classList.toggle("on", slotPick === "import");
+    }
     const slots = ["1", "2", "3", "auto"];
     for (const s of slots) {
-      const data = SYS.store.get("ea_save_" + s, null);
+      const m = SAVE.meta(s);
       const b = document.createElement("button");
       b.className = "slotBtn";
-      if (data) {
-        const d = new Date(data.ts);
-        const t1 = document.createElement("span");
-        t1.style.cssText = "font-weight:700;color:#D97757;";
-        t1.textContent = s === "auto" ? "自动存档" : "槽位 " + s;
-        b.appendChild(t1);
-        b.appendChild(document.createTextNode(" · " + data.chapter));
-        const m = document.createElement("div");
-        m.className = "meta";
-        m.textContent = `Token ${data.state.tokens} · 信任 ${data.state.trust} · 通缉 ${data.state.wanted} · ${d.toLocaleString("zh-CN")}`;
-        b.appendChild(m);
-        if (mode === "save" && s !== "auto") {
-          const del = document.createElement("button");
-          del.className = "del"; del.textContent = "删除"; del.dataset.slot = s;
-          b.appendChild(del);
-        }
-      } else {
-        const t1 = document.createElement("span");
-        t1.style.cssText = "font-weight:700;color:#8A877F;";
-        t1.textContent = s === "auto" ? "自动存档" : "槽位 " + s;
-        b.appendChild(t1);
-        const m = document.createElement("div");
-        m.className = "meta"; m.textContent = "—— 空 ——";
-        b.appendChild(m);
+      if (mode === "save" && slotPick === "save" && m && s !== "auto") {
+        const del = document.createElement("button");
+        del.className = "del"; del.textContent = "删除"; del.dataset.slot = s;
+        b.appendChild(del);
       }
+      const t1 = document.createElement("span");
+      t1.style.cssText = `font-weight:700;color:${m && !m.error ? "#D97757" : "#8A877F"};`;
+      t1.textContent = slotName(s);
+      b.appendChild(t1);
+      const line = document.createElement("div");
+      line.className = "meta";
+      if (m && m.error) {
+        line.textContent = "⚠ " + m.message;
+        line.style.color = "#D93A2B";
+      } else if (m) {
+        b.appendChild(document.createTextNode(" · " + m.chapter));
+        line.textContent = `Token ${m.tokens} · 信任 ${m.trust} · 通缉 ${m.wanted} · ${new Date(m.ts).toLocaleString("zh-CN")}`;
+      } else line.textContent = "—— 空 ——";
+      b.appendChild(line);
       b.addEventListener("click", e => {
         if (e.target.classList && e.target.classList.contains("del")) {
-          SYS.store.del("ea_save_" + e.target.dataset.slot);
-          renderSlots(mode);
+          SAVE.remove(s).catch(err => { toast("删除失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); })
+            .then(() => renderSlots(mode));
           return;
         }
-        if (mode === "save") {
-          if (s === "auto") { toast("自动存档不可覆盖"); return; }
-          saveGame(s); renderSlots("save");
-        } else loadGame(s);
+        if (mode === "load") { loadGame(s); return; }
+        if (slotPick === "export") {
+          try { SAVE.exportSlot(s); toast(`已导出${slotName(s)}`); }
+          catch (err) { toast("导出失败：" + SAVE.describe(err)); AUDIO.sfx("deny"); }
+          return;
+        }
+        if (slotPick === "import") {
+          if (s === "auto") { toast("不能导入到自动存档"); return; }
+          importTarget = s;
+          if (!m) { $("importFile").click(); return; }
+          const cb = $("confirmBox");
+          $("confirmText").textContent = `用存档文件覆盖${slotName(s)}？`;
+          cb.style.display = "flex";
+          $("cfYes").onclick = () => { cb.style.display = "none"; $("importFile").click(); };
+          $("cfNo").onclick = () => { cb.style.display = "none"; };
+          return;
+        }
+        if (s === "auto") { toast("自动存档不可覆盖"); return; }
+        saveGame(s).then(() => renderSlots("save"));
       });
       box.appendChild(b);
     }
     (mode === "save" ? $("ovSave") : $("ovLoad")).style.display = "flex";
   }
+
+  /* 导入：SAVE.importFile 先完整解码 + 校验，全部通过才写入，坏文件不会覆盖现有存档 */
+  $("importFile").addEventListener("change", e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    const slot = importTarget;
+    importTarget = null;
+    if (!file || !slot) return;
+    SAVE.importFile(file, slot).then(() => {
+      toast(`已导入到${slotName(slot)}`); AUDIO.sfx("ding");
+      slotPick = "save";
+    }, err => {
+      toast("导入失败：" + SAVE.describe(err)); AUDIO.sfx("deny");
+    }).then(() => renderSlots("save"));
+  });
+  $("btnExport").addEventListener("click", () => setSlotPick("export"));
+  $("btnImport").addEventListener("click", () => setSlotPick("import"));
 
   /* ---------------- 结局 ---------------- */
   function showEnding(nd) {
@@ -701,8 +757,7 @@ const ENGINE = (() => {
       b.addEventListener("click", fn);
       ui.titleMenu.appendChild(b);
     }
-    const anySave = ["1", "2", "3", "auto"].some(s => SYS.store.get("ea_save_" + s, null));
-    ui.titleMenu.children[1].disabled = !anySave;
+    ui.titleMenu.children[1].disabled = !SAVE.hasAny();
   }
 
   function newGame() {
@@ -713,11 +768,7 @@ const ENGINE = (() => {
     goto("start", 0);
   }
   function continueGame() {
-    let best = null, bestSlot = null;
-    for (const s of ["auto", "1", "2", "3"]) {
-      const d = SYS.store.get("ea_save_" + s, null);
-      if (d && (!best || d.ts > best.ts)) { best = d; bestSlot = s; }
-    }
+    const bestSlot = SAVE.latest();
     if (bestSlot) loadGame(bestSlot);
     else toast("没有找到任何存档");
   }
@@ -747,7 +798,7 @@ const ENGINE = (() => {
   $("btnHint").addEventListener("click", toggleHint);
   $("btnLog").addEventListener("click", showHistory);
   $("btnAuto").addEventListener("click", toggleAuto);
-  $("btnSave").addEventListener("click", () => renderSlots("save"));
+  $("btnSave").addEventListener("click", () => { slotPick = "save"; renderSlots("save"); });
   $("btnLoad").addEventListener("click", () => renderSlots("load"));
   $("btnMenu").addEventListener("click", confirmMenu);
 
@@ -790,6 +841,10 @@ const ENGINE = (() => {
     ui.titleScreen.style.display = "flex";
     requestAnimationFrame(loop);
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
+    // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「继续游戏」；失败只提示，不阻塞游戏
+    SAVE.init({ validate: validateSnapshot }).then(() => {
+      if (!started) buildTitle();
+    }, e => toast("存档初始化失败：" + SAVE.describe(e)));
     debugBoot();
   }
 

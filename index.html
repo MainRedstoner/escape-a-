@@ -120,6 +120,9 @@
     padding:13px 20px;font-size:17px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);}
   .slotBtn:hover{border-left-color:var(--clay);}
   .slotBtn .meta{color:var(--muted);font-size:14px;margin-top:4px;}
+  .saveTools{display:flex;align-items:center;gap:10px;margin-top:6px;}
+  .saveTools #saveWhere{flex:1;color:var(--muted);font-size:14px;}
+  .saveTools .hbtn.on{background:var(--clay);color:#fff;}
   .del{float:right;color:var(--red);border:none;background:none;font-size:15px;cursor:pointer;}
   #histList{max-width:960px;max-height:60vh;overflow-y:auto;padding:10px 22px;}
   .histLine{margin-bottom:13px;font-size:18px;line-height:1.7;color:#B6C0CE;}
@@ -249,6 +252,9 @@
 
     <div id="ovSave" class="overlay"><div class="panel" style="width:760px;"><h2>存档</h2>
       <div class="slotRow" id="saveSlots"></div>
+      <div class="saveTools"><span id="saveWhere"></span>
+        <button class="hbtn" id="btnExport">导出存档</button><button class="hbtn" id="btnImport">导入存档</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovLoad" class="overlay"><div class="panel" style="width:760px;"><h2>读档</h2>
@@ -310,6 +316,7 @@
 <script src="src/audio.js"></script>
 <script src="src/token-choice.js"></script>
 <script src="src/script.js"></script>
+<script src="src/save.js"></script>
 <script src="src/engine.js"></script>
 </body>
 </html>
