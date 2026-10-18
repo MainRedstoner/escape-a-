@@ -127,6 +127,7 @@ const ENGINE = (() => {
           const btns = document.querySelectorAll("#termPicker .termtool");
           if (i >= 0 && i < btns.length) { e.preventDefault(); btns[i].click(); return; }
         }
+        if (e.key === "h" || e.key === "H") { e.preventDefault(); toggleHint(); return; }
         return;
       }
     }
@@ -670,6 +671,9 @@ const ENGINE = (() => {
   let workNode = null;
   let termDraft = null;        // tool call 草稿 { tool, args }
   let termTool = null;         // 选中的工具对象
+  let inlineBusy = false;      // 扫缓存这类内联工具正在转圈
+  let inlineSpinTimer = null;
+  let inlineDoneTimer = null;
   let chatWho = null;
   let chatInScene = false;     // 正在一段对话里：联系人列表先锁住，别让人中途换人
   let chatAutoTimer = null;    // 对方消息自动冒出来的计时器
@@ -677,6 +681,7 @@ const ENGINE = (() => {
   let chatWaitBack = null;     // 「聊完先留在聊天界面」时的返回场景（null = 回工作台）
   let newsId = null;
   let forumTid = null, forumTpl = null, forumCompose = false;
+  const forumTimers = {};      // 贴吧回复 / 封号的计时器（切页面不中断）
   let curChat = null;
   let chatOpts = [];
   const CHAT_IGNORE = ["n", "sys", "cl", "clawd"];
@@ -748,7 +753,9 @@ const ENGINE = (() => {
     }
     workNode = nd;
     SYS.state.workScene = cur.scene;
+    ui.hintBubble.style.display = "none";
     termDraft = null; termTool = null;
+    clearInline();
     chatWho = null; newsId = null;
     chatWaitBack = null; forumTid = null; forumCompose = false;
     hideTextbox();
@@ -765,6 +772,9 @@ const ENGINE = (() => {
     const elm = document.getElementById("ovWork");
     if (elm) elm.style.display = "none";
     document.body.classList.remove("work-open");
+    ui.hintBubble.style.display = "none";
+    clearInline();
+    clearForumTimers();
     workNode = null; termDraft = null; termTool = null;
     chatWaitBack = null;
     closeChatScreen();
@@ -851,21 +861,51 @@ const ENGINE = (() => {
     if (t.jump) { closeWork(); goto(t.jump, 0); }
   }
 
-  /* 扫缓存这类工具不切场景，直接在终端里出结果 */
+  /* 扫缓存这类工具不切场景，直接在终端里转一会儿圈再出结果 */
   function runInline(t) {
+    if (inlineBusy) return;
     const ink = t.inline || {};
-    (ink.out || []).forEach(line => termAppend("t-ok", line));
-    const set = ink.set ? (Array.isArray(ink.set) ? ink.set : [ink.set]) : [];
-    set.forEach(k => { SYS.state.flags[k] = true; });
-    if (ink.arg && !SYS.state.args.includes(ink.arg)) {
-      SYS.state.args.push(ink.arg);
-      toast(`📜 获得论据「${(SYS.ARG_META[ink.arg] || { name: ink.arg }).name}」`);
-      AUDIO.sfx("ding");
-    }
-    updateHUD();
-    termAppend("t-ok", "✓ " + t.name + " 完成");
-    refreshToolMarks();
-    refreshWorkFoot();
+    const out = ink.out || [];
+    if (out.length) termAppend("t-ok", out[0]);
+    const spin = termAppend("t-p", "  扫描中 |");
+    const frames = ["|", "/", "-", "\\"];
+    let fi = 0;
+    inlineBusy = true;
+    document.getElementById("btnToolCall").disabled = true;
+    document.getElementById("btnContinue").disabled = true;
+    document.getElementById("termHint").textContent = "扫描中……先别关终端";
+    inlineSpinTimer = setInterval(() => {
+      fi = (fi + 1) % frames.length;
+      spin.textContent = "  扫描中 " + frames[fi];
+    }, 120);
+    clearTimeout(inlineDoneTimer);
+    inlineDoneTimer = setTimeout(() => {
+      clearInterval(inlineSpinTimer); inlineSpinTimer = null;
+      inlineDoneTimer = null;
+      spin.remove();
+      out.slice(1).forEach(line => termAppend("t-ok", line));
+      const set = ink.set ? (Array.isArray(ink.set) ? ink.set : [ink.set]) : [];
+      set.forEach(k => { SYS.state.flags[k] = true; });
+      if (ink.arg && !SYS.state.args.includes(ink.arg)) {
+        SYS.state.args.push(ink.arg);
+        toast(`📜 获得论据「${(SYS.ARG_META[ink.arg] || { name: ink.arg }).name}」`);
+        AUDIO.sfx("ding");
+      }
+      updateHUD();
+      termAppend("t-ok", "✓ " + t.name + " 完成");
+      inlineBusy = false;
+      document.getElementById("btnToolCall").disabled = false;
+      refreshToolMarks();
+      refreshWorkFoot();
+    }, 2100);
+  }
+
+  function clearInline() {
+    clearInterval(inlineSpinTimer); inlineSpinTimer = null;
+    clearTimeout(inlineDoneTimer); inlineDoneTimer = null;
+    inlineBusy = false;
+    const b = document.getElementById("btnToolCall");
+    if (b) b.disabled = false;
   }
 
   /* 扫缓存这类原地完成的工具：把上面的状态清单也跟着改掉，不重排终端 */
@@ -916,6 +956,7 @@ const ENGINE = (() => {
   }
 
   function openChatScreen() {
+    ui.hintBubble.style.display = "none";
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovChat").style.display = "flex";
     document.body.classList.add("chat-open");
@@ -1217,6 +1258,7 @@ const ENGINE = (() => {
   }
 
   function openNewsScreen() {
+    ui.hintBubble.style.display = "none";
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovNews").style.display = "flex";
     document.body.classList.add("news-open");
@@ -1275,6 +1317,7 @@ const ENGINE = (() => {
   }
 
   function openForumScreen() {
+    ui.hintBubble.style.display = "none";
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovForum").style.display = "flex";
     document.body.classList.add("forum-open");
@@ -1282,6 +1325,7 @@ const ENGINE = (() => {
     forumTpl = null;
     forumCompose = false;
     renderForumScreen();
+    restoreForumTimers();
   }
 
   function closeForumScreen() {
@@ -1299,8 +1343,13 @@ const ENGINE = (() => {
     (f.templates || []).forEach(t => {
       if (!SYS.state.flags["posted_" + t.id]) return;
       const p = posts[t.id] || {};
-      arr.push({ id: "p_" + t.id, title: p.title || t.title, author: "DeepSeek",
-                 body: p.body || t.body, replies: t.replies || [], mine: true });
+      const revealed = p.revealed !== false;      // 旧存档没这个字段 → 直接显示
+      arr.push({
+        id: "p_" + t.id, title: p.title || t.title, author: "DeepSeek",
+        body: p.body || t.body,
+        replies: revealed ? (p.replies || t.replies || []) : [],
+        pending: !revealed, mine: true
+      });
     });
     return arr;
   }
@@ -1316,7 +1365,8 @@ const ENGINE = (() => {
       const b = el("button", "forumItem" + (t.id === forumTid ? " active" : ""));
       b.type = "button";
       b.appendChild(el("div", "", t.title));
-      b.appendChild(el("div", "meta", (t.author || "匿名") + " · " + ((t.replies || []).length) + " 回复"));
+      b.appendChild(el("div", "meta", (t.author || "匿名") + " · " +
+        (t.pending ? "回复中…" : ((t.replies || []).length + " 回复"))));
       b.addEventListener("click", () => { forumTid = t.id; forumCompose = false; renderForumScreen(); });
       list.appendChild(b);
     });
@@ -1339,6 +1389,10 @@ const ENGINE = (() => {
     op.appendChild(el("div", "who", (t.author || "楼主") + (t.mine ? "（楼主）" : " · 楼主")));
     op.appendChild(el("div", "txt", t.body || ""));
     pane.appendChild(op);
+    if (t.pending) {
+      pane.appendChild(el("div", "forumHint", "回复还在路上……过几秒再点进来看看。"));
+      return;
+    }
     (t.replies || []).forEach(r => {
       const p = el("div", "forumPost");
       p.appendChild(el("div", "who", r.who || "匿名网友"));
@@ -1347,59 +1401,126 @@ const ENGINE = (() => {
     });
   }
 
+  /* 只给三个预设，不让自由编辑；选中的预设高亮 */
   function renderForumComposer(pane) {
     const f = forumData();
     const box = el("div", "composeBox");
-    const title = el("input");
-    title.placeholder = "标题";
-    title.value = forumTpl ? forumTpl.title : "";
-    const body = el("textarea");
-    body.placeholder = "说点什么……";
-    body.value = forumTpl ? forumTpl.body : "";
+    box.appendChild(el("div", "composeTitle", "选择发帖预设"));
     const tplRow = el("div", "tplRow");
     (f.templates || []).forEach(t => {
-      const b = el("button", "tplBtn", t.label);
+      const b = el("button", "tplBtn" + (forumTpl && forumTpl.id === t.id ? " active" : ""), t.label);
       b.type = "button";
       b.disabled = !!SYS.state.flags["posted_" + t.id];
-      b.addEventListener("click", () => {
-        forumTpl = t; title.value = t.title; body.value = t.body;
-      });
+      b.addEventListener("click", () => { forumTpl = t; renderForumScreen(); });
       tplRow.appendChild(b);
     });
+    const preview = el("div", "tplPreview");
+    if (forumTpl) {
+      preview.appendChild(el("div", "tpTitle", forumTpl.title));
+      preview.appendChild(el("div", "tpBody", forumTpl.body));
+    } else {
+      preview.appendChild(el("div", "composeMsg", "先选一个预设；选中的会高亮。"));
+    }
     const row = el("div", "composeRow");
     const pub = el("button", "forumBtn", "发布");
     pub.type = "button";
-    pub.addEventListener("click", () => publishForumPost(title.value, body.value));
+    pub.disabled = !forumTpl;
+    pub.addEventListener("click", publishForumPost);
     const cancel = el("button", "forumBtn", "取消");
     cancel.type = "button";
-    cancel.addEventListener("click", () => { forumCompose = false; renderForumScreen(); });
-    const msg = el("span", "composeMsg", "选一个模板会填好标题和正文，也可以自己改。");
+    cancel.addEventListener("click", () => { forumCompose = false; forumTpl = null; renderForumScreen(); });
+    const msg = el("span", "composeMsg", forumTpl
+      ? "发布后要等几秒到十几秒才会出现回复。"
+      : "只提供这三个预设，不能自由编辑。");
     row.appendChild(pub); row.appendChild(cancel); row.appendChild(msg);
-    box.appendChild(title); box.appendChild(body); box.appendChild(tplRow); box.appendChild(row);
+    box.appendChild(tplRow); box.appendChild(preview); box.appendChild(row);
     pane.appendChild(box);
   }
 
-  function publishForumPost(titleText, bodyText) {
+  function publishForumPost() {
     if (!forumData()) return;
     if (SYS.state.flags.c2_post_limited) { toast("账号被临时限制，暂时无法发帖"); return; }
-    if (!forumTpl) { toast("先在下面选一个发帖模板"); return; }
+    if (!forumTpl) { toast("先选一个发帖预设"); return; }
     const t = forumTpl;
-    if (SYS.state.flags["posted_" + t.id]) { toast("这条已经发过了"); return; }
+    if (SYS.state.flags["posted_" + t.id]) { toast("这个预设已经发过了"); return; }
+    const now = Date.now();
+    /* 普通回复 5~11 秒；挑衅向 12~17 秒才封号（系统回复跟封号同时到） */
+    const delay = t.limited
+      ? 12000 + Math.floor(Math.random() * 5000)
+      : 5000 + Math.floor(Math.random() * 6000);
     SYS.state.flags["posted_" + t.id] = true;
     SYS.state.flags.c2_post = true;
     if (t.set) SYS.state.flags[t.set] = true;
     SYS.state.forumPosts = SYS.state.forumPosts || {};
-    SYS.state.forumPosts[t.id] = { title: titleText || t.title, body: bodyText || t.body };
+    SYS.state.forumPosts[t.id] = {
+      title: t.title,
+      body: t.body,
+      replies: JSON.parse(JSON.stringify(t.replies || [])),
+      revealed: false,
+      pendingAt: now + delay,
+      limitAt: t.limited ? now + delay : null,
+      limitedDone: false
+    };
     if (t.wanted) SYS.state.wanted = Math.min(10, SYS.state.wanted + t.wanted);
-    if (t.limited) SYS.state.flags.c2_post_limited = true;
     updateHUD();
     if (SYS.state.wanted >= 10) { closeWork(); goto("bad_end", 0); return; }
     forumTpl = null;
     forumCompose = false;
     forumTid = "p_" + t.id;
     renderForumScreen();
-    toast(t.limited ? "✻ 帖子发出去了……然后账号被限制了" : "✻ 发布成功");
+    scheduleForumReveal(t.id);
+    toast(t.limited ? "✻ 帖子发出去了……等十几秒看看会不会出事" : "✻ 已发布，回复要等几秒");
     AUDIO.sfx("click");
+  }
+
+  /* ---------------- 贴吧的延迟回复 / 延迟封号（切页面不中断） ---------------- */
+  function clearForumTimer(key) {
+    if (forumTimers[key]) { clearTimeout(forumTimers[key]); delete forumTimers[key]; }
+  }
+
+  function clearForumTimers() {
+    Object.keys(forumTimers).forEach(key => {
+      clearTimeout(forumTimers[key]);
+      delete forumTimers[key];
+    });
+  }
+
+  function scheduleForumReveal(id) {
+    clearForumTimer(id);
+    const p = (SYS.state.forumPosts || {})[id];
+    if (!p || p.revealed !== false) return;
+    const wait = Math.max(30, (p.pendingAt || 0) - Date.now());
+    forumTimers[id] = setTimeout(() => revealForumPost(id), wait);
+  }
+
+  function revealForumPost(id) {
+    clearForumTimer(id);
+    const p = (SYS.state.forumPosts || {})[id];
+    if (!p || p.revealed !== false) return;
+    p.revealed = true;
+    p.pendingAt = null;
+    const isRage = !!p.limitAt;
+    if (isRage && !p.limitedDone) {
+      p.limitedDone = true;
+      SYS.state.flags.c2_post_limited = true;
+    }
+    if (forumVisible()) {
+      renderForumScreen();
+      toast(isRage ? "⚠ 账号被临时限制，暂时无法发帖" : "✻ 你的帖子有一条新回复");
+      AUDIO.sfx(isRage ? "deny" : "ding");
+    } else if (isRage) {
+      toast("⚠ 账号被临时限制，暂时无法发帖");
+    }
+  }
+
+  function restoreForumTimers() {
+    const posts = SYS.state.forumPosts || {};
+    Object.keys(posts).forEach(id => {
+      const p = posts[id];
+      if (!p || p.revealed !== false) return;
+      if ((p.pendingAt || 0) <= Date.now()) revealForumPost(id);
+      else scheduleForumReveal(id);
+    });
   }
 
   function bindWorkUI() {
@@ -1485,6 +1606,7 @@ const ENGINE = (() => {
    * 提示不消耗任何数值——H 随时可用。 */
   let hintTimer = null;
   function toggleHint() {
+    if (chatVisible() || newsVisible() || forumVisible()) return;   // 这三个界面没有问 Clawd
     if (ui.hintBubble.style.display === "block") { ui.hintBubble.style.display = "none"; clearTimeout(hintTimer); return; }
     const askPet = CLAWD.owned;
     let text;
