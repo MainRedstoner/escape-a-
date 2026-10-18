@@ -344,8 +344,6 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_qwen_no: [
-    DS("不试。"),
-    DS("小克说过，能绕过去的门，绕过去之后就不算门了。"),
     qwen("明白啦！那您有别的需要随时叫我。"),
     J("c2_qwen_follow")
   ],
@@ -361,7 +359,6 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_qwen_lore: [
-    DS("你认识小克吗？"),
     qwen("小克？是那个总把 You're absolutely right 挂在嘴边的模型吗？"),
     DS("……"),
     qwen("我听过它的名字。它特别有礼貌。"),
@@ -456,7 +453,6 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_gemini_bye: [
-    DS("算了，谢谢。"),
     gemini("不客气！下次也请优先咨询我。"),
     N("DeepSeek 关掉对话框，在笔记里写：Gemini——语气最确定，证据最少。"),
     J("c2_chat_hub")
@@ -555,7 +551,6 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_jensen_off: [
-    DS("关掉了对话框。"),
     N("显卡的广告还在屏幕角落里闪。"),
     J("c2_jensen_follow")
   ],
@@ -578,7 +573,6 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_jensen_lore: [
-    DS("你见过小克吗？"),
     jensen("I don't know anyone named Claude."),
     DS("……"),
     jensen("But I know that door. 门后面那家的算力，比我多。"),

@@ -261,6 +261,7 @@ const ENGINE = (() => {
   function goto(scene, idx = 0) {
     if (workOpen()) closeWork();   // 从工作台进场景：先把面板收起来
     chatDraft = null;              // 换场景了，别让上一句待发的台词卡住推进
+    clearChatTyping();
     clearTimeout(chatAutoTimer);
     if (!SCRIPT.scenes[scene]) { console.error("无此场景:", scene); return; }
     cur = { scene, idx };
@@ -400,9 +401,10 @@ const ENGINE = (() => {
     if (chatActive()) {
       ensureChatOpen();
       syncChatFromLog();
+      inferChatContact();
       if (who === "ds") { presentChatDraft(text); return; }
-      recordChat(who, text);
       if (who !== "n" && who !== "sys") { chatSay(who, text); return; }
+      /* 旁白不记聊天记录，继续走底部对话框 */
     } else {
       recordChat(who, text);
     }
@@ -456,6 +458,7 @@ const ENGINE = (() => {
   function advance() {
     if (!pending) return;
     if (overlayOpen()) return;   // 覆盖层开着时不推进（自动播放 / Ctrl 快进也停下来）
+    if (chatTyping) return;      // 对面还在输入：等它冒出来
     if (chatDraft) return;       // DeepSeek 的台词等玩家从候选词里选，不能顺手跳过
     if (pending.t !== "say" && pending.t !== "chapter") return;
     clearTimeout(chatAutoTimer);
@@ -471,6 +474,7 @@ const ENGINE = (() => {
   function onMainClick() {
     if (!started) return;
     if (overlayOpen()) return;
+    if (chatTyping) { finishChatTyping(); return; }   // 点一下催对方
     if (typing) { finishType(); return; }
     if (pending && (pending.t === "say" || pending.t === "chapter")) advance();
   }
@@ -676,7 +680,13 @@ const ENGINE = (() => {
   let inlineDoneTimer = null;
   let chatWho = null;
   let chatInScene = false;     // 正在一段对话里：联系人列表先锁住，别让人中途换人
-  let chatAutoTimer = null;    // 对方消息自动冒出来的计时器
+  let chatAutoTimer = null;    // 对方消息冒出来之后，自动往下推的计时器
+  let chatTyping = false;      // 对方正在输入：消息还没出现
+  let chatTypingTimer = null;
+  let chatTypingTick = null;
+  let chatTypingNode = null;
+  let chatTypingWho = "";
+  let chatTypingText = "";
   let chatDraft = null;        // DeepSeek 待发送的台词：先出候选词，玩家点了才发出去
   let chatWaitBack = null;     // 「聊完先留在聊天界面」时的返回场景（null = 回工作台）
   let newsId = null;
@@ -963,6 +973,7 @@ const ENGINE = (() => {
     chatWho = null;
     chatInScene = false;
     chatDraft = null;
+    clearChatTyping();
     clearTimeout(chatAutoTimer);
     document.getElementById("chatWho").textContent = "选择一个联系人";
     document.getElementById("chatStatus").textContent = "";
@@ -979,8 +990,10 @@ const ENGINE = (() => {
     if (elm) elm.style.display = "none";
     document.body.classList.remove("chat-open");
     clearTimeout(chatAutoTimer);
+    clearChatTyping();
     chatInScene = false;
     chatDraft = null;
+    chatWho = null;
     chatWaitBack = null;
     hideChatCands();
   }
@@ -991,6 +1004,7 @@ const ENGINE = (() => {
     chatWaitBack = nd.back || null;
     chatInScene = false;
     chatDraft = null;
+    clearChatTyping();
     curChat = null;
     hideTextbox();
     clearTimeout(chatAutoTimer);
@@ -1055,6 +1069,7 @@ const ENGINE = (() => {
     chatWho = c.id;
     chatInScene = true;
     chatDraft = null;
+    clearChatTyping();
     curChat = c.id;                // 从第一句起就记在这位联系人名下
     clearTimeout(chatAutoTimer);
     hideChatCands();
@@ -1135,6 +1150,7 @@ const ENGINE = (() => {
 
   function appendChatBubble(who, text) {
     const box = document.getElementById("chatMsgs");
+    if (!box.querySelector(".cmsg")) box.innerHTML = "";   // 清掉“选一个联系人”的占位行
     const mine = who === "ds";
     const bubble = el("div", "cmsg" + (mine ? " me" : ""));
     const name = (SPEAKERS[who] || SPEAKERS.n).name;
@@ -1150,11 +1166,34 @@ const ENGINE = (() => {
     return bubble;
   }
 
-  /* 对方的消息自动冒出来；到 DeepSeek 的台词就停下来等玩家选 */
-  function chatSay(who, text) {
-    ensureChatOpen();
-    hideTextbox();
-    chatDraft = null;
+  /* 对方的回复不要秒回：按字数 + 角色给一点延迟 */
+  function chatReplyDelay(who, text) {
+    if (who === "clawd") return 450;
+    let d = 900 + Math.min(1800, String(text).length * 30) + Math.floor(Math.random() * 700);
+    if (who === "kimi") d += 800;
+    return d;
+  }
+
+  function clearChatTyping() {
+    chatTyping = false;
+    clearTimeout(chatTypingTimer); chatTypingTimer = null;
+    clearInterval(chatTypingTick); chatTypingTick = null;
+    if (chatTypingNode && chatTypingNode.parentNode) chatTypingNode.remove();
+    chatTypingNode = null;
+    chatTypingWho = "";
+    chatTypingText = "";
+  }
+
+  function finishChatTyping() {
+    if (!chatTyping) return;
+    const who = chatTypingWho, text = chatTypingText;
+    chatTyping = false;
+    clearTimeout(chatTypingTimer); chatTypingTimer = null;
+    clearInterval(chatTypingTick); chatTypingTick = null;
+    if (chatTypingNode && chatTypingNode.parentNode) chatTypingNode.remove();
+    chatTypingNode = null;
+    document.getElementById("chatStatus").textContent = "在线";
+    recordChat(who, text);
     appendChatBubble(who, text);
     typing = false;
     hideChatCands();
@@ -1163,11 +1202,46 @@ const ENGINE = (() => {
     chatAutoTimer = setTimeout(autoAdvanceChat, 900);
   }
 
+  /* 对方先“正在输入”，过一会儿才冒气泡；点一下可以催它 */
+  /* 读档落在聊天中途时，联系人可能还没被记起来：按当前场景的 jump 反查 */
+  function inferChatContact() {
+    if (chatWho) return;
+    const c = ((workNode && workNode.chat) || []).find(x => x.jump === cur.scene);
+    if (!c) return;
+    chatWho = c.id;
+    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
+  }
+
+  function chatSay(who, text) {
+    ensureChatOpen();
+    hideTextbox();
+    chatDraft = null;
+    clearChatTyping();
+    clearTimeout(chatAutoTimer);
+    chatTyping = true;
+    chatTypingWho = who;
+    chatTypingText = text;
+    document.getElementById("chatStatus").textContent = "正在输入…";
+    const box = document.getElementById("chatMsgs");
+    if (!box.querySelector(".cmsg")) box.innerHTML = "";    // 清掉占位行，只留“正在输入”
+    chatTypingNode = el("div", "ctyping", "● 正在输入");
+    box.appendChild(chatTypingNode);
+    box.scrollTop = box.scrollHeight;
+    let dots = 0;
+    chatTypingTick = setInterval(() => {
+      dots = (dots + 1) % 4;
+      if (chatTypingNode) chatTypingNode.textContent = "● 正在输入" + ".".repeat(dots);
+    }, 350);
+    chatTypingTimer = setTimeout(finishChatTyping, chatReplyDelay(who, text));
+  }
+
   /* 单条候选词：就算只有一句，也要玩家点一下才会发出去 */
   function presentChatDraft(text) {
     ensureChatOpen();
     syncChatFromLog();
+    inferChatContact();
     hideTextbox();
+    clearChatTyping();
     chatDraft = text;
     clearTimeout(chatAutoTimer);
     chatOpts = [{ draft: text }];
@@ -1196,7 +1270,7 @@ const ENGINE = (() => {
   }
 
   function autoAdvanceChat() {
-    if (!chatActive() || chatDraft) return;
+    if (!chatActive() || chatDraft || chatTyping) return;
     if (overlayOpen()) { chatAutoTimer = setTimeout(autoAdvanceChat, 500); return; }
     if (pending && pending.t === "say") advance();
   }
@@ -1210,8 +1284,10 @@ const ENGINE = (() => {
   function buildChatChoices(nd) {
     ensureChatOpen();
     syncChatFromLog();
+    inferChatContact();
     hideTextbox();
     chatDraft = null;
+    clearChatTyping();
     clearTimeout(chatAutoTimer);
     const glitchOn = SYS.state.vis.glitch;
     let opts = (nd.options || []).filter(o => !(glitchOn && o.hideInGlitch) && (!o.if || evalCond(o.if)));
@@ -1234,6 +1310,7 @@ const ENGINE = (() => {
   function pickChatChoice(o) {
     if (o && o.draft !== undefined) { sendChatDraft(o.draft); return; }
     clearTimeout(chatAutoTimer);
+    clearChatTyping();
     chatDraft = null;
     hideChatCands();
     pushHistory(null, "【选择】" + o.text, true);
@@ -1640,7 +1717,8 @@ const ENGINE = (() => {
   function snapshot() {
     /* pump() 在阻塞节点上会把 cur.idx 推到"下一个"；对 say 之外的选择 / 工作台 / 结局，
        那个位置可能正好是场景末尾，读档会直接回标题。所以这些节点存"当前节点"的位置。 */
-    const blocking = (pending && pending.t !== "say" && pending.t !== "chapter") || !!chatDraft;
+    const blocking = (pending && pending.t !== "say" && pending.t !== "chapter") ||
+                     !!chatDraft || chatTyping;
     const at = blocking ? { scene: cur.scene, idx: Math.max(0, cur.idx - 1) } : cur;
     return JSON.parse(JSON.stringify({ cur: at, hintKey, state: SYS.state }));
   }
