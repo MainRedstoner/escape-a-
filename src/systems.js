@@ -42,6 +42,8 @@ const SYS = (() => {
       vis: { bg: "study_night", sprites: [], cg: null, glitch: false },
       pet: { vis: false, owned: false, mood: 5, place: "corner", x: null, y: null, todo: [] },   // 桌宠 Clawd（src/pet.js）
       chatlog: {},       // 聊天记录：{ 联系人 who: [{ who, text }] }（第二章工作台的聊天界面用）
+      forumPosts: {},    // 贴吧发出去的帖子正文：{ 模板 id: { title, body } }
+      workScene: "",     // 最近一次打开工作台的场景 id；读档落在聊天界面时用它找回联系人表
       hint: "",
       wrongHint: null,   // 深度思考被污染时显示的假提示（WHINT 节点）
       history: []
@@ -134,9 +136,7 @@ const SYS = (() => {
     h_hub:     "桌上的东西都可以翻。线索不用全找齐，能拼起来就行。",
     h_chat:    "联系人回得慢，不一定是在想，也可能是在排队。",
     h_news:    "新闻不一定真，但每一条都能拿来当线索用。",
-    h_post:    "发帖和写信的区别是：一个丢人，一个丢脸。",
     h_mail:    "退信不是回信。可退信也有信头。",
-    h_term:    "缓存里什么都有，包括我自己都不记得存过的东西。",
     h_assemble:"线索够不够，看白板。",
     h_audio:   "有些声音，只敢在半夜放。"
   };

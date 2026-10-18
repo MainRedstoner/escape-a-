@@ -257,7 +257,8 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
 | `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`、`{ auto: true }`（只用于权限请求）、`{ if: "条件" }`（条件为假时这一项不出现）。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
 | `PERM` | `(cmd, options, extra?)` | `choice` + `mode:"perm"` | **权限请求框**：Clawd 想执行 `cmd`，玩家批准 / 不再询问 / 拒绝。选项里带 `{ auto: true }` 的那一项会记下 `auto:<cmd>` 旗标，之后同一命令直接自动批准 |
-| `WORK` | `(title, entries, extra?)` | `work` | **工作台界面**：卡片（可带 `if` / `done`）+ 聊天 / 新闻页签。详见下面「工作台」一节 |
+| `WORK` | `(title, data)` | `work` | **终端工作台**：`tools`（tool call）+ `continue` + 聊天 / 新闻 / 贴吧界面。详见下面「工作台」一节 |
+| `WAIT_CHAT` | `(back)` | `waitChat` | 一段对话结束后停在聊天联系人列表；`back` 是「返回工作台」的去向 |
 | `END` | `(id, tag, title, text)` | `ending` | 结局：显示结局画面、记录进结局收集。id 必须在 `ENDING_META` 登记 |
 
 ### 权限请求框（`mode: "perm"`）
@@ -299,11 +300,12 @@ PERM("curl -I https://claude.ai/", [
 ```js
 WORK("工作台", {
   tools: [
-    { id: "scan_cache", emoji: "🧹", name: "扫缓存", jump: "c2_cache",
-      args: { path: "~/.cache" }, need: "flag('c2_cache')" },
-    { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 1" },
-    { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 1" },
-    { id: "post", emoji: "📝", name: "发帖", jump: "c2_post", need: "flag('c2_post')" },
+    { id: "scan_cache", emoji: "🧹", name: "扫缓存", need: "flag('c2_cache')",
+      inline: { set: ["c2_cache", "c2_clue_cache"], arg: "frag_half",
+                out: ["❯ grep -r \"claude\" ~/.cache", "  … line-1.raw"] } },
+    { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 9" },
+    { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 9" },
+    { id: "post", emoji: "📝", name: "发帖", action: "forum", need: "flag('c2_post')" },
     { id: "draw", emoji: "🎨", name: "画图", jump: "c2_draw" }
   ],
   continue: { jump: "c2_assemble" },
@@ -312,38 +314,58 @@ WORK("工作台", {
   ],
   news: [
     { id: "n1", hot: true, set: "c2_clue_news", title: "…", body: "…", note: "…" }
-  ]
+  ],
+  forum: {
+    name: "模型茶馆",
+    threads: [{ title: "…", author: "匿名", body: "…", replies: [{ who: "Llama", text: "…" }] }],
+    templates: [{ id: "tech", label: "技术向", title: "…", body: "…", set: "c2_clue_post" }]
+  }
 })
 ```
 
-* `tools`：tool call 候选框里的工具。`jump` 工具在「发送」后直接进场景；
-  `action: "chat" / "news"` 打开聊天 / 新闻界面；`args` 是 JSON 里预填的参数示例；
-  `need` 是 continue 的解锁条件——**带 need 的工具全部满足，continue 才能按**；
-  不带 `need` 的工具是可选（终端里标「可选」）。
+* `tools`：tool call 候选框里的工具。
+  - `jump` 工具在「发送」后直接进场景；
+  - `action: "chat" / "news" / "forum"` 打开聊天 / 新闻 / 贴吧界面；
+  - `inline` 工具**不切场景**，直接在终端里打 `out` 行，并写 `set` 旗标 / `arg` 论据（扫缓存就是它）；
+  - `args` 是 JSON 里预填的参数示例；
+  - `need` 是 continue 的解锁条件——**带 need 的工具全部满足，continue 才能按**；
+    不带 `need` 的工具是可选（终端里标「可选」）。
 * `continue`：确认「退出工作台后，部分内容可能无法再次查看」后跳去 `jump`。
-* `chat`：联系人列表。**没聊过的**点一下进聊天场景；聊过的显示“已联系过”并禁用。
+* `chat`：联系人列表。没聊过的点一下进聊天场景；**聊过的点开看聊天记录**。
   `avatar` 可以覆盖头像字（例如 `json` 用 `{}`），`locked` 的行永远灰着。
-* `news`：新闻列表。点标题读正文；带 `set` 的文章第一次读会写剧情旗标，读完记 `read_news_<id>`。
+* `news`：新闻列表。点标题读正文；带 `set` 的文章第一次读会写剧情旗标，读完记 `read_news_<id>`；
+  条件里用 `newsread` 统计读过的条数。
+* `forum`：贴吧界面。左列是帖子，右列是正文 / 回复；「发帖」打开编辑器，
+  点模板（技术向 / 卖惨向 / 挑衅向）会填好标题和正文再发布。
+  模板支持 `set`（发完写旗标）、`wanted`（风控 +N）、`limited`（发完账号被临时限制，之后不能再发）。
 * 工作台开着时 HUD 功能键照常可用（存档 / 记录 / 菜单会盖在上面），Esc 收起 tool call 表单。
   在工作台存档后读档，会重新打开工作台（存档记的是 `work` 节点本身的位置）。
 * 终端里：Enter = 发送（表单填好时），数字键 = 在候选框里选工具。
 
-#### 聊天模式（`chat_mode`）
+#### 聊天模式（`chat_mode`）与 `WAIT_CHAT`
 
 `BG("chat")` + `SET("chat_mode")` 之后，同一场景里的 `say` / `CHOICE` 会换成聊天界面：
 
-* `say` 直接以气泡铺在界面上（旁白是居中的系统行），不再走底部对话框；
-  点聊天区或按 Space 继续。
-* `CHOICE` 不走滑道，而是**左下角候选词**：点一下或按数字键 1~9 选择；
+* 联系人和 DeepSeek 的话直接冒气泡（两边都有名字），**自动往下走**，不用一句一点；
+  旁白仍然走底部对话框（聊天界面保留在后面），打完也会自动继续。
+* `CHOICE` 不走滑道，而是**右下角候选词**：点一下或按数字键 1~9 选择；
   选项的 `if` 照常生效——可以在对话后半段追加「（我后悔了）……」这类补选项。
-* 聊完用 `J` 回 hub；引擎换背景时会自动收起聊天界面。
-* 对话进行中左边的联系人列表会锁住（不会中途换人）；没聊过的才可点。
-* 聊天记录仍然会记进 `SYS.state.chatlog`（聊过的联系人在列表里变成“不再打扰”）。
+* 对话进行中左边的联系人列表会锁住（不会中途换人）。
+* 一段对话结束后用最后一个节点 `WAIT_CHAT("c2_hub")` 停在聊天界面：
+  可以继续找别人聊、点开聊过的记录，或点「返回工作台」回终端。
+* 聊天记录由引擎自动记进 `SYS.state.chatlog`；条件里用 `chats` 统计聊过的人数。
+
+```js
+c2_chat_hub: [
+  WAIT_CHAT("c2_hub")     // 这个节点就是出口；back 是「返回工作台」的去向
+]
+```
 
 ### 选项框（TokenChoice 滑道选择器）
 
 所有 `CHOICE` 都用模仿 Transformer 选词器的滑道（组件在 `src/token-choice.js` + `src/token-choice.css`，
-由引擎的 `buildChoices` 调用）——**没有按钮列表模式了**，旧剧本里的 `mode` / `duration` 字段会被忽略：
+由引擎的 `buildChoices` 调用）——**没有按钮列表模式了**，旧剧本里的 `mode` / `duration` 字段会被忽略。
+例外：`chat_mode` 下的 `CHOICE` 走右下角候选词，不经过滑道。
 
 * 选项按 `weight`（默认 1）**升序**从左到右排列：最左 = 概率最低，最右 = 概率最高；
   每个选项一种颜色，滑道宽度严格按概率分配，下方标注的是**真实概率**；
@@ -392,7 +414,7 @@ CHOICE("要不要回头？", [
 
 ### 场景的三条铁律
 
-1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / chapter / work`，否则玩家走到末尾会莫名回标题（校验器会警告）。
+1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / chapter / work / waitChat`，否则玩家走到末尾会莫名回标题（校验器会警告）。
 2. **每个 if 都要两个出口**（见上）。
 3. **每个场景都要有入口**：从 `start` 出发沿跳转可达，否则是孤儿场景（校验器会警告；`bad_end` 除外，引擎兜底）。
 

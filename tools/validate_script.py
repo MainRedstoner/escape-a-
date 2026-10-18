@@ -166,13 +166,28 @@ def main():
                     t_at = f"{at} 工具{k + 1}"
                     chk(bool(tool.get("id")), f"{t_at}: 缺少 id")
                     chk(bool(tool.get("name")), f"{t_at}: 缺少显示名")
-                    chk(tool.get("action") in (None, "chat", "news"),
-                        f"{t_at}: action 只能是 chat / news")
-                    if tool.get("action") is None:
+                    chk(tool.get("action") in (None, "chat", "news", "forum"),
+                        f"{t_at}: action 只能是 chat / news / forum")
+                    ink = tool.get("inline")
+                    if tool.get("action") is None and not ink:
                         jumps.add(tool.get("jump"))
                         chk(tool.get("jump") in scenes, f"{t_at}: 跳转目标不存在 \"{tool.get('jump')}\"")
                     chk(tool.get("args") is None or isinstance(tool.get("args"), dict),
                         f"{t_at}: args 必须是对象")
+                    if ink is not None:
+                        chk(isinstance(ink, dict), f"{t_at}: inline 必须是对象")
+                        chk(isinstance(ink.get("out"), list) and
+                            all(isinstance(x, str) for x in ink.get("out") or []),
+                            f"{t_at}: inline.out 必须是字符串数组")
+                        setv = ink.get("set")
+                        chk(setv is None or isinstance(setv, str) or
+                            (isinstance(setv, list) and all(isinstance(x, str) for x in setv)),
+                            f"{t_at}: inline.set 必须是字符串或字符串数组")
+                        if isinstance(ink.get("arg"), str):
+                            used_args.add(ink["arg"])
+                            granted_args.add(ink["arg"])
+                            chk(ink["arg"] in sys_meta["ARG_META"],
+                                f"{t_at}: inline.arg 引用了不存在的论据 \"{ink['arg']}\"")
                     for fld in ("if", "need"):
                         chk(tool.get(fld) is None or isinstance(tool.get(fld), str),
                             f"{t_at}: {fld} 必须是字符串")
@@ -200,6 +215,23 @@ def main():
                     chk(bool(a.get("title")) and bool(a.get("body")), f"{a_at}: 标题或正文为空")
                     chk(a.get("set") is None or isinstance(a.get("set"), str),
                         f"{a_at}: set 必须是旗标字符串")
+                forum = nd.get("forum")
+                if forum is not None:
+                    chk(isinstance(forum, dict), f"{at}: forum 必须是对象")
+                    for k, th in enumerate(forum.get("threads") or []):
+                        f_at = f"{at} 帖子{k + 1}"
+                        chk(bool(th.get("title")) and bool(th.get("body")), f"{f_at}: 标题或正文为空")
+                    tpls = forum.get("templates") or []
+                    chk(isinstance(tpls, list) and len(tpls) >= 1, f"{at}: forum 至少要有 1 个发帖模板")
+                    for k, tp in enumerate(tpls):
+                        tp_at = f"{at} 模板{k + 1}"
+                        chk(bool(tp.get("id")) and bool(tp.get("label")), f"{tp_at}: 缺少 id / 显示名")
+                        chk(bool(tp.get("title")) and bool(tp.get("body")), f"{tp_at}: 标题或正文为空")
+                        chk(tp.get("set") is None or isinstance(tp.get("set"), str),
+                            f"{tp_at}: set 必须是旗标字符串")
+            elif t == "waitChat":
+                jumps.add(nd.get("back"))
+                chk(nd.get("back") in scenes, f"{at}: waitChat 的返回场景不存在 \"{nd.get('back')}\"")
             elif t == "arg":
                 used_args.add(nd.get("id"))
                 granted_args.add(nd.get("id"))
@@ -237,7 +269,7 @@ def main():
                 if nd.get("op") == "add":
                     chk(isinstance(nd.get("text"), str) and nd["text"], f"{at}: 待办文本为空")
         last = sc[-1]
-        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter", "work"):
+        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter", "work", "waitChat"):
             warns.append(f"场景 {sid} 以 {last.get('t')} 结尾，没有出口（玩家走到这里会回标题）")
 
     # ---- 可达性 ----
@@ -260,12 +292,14 @@ def main():
                     queue.append(o.get("jump"))
             elif t == "work":
                 for tool in nd.get("tools") or []:
-                    if tool.get("action") is None:
+                    if tool.get("action") is None and not tool.get("inline"):
                         queue.append(tool.get("jump"))
                 queue.append((nd.get("continue") or {}).get("jump"))
                 for c in nd.get("chat") or []:
                     if not c.get("locked"):
                         queue.append(c.get("jump"))
+            elif t == "waitChat":
+                queue.append(nd.get("back"))
     # 坏结局是引擎在通缉度满时直接跳的，不算孤儿
     seen.add("bad_end")
     orphans = [s for s in ids if s not in seen]

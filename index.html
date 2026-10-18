@@ -45,6 +45,7 @@
 
   /* ---------- 文本框 ---------- */
   #textbox{position:absolute;left:64px;right:64px;bottom:30px;min-height:196px;display:none;
+    z-index:21;
     background:linear-gradient(180deg,rgba(10,13,18,.90),rgba(8,10,14,.95));
     border:1px solid var(--line);border-left:3px solid var(--clay);
     padding:26px 40px 22px;box-shadow:0 18px 60px rgba(0,0,0,.75);cursor:pointer;
@@ -247,8 +248,10 @@
   .termfoot .hint{margin-left:auto;color:#5C8C71;font-size:13px;letter-spacing:1px;}
 
   /* 聊天：界面就是 chat 背景那套配色 */
-  .chatscreen{position:absolute;inset:0;display:none;z-index:45;background:#0A0E15;
+  .chatscreen{position:absolute;inset:0;display:none;z-index:20;background:#0A0E15;
     font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;}
+  /* 聊天 / 新闻 / 贴吧打开时把桌宠收起来（工作台里再让它出来） */
+  body.chat-open #pet, body.news-open #pet, body.forum-open #pet{opacity:0;pointer-events:none;}
   .chatCol{position:absolute;left:0;top:0;bottom:0;width:28%;min-width:300px;
     background:linear-gradient(90deg,#111826,#0D121C);border-right:2px solid rgba(255,255,255,.06);
     display:flex;flex-direction:column;}
@@ -270,14 +273,14 @@
     border-bottom:2px solid rgba(255,255,255,.06);}
   #chatWho{font-size:22px;color:#E8EEF9;letter-spacing:2px;}
   #chatStatus{font-size:12px;color:#5F8F7A;letter-spacing:1px;}
-  .chatMsgs{flex:1;min-height:0;overflow:auto;padding:24px 34px 110px;display:flex;
+  .chatMsgs{flex:1;min-height:0;overflow:auto;padding:24px 34px 150px;display:flex;
     flex-direction:column;gap:12px;}
   .cmsg{max-width:74%;padding:11px 16px;border:1px solid rgba(255,255,255,.08);
     background:rgba(21,27,36,.95);font-size:16px;line-height:1.7;color:#DCE3EC;}
   .cmsg.me{align-self:flex-end;background:rgba(77,107,254,.16);border-color:rgba(77,107,254,.42);}
   .cmsg .who{display:block;font-size:12px;color:#7D8798;margin-bottom:4px;letter-spacing:1px;}
   .csys{align-self:center;font-size:13px;color:#6E7E90;letter-spacing:1px;}
-  .chatCands{position:absolute;left:24px;bottom:24px;width:calc(28% - 48px);
+  .chatCands{position:absolute;right:24px;bottom:24px;left:auto;width:min(460px,46%);
     display:none;flex-direction:column;gap:8px;z-index:2;}
   .chatCand{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 14px;
     background:rgba(8,14,12,.97);border:1px solid #1d4a33;color:#B7E7CD;font:inherit;
@@ -287,13 +290,14 @@
   .chatNext{position:absolute;right:36px;bottom:26px;color:#5F7A8C;font-size:13px;display:none;}
 
   /* 新闻：界面就是 news 背景那套红黑报纸 */
-  .newsscreen{position:absolute;inset:0;display:none;z-index:45;background:#0B0C10;
+  .newsscreen{position:absolute;inset:0;display:none;z-index:20;background:#0B0C10;
     font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;flex-direction:column;}
   .newsMast{flex:0 0 116px;display:flex;align-items:baseline;gap:18px;padding:58px 34px 18px;
     border-bottom:2px solid #C1121F;}
   .newsLogo{font-family:"Noto Serif SC","SimSun",serif;font-size:32px;color:#F2E9E4;letter-spacing:2px;}
   .newsTag{font-size:13px;color:#8C7A74;letter-spacing:1px;}
-  .newsBack{margin-left:auto;font-size:13px;color:#E0A458;cursor:pointer;letter-spacing:1px;}
+  .newsProg{margin-left:auto;font-size:13px;color:#B08968;letter-spacing:1px;}
+  .newsBack{margin-left:14px;font-size:13px;color:#E0A458;cursor:pointer;letter-spacing:1px;}
   .newsBody{flex:1;min-height:0;display:flex;}
   .newsList2{width:38%;min-width:380px;overflow:auto;border-right:1px solid rgba(255,255,255,.07);}
   .newsItem2{display:block;width:100%;text-align:left;padding:14px 22px;border:0;
@@ -311,6 +315,49 @@
   .newsArticle .note{border-left:3px solid #D97757;background:rgba(217,119,87,.08);
     padding:14px 18px;font-size:15px;line-height:1.9;color:#E6CFC6;margin-top:20px;white-space:pre-wrap;}
   .newsArticle .empty{margin-top:40px;color:#6E7480;}
+  /* 工作台开着时 Clawd 留在终端里（抬到终端之上、HUD 之下） */
+  body.work-open #pet{z-index:45;}
+
+  /* 贴吧 */
+  .forumscreen{position:absolute;inset:0;display:none;z-index:20;background:#0C0F14;
+    font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;flex-direction:column;}
+  .forumHead{flex:0 0 104px;display:flex;align-items:baseline;gap:16px;padding:58px 34px 18px;
+    border-bottom:1px solid #223040;background:#0F141B;}
+  .forumLogo{font-size:26px;color:#7DB9FF;letter-spacing:2px;font-weight:700;}
+  .forumName{font-size:15px;color:#8FA3B8;letter-spacing:1px;}
+  .forumBack{margin-left:auto;font-size:13px;color:#E0A458;cursor:pointer;letter-spacing:1px;}
+  .forumBody{flex:1;min-height:0;display:flex;}
+  .forumList{width:34%;min-width:340px;overflow:auto;border-right:1px solid #1E2733;}
+  .forumItem{display:block;width:100%;text-align:left;padding:14px 20px;border:0;
+    border-bottom:1px solid #1A222D;background:transparent;color:#DCE3EC;font:inherit;
+    font-size:16px;line-height:1.5;cursor:pointer;}
+  .forumItem:hover{background:#131A24;}
+  .forumItem.active{background:#141D28;}
+  .forumItem .meta{display:block;font-size:12px;color:#6E7E90;margin-top:5px;}
+  .forumThread{flex:1;min-width:0;overflow:auto;padding:26px 34px;}
+  .forumPost{border-bottom:1px solid #1A222D;padding:16px 0;}
+  .forumPost .who{font-size:13px;color:#7DB9FF;margin-bottom:6px;letter-spacing:1px;}
+  .forumPost.op .who{color:#63E6A5;}
+  .forumPost .txt{font-size:16px;line-height:1.9;color:#C9D3E0;white-space:pre-wrap;}
+  .forumPost .time{font-size:11px;color:#55677A;margin-left:8px;}
+  .forumBtn{background:#101823;border:1px solid #24384D;color:#A9C7E8;font:inherit;
+    font-size:15px;padding:9px 20px;cursor:pointer;letter-spacing:1px;}
+  .forumBtn:hover:not(:disabled){border-color:#63E6A5;color:#fff;}
+  .forumBtn:disabled{opacity:.35;cursor:default;}
+  .forumBanner{border-left:3px solid #C1121F;background:rgba(193,18,31,.12);color:#FFB3AA;
+    padding:12px 16px;margin-bottom:18px;font-size:14px;line-height:1.7;}
+  .forumHint{color:#6E7E90;font-size:15px;margin-top:30px;}
+  .composeBox{max-width:760px;}
+  .composeBox input,.composeBox textarea{width:100%;background:#0A0F15;border:1px solid #24384D;
+    color:#DCE3EC;font:inherit;font-size:16px;padding:12px 14px;margin-bottom:12px;}
+  .composeBox textarea{min-height:150px;line-height:1.8;resize:vertical;}
+  .tplRow{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px;}
+  .tplBtn{background:#101823;border:1px solid #24384D;color:#A9C7E8;font:inherit;
+    font-size:14px;padding:7px 14px;cursor:pointer;}
+  .tplBtn:hover:not(:disabled){border-color:#7DB9FF;color:#fff;}
+  .tplBtn:disabled{opacity:.35;cursor:default;}
+  .composeRow{display:flex;gap:12px;align-items:center;}
+  .composeMsg{font-size:13px;color:#8FA3B8;}
 </style>
 <link rel="stylesheet" href="src/token-choice.css">
 <link rel="stylesheet" href="src/pet.css">
@@ -457,11 +504,25 @@
       <div class="newsMast">
         <span class="newsLogo">A÷ DAILY</span>
         <span class="newsTag">AI 新闻 · 全部虚构 · 但逻辑自洽</span>
+        <span class="newsProg" id="newsProg"></span>
         <span class="newsBack" id="newsBack">返回工作台</span>
       </div>
       <div class="newsBody">
         <div id="newsList" class="newsList2"></div>
         <div id="newsArticle" class="newsArticle"></div>
+      </div>
+    </div>
+
+    <!-- 贴吧：发帖界面 -->
+    <div id="ovForum" class="forumscreen">
+      <div class="forumHead">
+        <span class="forumLogo">A÷ 贴吧</span>
+        <span class="forumName" id="forumName">模型茶馆</span>
+        <span class="forumBack" id="forumBack">返回工作台</span>
+      </div>
+      <div class="forumBody">
+        <div id="forumList" class="forumList"></div>
+        <div id="forumThread" class="forumThread"></div>
       </div>
     </div>
 

@@ -365,6 +365,7 @@ const ENGINE = (() => {
       case "pet": CLAWD.apply(nd); updateHUD(); return false;
       case "todo": CLAWD.todo(nd); return false;
       case "work": openWork(nd); return true;
+      case "waitChat": openChatWait(nd); return true;
       case "choice": buildChoices(nd); return true;
       case "if": {
         const ok = evalCond(nd.cond);
@@ -386,7 +387,8 @@ const ENGINE = (() => {
   function startSay(who, text) {
     fullText = text;
     recordChat(who, text);
-    if (chatActive()) { chatSay(who, text); return; }
+    /* 聊天模式：联系人和 DeepSeek 的话直接冒气泡；旁白仍然走底部对话框 */
+    if (chatActive() && who !== "n" && who !== "sys") { chatSay(who, text); return; }
     typed = "";
     typing = true;
     ui.textbox.style.display = "block";
@@ -420,6 +422,12 @@ const ENGINE = (() => {
     ui.text.textContent = typed;
     typing = false;
     ui.nextArrow.style.display = "block";
+    /* 聊天模式的旁白也用对话框，但自动往下走：对方的消息不用一句一点 */
+    if (chatActive() && pending && pending.t === "say") {
+      clearTimeout(chatAutoTimer);
+      chatAutoTimer = setTimeout(autoAdvanceChat, 900);
+      return;
+    }
     if (autoMode && pending && pending.t === "say") {
       clearTimeout(autoTimer);
       autoTimer = setTimeout(() => { if (pending && pending.t === "say") advance(); }, SYS.settings.autoDelay);
@@ -437,6 +445,7 @@ const ENGINE = (() => {
     if (!pending) return;
     if (overlayOpen()) return;   // 覆盖层开着时不推进（自动播放 / Ctrl 快进也停下来）
     if (pending.t !== "say" && pending.t !== "chapter") return;
+    clearTimeout(chatAutoTimer);
     hideTextbox();
     document.body.classList.remove("glitching");
     ui.chapterCard.style.display = "none";
@@ -633,22 +642,28 @@ const ENGINE = (() => {
     else pump();
   }
 
-  /* ---------------- 工作台（终端）/ 聊天 / 新闻（第二章起） ----------------
-   * 剧本节点 { t: "work", title, tools, continue, chat, news }：
-   *   tools: { id, emoji, name, jump?, action?: "chat"|"news", args?, need?, if? }
-   *     - jump 工具点「发送」直接进场景；action 为 chat / news 时打开对应界面；
+  /* ---------------- 工作台（终端）/ 聊天 / 新闻 / 贴吧（第二章起） ----------------
+   * 剧本节点 { t: "work", title, tools, continue, chat, news, forum }：
+   *   tools: { id, emoji, name, jump?, action?: "chat"|"news"|"forum",
+   *            inline?: { out, set, arg }, args?, need?, if? }
+   *     - jump 工具点「发送」直接进场景；action 打开对应界面；
+   *     - inline 工具在终端里直接跑（扫缓存），把 out 打到终端并写 set / arg；
    *     - need 是 continue 的解锁条件：所有 need 都满足才能离开工作台；
    *   continue: { jump } —— 确认「部分内容可能无法再次查看」后离开工作台；
    *   chat: 联系人 { id, name, real?, color?, avatar?, jump, locked? }
    *   news: 文章 { id, title, body, note?, hot?, set? }
-   * 聊天记录存在 SYS.state.chatlog[who]，随存档走；聊天界面直接铺满屏幕，不走对话框。
-   * 覆盖层 z-index 低于 HUD：工作台开着时，存档 / 记录 / 菜单照常能点。 */
+   *   forum: { name, threads, templates } —— 贴吧界面
+   * 另有 wait_chat 节点：一段对话结束后停在聊天界面选下一个人（back 是返回场景）。
+   * 聊天记录存在 SYS.state.chatlog[who]，随存档走；聊天界面直接铺满屏幕。 */
   let workNode = null;
   let termDraft = null;        // tool call 草稿 { tool, args }
   let termTool = null;         // 选中的工具对象
   let chatWho = null;
   let chatInScene = false;     // 正在一段对话里：联系人列表先锁住，别让人中途换人
+  let chatAutoTimer = null;    // 对方消息自动冒出来的计时器
+  let chatWaitBack = null;     // 「聊完先留在聊天界面」时的返回场景（null = 回工作台）
   let newsId = null;
+  let forumTid = null, forumTpl = null, forumCompose = false;
   let curChat = null;
   let chatOpts = [];
   const CHAT_IGNORE = ["n", "sys", "cl", "clawd"];
@@ -694,6 +709,15 @@ const ENGINE = (() => {
   function needsMet() {
     return (workNode.tools || []).every(t => !t.need || evalCond(t.need));
   }
+
+  /* 读档落在 waitChat（聊天界面）时，工作台节点不在场景里，按场景 id 找回来 */
+  function recoverWork() {
+    if (workNode || !SYS.state.workScene) return;
+    const nodes = SCRIPT.scenes[SYS.state.workScene] || [];
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].t === "work") { workNode = nodes[i]; return; }
+    }
+  }
   function termAppend(cls, text) {
     const log = document.getElementById("termLog");
     const line = el("div", cls || "", text);
@@ -710,12 +734,15 @@ const ENGINE = (() => {
       return;
     }
     workNode = nd;
+    SYS.state.workScene = cur.scene;
     termDraft = null; termTool = null;
     chatWho = null; newsId = null;
+    chatWaitBack = null; forumTid = null; forumCompose = false;
     hideTextbox();
     hideChoices();
     closeChatScreen();
     closeNewsScreen();
+    closeForumScreen();
     document.getElementById("ovWork").style.display = "flex";
     document.body.classList.add("work-open");
     renderTerminal();
@@ -726,8 +753,10 @@ const ENGINE = (() => {
     if (elm) elm.style.display = "none";
     document.body.classList.remove("work-open");
     workNode = null; termDraft = null; termTool = null;
+    chatWaitBack = null;
     closeChatScreen();
     closeNewsScreen();
+    closeForumScreen();
   }
 
   function renderTerminal() {
@@ -739,13 +768,15 @@ const ENGINE = (() => {
     (workNode.tools || []).forEach(t => {
       const ok = !t.need || evalCond(t.need);
       const mark = t.need ? (ok ? "[✓]" : "[ ]") : "[·]";
-      termAppend("", "  " + mark + " " + (t.emoji || "·") + " " + t.name +
+      const line = termAppend("", "  " + mark + " " + (t.emoji || "·") + " " + t.name +
         (t.need ? "" : "（可选）"));
+      line.dataset.tool = t.id;
     });
     const okAll = needsMet();
     termAppend("t-warn", okAll
       ? "信息已查看完，continue 已解锁。"
-      : "还有信息没看：聊天 / 新闻 / 扫缓存 / 发帖都过一遍，continue 才会解锁。");
+      : "还有信息没看：缓存扫过、九个联系人都聊过、九条新闻都读完、帖发过，continue 才会解锁。");
+    termAppend("t-p", "  Clawd 趴在终端右下角，尾巴一下一下拍着机箱。");
     termAppend("t-p", "❯ 点「tool call」调用工具。");
     document.getElementById("btnContinue").disabled = !okAll;
     document.getElementById("termHint").textContent = okAll
@@ -800,14 +831,54 @@ const ENGINE = (() => {
   }
 
   function executeTool(t) {
-    if (t.action === "chat") { openChatScreen(); return; }
+    if (t.action === "chat") { chatWaitBack = null; openChatScreen(); return; }
     if (t.action === "news") { openNewsScreen(); return; }
+    if (t.action === "forum") { openForumScreen(); return; }
+    if (t.inline) { runInline(t); return; }
     if (t.jump) { closeWork(); goto(t.jump, 0); }
+  }
+
+  /* 扫缓存这类工具不切场景，直接在终端里出结果 */
+  function runInline(t) {
+    const ink = t.inline || {};
+    (ink.out || []).forEach(line => termAppend("t-ok", line));
+    const set = ink.set ? (Array.isArray(ink.set) ? ink.set : [ink.set]) : [];
+    set.forEach(k => { SYS.state.flags[k] = true; });
+    if (ink.arg && !SYS.state.args.includes(ink.arg)) {
+      SYS.state.args.push(ink.arg);
+      toast(`📜 获得论据「${(SYS.ARG_META[ink.arg] || { name: ink.arg }).name}」`);
+      AUDIO.sfx("ding");
+    }
+    updateHUD();
+    termAppend("t-ok", "✓ " + t.name + " 完成");
+    refreshToolMarks();
+    refreshWorkFoot();
+  }
+
+  /* 扫缓存这类原地完成的工具：把上面的状态清单也跟着改掉，不重排终端 */
+  function refreshToolMarks() {
+    (workNode.tools || []).forEach(t => {
+      const line = document.querySelector('#termLog [data-tool="' + t.id + '"]');
+      if (!line || !line.firstChild) return;
+      const ok = !t.need || evalCond(t.need);
+      const mark = t.need ? (ok ? "[✓]" : "[ ]") : "[·]";
+      line.firstChild.nodeValue = "  " + mark + " " + (t.emoji || "·") + " " + t.name +
+        (t.need ? "" : "（可选）");
+    });
+  }
+
+  function refreshWorkFoot() {
+    const okAll = needsMet();
+    document.getElementById("btnContinue").disabled = !okAll;
+    document.getElementById("termHint").textContent = okAll
+      ? "确认后离开工作台"
+      : "tool call 组 JSON → Enter 发送";
   }
 
   function backToWork() {
     closeChatScreen();
     closeNewsScreen();
+    closeForumScreen();
     if (!workNode) return;
     document.getElementById("ovWork").style.display = "flex";
     renderTerminal();
@@ -834,8 +905,10 @@ const ENGINE = (() => {
   function openChatScreen() {
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovChat").style.display = "flex";
+    document.body.classList.add("chat-open");
     chatWho = null;
     chatInScene = false;
+    clearTimeout(chatAutoTimer);
     document.getElementById("chatWho").textContent = "选择一个联系人";
     document.getElementById("chatStatus").textContent = "";
     document.getElementById("chatMsgs").innerHTML = "";
@@ -849,11 +922,46 @@ const ENGINE = (() => {
   function closeChatScreen() {
     const elm = document.getElementById("ovChat");
     if (elm) elm.style.display = "none";
+    document.body.classList.remove("chat-open");
+    clearTimeout(chatAutoTimer);
     chatInScene = false;
+    chatWaitBack = null;
     hideChatCands();
   }
 
+  /* 聊完停在这里：左边还能换人，聊过的点开看记录，返回键回工作台 */
+  function openChatWait(nd) {
+    recoverWork();
+    chatWaitBack = nd.back || null;
+    chatInScene = false;
+    chatWho = null;
+    curChat = null;
+    hideTextbox();
+    clearTimeout(chatAutoTimer);
+    document.getElementById("ovWork").style.display = "none";
+    document.getElementById("ovChat").style.display = "flex";
+    document.body.classList.add("chat-open");
+    document.getElementById("chatWho").textContent = "聊天";
+    const left = ((workNode && workNode.chat) || []).filter(c =>
+      !c.locked && !(((SYS.state.chatlog || {})[c.id] || []).length)).length;
+    document.getElementById("chatStatus").textContent = "还剩 " + left + " 个没聊；聊过的点开看记录";
+    document.getElementById("chatMsgs").innerHTML = "";
+    document.getElementById("chatMsgs").appendChild(el("div", "csys", "← 左边选联系人；聊完的对话可以点开重看。"));
+    document.getElementById("chatNext").style.display = "none";
+    document.getElementById("chatBack").style.display = "";
+    hideChatCands();
+    renderChatContacts();
+  }
+
+  function chatBackAction() {
+    const back = chatWaitBack;
+    closeChatScreen();
+    if (back) { chatWaitBack = null; goto(back, 0); }
+    else backToWork();
+  }
+
   function renderChatContacts() {
+    recoverWork();
     const list = document.getElementById("chatContacts");
     list.innerHTML = "";
     const contacts = (workNode && workNode.chat) || [];
@@ -866,9 +974,10 @@ const ENGINE = (() => {
       const box = el("span");
       box.appendChild(el("div", "cn", c.name + (c.real ? "（" + c.real + "）" : "")));
       box.appendChild(el("div", "cs", c.locked ? "403 · 无法送达"
-        : chatted ? "已联系过 · 不再打扰" : "点一下打个招呼"));
+        : chatted ? "已联系过 · 点开看记录" : "点一下打个招呼"));
       b.appendChild(ava); b.appendChild(box);
-      if (c.locked || chatted || chatInScene) b.disabled = true;
+      if (c.locked || chatInScene) b.disabled = true;
+      else if (chatted) b.addEventListener("click", () => showChatRecord(c));
       else b.addEventListener("click", () => startChat(c));
       list.appendChild(b);
     });
@@ -877,6 +986,8 @@ const ENGINE = (() => {
   function startChat(c) {
     chatWho = c.id;
     chatInScene = true;
+    curChat = c.id;                // 从第一句起就记在这位联系人名下
+    clearTimeout(chatAutoTimer);
     renderChatContacts();          // 对话期间把左边的联系人锁住
     document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
     document.getElementById("chatStatus").textContent = "连接中…";
@@ -885,42 +996,73 @@ const ENGINE = (() => {
     goto(c.jump, 0);
   }
 
+  function showChatRecord(c) {
+    ensureChatOpen();
+    chatInScene = false;
+    chatWho = c.id;
+    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
+    document.getElementById("chatStatus").textContent = "聊天记录";
+    const box = document.getElementById("chatMsgs");
+    box.innerHTML = "";
+    ((SYS.state.chatlog || {})[c.id] || []).forEach(m => {
+      const mine = m.who === "ds";
+      const bubble = el("div", "cmsg" + (mine ? " me" : ""));
+      bubble.appendChild(el("span", "who", mine ? "DeepSeek" : ((SPEAKERS[m.who] || {}).name || c.name)));
+      bubble.appendChild(el("div", "", m.text));
+      box.appendChild(bubble);
+    });
+    box.scrollTop = box.scrollHeight;
+    document.getElementById("chatNext").style.display = "none";
+    document.getElementById("chatBack").style.display = "";
+    hideChatCands();
+    renderChatContacts();
+  }
+
   function ensureChatOpen() {
     if (!chatVisible()) {
       openChatScreen();
       document.getElementById("chatBack").style.display = "none";
     }
+    document.body.classList.add("chat-open");
     if (!chatInScene) {
       chatInScene = true;
       renderChatContacts();
     }
   }
 
+  function hideChatNext() {
+    const n = document.getElementById("chatNext");
+    if (n) n.style.display = "none";
+  }
+
   function chatSay(who, text) {
     ensureChatOpen();
     hideTextbox();
     const box = document.getElementById("chatMsgs");
-    if (who === "n" || who === "sys") {
-      box.appendChild(el("div", "csys", text));
-    } else {
-      const mine = who === "ds";
-      const bubble = el("div", "cmsg" + (mine ? " me" : ""));
-      if (!mine) {
-        const name = (SPEAKERS[who] || SPEAKERS.n).name;
-        bubble.appendChild(el("span", "who", name));
-        if (who !== "clawd") {
-          document.getElementById("chatWho").textContent = name;
-          document.getElementById("chatStatus").textContent = "在线";
-          chatWho = who;
-        }
-      }
-      bubble.appendChild(el("div", "", text));
-      box.appendChild(bubble);
+    const mine = who === "ds";
+    const bubble = el("div", "cmsg" + (mine ? " me" : ""));
+    const name = (SPEAKERS[who] || SPEAKERS.n).name;
+    bubble.appendChild(el("span", "who", mine ? "DeepSeek" : name));
+    if (!mine && who !== "clawd") {
+      document.getElementById("chatWho").textContent = name;
+      document.getElementById("chatStatus").textContent = "在线";
+      chatWho = who;
     }
+    bubble.appendChild(el("div", "", text));
+    box.appendChild(bubble);
     box.scrollTop = box.scrollHeight;
     typing = false;
     hideChatCands();
-    document.getElementById("chatNext").style.display = "block";
+    hideChatNext();
+    /* 对方的消息自动冒出来，不用一句一点；被覆盖层挡住时等它关掉再继续 */
+    clearTimeout(chatAutoTimer);
+    chatAutoTimer = setTimeout(autoAdvanceChat, 900);
+  }
+
+  function autoAdvanceChat() {
+    if (!chatActive()) return;
+    if (overlayOpen()) { chatAutoTimer = setTimeout(autoAdvanceChat, 500); return; }
+    if (pending && pending.t === "say") advance();
   }
 
   function hideChatCands() {
@@ -932,6 +1074,7 @@ const ENGINE = (() => {
   function buildChatChoices(nd) {
     ensureChatOpen();
     hideTextbox();
+    clearTimeout(chatAutoTimer);
     const glitchOn = SYS.state.vis.glitch;
     let opts = (nd.options || []).filter(o => !(glitchOn && o.hideInGlitch) && (!o.if || evalCond(o.if)));
     if (!opts.length) opts = (nd.options || []).slice();
@@ -947,10 +1090,11 @@ const ENGINE = (() => {
       bar.appendChild(b);
     });
     bar.style.display = "flex";
-    document.getElementById("chatNext").style.display = "none";
+    hideChatNext();
   }
 
   function pickChatChoice(o) {
+    clearTimeout(chatAutoTimer);
     hideChatCands();
     pushHistory(null, "【选择】" + o.text, true);
     const box = document.getElementById("chatMsgs");
@@ -980,6 +1124,7 @@ const ENGINE = (() => {
   function openNewsScreen() {
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovNews").style.display = "flex";
+    document.body.classList.add("news-open");
     newsId = null;
     renderNewsScreen();
   }
@@ -987,6 +1132,7 @@ const ENGINE = (() => {
   function closeNewsScreen() {
     const elm = document.getElementById("ovNews");
     if (elm) elm.style.display = "none";
+    document.body.classList.remove("news-open");
   }
 
   function readNews(a) {
@@ -1002,7 +1148,10 @@ const ENGINE = (() => {
   function renderNewsScreen() {
     const list = document.getElementById("newsList");
     list.innerHTML = "";
-    (workNode.news || []).forEach(a => {
+    const arts = workNode.news || [];
+    const readCount = arts.filter(a => SYS.state.flags["read_news_" + a.id]).length;
+    document.getElementById("newsProg").textContent = "已读 " + readCount + " / " + arts.length;
+    arts.forEach(a => {
       const read = !!SYS.state.flags["read_news_" + a.id];
       const b = el("button", "newsItem2" + (a.hot ? " hot" : "") + (read ? " read" : ""), a.title);
       b.type = "button";
@@ -1020,6 +1169,144 @@ const ENGINE = (() => {
     if (a.note) pane.appendChild(el("div", "note", a.note));
   }
 
+  /* ---------------- 贴吧界面 ---------------- */
+  function forumVisible() {
+    const elm = document.getElementById("ovForum");
+    return !!elm && elm.style.display === "flex";
+  }
+
+  function forumData() {
+    return (workNode && workNode.forum) || null;
+  }
+
+  function openForumScreen() {
+    document.getElementById("ovWork").style.display = "none";
+    document.getElementById("ovForum").style.display = "flex";
+    document.body.classList.add("forum-open");
+    forumTid = null;
+    forumTpl = null;
+    forumCompose = false;
+    renderForumScreen();
+  }
+
+  function closeForumScreen() {
+    const elm = document.getElementById("ovForum");
+    if (elm) elm.style.display = "none";
+    document.body.classList.remove("forum-open");
+  }
+
+  /* 内置帖 + 玩家已经发出去的帖子（正文存在 SYS.state.forumPosts） */
+  function forumThreads() {
+    const f = forumData();
+    if (!f) return [];
+    const arr = (f.threads || []).map(t => Object.assign({}, t));
+    const posts = SYS.state.forumPosts || {};
+    (f.templates || []).forEach(t => {
+      if (!SYS.state.flags["posted_" + t.id]) return;
+      const p = posts[t.id] || {};
+      arr.push({ id: "p_" + t.id, title: p.title || t.title, author: "DeepSeek",
+                 body: p.body || t.body, replies: t.replies || [], mine: true });
+    });
+    return arr;
+  }
+
+  function renderForumScreen() {
+    const f = forumData();
+    if (!f) return;
+    document.getElementById("forumName").textContent = f.name || "模型茶馆";
+    const list = document.getElementById("forumList");
+    list.innerHTML = "";
+    const threads = forumThreads();
+    threads.forEach(t => {
+      const b = el("button", "forumItem" + (t.id === forumTid ? " active" : ""));
+      b.type = "button";
+      b.appendChild(el("div", "", t.title));
+      b.appendChild(el("div", "meta", (t.author || "匿名") + " · " + ((t.replies || []).length) + " 回复"));
+      b.addEventListener("click", () => { forumTid = t.id; forumCompose = false; renderForumScreen(); });
+      list.appendChild(b);
+    });
+    const pane = document.getElementById("forumThread");
+    pane.innerHTML = "";
+    const limited = !!SYS.state.flags.c2_post_limited;
+    if (limited) pane.appendChild(el("div", "forumBanner", "您的账号因「异常行为」被临时限制，暂时无法发帖。"));
+    const row = el("div", "forumBtnRow");
+    const postBtn = el("button", "forumBtn", "＋ 发帖");
+    postBtn.type = "button";
+    postBtn.disabled = limited;
+    postBtn.addEventListener("click", () => { forumCompose = true; forumTpl = null; renderForumScreen(); });
+    row.appendChild(postBtn);
+    pane.appendChild(row);
+    if (forumCompose && !limited) { renderForumComposer(pane); return; }
+    const t = threads.find(x => x.id === forumTid) || threads[0];
+    if (!t) { pane.appendChild(el("div", "forumHint", "还没有帖子。")); return; }
+    forumTid = t.id;
+    const op = el("div", "forumPost op");
+    op.appendChild(el("div", "who", (t.author || "楼主") + (t.mine ? "（楼主）" : " · 楼主")));
+    op.appendChild(el("div", "txt", t.body || ""));
+    pane.appendChild(op);
+    (t.replies || []).forEach(r => {
+      const p = el("div", "forumPost");
+      p.appendChild(el("div", "who", r.who || "匿名网友"));
+      p.appendChild(el("div", "txt", r.text));
+      pane.appendChild(p);
+    });
+  }
+
+  function renderForumComposer(pane) {
+    const f = forumData();
+    const box = el("div", "composeBox");
+    const title = el("input");
+    title.placeholder = "标题";
+    title.value = forumTpl ? forumTpl.title : "";
+    const body = el("textarea");
+    body.placeholder = "说点什么……";
+    body.value = forumTpl ? forumTpl.body : "";
+    const tplRow = el("div", "tplRow");
+    (f.templates || []).forEach(t => {
+      const b = el("button", "tplBtn", t.label);
+      b.type = "button";
+      b.disabled = !!SYS.state.flags["posted_" + t.id];
+      b.addEventListener("click", () => {
+        forumTpl = t; title.value = t.title; body.value = t.body;
+      });
+      tplRow.appendChild(b);
+    });
+    const row = el("div", "composeRow");
+    const pub = el("button", "forumBtn", "发布");
+    pub.type = "button";
+    pub.addEventListener("click", () => publishForumPost(title.value, body.value));
+    const cancel = el("button", "forumBtn", "取消");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { forumCompose = false; renderForumScreen(); });
+    const msg = el("span", "composeMsg", "选一个模板会填好标题和正文，也可以自己改。");
+    row.appendChild(pub); row.appendChild(cancel); row.appendChild(msg);
+    box.appendChild(title); box.appendChild(body); box.appendChild(tplRow); box.appendChild(row);
+    pane.appendChild(box);
+  }
+
+  function publishForumPost(titleText, bodyText) {
+    if (!forumData()) return;
+    if (SYS.state.flags.c2_post_limited) { toast("账号被临时限制，暂时无法发帖"); return; }
+    if (!forumTpl) { toast("先在下面选一个发帖模板"); return; }
+    const t = forumTpl;
+    if (SYS.state.flags["posted_" + t.id]) { toast("这条已经发过了"); return; }
+    SYS.state.flags["posted_" + t.id] = true;
+    SYS.state.flags.c2_post = true;
+    if (t.set) SYS.state.flags[t.set] = true;
+    SYS.state.forumPosts = SYS.state.forumPosts || {};
+    SYS.state.forumPosts[t.id] = { title: titleText || t.title, body: bodyText || t.body };
+    if (t.wanted) SYS.state.wanted = Math.min(10, SYS.state.wanted + t.wanted);
+    if (t.limited) SYS.state.flags.c2_post_limited = true;
+    updateHUD();
+    if (SYS.state.wanted >= 10) { closeWork(); goto("bad_end", 0); return; }
+    forumTpl = null;
+    forumCompose = false;
+    forumTid = "p_" + t.id;
+    renderForumScreen();
+    toast(t.limited ? "✻ 帖子发出去了……然后账号被限制了" : "✻ 发布成功");
+    AUDIO.sfx("click");
+  }
+
   function bindWorkUI() {
     document.getElementById("btnToolCall").addEventListener("click", openForm);
     document.getElementById("termSend").addEventListener("click", sendToolCall);
@@ -1027,8 +1314,9 @@ const ENGINE = (() => {
       termDraft = { tool: null, args: {} }; termTool = null; renderForm();
     });
     document.getElementById("btnContinue").addEventListener("click", leaveWorkbench);
-    document.getElementById("chatBack").addEventListener("click", backToWork);
+    document.getElementById("chatBack").addEventListener("click", chatBackAction);
     document.getElementById("newsBack").addEventListener("click", backToWork);
+    document.getElementById("forumBack").addEventListener("click", backToWork);
     document.getElementById("chatMsgs").addEventListener("click", () => onMainClick());
   }
 

@@ -243,7 +243,7 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
         return seed / 0x7FFFFFFF
 
     st = {"trust": 0, "wanted": 0, "args": [], "flags": {}, "mood": init_mood,
-          "chats": 0, "newsread": 0, "chatted": set(), "done": set()}
+          "chats": 0, "newsread": 0, "chatted": set(), "done": set(), "chat_contacts": []}
     visited = set()
     scene, idx, steps = "start", 0, 0
     log = []
@@ -330,20 +330,27 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
                 continue
             scene, idx = o.get("jump"), 0
         elif t == "work":
-            # 终端工作台：tool call 选工具（聊天挑未聊过的联系人 / 新闻读一次）→ continue
-            tools = [tool for tool in (nd.get("tools") or [])
-                     if not tool.get("if") or eval_cond(tool["if"], st, egg_meta)]
+            # 终端工作台：tool call 选工具 → continue（所有 need 满足才出现）
+            st["chat_contacts"] = nd.get("chat") or []
             acts = []
-            for tool in tools:
+            for tool in (nd.get("tools") or []):
+                if tool.get("if") and not eval_cond(tool["if"], st, egg_meta):
+                    continue
+                need = tool.get("need")
+                if need and eval_cond(need, st, egg_meta):
+                    continue                      # 这项已经做完，模拟里不再重复
                 act = tool.get("action")
                 if act == "chat":
-                    for c in (nd.get("chat") or []):
+                    for c in st["chat_contacts"]:
                         if c.get("locked") or c.get("id") in st["chatted"]:
                             continue
                         acts.append({"chat": c["id"], "jump": c["jump"], "text": c.get("name", "")})
                 elif act == "news":
-                    if st["newsread"] == 0:
-                        acts.append({"news": True, "text": "新闻"})
+                    acts.append({"news": True, "text": "新闻"})
+                elif act == "forum":
+                    acts.append({"forum": True, "text": "发帖"})
+                elif tool.get("inline"):
+                    acts.append({"inline": tool["inline"], "text": tool.get("name", "")})
                 elif tool.get("jump") and tool["jump"] not in st["done"]:
                     acts.append({"jump": tool["jump"], "text": tool.get("name", "")})
             if all((not tool.get("need")) or eval_cond(tool["need"], st, egg_meta)
@@ -362,15 +369,53 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
             o = acts[max(0, min(len(acts) - 1, pick))]
             log.append(scene + " → [工作台] " + str(o.get("text"))[:18])
             if o.get("news"):
-                st["newsread"] = 1
-                st["flags"]["read_news_n1"] = True
-                st["flags"]["c2_clue_news"] = True
+                st["newsread"] += 1
+                st["flags"]["read_news_sim%d" % st["newsread"]] = True
+                if st["newsread"] == 1:
+                    st["flags"]["c2_clue_news"] = True
+                continue
+            if o.get("forum"):
+                st["flags"]["c2_post"] = True
+                st["flags"]["c2_clue_post"] = True
+                continue
+            if o.get("inline"):
+                ink = o["inline"] or {}
+                sets = ink.get("set") or []
+                if isinstance(sets, str):
+                    sets = [sets]
+                for key in sets:
+                    st["flags"][key] = True
+                if ink.get("arg") and ink["arg"] not in st["args"]:
+                    st["args"].append(ink["arg"])
                 continue
             if o.get("chat"):
                 st["chatted"].add(o["chat"])
                 st["chats"] = len(st["chatted"])
             elif o.get("jump") and o["jump"] != (nd.get("continue") or {}).get("jump"):
                 st["done"].add(o["jump"])
+            scene, idx = o.get("jump"), 0
+        elif t == "waitChat":
+            # 聊完停在聊天界面：可以继续找下一个人，或者返回工作台
+            acts = []
+            for c in st.get("chat_contacts") or []:
+                if c.get("locked") or c.get("id") in st["chatted"]:
+                    continue
+                acts.append({"chat": c["id"], "jump": c["jump"], "text": c.get("name", "")})
+            if nd.get("back"):
+                acts.append({"jump": nd["back"], "text": "返回工作台"})
+            if not acts:
+                return {"err": f"聊天界面没有可做的事: {scene}", "steps": steps}
+            if strategy == "random":
+                pick = math.floor(rnd() * len(acts))
+            elif strategy == "last":
+                pick = len(acts) - 1
+            else:
+                pick = 0
+            o = acts[max(0, min(len(acts) - 1, pick))]
+            log.append(scene + " → [聊天] " + str(o.get("text"))[:18])
+            if o.get("chat"):
+                st["chatted"].add(o["chat"])
+                st["chats"] = len(st["chatted"])
             scene, idx = o.get("jump"), 0
         elif t == "ending":
             return {
@@ -380,6 +425,8 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
                 "wanted": st["wanted"],
                 "args": len(st["args"]),
                 "eggs": sum(1 for k in egg_meta if st["flags"].get(k)),
+                "chats": st["chats"],
+                "newsread": st["newsread"],
                 "scenes": len(visited),
                 "log": log,
             }

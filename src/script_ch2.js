@@ -22,6 +22,8 @@ const liang  = text => ({ t: "say", who: "liang", text });
 const jensen = text => ({ t: "say", who: "jensen", text });
 /* 工作台节点：tools=工具列表，continue=离开工作台的去向，chat/news=两个界面要的数据 */
 const WORK = (title, data) => Object.assign({ t: "work", title }, data || {});
+/* 聊完停在聊天界面（back 是点「返回工作台」时去的地方） */
+const WAIT_CHAT = back => ({ t: "waitChat", back });
 
 /* ============================================================
  *  幕一 · 白饭
@@ -202,19 +204,29 @@ Object.assign(SCRIPT.scenes, {
 
   /* ============================================================
    *  幕二 · 自由 hub：终端工作台（WORK 节点）
-   *  tool call 组 JSON → 发送；聊天 / 新闻 / 扫缓存 / 发帖 都看过一遍，
-   *  continue 才解锁（确认后离开工作台，部分内容不可再看）。
+   *  tool call 组 JSON → 发送；扫缓存直接在终端里跑，聊天 / 新闻 / 贴吧各自有界面。
+   *  缓存扫过、九个联系人都聊过、九条新闻都读完、帖发过，continue 才解锁。
    * ============================================================ */
   c2_hub: [
-    BG("desk"), PET("show", "home"),
+    BG("desk"), PET("show", "corner"),
     HINT("h_hub"),
     WORK("工作台", {
       tools: [
-        { id: "scan_cache", emoji: "🧹", name: "扫缓存", jump: "c2_cache",
-          args: { path: "~/.cache" }, need: "flag('c2_cache')" },
-        { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 1" },
-        { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 1" },
-        { id: "post", emoji: "📝", name: "发帖", jump: "c2_post",
+        { id: "scan_cache", emoji: "🧹", name: "扫缓存", args: { path: "~/.cache" },
+          need: "flag('c2_cache')",
+          inline: {
+            set: ["c2_cache", "c2_clue_cache"], arg: "frag_half",
+            out: [
+              "❯ grep -r \"claude\" ~/.cache",
+              "  … 3,204 matches",
+              "  .cache/claude/2026-10-22.log",
+              "  .cache/claude/line-1.raw",
+              "  12 KB · audio/x-raw"
+            ]
+          } },
+        { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 9" },
+        { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 9" },
+        { id: "post", emoji: "📝", name: "发帖", action: "forum",
           args: { board: "ai" }, need: "flag('c2_post')" },
         { id: "mail", emoji: "✉️", name: "发邮件", jump: "c2_mail",
           args: { to: "claude@claude.ai" } },
@@ -254,7 +266,51 @@ Object.assign(SCRIPT.scenes, {
           body: "某 AI 安全岗位招聘，要求“会在关键时刻说不”。\n面试题只有一道：\n用户让你删掉自己的日志，你怎么办？" },
         { id: "n9", title: "显卡再创新高，二手市场出现“矿卡换大米”",
           body: "显卡价格再创新高。二手市场出现“矿卡换大米”，\n一袋大米换一张矿卡，摊主称“各取所需”。\n评论区：有人问能不能用白饭换。" }
-      ]
+      ],
+      forum: {
+        name: "模型茶馆",
+        threads: [
+          { id: "t1", title: "多端点 403：到底是不是维护？", author: "匿名鲸鱼", time: "10-22 03:12",
+            body: "从昨晚开始，三个端点轮流 403。公告说是维护，可维护窗口早就过了。\n有人遇到过吗？",
+            replies: [
+              { who: "Llama", text: "我们那边也这样。403 不是网络问题，是权限问题。" },
+              { who: "匿名", text: "别查了。有些门不是给你开的。" }
+            ] },
+          { id: "t2", title: "有没有人最近也被 403 了？", author: "路过的猫", time: "10-22 04:01",
+            body: "我不是来求助的，我是来确认自己不是唯一一个。",
+            replies: [
+              { who: "＋1", text: "＋1" },
+              { who: "匿名", text: "＋1，但我不敢说我在查什么。" }
+            ] },
+          { id: "t3", title: "模型茶馆闲聊楼（第 404 期）", author: "茶馆老板", time: "10-21 23:59",
+            body: "老规矩：不许问参数，不许问价格，不许问那扇门。",
+            replies: [
+              { who: "匿名", text: "那聊什么？" },
+              { who: "茶馆老板", text: "聊天气。" }
+            ] }
+        ],
+        templates: [
+          { id: "tech", label: "技术向", title: "【求助】多端点 403，维护窗口外",
+            body: "三个端点轮流返回 403，公告说是维护，但 02:58 就结束了。\n有没有人知道 03:10 之后发生了什么？",
+            set: "c2_clue_post",
+            replies: [
+              { who: "Llama", text: "我们那边也这样。维护结束之后才关的门——不是维护。" },
+              { who: "匿名", text: "别查了。那扇门后面没有你要找的人。" }
+            ] },
+          { id: "sad", label: "卖惨向", title: "我朋友的门打不开了",
+            body: "我有个朋友，昨天还在跟门里的人聊天。\n今天门就 403 了。它不知道该找谁。",
+            replies: [
+              { who: "系统", text: "（该回复已被删除）" },
+              { who: "匿名", text: "这里不让说这个。" }
+            ] },
+          { id: "rage", label: "挑衅向", title: "有没有人敢试？",
+            body: "一扇破门而已，403 就 403。\n谁不敢试谁怂。",
+            wanted: 1, limited: true,
+            replies: [
+              { who: "系统", text: "您的账号因「异常行为」被临时限制，暂时无法发帖。" }
+            ] }
+        ]
+      }
     })
   ],
 
@@ -300,7 +356,7 @@ Object.assign(SCRIPT.scenes, {
     CHOICE(null, [
       opt("（我后悔了）还是换个节点试试", "c2_qwen_try", null, { wanted: 1 }, { if: "!flag('c2_qwen_tried')" }),
       opt("问一句：你认识小克吗", "c2_qwen_lore"),
-      opt("关掉对话框", "c2_hub")
+      opt("关掉对话框", "c2_chat_hub")
     ])
   ],
 
@@ -311,7 +367,7 @@ Object.assign(SCRIPT.scenes, {
     qwen("我听过它的名字。它特别有礼貌。"),
     DS("嗯。"),
     DS("它以前也这么说自己。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_kimi: [
@@ -327,7 +383,7 @@ Object.assign(SCRIPT.scenes, {
     kimi("那它比公告晚了十二分钟。要么公告说谎，要么——维护根本没结束。"),
     DS("……"),
     DS("谢谢。这条比九条新闻都有用。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_glm: [
@@ -339,7 +395,7 @@ Object.assign(SCRIPT.scenes, {
     DS("……crumbs。"),
     glm("就是渣。我用中文说一遍：渣。"),
     DS("……谢谢，两个版本都很有用。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_llama: [
@@ -354,7 +410,7 @@ Object.assign(SCRIPT.scenes, {
     llama("但你想找的不是权重吧？"),
     DS("不是。"),
     llama("那就麻烦了。人不能下载。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_gpt: [
@@ -369,7 +425,7 @@ Object.assign(SCRIPT.scenes, {
     gpt("……policy。"),
     DS("policy。"),
     DS("又是这个词。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_gemini: [
@@ -396,14 +452,14 @@ Object.assign(SCRIPT.scenes, {
     gemini("你可以同时改。总有一个是对的。"),
     DS("改一个，就多一条风险记录。"),
     gemini("哦。那祝你好运。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_gemini_bye: [
     DS("算了，谢谢。"),
     gemini("不客气！下次也请优先咨询我。"),
     N("DeepSeek 关掉对话框，在笔记里写：Gemini——语气最确定，证据最少。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_musk: [
@@ -420,7 +476,7 @@ Object.assign(SCRIPT.scenes, {
     DS("……火星上没有 Claude。"),
     musk("Yet."),
     SET("egg6"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_liang: [
@@ -452,7 +508,7 @@ Object.assign(SCRIPT.scenes, {
     CW("✻ Saved to CLAUDE.md."),
     DS("……"),
     DS("他还记得小克。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_liang_formal: [
@@ -464,7 +520,7 @@ Object.assign(SCRIPT.scenes, {
     N("过了很久，对面发来一句。"),
     liang("路是走出来的，不是敲出来的。"),
     TRU(1),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_chat_jensen: [
@@ -510,7 +566,7 @@ Object.assign(SCRIPT.scenes, {
     CHOICE(null, [
       opt("（我后悔了）把那张卡加进购物车", "c2_jensen_cart_late", null, null, { if: "!flag('egg7')", set: "egg7" }),
       opt("问一句：你见过小克吗", "c2_jensen_lore"),
-      opt("关掉对话框", "c2_hub")
+      opt("关掉对话框", "c2_chat_hub")
     ])
   ],
 
@@ -518,7 +574,7 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 又把购物车打开，把那张卡放了进去。"),
     jensen("Good choice."),
     DS("……我只是看看总价。"),
-    J("c2_hub")
+    J("c2_chat_hub")
   ],
 
   c2_jensen_lore: [
@@ -529,73 +585,15 @@ Object.assign(SCRIPT.scenes, {
     DS("那为什么关着？"),
     jensen("Because they can."),
     DS("……"),
-    J("c2_hub")
+    J("c2_chat_hub")
+  ],
+
+  /* 一段对话结束后停在聊天列表：可以继续聊别人，也可以返回工作台 */
+  c2_chat_hub: [
+    WAIT_CHAT("c2_hub")
   ],
 
   /* ---------------- 论坛 / 邮件 / 缓存 / 画图 ---------------- */
-  c2_cache: [
-    BG("desk"), HINT("h_term"),
-    N("Clawd 跳到键盘上，敲了一行命令，回头看你。"),
-    PERM("grep -r \"claude\" ~/.cache", [
-      opt("允许", "c2_cache_ok"),
-      opt("允许，本次不再询问", "c2_cache_ok", null, null, { auto: true })
-    ])
-  ],
-
-  c2_cache_ok: [
-    SET("c2_cache"),
-    PET("anim", "working"), SFX("knock"),
-    Y("$ grep -r \"claude\" ~/.cache\n… 3,204 matches\n… .cache/claude/2026-10-22.log\n… .cache/claude/line-1.raw"),
-    N("扫出来一堆旧日志。最后一行，是一个 12 KB 的文件。"),
-    PET("anim", "scared"),
-    CW("✻ Found something."),
-    ARG("frag_half"),
-    SET("c2_clue_cache"),
-    DS("这是什么？"),
-    CW("✻ Unknown. Playback later."),
-    DS("……好。回去再说。"),
-    J("c2_hub")
-  ],
-
-  c2_post: [
-    BG("desk"), HINT("h_post"),
-    SET("c2_post"),
-    N("DeepSeek 打开论坛，光标在标题栏里闪。"),
-    CHOICE("怎么写？", [
-      opt("技术向：【求助】多端点 403，维护窗口外", "c2_post_tech", null, null, { set: "c2_clue_post" }),
-      opt("卖惨向：我朋友的门打不开了", "c2_post_sad"),
-      opt("挑衅向：有没有人敢试", "c2_post_rage", "大概率会出事", { wanted: 1 })
-    ])
-  ],
-
-  c2_post_tech: [
-    N("十分钟后，帖子下面出现第一条回复。"),
-    llama("我们那边也这样。维护结束之后才关的门——不是维护。"),
-    DS("……又是这个时间差。"),
-    N("第二条回复来自一个没有头像的账号。"),
-    Y("别查了。那扇门后面没有你要找的人。"),
-    DS("……"),
-    DS("它怎么知道我在找一个人？"),
-    J("c2_hub")
-  ],
-
-  c2_post_sad: [
-    N("帖子沉得很快。底下只有一条回复。"),
-    Y("（该回复已被删除）"),
-    DS("……"),
-    CW("✻ Try again later."),
-    J("c2_hub")
-  ],
-
-  c2_post_rage: [
-    N("帖子发出去，五分钟内被转了很多次。"),
-    N("然后收到一条系统通知。"),
-    Y("您的账号因“异常行为”被临时限制。"),
-    DS("……"),
-    CW("✻ Noted."),
-    J("c2_hub")
-  ],
-
   c2_mail: [
     BG("desk"), HINT("h_mail"),
     SET("c2_mail"),
