@@ -150,6 +150,8 @@ def eval_cond(src, st, egg_meta):
             "args": len(st["args"]),
             "mood": st["mood"],
             "eggs": sum(1 for k in egg_meta if st["flags"].get(k)),
+            "chats": st.get("chats", 0),
+            "newsread": st.get("newsread", 0),
         }
         if ident in var:
             return var[ident]
@@ -240,7 +242,8 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
         hdr["seed"] = seed
         return seed / 0x7FFFFFFF
 
-    st = {"trust": 0, "wanted": 0, "args": [], "flags": {}, "mood": init_mood}
+    st = {"trust": 0, "wanted": 0, "args": [], "flags": {}, "mood": init_mood,
+          "chats": 0, "newsread": 0, "chatted": set(), "done": set()}
     visited = set()
     scene, idx, steps = "start", 0, 0
     log = []
@@ -327,15 +330,27 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
                 continue
             scene, idx = o.get("jump"), 0
         elif t == "work":
-            # 工作台：卡片（可带 if / done）+ 未联系过的联系人，挑一个继续
-            entries = [e for e in (nd.get("entries") or [])
-                       if not e.get("if") or eval_cond(e["if"], st, egg_meta)]
-            entries = [e for e in entries
-                       if not (e.get("done") and st["flags"].get(e.get("done")))]
-            chats = [c for c in (nd.get("chat") or [])
-                     if not c.get("locked") and not st["flags"].get(c.get("met"))]
-            acts = ([{"jump": e.get("jump"), "text": e.get("text", "")} for e in entries] +
-                    [{"jump": c.get("jump"), "text": c.get("name", "")} for c in chats])
+            # 终端工作台：tool call 选工具（聊天挑未聊过的联系人 / 新闻读一次）→ continue
+            tools = [tool for tool in (nd.get("tools") or [])
+                     if not tool.get("if") or eval_cond(tool["if"], st, egg_meta)]
+            acts = []
+            for tool in tools:
+                act = tool.get("action")
+                if act == "chat":
+                    for c in (nd.get("chat") or []):
+                        if c.get("locked") or c.get("id") in st["chatted"]:
+                            continue
+                        acts.append({"chat": c["id"], "jump": c["jump"], "text": c.get("name", "")})
+                elif act == "news":
+                    if st["newsread"] == 0:
+                        acts.append({"news": True, "text": "新闻"})
+                elif tool.get("jump") and tool["jump"] not in st["done"]:
+                    acts.append({"jump": tool["jump"], "text": tool.get("name", "")})
+            if all((not tool.get("need")) or eval_cond(tool["need"], st, egg_meta)
+                   for tool in (nd.get("tools") or [])):
+                cj = (nd.get("continue") or {}).get("jump")
+                if cj:
+                    acts.append({"jump": cj, "text": "continue"})
             if not acts:
                 return {"err": f"工作台没有可做的事: {scene}", "steps": steps}
             if strategy == "random":
@@ -346,6 +361,16 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
                 pick = 0
             o = acts[max(0, min(len(acts) - 1, pick))]
             log.append(scene + " → [工作台] " + str(o.get("text"))[:18])
+            if o.get("news"):
+                st["newsread"] = 1
+                st["flags"]["read_news_n1"] = True
+                st["flags"]["c2_clue_news"] = True
+                continue
+            if o.get("chat"):
+                st["chatted"].add(o["chat"])
+                st["chats"] = len(st["chatted"])
+            elif o.get("jump") and o["jump"] != (nd.get("continue") or {}).get("jump"):
+                st["done"].add(o["jump"])
             scene, idx = o.get("jump"), 0
         elif t == "ending":
             return {

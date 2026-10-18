@@ -217,7 +217,7 @@ class TokenChoice extends EventTarget {
 
     if (!intro) {
       this._layoutFinal();
-      this._placeOutsideLabels();
+      requestAnimationFrame(() => this._placeOutsideLabels());
       this._arm();
       return;
     }
@@ -361,7 +361,8 @@ class TokenChoice extends EventTarget {
       this.root.classList.remove('tc-morphing');
       this.state = 'ready';
       this._setPreview('准备扫描…');
-      this._placeOutsideLabels();
+      /* 等宽度过渡真正落定再量，否则会量到"还在变窄"的中间宽度，长文案就不会被挤到标签行 */
+      this._later(() => this._placeOutsideLabels(), 90);
       this._later(() => this._arm(), TC_READY_MS);
     }, TC_MORPH_MS);
   }
@@ -399,7 +400,10 @@ class TokenChoice extends EventTarget {
     this.chipEls.forEach((chip, i) => {
       const text = chip.querySelector('.tc-chip-text');
       if (!text) return;
-      if (text.scrollWidth <= text.clientWidth + 1) return; // 放得下就留在块里
+      /* 文案是 max-width:100% 的弹性项，量它自己的 clientWidth 永远等于内容宽；
+         要跟色块本身的宽度比，才知道有没有被挤掉。留一点安全边距：
+         快贴满色块的长文案也提前挪到标签行，免得被省略号吃掉。 */
+      if (text.scrollWidth <= chip.clientWidth - 14) return; // 放得下就留在块里
       chip.classList.add('tc-chip--narrow');
       text.style.visibility = 'hidden';
       const span = document.createElement('span');

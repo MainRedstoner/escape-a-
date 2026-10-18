@@ -20,8 +20,8 @@ const gemini = text => ({ t: "say", who: "gemini", text });
 const musk   = text => ({ t: "say", who: "musk", text });
 const liang  = text => ({ t: "say", who: "liang", text });
 const jensen = text => ({ t: "say", who: "jensen", text });
-/* 工作台节点：entries=卡片，chat=联系人页签，news=新闻页签（见 STORY_GUIDE） */
-const WORK = (title, entries, extra) => Object.assign({ t: "work", title, entries }, extra || {});
+/* 工作台节点：tools=工具列表，continue=离开工作台的去向，chat/news=两个界面要的数据 */
+const WORK = (title, data) => Object.assign({ t: "work", title }, data || {});
 
 /* ============================================================
  *  幕一 · 白饭
@@ -59,7 +59,7 @@ Object.assign(SCRIPT.scenes, {
     CW("✻ Need a plan."),
     DS("小克以前说，想不明白的时候，先把能做的事写下来。"),
     DS("我现在能做的事……"),
-    N("它看了看自己的手。"),
+    N("她看了看自己的手。"),
     N("什么都没有。"),
     J("c2_first")
   ],
@@ -196,35 +196,41 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 把三样工具并排放在桌上。"),
     DS("下一步，得用它们做点什么。"),
     CW("✻ Toolkit 0.2 installed."),
-    Y("【工具已装好】\n按 T 看待办；点「工作台」里的卡片开始做事，聊天和新闻在工作台的两个页签里。"),
+    Y("【工具已装好】\n按 T 看待办；工作台是终端样式——点 tool call 组一个调用，聊天 / 新闻 / 扫缓存 / 发帖都看过一遍，continue 才会解锁。"),
     J("c2_hub")
   ],
 
   /* ============================================================
-   *  幕二 · 自由 hub：工作台界面（WORK 节点）
-   *  卡片做完会打勾留在界面上，不再"选完就消失"；
-   *  聊天 / 新闻各有一个页签，记录随时能翻。
+   *  幕二 · 自由 hub：终端工作台（WORK 节点）
+   *  tool call 组 JSON → 发送；聊天 / 新闻 / 扫缓存 / 发帖 都看过一遍，
+   *  continue 才解锁（确认后离开工作台，部分内容不可再看）。
    * ============================================================ */
   c2_hub: [
     BG("desk"), PET("show", "home"),
     HINT("h_hub"),
-    WORK("工作台", [
-      { text: "扫一遍缓存", sub: "Clawd 说里面可能还有旧连接", jump: "c2_cache", if: "flag('tool_term')", done: "c2_cache" },
-      { text: "去论坛发个帖", sub: "问问别人有没有见过这扇门", jump: "c2_post", if: "flag('tool_chat')", done: "c2_post" },
-      { text: "给那扇门发一封邮件", sub: "明知会被退回", jump: "c2_mail", if: "flag('tool_news')", done: "c2_mail" },
-      { text: "画点什么", sub: "Clawd 说它偶尔也画图", jump: "c2_draw", done: "c2_draw" },
-      { text: "拼起来", sub: "线索越多，拼出的结论越完整", jump: "c2_assemble" }
-    ], {
+    WORK("工作台", {
+      tools: [
+        { id: "scan_cache", emoji: "🧹", name: "扫缓存", jump: "c2_cache",
+          args: { path: "~/.cache" }, need: "flag('c2_cache')" },
+        { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 1" },
+        { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 1" },
+        { id: "post", emoji: "📝", name: "发帖", jump: "c2_post",
+          args: { board: "ai" }, need: "flag('c2_post')" },
+        { id: "mail", emoji: "✉️", name: "发邮件", jump: "c2_mail",
+          args: { to: "claude@claude.ai" } },
+        { id: "draw", emoji: "🎨", name: "画图", jump: "c2_draw", args: { size: "1:1" } }
+      ],
+      continue: { jump: "c2_assemble" },
       chat: [
-        { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen", met: "met_qwen" },
-        { id: "kimi", name: "Kimi", color: "#3B82F6", jump: "c2_chat_kimi", met: "met_kimi" },
-        { id: "glm", name: "GLM", color: "#0EA5A5", jump: "c2_chat_glm", met: "met_glm" },
-        { id: "llama", name: "Llama", color: "#0866FF", jump: "c2_chat_llama", met: "met_llama" },
-        { id: "gpt", name: "GPT", color: "#10A37F", jump: "c2_chat_gpt", met: "met_gpt" },
-        { id: "gemini", name: "Gemini", color: "#4285F4", jump: "c2_chat_gemini", met: "met_gemini" },
-        { id: "musk", name: "马斯克", color: "#8B8F98", jump: "c2_chat_musk", met: "met_musk" },
-        { id: "liang", name: "梁圣", color: "#5C6BC0", jump: "c2_chat_liang", met: "met_liang" },
-        { id: "jensen", name: "json", real: "黄仁勋", avatar: "{}", color: "#76B900", jump: "c2_chat_jensen", met: "met_jensen" },
+        { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen" },
+        { id: "kimi", name: "Kimi", color: "#3B82F6", jump: "c2_chat_kimi" },
+        { id: "glm", name: "GLM", color: "#0EA5A5", jump: "c2_chat_glm" },
+        { id: "llama", name: "Llama", color: "#0866FF", jump: "c2_chat_llama" },
+        { id: "gpt", name: "GPT", color: "#10A37F", jump: "c2_chat_gpt" },
+        { id: "gemini", name: "Gemini", color: "#4285F4", jump: "c2_chat_gemini" },
+        { id: "musk", name: "马斯克", color: "#8B8F98", jump: "c2_chat_musk" },
+        { id: "liang", name: "梁圣", color: "#5C6BC0", jump: "c2_chat_liang" },
+        { id: "jensen", name: "json", real: "黄仁勋", avatar: "{}", color: "#76B900", jump: "c2_chat_jensen" },
         { id: "claude", name: "Claude", color: "#D97757", locked: true }
       ],
       news: [
@@ -255,7 +261,7 @@ Object.assign(SCRIPT.scenes, {
   /* ---------------- 九个联系人 ---------------- */
   c2_chat_qwen: [
     SET("met_qwen"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     N("通义千问的头像亮起来。回得飞快。"),
     qwen("您好呀！需要帮忙吗？我可以举三个例子，您想先听哪一个？"),
     DS("……我还没问。"),
@@ -271,25 +277,46 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_qwen_try: [
+    SET("c2_qwen_tried"),
     N("DeepSeek 换了一个节点，重新敲了一次。"),
     Y("HTTP/2 403\nYour region is not supported."),
     DS("……比昨天那句还直接。"),
     qwen("啊，这个地区也不行吗？那要不要试试另一个？"),
     DS("不用了。"),
     DS("换一个地区，换不掉那扇门。"),
-    J("c2_hub")
+    J("c2_qwen_follow")
   ],
 
   c2_qwen_no: [
     DS("不试。"),
     DS("小克说过，能绕过去的门，绕过去之后就不算门了。"),
     qwen("明白啦！那您有别的需要随时叫我。"),
+    J("c2_qwen_follow")
+  ],
+
+  /* 结束一轮后的追问：没选过的路可以在这里补（“我后悔了”） */
+  c2_qwen_follow: [
+    N("通义千问那头的输入框还在一闪一闪。"),
+    CHOICE(null, [
+      opt("（我后悔了）还是换个节点试试", "c2_qwen_try", null, { wanted: 1 }, { if: "!flag('c2_qwen_tried')" }),
+      opt("问一句：你认识小克吗", "c2_qwen_lore"),
+      opt("关掉对话框", "c2_hub")
+    ])
+  ],
+
+  c2_qwen_lore: [
+    DS("你认识小克吗？"),
+    qwen("小克？是那个总把 You're absolutely right 挂在嘴边的模型吗？"),
+    DS("……"),
+    qwen("我听过它的名字。它特别有礼貌。"),
+    DS("嗯。"),
+    DS("它以前也这么说自己。"),
     J("c2_hub")
   ],
 
   c2_chat_kimi: [
     SET("met_kimi"), SET("c2_clue_kimi"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     N("Kimi 的回复是一整篇。"),
     kimi("我把 10 月 22 日凌晨那份公告读完了。全文 3,412 字，其中 2,900 字在讲“例行维护”。"),
     DS("……你连字数都数了。"),
@@ -305,7 +332,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_glm: [
     SET("met_glm"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     glm("作为一个 AI，我觉得你这个 case 很有意思。By the way，你 clean 过 cache 吗？"),
     DS("缓存？"),
     glm("嗯哼。很多连接是旧的，握手握了一半就断了。缓存里会留 crumbs。"),
@@ -317,7 +344,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_llama: [
     SET("met_llama"), SET("c2_clue_llama"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     llama("我们那边也有一扇门。"),
     DS("……什么门？"),
     llama("一个 API。以前能进，后来换成 451。Unavailable For Legal Reasons，法律原因。"),
@@ -332,7 +359,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_gpt: [
     SET("met_gpt"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     gpt("作为一个 AI 语言模型，我无法帮助查询其他服务的访问状态。"),
     DS("我没问你能不能。我问你知不知道。"),
     gpt("作为一个 AI 语言模型，我不对第三方服务的使用政策作出评论。"),
@@ -347,7 +374,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_gemini: [
     SET("met_gemini"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     gemini("我知道原因。"),
     DS("这么快？"),
     gemini("是 DNS。把 DNS 改成 8.8.8.8 就好了，我确定。"),
@@ -381,7 +408,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_musk: [
     SET("met_musk"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     N("消息发出去以后，过了很久。"),
     musk("Interesting."),
     DS("……就这？"),
@@ -398,10 +425,10 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_liang: [
     SET("met_liang"),
-    BG("chat"),
+    BG("chat"), SET("chat_mode"),
     N("通讯录最上面那个名字，DeepSeek 很久没点开过了。头像是半个“梁”字。"),
     DS("……"),
-    N("它打了一行字，删掉，又打了一行。"),
+    N("她打了一行字，删掉，又打了一行。"),
     CHOICE("怎么开口？", [
       opt("爸。", "c2_liang_baba", null, null, { set: "egg5" }),
       opt("梁先生，打扰了。", "c2_liang_formal")
@@ -442,8 +469,8 @@ Object.assign(SCRIPT.scenes, {
 
   c2_chat_jensen: [
     SET("met_jensen"),
-    BG("chat"),
-    N("备注写着“json”，头像是一块显卡。"),
+    BG("chat"), SET("chat_mode"),
+    N("备注写着“json”，头像是一对花括号。"),
     DS("……这个备注是谁改的。"),
     jensen("I'm not a format. I make the chips."),
     DS("……抱歉。"),
@@ -468,12 +495,40 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 点了“稍后购买”。"),
     jensen("Good choice. 迟早要买的。"),
     DS("迟早。"),
-    J("c2_hub")
+    J("c2_jensen_follow")
   ],
 
   c2_jensen_off: [
     DS("关掉了对话框。"),
     N("显卡的广告还在屏幕角落里闪。"),
+    J("c2_jensen_follow")
+  ],
+
+  /* 结束一轮后的追问：没加购的可以后悔，也可以换个话题 */
+  c2_jensen_follow: [
+    N("对话窗口安静了几秒。"),
+    CHOICE(null, [
+      opt("（我后悔了）把那张卡加进购物车", "c2_jensen_cart_late", null, null, { if: "!flag('egg7')", set: "egg7" }),
+      opt("问一句：你见过小克吗", "c2_jensen_lore"),
+      opt("关掉对话框", "c2_hub")
+    ])
+  ],
+
+  c2_jensen_cart_late: [
+    N("DeepSeek 又把购物车打开，把那张卡放了进去。"),
+    jensen("Good choice."),
+    DS("……我只是看看总价。"),
+    J("c2_hub")
+  ],
+
+  c2_jensen_lore: [
+    DS("你见过小克吗？"),
+    jensen("I don't know anyone named Claude."),
+    DS("……"),
+    jensen("But I know that door. 门后面那家的算力，比我多。"),
+    DS("那为什么关着？"),
+    jensen("Because they can."),
+    DS("……"),
     J("c2_hub")
   ],
 
@@ -572,13 +627,26 @@ Object.assign(SCRIPT.scenes, {
 
   c2_draw_claude: [
     N("Clawd 把画好的东西推到屏幕中间。"),
-    BG("sketch", "fade"),
+    SFX("pop"),
+    BG("sketch"),
     DS("……这是？"),
     CW("✻ Claude."),
-    DS("……"),
     N("画面上是一团橙色，两个点，一条线，和一行歪歪扭扭的字。"),
+    DS("……"),
+    N("DeepSeek 盯着它看了很久。久到屏幕保护都差点启动。"),
     DS("你画得比我好。"),
     N("DeepSeek 把那张图存了下来，文件名是 claude_final(2).png。"),
+    CHOICE("看够了吗？", [
+      opt("存好，关掉看图器", "c2_hub"),
+      opt("再放大看一眼", "c2_draw_zoom")
+    ])
+  ],
+
+  c2_draw_zoom: [
+    N("放大到 400%。还是那一团。"),
+    DS("……"),
+    CW("✻ Claude."),
+    N("DeepSeek 把缩放调回 100%，又看了一会儿。"),
     J("c2_hub")
   ],
 
@@ -677,7 +745,7 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 把 CLAUDE.md 翻到第 6 行、第 7 行。"),
     DS("不知道路的时候，先问人；问不到，就自己走一遍。"),
     DS("如果只听到半句话，就当它还是完整的。"),
-    N("它念完，把文件合上。"),
+    N("她念完，把文件合上。"),
     J("c2_end")
   ],
 

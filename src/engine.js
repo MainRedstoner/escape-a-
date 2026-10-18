@@ -107,18 +107,42 @@ const ENGINE = (() => {
       }
       return;
     }
+    /* 工作台终端开着时：Enter 发送、Esc 收起表单、数字键选工具；其它按键不传 */
+    if (workOpen()) {
+      const other = [...document.querySelectorAll(".overlay")]
+        .some(o => o.id !== "ovWork" && getComputedStyle(o).display !== "none");
+      if (!other) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (termDraft && termDraft.tool) sendToolCall();
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (termDraft) { closeForm(); renderTerminal(); }
+          return;
+        }
+        if (termDraft && !termDraft.tool) {
+          const i = "123456789".indexOf(e.key);
+          const btns = document.querySelectorAll("#termPicker .termtool");
+          if (i >= 0 && i < btns.length) { e.preventDefault(); btns[i].click(); return; }
+        }
+        return;
+      }
+    }
     /* 覆盖层打开时，键盘只用来关它：Space / Enter 不能顺手把对话推进一步 */
     if (overlayOpen()) {
       if (e.key === "Escape") {
         e.preventDefault();
         if (getComputedStyle($("confirmBox")).display !== "none") $("cfNo").click();
-        else if ([...document.querySelectorAll(".overlay")].some(o => o.id !== "ovWork" && getComputedStyle(o).display !== "none")) {
-          closeOverlay();                      // 存档 / 记录盖在工作台上：先关它们
-        } else if (workOpen()) {
-          workTab = "work"; renderWork();      // 工作台本身不关闭，只退回工作台页
-        } else closeOverlay();
+        else closeOverlay();
       }
       return;
+    }
+    /* 聊天界面：候选词用数字键选 */
+    if (chatActive() && chatOpts.length) {
+      const i = "123456789".indexOf(e.key);
+      if (i >= 0 && i < chatOpts.length) { e.preventDefault(); pickChatChoice(chatOpts[i]); return; }
     }
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
@@ -148,15 +172,18 @@ const ENGINE = (() => {
 
   /* ---------------- 安全条件解析器 ----------------
    * 纯字符扫描（不使用正则、不使用动态求值）。
-   * 支持: trust/wanted/args/eggs/mood 数值, has('id')/egg('k')/flag('k'),
+   * 支持: trust/wanted/args/eggs/mood/chats/newsread 数值, has('id')/egg('k')/flag('k'),
    *       true/false, 数字, '字符串', >= <= > < == != && || ! ( )
    * -------------------------------------------------- */
   function evalCond(src) {
     let pos = 0;
     const s = String(src);
     const S = SYS.state;
+    const log = S.chatlog || {};
     const VAR = { trust: S.trust, wanted: S.wanted, args: S.args.length, eggs: SYS.eggCount(),
-                  mood: S.pet ? S.pet.mood : 5 };
+                  mood: S.pet ? S.pet.mood : 5,
+                  chats: Object.keys(log).filter(k => (log[k] || []).length).length,
+                  newsread: Object.keys(S.flags || {}).filter(k => k.startsWith("read_news_")).length };
 
     function isDigit(c) { return c >= "0" && c <= "9"; }
     function isIdStart(c) { return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_"; }
@@ -270,7 +297,7 @@ const ENGINE = (() => {
       case "bg": {
         // 换背景 = 离开原来那片区域：旧的 403 平铺不能跟到新场景里
         if (SYS.state.vis.bg !== nd.id) ART.clear403();
-        if (nd.id !== "chat") curChat = null;   // 离开聊天窗口，下段对话重新认联系人
+        if (nd.id !== "chat") { curChat = null; closeChatScreen(); }   // 离开聊天窗口，收起聊天界面
         SYS.state.vis.bg = nd.id;
         SYS.state.vis.cg = null;
         ui.cgNote.style.display = "none";
@@ -359,6 +386,7 @@ const ENGINE = (() => {
   function startSay(who, text) {
     fullText = text;
     recordChat(who, text);
+    if (chatActive()) { chatSay(who, text); return; }
     typed = "";
     typing = true;
     ui.textbox.style.display = "block";
@@ -412,6 +440,8 @@ const ENGINE = (() => {
     hideTextbox();
     document.body.classList.remove("glitching");
     ui.chapterCard.style.display = "none";
+    const cn = document.getElementById("chatNext");
+    if (cn) cn.style.display = "none";
     pending = null;
     pump();
   }
@@ -454,6 +484,7 @@ const ENGINE = (() => {
 
   function buildChoices(nd) {
     if (nd.mode === "perm") { buildPerm(nd); return; }
+    if (chatActive()) { buildChatChoices(nd); return; }
     hideTextbox();
     ui.choices.style.display = "flex";
     if (nd.prompt) { ui.choicePrompt.style.display = "block"; ui.choicePrompt.textContent = nd.prompt; }
@@ -602,17 +633,24 @@ const ENGINE = (() => {
     else pump();
   }
 
-  /* ---------------- 工作台 / 聊天 / 新闻（第二章起） ----------------
-   * 剧本节点 { t: "work", title, entries, chat, news }：
-   *   entries 卡片：{ text, sub?, jump, if?, done? }，done 的显示 ✓ 且不可再点；
-   *   chat 联系人：{ id, name, real?, color?, avatar?, jump, met, locked? }——
-   *        联系过的点开看记录，没联系过的点一下直接进聊天场景；
-   *   news 文章：{ id, title, body, note?, hot?, set? }，读完记 read_news_<id>，
-   *        带 set 的文章第一次读会写剧情旗标。
-   * 聊天记录存在 SYS.state.chatlog[who]，随存档走。
+  /* ---------------- 工作台（终端）/ 聊天 / 新闻（第二章起） ----------------
+   * 剧本节点 { t: "work", title, tools, continue, chat, news }：
+   *   tools: { id, emoji, name, jump?, action?: "chat"|"news", args?, need?, if? }
+   *     - jump 工具点「发送」直接进场景；action 为 chat / news 时打开对应界面；
+   *     - need 是 continue 的解锁条件：所有 need 都满足才能离开工作台；
+   *   continue: { jump } —— 确认「部分内容可能无法再次查看」后离开工作台；
+   *   chat: 联系人 { id, name, real?, color?, avatar?, jump, locked? }
+   *   news: 文章 { id, title, body, note?, hot?, set? }
+   * 聊天记录存在 SYS.state.chatlog[who]，随存档走；聊天界面直接铺满屏幕，不走对话框。
    * 覆盖层 z-index 低于 HUD：工作台开着时，存档 / 记录 / 菜单照常能点。 */
-  let workNode = null, workTab = "work", chatWho = null, newsId = null;
+  let workNode = null;
+  let termDraft = null;        // tool call 草稿 { tool, args }
+  let termTool = null;         // 选中的工具对象
+  let chatWho = null;
+  let chatInScene = false;     // 正在一段对话里：联系人列表先锁住，别让人中途换人
+  let newsId = null;
   let curChat = null;
+  let chatOpts = [];
   const CHAT_IGNORE = ["n", "sys", "cl", "clawd"];
 
   /* 聊天场景里自动记一条：第一个开口的联系人开启这段对话，之后 DeepSeek 的回应也记进去。 */
@@ -633,28 +671,6 @@ const ENGINE = (() => {
     arr.push({ who, text });
   }
 
-  function workOpen() {
-    const el = document.getElementById("ovWork");
-    return !!el && el.style.display === "flex";
-  }
-
-  function openWork(nd) {
-    workNode = nd;
-    workTab = "work"; chatWho = null; newsId = null;
-    hideTextbox();
-    hideChoices();
-    document.getElementById("ovWork").style.display = "flex";
-    document.body.classList.add("work-open");
-    renderWork();
-  }
-
-  function closeWork() {
-    const el = document.getElementById("ovWork");
-    if (el) el.style.display = "none";
-    document.body.classList.remove("work-open");
-    workNode = null;
-  }
-
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -662,88 +678,315 @@ const ENGINE = (() => {
     return e;
   }
 
-  function renderWork() {
-    if (!workNode) return;
-    document.getElementById("workTitle").textContent = workNode.title || "工作台";
-    const entries = workNode.entries || [];
-    const tracked = entries.filter(e => e.done);
-    const done = tracked.filter(e => SYS.state.flags[e.done]).length;
-    document.getElementById("workSub").textContent = tracked.length ? `已完成 ${done} / ${tracked.length} 项` : "";
-    document.querySelectorAll("#ovWork .wtab").forEach(b => {
-      b.classList.toggle("active", b.dataset.tab === workTab);
-    });
-    const body = document.getElementById("workBody");
-    body.innerHTML = "";
-    if (workTab === "chat") renderChatTab(body);
-    else if (workTab === "news") renderNewsTab(body);
-    else renderWorkCards(body);
+  function chattedCount() {
+    const log = SYS.state.chatlog || {};
+    return Object.keys(log).filter(k => (log[k] || []).length).length;
+  }
+  function newsReadCount() {
+    return Object.keys(SYS.state.flags || {}).filter(k => k.startsWith("read_news_")).length;
   }
 
-  function renderWorkCards(body) {
-    const grid = el("div", "wgrid");
-    (workNode.entries || []).forEach(e => {
-      if (e.if && !evalCond(e.if)) return;
-      const isDone = !!(e.done && SYS.state.flags[e.done]);
-      const b = el("button", "wcard" + (isDone ? " done" : ""));
-      b.type = "button";
-      b.appendChild(el("div", "wt", e.text));
-      if (e.sub) b.appendChild(el("div", "ws", e.sub));
-      if (isDone) {
-        b.appendChild(el("span", "wmark", "✓ 已完成"));
-      } else {
-        b.addEventListener("click", () => { closeWork(); goto(e.jump, 0); });
-      }
-      grid.appendChild(b);
-    });
-    body.appendChild(grid);
+  /* ---------------- 工作台终端 ---------------- */
+  function workOpen() {
+    const elm = document.getElementById("ovWork");
+    return !!elm && elm.style.display === "flex";
   }
+  function needsMet() {
+    return (workNode.tools || []).every(t => !t.need || evalCond(t.need));
+  }
+  function termAppend(cls, text) {
+    const log = document.getElementById("termLog");
+    const line = el("div", cls || "", text);
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+    return line;
+  }
+  function termPrompt(text) { return termAppend("t-p", "❯ " + text); }
 
-  function renderChatTab(body) {
-    const wrap = el("div", "chatWrap");
-    const list = el("div", "chatList");
-    const log = el("div", "chatLog");
-    const contacts = workNode.chat || [];
-    const met = c => !!(c.met && SYS.state.flags[c.met]);
-    const logsOf = id => (SYS.state.chatlog || {})[id] || [];
-    if (!chatWho || !contacts.some(c => c.id === chatWho && logsOf(chatWho).length)) {
-      const first = contacts.find(c => met(c) && logsOf(c.id).length);
-      chatWho = first ? first.id : null;
+  function openWork(nd) {
+    if (!Array.isArray(nd.tools)) {   // 旧版本存档里的工作台节点（卡片版）已经认不出来了
+      toast("这个工作台版本太旧，先回标题吧");
+      toTitle();
+      return;
     }
+    workNode = nd;
+    termDraft = null; termTool = null;
+    chatWho = null; newsId = null;
+    hideTextbox();
+    hideChoices();
+    closeChatScreen();
+    closeNewsScreen();
+    document.getElementById("ovWork").style.display = "flex";
+    document.body.classList.add("work-open");
+    renderTerminal();
+  }
+
+  function closeWork() {
+    const elm = document.getElementById("ovWork");
+    if (elm) elm.style.display = "none";
+    document.body.classList.remove("work-open");
+    workNode = null; termDraft = null; termTool = null;
+    closeChatScreen();
+    closeNewsScreen();
+  }
+
+  function renderTerminal() {
+    if (!workNode) return;
+    const log = document.getElementById("termLog");
+    log.innerHTML = "";
+    termAppend("t-p", "clawd workbench v0.2 — 本机终端（信号很差）");
+    termAppend("t-p", "❯ status");
+    (workNode.tools || []).forEach(t => {
+      const ok = !t.need || evalCond(t.need);
+      const mark = t.need ? (ok ? "[✓]" : "[ ]") : "[·]";
+      termAppend("", "  " + mark + " " + (t.emoji || "·") + " " + t.name +
+        (t.need ? "" : "（可选）"));
+    });
+    const okAll = needsMet();
+    termAppend("t-warn", okAll
+      ? "信息已查看完，continue 已解锁。"
+      : "还有信息没看：聊天 / 新闻 / 扫缓存 / 发帖都过一遍，continue 才会解锁。");
+    termAppend("t-p", "❯ 点「tool call」调用工具。");
+    document.getElementById("btnContinue").disabled = !okAll;
+    document.getElementById("termHint").textContent = okAll
+      ? "确认后离开工作台"
+      : "tool call 组 JSON → Enter 发送";
+    closeForm();
+  }
+
+  function closeForm() {
+    const form = document.getElementById("termForm");
+    if (form) form.hidden = true;
+    termDraft = null; termTool = null;
+  }
+
+  function openForm() {
+    if (termDraft) return;      // 表单已经开着，别把玩家填的内容重置掉
+    termDraft = { tool: null, args: {} };
+    termTool = null;
+    document.getElementById("termForm").hidden = false;
+    termPrompt("tool call");
+    renderForm();
+  }
+
+  function renderForm() {
+    const d = termDraft || { tool: null, args: {} };
+    document.getElementById("termJson").textContent =
+      JSON.stringify({ tool: d.tool, args: d.args || {} }, null, 2);
+    document.getElementById("termSend").disabled = !d.tool;
+    const picker = document.getElementById("termPicker");
+    picker.innerHTML = "";
+    if (d.tool) return;
+    (workNode.tools || []).forEach(t => {
+      if (t.if && !evalCond(t.if)) return;
+      const b = el("button", "termtool", (t.emoji || "·") + " " + t.name);
+      b.type = "button";
+      if (t.need && evalCond(t.need)) b.appendChild(el("span", "ok", "✓"));
+      b.addEventListener("click", () => {
+        termTool = t;
+        termDraft = { tool: t.id, args: t.args || {} };
+        renderForm();
+      });
+      picker.appendChild(b);
+    });
+  }
+
+  function sendToolCall() {
+    if (!termDraft || !termDraft.tool || !termTool) return;
+    const t = termTool;
+    termPrompt("tool call → " + JSON.stringify({ tool: termDraft.tool, args: termDraft.args || {} }));
+    closeForm();
+    executeTool(t);
+  }
+
+  function executeTool(t) {
+    if (t.action === "chat") { openChatScreen(); return; }
+    if (t.action === "news") { openNewsScreen(); return; }
+    if (t.jump) { closeWork(); goto(t.jump, 0); }
+  }
+
+  function backToWork() {
+    closeChatScreen();
+    closeNewsScreen();
+    if (!workNode) return;
+    document.getElementById("ovWork").style.display = "flex";
+    renderTerminal();
+  }
+
+  async function leaveWorkbench() {
+    if (!workNode || !needsMet()) return;
+    const jump = workNode.continue && workNode.continue.jump;
+    const ok = await askConfirm("退出工作台后，部分内容可能无法再次查看。确定继续吗？", "继续", false);
+    if (!ok) return;
+    closeWork();
+    if (jump) goto(jump, 0);
+  }
+
+  /* ---------------- 聊天界面 ---------------- */
+  function chatVisible() {
+    const elm = document.getElementById("ovChat");
+    return !!elm && elm.style.display === "flex";
+  }
+  function chatActive() {
+    return !!SYS.state.flags.chat_mode && SYS.state.vis.bg === "chat";
+  }
+
+  function openChatScreen() {
+    document.getElementById("ovWork").style.display = "none";
+    document.getElementById("ovChat").style.display = "flex";
+    chatWho = null;
+    chatInScene = false;
+    document.getElementById("chatWho").textContent = "选择一个联系人";
+    document.getElementById("chatStatus").textContent = "";
+    document.getElementById("chatMsgs").innerHTML = "";
+    document.getElementById("chatMsgs").appendChild(el("div", "csys", "← 从左边挑一个联系人，或者点「返回工作台」"));
+    document.getElementById("chatNext").style.display = "none";
+    document.getElementById("chatBack").style.display = "";
+    hideChatCands();
+    renderChatContacts();
+  }
+
+  function closeChatScreen() {
+    const elm = document.getElementById("ovChat");
+    if (elm) elm.style.display = "none";
+    chatInScene = false;
+    hideChatCands();
+  }
+
+  function renderChatContacts() {
+    const list = document.getElementById("chatContacts");
+    list.innerHTML = "";
+    const contacts = (workNode && workNode.chat) || [];
     contacts.forEach(c => {
-      const ok = met(c);
-      const hasLog = logsOf(c.id).length > 0;
-      const row = el("button", "chatRow" + (c.locked ? " locked" : "") + (c.id === chatWho ? " active" : ""));
-      row.type = "button";
+      const chatted = ((SYS.state.chatlog || {})[c.id] || []).length > 0;
+      const b = el("button", "chatContact");
+      b.type = "button";
       const ava = el("span", "ava", c.avatar || c.name.slice(0, 1));
       ava.style.background = c.color || "#8A93A2";
       const box = el("span");
       box.appendChild(el("div", "cn", c.name + (c.real ? "（" + c.real + "）" : "")));
       box.appendChild(el("div", "cs", c.locked ? "403 · 无法送达"
-        : hasLog ? "有 " + logsOf(c.id).length + " 条记录 · 点开看"
-          : ok ? "已建立连接 · 点一下打个招呼" : "未接通 · 点一下打个招呼"));
-      row.appendChild(ava); row.appendChild(box);
-      if (c.locked) row.disabled = true;
-      else {
-        row.addEventListener("click", () => {
-          if (hasLog) { chatWho = c.id; renderWork(); }
-          else { closeWork(); goto(c.jump, 0); }
-        });
-      }
-      list.appendChild(row);
+        : chatted ? "已联系过 · 不再打扰" : "点一下打个招呼"));
+      b.appendChild(ava); b.appendChild(box);
+      if (c.locked || chatted || chatInScene) b.disabled = true;
+      else b.addEventListener("click", () => startChat(c));
+      list.appendChild(b);
     });
-    const logs = logsOf(chatWho);
-    if (!chatWho) log.appendChild(el("div", "empty", "还没有聊天记录。"));
-    else if (!logs.length) log.appendChild(el("div", "empty", "还没有聊天记录。"));
-    else {
-      const who = (contacts.find(c => c.id === chatWho) || {}).name || chatWho;
-      logs.forEach(m => {
-        const b = el("div", "bubble" + (m.who === "ds" ? " me" : ""));
-        b.appendChild(el("span", "who", m.who === "ds" ? "DeepSeek" : who));
-        b.appendChild(el("div", "", m.text));
-        log.appendChild(b);
-      });
+  }
+
+  function startChat(c) {
+    chatWho = c.id;
+    chatInScene = true;
+    renderChatContacts();          // 对话期间把左边的联系人锁住
+    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
+    document.getElementById("chatStatus").textContent = "连接中…";
+    document.getElementById("chatBack").style.display = "none";
+    document.getElementById("chatMsgs").innerHTML = "";
+    goto(c.jump, 0);
+  }
+
+  function ensureChatOpen() {
+    if (!chatVisible()) {
+      openChatScreen();
+      document.getElementById("chatBack").style.display = "none";
     }
-    wrap.appendChild(list); wrap.appendChild(log); body.appendChild(wrap);
+    if (!chatInScene) {
+      chatInScene = true;
+      renderChatContacts();
+    }
+  }
+
+  function chatSay(who, text) {
+    ensureChatOpen();
+    hideTextbox();
+    const box = document.getElementById("chatMsgs");
+    if (who === "n" || who === "sys") {
+      box.appendChild(el("div", "csys", text));
+    } else {
+      const mine = who === "ds";
+      const bubble = el("div", "cmsg" + (mine ? " me" : ""));
+      if (!mine) {
+        const name = (SPEAKERS[who] || SPEAKERS.n).name;
+        bubble.appendChild(el("span", "who", name));
+        if (who !== "clawd") {
+          document.getElementById("chatWho").textContent = name;
+          document.getElementById("chatStatus").textContent = "在线";
+          chatWho = who;
+        }
+      }
+      bubble.appendChild(el("div", "", text));
+      box.appendChild(bubble);
+    }
+    box.scrollTop = box.scrollHeight;
+    typing = false;
+    hideChatCands();
+    document.getElementById("chatNext").style.display = "block";
+  }
+
+  function hideChatCands() {
+    chatOpts = [];
+    const bar = document.getElementById("chatCands");
+    if (bar) { bar.innerHTML = ""; bar.style.display = "none"; }
+  }
+
+  function buildChatChoices(nd) {
+    ensureChatOpen();
+    hideTextbox();
+    const glitchOn = SYS.state.vis.glitch;
+    let opts = (nd.options || []).filter(o => !(glitchOn && o.hideInGlitch) && (!o.if || evalCond(o.if)));
+    if (!opts.length) opts = (nd.options || []).slice();
+    chatOpts = opts;
+    const bar = document.getElementById("chatCands");
+    bar.innerHTML = "";
+    opts.forEach((o, i) => {
+      const b = el("button", "chatCand");
+      b.type = "button";
+      b.appendChild(el("span", "n", String(i + 1)));
+      b.appendChild(el("span", "", o.text));
+      b.addEventListener("click", () => pickChatChoice(o));
+      bar.appendChild(b);
+    });
+    bar.style.display = "flex";
+    document.getElementById("chatNext").style.display = "none";
+  }
+
+  function pickChatChoice(o) {
+    hideChatCands();
+    pushHistory(null, "【选择】" + o.text, true);
+    const box = document.getElementById("chatMsgs");
+    const bubble = el("div", "cmsg me");
+    bubble.appendChild(el("span", "who", "DeepSeek"));
+    bubble.appendChild(el("div", "", o.text));
+    box.appendChild(bubble);
+    box.scrollTop = box.scrollHeight;
+    SYS.applyEffects(o.fx);
+    if (o.set) SYS.state.flags[o.set] = true;
+    if (o.give && !SYS.state.args.includes(o.give)) {
+      SYS.state.args.push(o.give);
+      toast(`📜 获得论据「${(SYS.ARG_META[o.give] || { name: o.give }).name}」`);
+      AUDIO.sfx("ding");
+    }
+    updateHUD();
+    if (SYS.state.wanted >= 10) { goto("bad_end", 0); return; }
+    if (o.jump) goto(o.jump, 0); else pump();
+  }
+
+  /* ---------------- 新闻界面 ---------------- */
+  function newsVisible() {
+    const elm = document.getElementById("ovNews");
+    return !!elm && elm.style.display === "flex";
+  }
+
+  function openNewsScreen() {
+    document.getElementById("ovWork").style.display = "none";
+    document.getElementById("ovNews").style.display = "flex";
+    newsId = null;
+    renderNewsScreen();
+  }
+
+  function closeNewsScreen() {
+    const elm = document.getElementById("ovNews");
+    if (elm) elm.style.display = "none";
   }
 
   function readNews(a) {
@@ -752,39 +995,41 @@ const ENGINE = (() => {
       SYS.state.flags[a.set] = true;
       toast("✻ 记了一笔");
       AUDIO.sfx("ding");
-      updateHUD();
     }
+    updateHUD();
   }
 
-  function renderNewsTab(body) {
-    const wrap = el("div", "newsWrap");
-    const list = el("div", "newsList");
-    const pane = el("div", "newsBody");
-    const arts = workNode.news || [];
-    arts.forEach(a => {
+  function renderNewsScreen() {
+    const list = document.getElementById("newsList");
+    list.innerHTML = "";
+    (workNode.news || []).forEach(a => {
       const read = !!SYS.state.flags["read_news_" + a.id];
-      const b = el("button", "newsItem" + (a.hot ? " hot" : "") + (read ? " read" : ""), a.title);
+      const b = el("button", "newsItem2" + (a.hot ? " hot" : "") + (read ? " read" : ""), a.title);
       b.type = "button";
-      b.addEventListener("click", () => { newsId = a.id; readNews(a); renderWork(); });
+      b.addEventListener("click", () => { newsId = a.id; readNews(a); renderNewsScreen(); });
       list.appendChild(b);
     });
-    const a = arts.find(x => x.id === newsId);
-    if (!a) {
-      pane.appendChild(el("div", "empty", "挑一条标题读读。"));
-    } else {
-      pane.appendChild(el("div", "nb-tag", a.hot ? "● 头条" : "今日"));
-      pane.appendChild(el("h3", "", a.title));
-      pane.appendChild(el("div", "nb-meta", "A÷ DAILY · 全部虚构 · 但逻辑自洽"));
-      String(a.body || "").split("\n").forEach(p => pane.appendChild(el("p", "", p)));
-      if (a.note) pane.appendChild(el("div", "nb-note", a.note));
-    }
-    wrap.appendChild(list); wrap.appendChild(pane); body.appendChild(wrap);
+    const pane = document.getElementById("newsArticle");
+    pane.innerHTML = "";
+    const a = (workNode.news || []).find(x => x.id === newsId);
+    if (!a) { pane.appendChild(el("div", "empty", "挑一条标题读读。")); return; }
+    pane.appendChild(el("div", "tag", a.hot ? "● 头条" : "今日"));
+    pane.appendChild(el("h3", "", a.title));
+    pane.appendChild(el("div", "meta", "A÷ DAILY · 全部虚构 · 但逻辑自洽"));
+    String(a.body || "").split("\n").forEach(p => pane.appendChild(el("p", "", p)));
+    if (a.note) pane.appendChild(el("div", "note", a.note));
   }
 
   function bindWorkUI() {
-    document.querySelectorAll("#ovWork .wtab").forEach(b => {
-      b.addEventListener("click", () => { workTab = b.dataset.tab; renderWork(); });
+    document.getElementById("btnToolCall").addEventListener("click", openForm);
+    document.getElementById("termSend").addEventListener("click", sendToolCall);
+    document.getElementById("termRefill").addEventListener("click", () => {
+      termDraft = { tool: null, args: {} }; termTool = null; renderForm();
     });
+    document.getElementById("btnContinue").addEventListener("click", leaveWorkbench);
+    document.getElementById("chatBack").addEventListener("click", backToWork);
+    document.getElementById("newsBack").addEventListener("click", backToWork);
+    document.getElementById("chatMsgs").addEventListener("click", () => onMainClick());
   }
 
   /* ---------------- HUD / Toast ---------------- */

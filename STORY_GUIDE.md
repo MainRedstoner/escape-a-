@@ -138,6 +138,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 纯字符扫描解析（`engine.js` 的 `evalCond`），**不支持**任意 JS。可用：
 
 * 变量：`trust` `wanted` `args`（收集品数量） `eggs`（已集齐彩蛋数） `mood`（桌宠心情）
+  `chats`（聊过的联系人数） `newsread`（读过的新闻条数）
 * 函数：`has('论据id')`、`egg('彩蛋key')`、`flag('旗标key')`
 * 字面量：数字、`'字符串'`、`true` / `false`
 * 运算符：`>= <= > < == != && || !` 与括号
@@ -292,15 +293,22 @@ PERM("curl -I https://claude.ai/", [
 
 ### 工作台（`WORK` 节点）
 
-写一次节点，引擎打开一个全屏的「工作台」界面（第二章的 hub 就是它）：卡片 + 聊天 / 新闻两个页签。
+写一次节点，引擎打开一个全屏的**终端工作台**（第二章的 hub 就是它）：
+底部两个按钮——`tool call`（组一次工具调用的 JSON）和 `continue`（解锁后离开工作台）。
 
 ```js
-WORK("工作台", [
-  { text: "扫一遍缓存", sub: "里面可能还有旧连接", jump: "c2_cache", if: "flag('tool_term')", done: "c2_cache" },
-  { text: "拼起来", sub: "线索越多，拼出的越完整", jump: "c2_assemble" }
-], {
+WORK("工作台", {
+  tools: [
+    { id: "scan_cache", emoji: "🧹", name: "扫缓存", jump: "c2_cache",
+      args: { path: "~/.cache" }, need: "flag('c2_cache')" },
+    { id: "chat", emoji: "💬", name: "聊天", action: "chat", need: "chats >= 1" },
+    { id: "news", emoji: "📰", name: "新闻", action: "news", need: "newsread >= 1" },
+    { id: "post", emoji: "📝", name: "发帖", jump: "c2_post", need: "flag('c2_post')" },
+    { id: "draw", emoji: "🎨", name: "画图", jump: "c2_draw" }
+  ],
+  continue: { jump: "c2_assemble" },
   chat: [
-    { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen", met: "met_qwen" }
+    { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen" }
   ],
   news: [
     { id: "n1", hot: true, set: "c2_clue_news", title: "…", body: "…", note: "…" }
@@ -308,15 +316,29 @@ WORK("工作台", [
 })
 ```
 
-* `entries`：卡片。`if` 为假不显示；`done` 是旗标名——已完成的卡片显示「✓ 已完成」并**留在界面上**，不再"选完就消失"。
-* `chat`：联系人页签。没联系过的（`met` 旗标为假）点一下直接跳到 `jump` 场景；
-  联系过且有记录的，点开就在右侧看气泡记录。聊天记录由引擎在 `BG("chat")` 场景里自动记
-  （第一个开口的联系人 → 之后 DeepSeek 的回应），存在 `SYS.state.chatlog`，随存档走。
-* `news`：新闻页签。点标题读正文；带 `set` 的文章第一次读会写剧情旗标（可以当线索），读完记 `read_news_<id>`。
-* 工作台开着时 HUD 功能键照常可用（存档 / 记录 / 菜单会盖在上面），Esc 只会退回「工作台」页。
+* `tools`：tool call 候选框里的工具。`jump` 工具在「发送」后直接进场景；
+  `action: "chat" / "news"` 打开聊天 / 新闻界面；`args` 是 JSON 里预填的参数示例；
+  `need` 是 continue 的解锁条件——**带 need 的工具全部满足，continue 才能按**；
+  不带 `need` 的工具是可选（终端里标「可选」）。
+* `continue`：确认「退出工作台后，部分内容可能无法再次查看」后跳去 `jump`。
+* `chat`：联系人列表。**没聊过的**点一下进聊天场景；聊过的显示“已联系过”并禁用。
+  `avatar` 可以覆盖头像字（例如 `json` 用 `{}`），`locked` 的行永远灰着。
+* `news`：新闻列表。点标题读正文；带 `set` 的文章第一次读会写剧情旗标，读完记 `read_news_<id>`。
+* 工作台开着时 HUD 功能键照常可用（存档 / 记录 / 菜单会盖在上面），Esc 收起 tool call 表单。
   在工作台存档后读档，会重新打开工作台（存档记的是 `work` 节点本身的位置）。
-* 模拟器把 `entries` 与未联系过的 `chat` 当成一组选项跑；校验器检查跳转目标、`met` / `done` / 新闻正文。
-* 场景最后一个节点可以是 `work`（它自己就是出口）；玩家点了卡片才会跳走。
+* 终端里：Enter = 发送（表单填好时），数字键 = 在候选框里选工具。
+
+#### 聊天模式（`chat_mode`）
+
+`BG("chat")` + `SET("chat_mode")` 之后，同一场景里的 `say` / `CHOICE` 会换成聊天界面：
+
+* `say` 直接以气泡铺在界面上（旁白是居中的系统行），不再走底部对话框；
+  点聊天区或按 Space 继续。
+* `CHOICE` 不走滑道，而是**左下角候选词**：点一下或按数字键 1~9 选择；
+  选项的 `if` 照常生效——可以在对话后半段追加「（我后悔了）……」这类补选项。
+* 聊完用 `J` 回 hub；引擎换背景时会自动收起聊天界面。
+* 对话进行中左边的联系人列表会锁住（不会中途换人）；没聊过的才可点。
+* 聊天记录仍然会记进 `SYS.state.chatlog`（聊过的联系人在列表里变成“不再打扰”）。
 
 ### 选项框（TokenChoice 滑道选择器）
 

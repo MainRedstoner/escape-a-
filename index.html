@@ -211,80 +211,106 @@
 
   /* ---------- 选项框（组件样式在 src/token-choice.css） ---------- */
 
-  /* ---------- 工作台 / 聊天 / 新闻（第二章起，z 低于 HUD，功能键照常可用） ---------- */
-  #ovWork{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-    background:rgba(3,5,8,.88);z-index:44;}
-  /* 工作台开着时，"问 Clawd" 的提示气泡在面板下面，先把这个按钮收掉 */
+  /* ---------- 工作台（终端）/ 聊天 / 新闻：第二章 ---------- */
+  #ovWork{position:absolute;inset:0;display:none;background:rgba(2,4,6,.97);z-index:44;}
+  /* 工作台开着时，「问 Clawd」的提示气泡在面板下面，先把这个按钮收掉 */
   body.work-open #btnHint{opacity:.35;pointer-events:none;}
-  .wpanel{width:min(1180px,94vw);height:min(770px,86vh);display:flex;flex-direction:column;
-    background:linear-gradient(180deg,rgba(16,20,27,.995),rgba(10,13,18,.995));
-    border:1px solid var(--line);border-top:2px solid var(--clay);
-    box-shadow:0 24px 80px rgba(0,0,0,.9);}
-  .whead{display:flex;align-items:center;justify-content:space-between;gap:18px;
-    padding:20px 30px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
-  .whead h2{font-family:"Noto Serif SC","SimSun",serif;color:#EDF1F7;font-size:27px;
-    letter-spacing:7px;font-weight:700;margin:0;}
-  .wtabs{display:flex;gap:8px;}
-  .wtab{background:transparent;border:1px solid var(--line);color:var(--muted);
-    font:inherit;font-size:15px;letter-spacing:2px;padding:7px 18px;cursor:pointer;}
-  .wtab:hover{color:#fff;border-color:var(--steel);}
-  .wtab.active{color:#fff;border-color:var(--clay);background:rgba(217,119,87,.12);}
-  .wbody{flex:1;min-height:0;display:flex;gap:18px;padding:22px 28px;overflow:hidden;}
-  .wfoot{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;
-    padding:12px 30px;border-top:1px solid rgba(255,255,255,.06);
-    font-size:13px;color:var(--muted);letter-spacing:1px;}
-  /* 工作台卡片 */
-  .wgrid{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;
-    align-content:start;overflow:auto;padding-right:4px;}
-  .wcard{position:relative;text-align:left;background:rgba(17,22,30,.92);
-    border:1px solid var(--line);border-left:3px solid var(--steel);
-    color:var(--text);font:inherit;padding:18px 20px;cursor:pointer;transition:border-color .12s,background .12s;}
-  .wcard:hover{border-left-color:var(--clay);background:rgba(28,34,45,.95);}
-  .wcard.done{opacity:.5;cursor:default;border-left-color:#3E5B4A;}
-  .wcard.done:hover{background:rgba(17,22,30,.92);border-left-color:#3E5B4A;}
-  .wcard .wt{font-size:20px;letter-spacing:1px;}
-  .wcard .ws{font-size:14px;color:var(--muted);margin-top:8px;line-height:1.6;}
-  .wcard .wmark{position:absolute;right:16px;top:14px;color:#63B37A;font-size:15px;letter-spacing:1px;}
-  /* 聊天 */
-  .chatWrap{display:flex;gap:16px;width:100%;min-height:0;}
-  .chatList{width:290px;flex:0 0 auto;overflow:auto;border:1px solid var(--line);
-    background:rgba(6,9,13,.6);}
-  .chatRow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
-    padding:11px 14px;border:0;border-bottom:1px solid rgba(255,255,255,.05);
-    background:transparent;color:var(--text);font:inherit;cursor:pointer;}
-  .chatRow:hover{background:rgba(255,255,255,.05);}
-  .chatRow.active{background:rgba(217,119,87,.10);}
-  .chatRow.locked{opacity:.35;cursor:default;}
-  .chatRow .ava{width:34px;height:34px;border-radius:50%;flex:0 0 auto;display:flex;
-    align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0B0E14;}
-  .chatRow .cn{font-size:17px;}
-  .chatRow .cs{font-size:12px;color:var(--muted);margin-top:3px;}
-  .chatLog{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;overflow:auto;
-    border:1px solid var(--line);background:rgba(6,9,13,.6);padding:20px;}
-  .chatLog .empty{margin:auto;color:var(--muted);font-size:16px;letter-spacing:1px;}
-  .bubble{max-width:78%;padding:10px 14px;border:1px solid var(--line);
-    background:rgba(21,27,36,.95);color:#DCE3EC;font-size:16px;line-height:1.7;}
-  .bubble.me{align-self:flex-end;background:rgba(77,107,254,.16);border-color:rgba(77,107,254,.42);}
-  .bubble .who{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;letter-spacing:1px;}
-  /* 新闻 */
-  .newsWrap{display:flex;gap:16px;width:100%;min-height:0;}
-  .newsList{width:430px;flex:0 0 auto;overflow:auto;border:1px solid var(--line);background:rgba(6,9,13,.6);}
-  .newsItem{display:block;width:100%;text-align:left;padding:13px 16px;border:0;
-    border-bottom:1px solid rgba(255,255,255,.05);background:transparent;color:#DCE3EC;
-    font:inherit;font-size:16px;line-height:1.5;cursor:pointer;}
-  .newsItem:hover{background:rgba(255,255,255,.05);}
-  .newsItem.hot{color:#FF8A78;}
-  .newsItem.read{opacity:.55;}
-  .newsBody{flex:1;min-width:0;overflow:auto;border:1px solid var(--line);
-    background:rgba(6,9,13,.6);padding:24px 28px;}
-  .newsBody .nb-tag{font-size:12px;letter-spacing:2px;color:#E5383B;margin-bottom:10px;}
-  .newsBody h3{font-family:"Noto Serif SC","SimSun",serif;font-size:26px;color:#F6EEE9;
-    margin:0 0 10px;line-height:1.5;letter-spacing:1px;}
-  .newsBody .nb-meta{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:18px;}
-  .newsBody p{font-size:17px;line-height:1.95;color:#B9C2CE;margin:0 0 14px;white-space:pre-wrap;}
-  .newsBody .nb-note{border-left:3px solid var(--clay);background:rgba(217,119,87,.08);
-    padding:12px 16px;font-size:15px;line-height:1.8;color:#E6CFC6;margin-top:18px;white-space:pre-wrap;}
-  .newsBody .empty{margin:auto;color:var(--muted);font-size:16px;}
+  .termpanel{width:100%;height:100%;display:flex;flex-direction:column;background:#05090c;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;color:#A7DFBD;}
+  .termbar{flex:0 0 78px;display:flex;align-items:flex-end;gap:8px;padding:0 20px 16px;
+    background:#0a1116;border-bottom:1px solid #16301f;}
+  .tdot{width:11px;height:11px;border-radius:50%;}
+  .tdot.red{background:#C94F4F;} .tdot.yellow{background:#D8A94A;} .tdot.green{background:#57B87B;}
+  .termtitle{margin-left:14px;font-size:13px;letter-spacing:1px;color:#5C8C71;}
+  .termbody{flex:1;min-height:0;display:flex;flex-direction:column;padding:24px 34px 12px;}
+  .termlog{flex:1;min-height:0;overflow:auto;white-space:pre-wrap;font-size:16px;line-height:1.85;}
+  .termlog .t-p{color:#5C8C71;}
+  .termlog .t-ok{color:#63E6A5;}
+  .termlog .t-warn{color:#E0A458;}
+  .termlog .t-k{color:#7DB9FF;}
+  .termform{flex:0 0 auto;margin-top:18px;padding-top:16px;border-top:1px dashed #173a28;}
+  .termjson{background:#071009;border:1px solid #173a28;padding:14px 18px;font-size:16px;
+    line-height:1.65;color:#C4F2D8;white-space:pre;}
+  .termpicker{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+  .termtool{background:#08140d;border:1px solid #17402b;color:#A7DFBD;font:inherit;
+    font-size:16px;padding:10px 16px;cursor:pointer;letter-spacing:1px;}
+  .termtool:hover:not(:disabled){border-color:#63E6A5;color:#fff;}
+  .termtool:disabled{opacity:.35;cursor:default;}
+  .termtool .ok{color:#63E6A5;margin-left:6px;}
+  .termformbtns{display:flex;gap:12px;margin-top:14px;}
+  .termbtn{background:#08140d;border:1px solid #17402b;color:#A7DFBD;font:inherit;
+    font-size:16px;padding:10px 22px;cursor:pointer;letter-spacing:1px;}
+  .termbtn:hover:not(:disabled){border-color:#63E6A5;color:#fff;}
+  .termbtn:disabled{opacity:.35;cursor:default;}
+  .termfoot{flex:0 0 auto;display:flex;gap:14px;align-items:center;padding:14px 34px;
+    border-top:1px solid #16301f;background:#070d10;}
+  .termfoot .hint{margin-left:auto;color:#5C8C71;font-size:13px;letter-spacing:1px;}
+
+  /* 聊天：界面就是 chat 背景那套配色 */
+  .chatscreen{position:absolute;inset:0;display:none;z-index:45;background:#0A0E15;
+    font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;}
+  .chatCol{position:absolute;left:0;top:0;bottom:0;width:28%;min-width:300px;
+    background:linear-gradient(90deg,#111826,#0D121C);border-right:2px solid rgba(255,255,255,.06);
+    display:flex;flex-direction:column;}
+  .chatColHead{padding:58px 26px 16px;font-size:24px;letter-spacing:6px;color:#E8EEF9;
+    border-bottom:1px solid rgba(255,255,255,.05);}
+  .chatBack{margin-left:12px;font-size:12px;color:#7DA6D8;cursor:pointer;letter-spacing:1px;}
+  .chatContacts{flex:1;overflow:auto;}
+  .chatContact{display:flex;align-items:center;gap:12px;width:100%;padding:12px 20px;
+    background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.05);
+    color:#DCE3EC;font:inherit;text-align:left;cursor:pointer;}
+  .chatContact:hover:not(:disabled){background:rgba(255,255,255,.05);}
+  .chatContact:disabled{opacity:.35;cursor:default;}
+  .chatContact .ava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:13px;font-weight:700;color:#0B0E14;flex:0 0 auto;}
+  .chatContact .cn{font-size:17px;}
+  .chatContact .cs{font-size:12px;color:#7D8798;margin-top:3px;}
+  .chatMain{position:absolute;left:28%;right:0;top:0;bottom:0;display:flex;flex-direction:column;}
+  .chatTop{flex:0 0 76px;display:flex;align-items:center;gap:14px;padding:0 34px;
+    border-bottom:2px solid rgba(255,255,255,.06);}
+  #chatWho{font-size:22px;color:#E8EEF9;letter-spacing:2px;}
+  #chatStatus{font-size:12px;color:#5F8F7A;letter-spacing:1px;}
+  .chatMsgs{flex:1;min-height:0;overflow:auto;padding:24px 34px 110px;display:flex;
+    flex-direction:column;gap:12px;}
+  .cmsg{max-width:74%;padding:11px 16px;border:1px solid rgba(255,255,255,.08);
+    background:rgba(21,27,36,.95);font-size:16px;line-height:1.7;color:#DCE3EC;}
+  .cmsg.me{align-self:flex-end;background:rgba(77,107,254,.16);border-color:rgba(77,107,254,.42);}
+  .cmsg .who{display:block;font-size:12px;color:#7D8798;margin-bottom:4px;letter-spacing:1px;}
+  .csys{align-self:center;font-size:13px;color:#6E7E90;letter-spacing:1px;}
+  .chatCands{position:absolute;left:24px;bottom:24px;width:calc(28% - 48px);
+    display:none;flex-direction:column;gap:8px;z-index:2;}
+  .chatCand{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 14px;
+    background:rgba(8,14,12,.97);border:1px solid #1d4a33;color:#B7E7CD;font:inherit;
+    font-size:15px;cursor:pointer;}
+  .chatCand:hover{border-color:#63E6A5;color:#fff;}
+  .chatCand .n{color:#63E6A5;font-family:ui-monospace,monospace;}
+  .chatNext{position:absolute;right:36px;bottom:26px;color:#5F7A8C;font-size:13px;display:none;}
+
+  /* 新闻：界面就是 news 背景那套红黑报纸 */
+  .newsscreen{position:absolute;inset:0;display:none;z-index:45;background:#0B0C10;
+    font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;flex-direction:column;}
+  .newsMast{flex:0 0 116px;display:flex;align-items:baseline;gap:18px;padding:58px 34px 18px;
+    border-bottom:2px solid #C1121F;}
+  .newsLogo{font-family:"Noto Serif SC","SimSun",serif;font-size:32px;color:#F2E9E4;letter-spacing:2px;}
+  .newsTag{font-size:13px;color:#8C7A74;letter-spacing:1px;}
+  .newsBack{margin-left:auto;font-size:13px;color:#E0A458;cursor:pointer;letter-spacing:1px;}
+  .newsBody{flex:1;min-height:0;display:flex;}
+  .newsList2{width:38%;min-width:380px;overflow:auto;border-right:1px solid rgba(255,255,255,.07);}
+  .newsItem2{display:block;width:100%;text-align:left;padding:14px 22px;border:0;
+    border-bottom:1px solid rgba(255,255,255,.06);background:transparent;color:#DCE3EC;
+    font:inherit;font-size:17px;line-height:1.5;cursor:pointer;}
+  .newsItem2:hover{background:rgba(255,255,255,.05);}
+  .newsItem2.hot{color:#FF8A78;}
+  .newsItem2.read{opacity:.5;}
+  .newsArticle{flex:1;min-width:0;overflow:auto;padding:30px 40px;}
+  .newsArticle .tag{font-size:12px;letter-spacing:2px;color:#E5383B;margin-bottom:10px;}
+  .newsArticle h3{font-family:"Noto Serif SC","SimSun",serif;font-size:30px;color:#F6EEE9;
+    margin:0 0 10px;line-height:1.5;}
+  .newsArticle .meta{font-size:12px;color:#7D807F;letter-spacing:1px;margin-bottom:20px;}
+  .newsArticle p{font-size:17px;line-height:2;color:#B9C2CE;margin:0 0 14px;white-space:pre-wrap;}
+  .newsArticle .note{border-left:3px solid #D97757;background:rgba(217,119,87,.08);
+    padding:14px 18px;font-size:15px;line-height:1.9;color:#E6CFC6;margin-top:20px;white-space:pre-wrap;}
+  .newsArticle .empty{margin-top:40px;color:#6E7480;}
 </style>
 <link rel="stylesheet" href="src/token-choice.css">
 <link rel="stylesheet" href="src/pet.css">
@@ -386,22 +412,56 @@
       <pre id="fragDoc" class="fragDoc"></pre>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
-    <!-- 工作台 / 聊天 / 新闻：第二章的 hub 界面（z 低于 HUD，右上角功能键照常可用） -->
+    <!-- 工作台：终端样式（第二章 hub）。tool call 组 JSON，continue 退出 -->
     <div id="ovWork" class="overlay">
-      <div class="wpanel">
-        <div class="whead">
-          <h2 id="workTitle">工作台</h2>
-          <div class="wtabs">
-            <button class="wtab active" data-tab="work" type="button">工作台</button>
-            <button class="wtab" data-tab="chat" type="button">聊天</button>
-            <button class="wtab" data-tab="news" type="button">新闻</button>
+      <div class="termpanel">
+        <div class="termbar">
+          <span class="tdot red"></span><span class="tdot yellow"></span><span class="tdot green"></span>
+          <span class="termtitle">clawd@localhost — ~/workbench</span>
+        </div>
+        <div class="termbody">
+          <div id="termLog" class="termlog"></div>
+          <div id="termForm" class="termform" hidden>
+            <div id="termJson" class="termjson"></div>
+            <div id="termPicker" class="termpicker"></div>
+            <div class="termformbtns">
+              <button id="termSend" class="termbtn" type="button">发送 (Enter)</button>
+              <button id="termRefill" class="termbtn" type="button">重新填</button>
+            </div>
           </div>
         </div>
-        <div id="workBody" class="wbody"></div>
-        <div class="wfoot">
-          <span id="workHint">点一张卡继续 · 右上角功能键照常可用</span>
-          <span id="workSub"></span>
+        <div class="termfoot">
+          <button id="btnToolCall" class="termbtn" type="button">▸ tool call</button>
+          <button id="btnContinue" class="termbtn" type="button" disabled>continue ▸</button>
+          <span id="termHint" class="hint"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- 聊天：直接铺满界面，左下角候选词 -->
+    <div id="ovChat" class="chatscreen">
+      <div class="chatCol">
+        <div class="chatColHead">聊天 <span class="chatBack" id="chatBack">返回工作台</span></div>
+        <div id="chatContacts" class="chatContacts"></div>
+      </div>
+      <div class="chatMain">
+        <div class="chatTop"><span id="chatWho">选择一个联系人</span><span id="chatStatus"></span></div>
+        <div id="chatMsgs" class="chatMsgs"></div>
+        <div id="chatCands" class="chatCands"></div>
+        <div id="chatNext" class="chatNext">▸ 点击 / 空格继续</div>
+      </div>
+    </div>
+
+    <!-- 新闻：红黑报纸界面 -->
+    <div id="ovNews" class="newsscreen">
+      <div class="newsMast">
+        <span class="newsLogo">A÷ DAILY</span>
+        <span class="newsTag">AI 新闻 · 全部虚构 · 但逻辑自洽</span>
+        <span class="newsBack" id="newsBack">返回工作台</span>
+      </div>
+      <div class="newsBody">
+        <div id="newsList" class="newsList2"></div>
+        <div id="newsArticle" class="newsArticle"></div>
       </div>
     </div>
 

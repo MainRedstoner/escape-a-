@@ -160,26 +160,34 @@ def main():
                         used_eggs.add(o["set"])
                         granted_eggs.add(o["set"])
             elif t == "work":
-                ents = nd.get("entries")
-                chk(isinstance(ents, list) and len(ents) >= 1, f"{at}: work 至少要有 1 张卡")
-                for k, e in enumerate(ents or []):
-                    e_at = f"{at} 卡片{k + 1}"
-                    chk(bool(e.get("text")), f"{e_at}: 缺少文案")
-                    jumps.add(e.get("jump"))
-                    chk(e.get("jump") in scenes, f"{e_at}: 跳转目标不存在 \"{e.get('jump')}\"")
-                    chk(e.get("if") is None or isinstance(e.get("if"), str),
-                        f"{e_at}: if 条件必须是字符串")
-                    chk(e.get("done") is None or isinstance(e.get("done"), str),
-                        f"{e_at}: done 必须是旗标字符串")
-                    if isinstance(e.get("if"), str):
-                        for m in re.finditer(r"(?:has|egg|flag)\('([^']+)'\)", e["if"]):
-                            arg = m.group(1)
-                            if m.group(0).startswith("has"):
-                                used_args.add(arg)
-                                chk(arg in sys_meta["ARG_META"],
-                                    f"{e_at}: 条件引用了不存在的论据 \"{arg}\"")
-                            elif arg.startswith("egg"):
-                                used_eggs.add(arg)
+                tools = nd.get("tools")
+                chk(isinstance(tools, list) and len(tools) >= 1, f"{at}: work 至少要有 1 个工具")
+                for k, tool in enumerate(tools or []):
+                    t_at = f"{at} 工具{k + 1}"
+                    chk(bool(tool.get("id")), f"{t_at}: 缺少 id")
+                    chk(bool(tool.get("name")), f"{t_at}: 缺少显示名")
+                    chk(tool.get("action") in (None, "chat", "news"),
+                        f"{t_at}: action 只能是 chat / news")
+                    if tool.get("action") is None:
+                        jumps.add(tool.get("jump"))
+                        chk(tool.get("jump") in scenes, f"{t_at}: 跳转目标不存在 \"{tool.get('jump')}\"")
+                    chk(tool.get("args") is None or isinstance(tool.get("args"), dict),
+                        f"{t_at}: args 必须是对象")
+                    for fld in ("if", "need"):
+                        chk(tool.get(fld) is None or isinstance(tool.get(fld), str),
+                            f"{t_at}: {fld} 必须是字符串")
+                        if isinstance(tool.get(fld), str):
+                            for m in re.finditer(r"(?:has|egg|flag)\('([^']+)'\)", tool[fld]):
+                                arg = m.group(1)
+                                if m.group(0).startswith("has"):
+                                    used_args.add(arg)
+                                    chk(arg in sys_meta["ARG_META"],
+                                        f"{t_at}: 条件引用了不存在的论据 \"{arg}\"")
+                                elif arg.startswith("egg"):
+                                    used_eggs.add(arg)
+                cj = (nd.get("continue") or {}).get("jump")
+                jumps.add(cj)
+                chk(cj in scenes, f"{at}: continue 缺少有效的 jump")
                 for k, c in enumerate(nd.get("chat") or []):
                     c_at = f"{at} 联系人{k + 1}"
                     chk(bool(c.get("name")), f"{c_at}: 缺少显示名")
@@ -187,7 +195,6 @@ def main():
                         continue
                     jumps.add(c.get("jump"))
                     chk(c.get("jump") in scenes, f"{c_at}: 跳转目标不存在 \"{c.get('jump')}\"")
-                    chk(isinstance(c.get("met"), str) and c["met"], f"{c_at}: 缺少 met 旗标")
                 for k, a in enumerate(nd.get("news") or []):
                     a_at = f"{at} 新闻{k + 1}"
                     chk(bool(a.get("title")) and bool(a.get("body")), f"{a_at}: 标题或正文为空")
@@ -252,8 +259,10 @@ def main():
                 for o in nd.get("options") or []:
                     queue.append(o.get("jump"))
             elif t == "work":
-                for e in nd.get("entries") or []:
-                    queue.append(e.get("jump"))
+                for tool in nd.get("tools") or []:
+                    if tool.get("action") is None:
+                        queue.append(tool.get("jump"))
+                queue.append((nd.get("continue") or {}).get("jump"))
                 for c in nd.get("chat") or []:
                     if not c.get("locked"):
                         queue.append(c.get("jump"))
