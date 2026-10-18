@@ -29,7 +29,7 @@
 
 | 改动 | 必须同步的位置 |
 | --- | --- |
-| 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `load_script()` 按同一顺序读，两处一致 |
+| 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `SCRIPT_FILES` 按同一顺序登记，两处一致 |
 | 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.py` `SPEAKERS` + 立绘文件 |
 | 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.py` 白名单 |
 | 新程序化背景 | `src/backdrops.js` 的 `LIST` + `engine.js` 的 `audioForBg`（校验器自动认） |

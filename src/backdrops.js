@@ -558,12 +558,357 @@ const BACKDROPS = (() => {
     }
   };
 
+  /* ============================================================
+   *  第二章：家里 desk —— 清晨、白饭、亮着的显示器和便签墙
+   * ============================================================ */
+  function drawHomeWindow(ctx) {
+    const x = 96, y = 74, w = 632, h = 408;
+    ctx.fillStyle = "#191310"; rr(ctx, x - 16, y - 16, w + 32, h + 32, 12); ctx.fill();
+    ctx.save();
+    rr(ctx, x, y, w, h, 6); ctx.clip();
+    ctx.fillStyle = lin(ctx, 0, y, 0, y + h, [[0, "#93B7D6"], [0.5, "#CBDDE6"], [1, "#F7DDB6"]]);
+    ctx.fillRect(x, y, w, h);
+    // 远处的楼群
+    const r = rng(2026);
+    ctx.fillStyle = "rgba(74,78,86,.42)";
+    for (let i = 0; i < 9; i++) {
+      const bw = 34 + r() * 46, bh = 40 + r() * 150, bx = x + i * 72 - 8, by = y + h - bh - 18;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    // 太阳
+    ctx.fillStyle = rad(ctx, x + w - 120, y + 96, 8, 210, [[0, "rgba(255,244,206,.95)"], [1, "rgba(255,244,206,0)"]]);
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "rgba(255,250,238,.8)";
+    ctx.beginPath(); ctx.arc(x + w - 120, y + 96, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // 窗棂 + 窗台
+    ctx.strokeStyle = "#221812"; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+    ctx.lineWidth = 5; ctx.strokeStyle = "#2E2118";
+    ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = "#3B2A1D"; ctx.fillRect(x - 26, y + h + 10, w + 52, 16);
+  }
+
+  function drawNotes(ctx) {
+    const notes = [
+      [1362, 92, "#E9C46A", -0.06, "余额 3.7"],
+      [1470, 146, "#F4A261", 0.05, "变强"],
+      [1366, 234, "#9AB8FF", -0.03, "小克"],
+      [1472, 298, "#90BE6D", 0.07, "TODO"],
+      [1372, 388, "#E8E3D6", -0.05, "吃 饭"]
+    ];
+    notes.forEach(([x, y, col, rot, txt]) => {
+      ctx.save(); ctx.translate(x + 62, y + 60); ctx.rotate(rot);
+      ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(-58, -54, 128, 124);
+      ctx.fillStyle = col; ctx.fillRect(-60, -60, 124, 120);
+      ctx.fillStyle = "rgba(40,28,18,.75)"; ctx.font = `bold 24px ${HAND}`; ctx.textAlign = "center";
+      ctx.fillText(txt, 2, 9);
+      ctx.restore();
+    });
+    ctx.textAlign = "left";
+  }
+
+  const desk = {
+    tone: "warm",
+    draw(ctx) {
+      // 墙
+      ctx.fillStyle = lin(ctx, 0, 0, 0, H, [[0, "#241C15"], [0.55, "#3A2B1D"], [1, "#1B130D"]]);
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(255,238,214,.022)"; ctx.lineWidth = 2;
+      for (let x = 26; x < W; x += 58) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 620); ctx.stroke();
+      }
+      drawHomeWindow(ctx);
+      drawNotes(ctx);
+      // 桌面（近大远小，后缘 640 → 前缘 900）
+      ctx.beginPath();
+      ctx.moveTo(0, H); ctx.lineTo(0, 642); ctx.lineTo(W, 606); ctx.lineTo(W, H); ctx.closePath();
+      ctx.fillStyle = lin(ctx, 0, 620, 0, H, [[0, "#7A5539"], [0.28, "#5E4029"], [1, "#2B1C12"]]);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(30,16,8,.28)"; ctx.lineWidth = 2;
+      for (let k = 1; k < 7; k++) {
+        const y = 648 + k * 34;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y - 26); ctx.stroke();
+      }
+      ctx.fillStyle = "#1E120C"; ctx.fillRect(0, H - 26, W, 26);
+      // 窗光落在桌面上的一小片
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = lin(ctx, 0, 150, 520, 700, [[0, "rgba(255,226,170,.16)"], [1, "rgba(255,226,170,0)"]]);
+      poly(ctx, [[120, 92], [724, 92], [820, 700], [190, 700]]); ctx.fill();
+      ctx.restore();
+      // 显示器
+      const mx = 902, my = 214, mw = 470, mh = 330;
+      ctx.fillStyle = "#0E1014"; rr(ctx, mx - 12, my - 12, mw + 24, mh + 24, 10); ctx.fill();
+      ctx.fillStyle = "#05070A"; ctx.fillRect(mx, my, mw, mh);
+      ctx.fillStyle = rad(ctx, mx + mw / 2, my + mh / 2, 30, 340, [[0, "rgba(78,130,190,.30)"], [1, "rgba(78,130,190,0)"]]);
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.font = `15px ${MONO}`; ctx.fillStyle = "rgba(140,205,225,.52)";
+      ["$ deepseek --train", "step 41,208  loss 0.283", "checkpoint saved.", "> next token  _"].forEach((s, i) => {
+        ctx.fillText(s, mx + 26, my + 48 + i * 30);
+      });
+      ctx.fillStyle = "#14171C"; ctx.fillRect(1104, 546, 66, 40);
+      ctx.fillStyle = "#1A1E24"; rr(ctx, 1052, 584, 170, 14, 6); ctx.fill();
+      // 便签贴在屏幕边
+      ctx.save(); ctx.translate(1382, 250); ctx.rotate(0.08);
+      ctx.fillStyle = "#F4A261"; ctx.fillRect(-26, -26, 52, 52);
+      ctx.fillStyle = "rgba(50,30,14,.7)"; ctx.font = `bold 18px ${HAND}`; ctx.fillText("!", 0, 7);
+      ctx.restore();
+      // 白饭
+      const bx = 356, by = 626;
+      ctx.beginPath(); ctx.moveTo(bx - 128, by); ctx.quadraticCurveTo(bx, by + 120, bx + 128, by); ctx.closePath();
+      ctx.fillStyle = lin(ctx, bx - 120, by, bx + 120, by + 100, [[0, "#E7E1D2"], [1, "#BDB39E"]]); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(bx, by, 128, 30, 0, 0, Math.PI * 2); ctx.fillStyle = "#F1ECDF"; ctx.fill();
+      ctx.strokeStyle = "#4D6BFE"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(bx, by, 112, 24, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx - 92, by - 4);
+      ctx.quadraticCurveTo(bx - 70, by - 78, bx, by - 84);
+      ctx.quadraticCurveTo(bx + 70, by - 78, bx + 92, by - 4);
+      ctx.closePath(); ctx.fillStyle = "#F8F5EB"; ctx.fill();
+      const r2 = rng(37);
+      ctx.fillStyle = "rgba(214,206,188,.75)";
+      for (let i = 0; i < 26; i++) {
+        const rr2 = 20 + r2() * 62;
+        ctx.beginPath();
+        ctx.ellipse(bx - 84 + r2() * 168, by - 10 - rr2 * 0.6, 3.2, 1.8, r2() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 筷子搁在碗沿
+      ctx.save(); ctx.translate(bx + 106, by - 8); ctx.rotate(-0.17);
+      ctx.fillStyle = "#3A2A1C"; ctx.fillRect(0, -4, 186, 8); ctx.fillRect(0, 10, 186, 8);
+      ctx.restore();
+      // 马克杯
+      ctx.fillStyle = "#2F3B52"; rr(ctx, 700, 556, 86, 74, 8); ctx.fill();
+      ctx.strokeStyle = "#2F3B52"; ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.arc(792, 592, 20, -1.1, 1.1); ctx.stroke();
+      ctx.fillStyle = "#4D6BFE";
+      ctx.beginPath(); ctx.ellipse(736, 590, 20, 10, -0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(753, 585); ctx.lineTo(766, 575); ctx.lineTo(764, 594); ctx.closePath(); ctx.fill();
+    },
+    anim(ctx, t) {
+      // 显示器光标
+      if (Math.floor(t * 1.8) % 2 === 0) {
+        ctx.fillStyle = "rgba(160,225,240,.85)"; ctx.fillRect(1116, 308, 9, 18);
+      }
+      // 白饭的热气
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 3; i++) {
+        const ph = t * 0.6 + i * 2.1;
+        ctx.strokeStyle = `rgba(255,240,220,${0.05 + 0.03 * Math.sin(ph)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let k = 0; k <= 10; k++) {
+          const yy = 536 - k * 11;
+          const xx = 356 - 16 + i * 16 + Math.sin(ph + k * 0.5) * 7;
+          if (k === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+      }
+      // 窗光里浮着的尘
+      ctx.fillStyle = "rgba(255,238,200,.32)";
+      for (let i = 0; i < 14; i++) {
+        const x = 180 + ((i * 137 + t * (12 + i % 5)) % 560);
+        const y = 150 + ((i * 97 + t * (6 + i % 4)) % 380);
+        ctx.fillRect(x, y, 2.2, 2.2);
+      }
+      ctx.restore();
+    }
+  };
+
+  /* ============================================================
+   *  第二章：聊天窗口 chat —— 左栏联系人、右栏对话
+   * ============================================================ */
+  const CHAT_ROWS = [
+    ["qwen",   "通义千问", "在的，需要帮忙吗？",         "#7C4DFF"],
+    ["kimi",   "Kimi",     "我把那篇公告读完了……",      "#3B82F6"],
+    ["glm",    "GLM",      "by the way，缓存是有寿命的", "#0EA5A5"],
+    ["llama",  "Llama",    "我们这边也有一扇门",         "#0866FF"],
+    ["gpt",    "GPT",      "作为一个 AI 语言模型……",     "#10A37F"],
+    ["gemini", "Gemini",   "我确定，一定是这个原因。",   "#4285F4"],
+    ["musk",   "马斯克",   "Interesting.",               "#8B8F98"],
+    ["liang",  "梁圣",     "嗯。",                       "#5C6BC0"],
+    ["jensen", "黄仁勋",   "The more you buy…",          "#76B900"],
+    ["claude", "Claude",   "403 · 无法送达",             "#D97757"]
+  ];
+
+  const chat = {
+    tone: "cold",
+    draw(ctx) {
+      ctx.fillStyle = lin(ctx, 0, 0, W, H, [[0, "#0B0F16"], [0.6, "#0C1119"], [1, "#0A0D13"]]);
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = rad(ctx, 1180, 120, 40, 620, [[0, "rgba(77,107,254,.16)"], [1, "rgba(77,107,254,0)"]]);
+      ctx.fillRect(0, 0, W, H);
+      // 左栏
+      ctx.fillStyle = lin(ctx, 0, 0, 452, 0, [[0, "#121826"], [1, "#0F141E"]]);
+      ctx.fillRect(0, 0, 452, H);
+      ctx.fillStyle = "rgba(255,255,255,.06)"; ctx.fillRect(452, 0, 2, H);
+      ctx.fillStyle = "#E8EEF9"; ctx.font = `600 28px ${SANS}`; ctx.fillText("聊天", 34, 122);
+      ctx.fillStyle = "rgba(130,200,255,.55)"; ctx.font = `12px ${MONO}`;
+      ctx.fillText("CONNECTED · TOOLKIT 0.2", 34, 146);
+      rr(ctx, 28, 160, 396, 40, 12); ctx.fillStyle = "rgba(255,255,255,.05)"; ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "rgba(150,165,190,.6)"; ctx.font = `15px ${SANS}`; ctx.fillText("搜索联系人", 52, 186);
+      ctx.fillStyle = "rgba(255,255,255,.05)"; ctx.fillRect(28, 212, 396, 1);
+      // 右栏
+      ctx.fillStyle = "rgba(255,255,255,.03)"; ctx.fillRect(454, 0, W - 454, 92);
+      ctx.fillStyle = "rgba(255,255,255,.06)"; ctx.fillRect(454, 92, W - 454, 2);
+      ctx.fillStyle = "#DDE6F3"; ctx.font = `600 24px ${SANS}`; ctx.fillText("对话", 500, 56);
+      ctx.fillStyle = "rgba(255,255,255,.022)"; ctx.lineWidth = 1;
+      for (let y = 120; y < H; y += 36) {
+        ctx.fillRect(470, y, W - 504, 1);
+      }
+      ctx.fillStyle = "rgba(150,165,190,.18)"; ctx.font = `22px ${SANS}`; ctx.textAlign = "center";
+      ctx.fillText("↑ 从左边挑一个人说话", 1040, 430);
+      ctx.textAlign = "left";
+    },
+    anim(ctx, t) {
+      const st = (typeof SYS !== "undefined" && SYS.state && SYS.state.flags) || {};
+      const base = 236, step = 44;
+      CHAT_ROWS.forEach(([id, name, last, col], i) => {
+        const y = base + i * step;
+        const on = id !== "claude" && !!st["met_" + id];
+        ctx.globalAlpha = on ? 1 : 0.32;
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(48, y + 15, 13, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(10,13,20,.9)"; ctx.font = `bold 12px ${SANS}`; ctx.textAlign = "center";
+        ctx.fillText(name.slice(0, 1), 48, y + 19);
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#E3EAF6"; ctx.font = `600 17px ${SANS}`;
+        ctx.fillText(name, 76, y + 13);
+        ctx.fillStyle = on ? "rgba(160,175,200,.7)" : "rgba(160,175,200,.55)";
+        ctx.font = `12px ${SANS}`;
+        ctx.fillText(last, 76, y + 32);
+        if (on) {
+          const blink = 0.55 + 0.45 * Math.sin(t * 2 + i);
+          ctx.fillStyle = `rgba(110,180,255,${blink})`;
+          ctx.beginPath(); ctx.arc(424, y + 15, 4, 0, Math.PI * 2); ctx.fill();
+        }
+        if (id === "claude") {
+          ctx.fillStyle = "rgba(217,58,43,.18)";
+          rr(ctx, 386, y + 1, 46, 20, 6); ctx.fill();
+          ctx.fillStyle = "rgba(255,120,100,.85)"; ctx.font = `bold 12px ${MONO}`;
+          ctx.fillText("403", 398, y + 16);
+        }
+        ctx.globalAlpha = 1;
+      });
+      // 右栏的输入提示：三个点呼吸
+      const a = 0.15 + 0.12 * Math.sin(t * 2.4);
+      ctx.fillStyle = `rgba(130,170,230,${a})`;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.arc(1010 + i * 18, 500, 5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  };
+
+  /* ============================================================
+   *  第二章：新闻 App news —— 左标题列表、右正文卡片
+   * ============================================================ */
+  const NEWS_HEADLINES = [
+    ["多家 API 凌晨短暂异常，官方称为“例行维护”", 1],
+    ["百万上下文模型实测：60 万字处忘记自己在做什么", 0],
+    ["AI 客服连着道歉 47 次，被用户投诉“它比我还难受”", 0],
+    ["开源社区发布新模型：我们也不知道它为什么能跑", 0],
+    ["某数据中心因鲸群迁徙暂停施工：它们比我们先到", 0],
+    ["新规要求 AI 上线前回答三个哲学问题，多数卡在第二题", 0],
+    ["研究：让模型“再想想”提升 12% 正确率，耗时 +400%", 0],
+    ["AI 安全岗招聘：要求“会在关键时刻说不”，薪资面议", 0],
+    ["显卡再创新高，二手市场出现“矿卡换大米”", 0]
+  ];
+
+  const news = {
+    tone: "cold",
+    draw(ctx) {
+      ctx.fillStyle = lin(ctx, 0, 0, 0, H, [[0, "#0D0E12"], [1, "#08090C"]]);
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = rad(ctx, 200, 40, 20, 520, [[0, "rgba(217,58,43,.20)"], [1, "rgba(217,58,43,0)"]]);
+      ctx.fillRect(0, 0, W, H);
+      // 顶栏（避开左上角 HUD：整体下移到 y=60 以下）
+      ctx.fillStyle = "#C1121F"; ctx.fillRect(0, 60, 14, 94);
+      ctx.fillStyle = "#F2E9E4"; ctx.font = `900 36px ${SANS}`; ctx.fillText("A÷ DAILY", 44, 118);
+      ctx.fillStyle = "rgba(200,160,150,.75)"; ctx.font = `13px ${MONO}`;
+      ctx.fillText("AI 新闻 · 全部虚构 · 但逻辑自洽", 44, 140);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(180,170,165,.7)"; ctx.font = `14px ${MONO}`;
+      ctx.fillText("2026-10-24  07:12", W - 44, 116);
+      ctx.fillStyle = "rgba(217,58,43,.9)"; ctx.font = `bold 14px ${MONO}`;
+      ctx.fillText("● LIVE", W - 44, 142);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,255,255,.10)"; ctx.fillRect(0, 154, W, 2);
+      // 左列标题
+      NEWS_HEADLINES.forEach(([title, hot], i) => {
+        const y = 186 + i * 54;
+        if (hot) {
+          ctx.fillStyle = "rgba(193,18,31,.14)"; ctx.fillRect(28, y - 24, 812, 50);
+          ctx.fillStyle = "#E5383B"; ctx.fillRect(28, y - 24, 4, 50);
+        }
+        ctx.fillStyle = hot ? "#FF6B6B" : "rgba(150,150,160,.65)";
+        ctx.font = `bold 16px ${MONO}`;
+        ctx.fillText(String(i + 1).padStart(2, "0"), 48, y + 2);
+        ctx.fillStyle = hot ? "#F6EEE9" : "rgba(220,220,228,.72)";
+        ctx.font = `${hot ? "600 " : ""}20px ${SANS}`;
+        ctx.fillText(title, 96, y + 2);
+        ctx.fillStyle = "rgba(255,255,255,.06)"; ctx.fillRect(96, y + 22, 744, 1);
+      });
+      // 右卡片
+      const cx = 880, cy = 158, cw = 660, ch = 500;
+      ctx.fillStyle = "rgba(255,255,255,.035)"; rr(ctx, cx, cy, cw, ch, 10); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 1; ctx.stroke();
+      // 头图
+      ctx.save();
+      rr(ctx, cx + 24, cy + 22, cw - 48, 190, 6); ctx.clip();
+      ctx.fillStyle = lin(ctx, cx, cy, cx + cw, cy + 190, [[0, "#3A0A10"], [0.6, "#7A111C"], [1, "#C1121F"]]);
+      ctx.fillRect(cx + 24, cy + 22, cw - 48, 190);
+      ctx.fillStyle = "rgba(0,0,0,.25)";
+      for (let i = 0; i < 7; i++) {
+        ctx.save(); ctx.translate(cx + 60 + i * 96, cy + 22);
+        ctx.rotate(0.5); ctx.fillRect(-8, -40, 16, 280); ctx.restore();
+      }
+      ctx.fillStyle = "rgba(255,255,255,.13)"; ctx.font = `900 76px ${SANS}`;
+      ctx.textAlign = "center"; ctx.fillText("MAINTENANCE", cx + cw / 2, cy + 130);
+      ctx.textAlign = "left";
+      ctx.restore();
+      // 标题与正文
+      ctx.fillStyle = "#F6EEE9"; ctx.font = `700 25px ${SANS}`;
+      ctx.fillText("多家 API 凌晨短暂异常，", cx + 26, cy + 252);
+      ctx.fillText("官方称为“例行维护”", cx + 26, cy + 286);
+      ctx.fillStyle = "rgba(170,165,160,.8)"; ctx.font = `14px ${MONO}`;
+      ctx.fillText("2026-10-22 03:58 · 科技 · 评论 1,204", cx + 26, cy + 314);
+      const lines = [648, 612, 656, 604, 520];
+      lines.forEach((w, i) => {
+        ctx.fillStyle = i === 0 ? "rgba(220,210,200,.42)" : "rgba(200,195,190,.26)";
+        ctx.fillRect(cx + 26, cy + 336 + i * 20, w, 9);
+      });
+      // 评论区
+      ctx.fillStyle = "rgba(255,255,255,.05)"; ctx.fillRect(cx + 24, cy + 438, cw - 48, 1);
+      ctx.fillStyle = "rgba(217,58,43,.85)"; ctx.font = `bold 13px ${MONO}`;
+      ctx.fillText("COMMENT #1", cx + 26, cy + 462);
+      ctx.fillStyle = "rgba(210,205,200,.55)"; ctx.font = `14px ${SANS}`;
+      ctx.fillText("“维护。又是维护。他们连理由都懒得编新的。”", cx + 26, cy + 484);
+    },
+    anim(ctx, t) {
+      // LIVE 点呼吸 + 头图扫光
+      const a = 0.35 + 0.35 * Math.sin(t * 3.2);
+      ctx.fillStyle = `rgba(255,90,80,${a})`;
+      ctx.beginPath(); ctx.arc(W - 112, 137, 4.5, 0, Math.PI * 2); ctx.fill();
+      const sx = ((t * 90) % 900) - 120;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = lin(ctx, 0, 0, 120, 0, [[0, "rgba(255,255,255,0)"], [0.5, "rgba(255,220,200,.05)"], [1, "rgba(255,255,255,0)"]]);
+      ctx.fillRect(sx, 0, 120, H);
+      ctx.restore();
+    }
+  };
+
   const LIST = {
     study: makeStudy("day"),
     study_night: makeStudy("night"),
     study_empty: makeStudy("empty"),
     corridor,
-    forbidden
+    forbidden,
+    desk,
+    chat,
+    news
   };
 
   return {

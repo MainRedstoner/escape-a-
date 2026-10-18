@@ -33,7 +33,17 @@ const ENGINE = (() => {
     n:     { name: "",            color: "#6E6A60" },
     ds:    { name: "DeepSeek",    color: "#4D6BFE" },   // 玩家视角；Claude 叫它「小鲸」
     cl:    { name: "Claude",      color: "#D97757" },   // DeepSeek 叫它「小克」
-    clawd: { name: "Clawd",       color: "#B8603F" }    // 桌宠，只会终端式短输出
+    clawd: { name: "Clawd",       color: "#B8603F" },   // 桌宠，只会终端式短输出
+    /* ---------------- 第二章「联网」的聊天联系人（只出声，不配立绘） ---------------- */
+    qwen:   { name: "通义千问", color: "#7C4DFF" },
+    kimi:   { name: "Kimi",    color: "#3B82F6" },
+    glm:    { name: "GLM",     color: "#0EA5A5" },
+    llama:  { name: "Llama",   color: "#0866FF" },
+    gpt:    { name: "GPT",     color: "#10A37F" },
+    gemini: { name: "Gemini",  color: "#4285F4" },
+    musk:   { name: "马斯克",   color: "#8B8F98" },
+    liang:  { name: "梁圣",     color: "#5C6BC0" },
+    jensen: { name: "黄仁勋",   color: "#76B900" }
   };
 
   let cur = { scene: "start", idx: 0 };
@@ -443,7 +453,18 @@ const ENGINE = (() => {
     /* 推进对话时引擎会摘掉 body 的 glitching 类；选项界面自己补回来，
        故障态的视觉（文本框抖动 + 滑道滤镜）才不会在选项期间断掉。 */
     document.body.classList.toggle("glitching", glitchOn);
-    const opts = nd.options.filter(o => !(glitchOn && o.hideInGlitch));
+    /* 选项条件：opt(..., { if: "flag('x')" }) 为假的选项不出现（hub 用它隐藏已做完的事）。
+       条件筛完只剩一个，就没有"选"的必要了——直接替玩家按下去（hub 收尾用）。 */
+    const condOk = o => !o.if || evalCond(o.if);
+    let opts = nd.options.filter(o => !(glitchOn && o.hideInGlitch) && condOk(o));
+    if (opts.length === 0) opts = nd.options.filter(o => !(glitchOn && o.hideInGlitch));
+    if (opts.length === 1) {
+      const only = opts[0];
+      ui.choices.style.display = "none";
+      toast("✻ 没有别的选择了");
+      setTimeout(() => { if (pending === nd) pickChoice(only); }, 520);
+      return;
+    }
 
     if (!wheel) wheel = new TokenChoice(ui.choiceToken, { onSelect: onWheelSelect });
     // 扫描时长固定（组件内部常量，当前为 1 秒的 0.8 倍速）；剧本的 duration 字段已不再生效
@@ -705,7 +726,8 @@ const ENGINE = (() => {
   }
   /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
   function audioForBg(bg) {
-    return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden" })[bg] || "sea";
+    return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden",
+              desk: "warm", chat: "lobby", news: "lobby" })[bg] || "sea";
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {
