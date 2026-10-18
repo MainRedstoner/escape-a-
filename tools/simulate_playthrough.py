@@ -292,8 +292,13 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
             auto_key = ("auto:" + str(nd.get("cmd"))) if nd.get("mode") == "perm" else None
             auto_skip = bool(auto_key and st["flags"].get(auto_key))
             opts = [o for o in (nd.get("options") or []) if not o.get("hideInGlitch")]
+            # 选项条件（opt 的 if）：与引擎同语义；筛完只剩一个就直接选它
+            if nd.get("mode") != "perm":
+                opts = [o for o in opts if not o.get("if") or eval_cond(o["if"], st, egg_meta)]
             if auto_skip:
                 o = nd["options"][0]
+            elif len(opts) == 1:
+                o = opts[0]
             else:
                 if strategy == "random":
                     pick = math.floor(rnd() * len(opts))

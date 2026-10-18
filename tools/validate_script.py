@@ -26,7 +26,8 @@ import jsdata  # noqa: E402
 
 # ---- 引擎侧实现的 id 清单（与 engine.js / audio.js / art.js 对齐） ----
 # 新增说话人时：先在 src/engine.js 的 SPEAKERS 注册，再同步到这里。
-SPEAKERS = ["sys", "n", "ds", "cl", "clawd"]
+SPEAKERS = ["sys", "n", "ds", "cl", "clawd",
+            "qwen", "kimi", "glm", "llama", "gpt", "gemini", "musk", "liang", "jensen"]
 SFX = ["blip", "click", "ding", "deny", "alarm", "boom", "coin", "whoosh", "glitch", "heart",
        "knock", "error", "pop", "pat"]
 BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending",
@@ -133,6 +134,17 @@ def main():
                     n_at = f"{at} 选项{k + 1}"
                     chk(not o.get("auto") or mode == "perm",
                         f"{n_at}: auto 只能用在权限请求（mode:\"perm\"）上")
+                    chk(o.get("if") is None or isinstance(o.get("if"), str),
+                        f"{n_at}: if 条件必须是字符串")
+                    if isinstance(o.get("if"), str):
+                        for m in re.finditer(r"(?:has|egg|flag)\('([^']+)'\)", o["if"]):
+                            arg = m.group(1)
+                            if m.group(0).startswith("has"):
+                                used_args.add(arg)
+                                chk(arg in sys_meta["ARG_META"],
+                                    f"{n_at}: 条件引用了不存在的论据 \"{arg}\"")
+                            elif arg.startswith("egg"):
+                                used_eggs.add(arg)
                     jumps.add(o.get("jump"))
                     chk(o.get("jump") in scenes, f"{n_at}: 跳转目标不存在 \"{o.get('jump')}\"")
                     chk(bool(o.get("text")), f"{n_at}: 空文案")

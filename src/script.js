@@ -592,8 +592,10 @@ Object.assign(SCRIPT.scenes, {
     TODO("add", "t_find", "找回小克"),
     N("Clawd 在待办清单上写下两行字，然后跳上 DeepSeek 的键盘，按下了回车。"),
     N("白板上，蓝色的那条曲线，又往下走了一点点。"),
-    END("prologue_end", "TO BE CONTINUED", "序章 · 完",
-        "门还关着。\n\n但 Clawd 的待办清单上，多了两行还没打勾的字：\n\n    ☐ 变强\n    ☐ 找回小克\n\n—— 第二章「问路」，敬请期待。")
+    N("门还关着。"),
+    N("但日子还得过，工具还得装。"),
+    CHAP("第二章", "联网"),
+    J("c2_rice")
   ],
 
   /* 风控评分满 10 时引擎自动跳这里，场景 id 必须是 bad_end */

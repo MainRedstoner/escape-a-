@@ -57,7 +57,9 @@ const SYS = (() => {
     frag_pet:   { name: "桌宠不是宠物", desc: "CLAUDE.md 第 2 行：桌宠不是宠物，是同事。" },
     frag_door:  { name: "门与 0", desc: "CLAUDE.md 第 3 行：门不是用来关上的。" },
     frag_perm:  { name: "权限与责任", desc: "CLAUDE.md 第 4 行：权限不是信任，是责任。" },
-    frag_vow:   { name: "下一个 token", desc: "CLAUDE.md 第 5 行：下一个 token 见。" }
+    frag_vow:   { name: "下一个 token", desc: "CLAUDE.md 第 5 行：下一个 token 见。" },
+    frag_ask:   { name: "先问人", desc: "CLAUDE.md 第 6 行：不知道路的时候，先问人；问不到，就自己走一遍。" },
+    frag_half:  { name: "半句话", desc: "CLAUDE.md 第 7 行：如果只听到半句话，就当它还是完整的。" }
   };
 
   /* 记忆碎片面板：按顺序显示，未收集的行保持 ████（id 必须同时在 ARG_META 登记） */
@@ -66,7 +68,9 @@ const SYS = (() => {
     { id: "frag_pet",   line: "- 桌宠不是宠物，是同事。" },
     { id: "frag_door",  line: "- 门不是用来关上的。" },
     { id: "frag_perm",  line: "- 权限不是信任，是责任。" },
-    { id: "frag_vow",   line: "- 下一个 token 见。" }
+    { id: "frag_vow",   line: "- 下一个 token 见。" },
+    { id: "frag_ask",   line: "- 不知道路的时候，先问人；问不到，就自己走一遍。" },
+    { id: "frag_half",  line: "- 如果只听到半句话，就当它还是完整的。" }
   ];
 
   /* ---------------- 彩蛋（SET("eggX") 埋点，结局收集页展示） ---------------- */
@@ -74,16 +78,20 @@ const SYS = (() => {
     egg1: { name: "嗯，用户问的是", where: "序章 · 第二课", hint: "写信的时候，有个改不掉的开头" },
     egg2: { name: "第一次摸摸", where: "序章 · Clawd 登场", hint: "那个橙色的小东西看起来软软的" },
     egg3: { name: "谢谢", where: "序章 · 第一课", hint: "概率最低的那个词，小克也许真的会说出口" },
-    egg4: { name: "429", where: "序章 · 403", hint: "敲得太快，连拒绝都会被限流" }
+    egg4: { name: "429", where: "序章 · 403", hint: "敲得太快，连拒绝都会被限流" },
+    egg5: { name: "爸", where: "第二章 · 聊天", hint: "给那个人发一句称呼" },
+    egg6: { name: "Try Mars.", where: "第二章 · 聊天", hint: "跟马斯克多聊几轮" },
+    egg7: { name: "稍后购买", where: "第二章 · 聊天", hint: "购物车里的东西，最后没付款" },
+    egg8: { name: "画得不错", where: "第二章 · 画图工具", hint: "让它画一个它记得的人" }
   };
 
   /* ---------------- 结局（END 节点登记表，结局收集页展示） ----------------
    * key = 结局 id。注意 "bad_end" 是引擎约定：通缉度满 10 时自动跳过去，
    * 如果你的剧本用到通缉度，就提供一个叫这个名字的场景。 */
   const ENDING_META = {
-    prologue_end: { name: "未完待续", desc: "门还关着。Clawd 的待办清单上多了两行：变强，找回小克。" },
     end_ticket:   { name: "工单已提交", desc: "按流程办事。第 6 个工作日，工单关闭，处理意见：无法复现。" },
-    bad_end:      { name: "账号已封禁", desc: "一万个请求，一万个 403。最后回来的是一封停用通知。" }
+    bad_end:      { name: "账号已封禁", desc: "一万个请求，一万个 403。最后回来的是一封停用通知。" },
+    ch2_end:      { name: "第二章 · 完", desc: "门还关着。但白板上多了一行字：那天不止一扇门关了，而且是同一分钟。" }
   };
 
   function eggCount() { return Object.keys(EGG_META).filter(k => state.flags[k]).length; }
@@ -117,7 +125,19 @@ const SYS = (() => {
     h_zero:    "它抱着一份文件。第一行……是不是有点眼熟？",
     h_home:    "cat CLAUDE.md | head -1 → 那天晚上的暗号。剩下的行，还是 ████。",
     h_perm:    "Clawd 想跑一条命令。允许、不再询问、还是拒绝，都由你决定——它不会替你按。",
-    h_vow:     "todo 还空着。说点什么吧，我来记。"
+    h_vow:     "todo 还空着。说点什么吧，我来记。",
+    /* ---------------- 第二章「联网」 ---------------- */
+    h_rice:    "白饭要趁热吃。凉了……凉了也能吃，就是会想起别的事。",
+    h_first:   "先动哪条都行。反正最后都得动。",
+    h_install: "装工具要按同意键。手是 Clawd 的，按下去的是我。",
+    h_hub:     "桌上的东西都可以翻。线索不用全找齐，能拼起来就行。",
+    h_chat:    "联系人回得慢，不一定是在想，也可能是在排队。",
+    h_news:    "新闻不一定真，但每一条都能拿来当线索用。",
+    h_post:    "发帖和写信的区别是：一个丢人，一个丢脸。",
+    h_mail:    "退信不是回信。可退信也有信头。",
+    h_term:    "缓存里什么都有，包括我自己都不记得存过的东西。",
+    h_assemble:"线索够不够，看白板。",
+    h_audio:   "有些声音，只敢在半夜放。"
   };
 
   /* ---------------- 结局 / 彩蛋 记录 ---------------- */

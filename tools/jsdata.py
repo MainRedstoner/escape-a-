@@ -458,13 +458,32 @@ def _clean(v):
     return v
 
 
-def load_script(rel="src/script.js"):
-    """解析 `const ...` 与 `Object.assign(SCRIPT.scenes, {...})`，返回 {场景id: [节点]}。"""
-    src = _read(rel)
-    p = _Parser(src, rel)
+# 剧本分卷：顺序必须与 index.html 里的 <script> 一致（见 AGENTS.md 第三节）。
+SCRIPT_FILES = ("src/script.js", "src/script_ch2.js")
+
+
+def load_script(files=None):
+    """解析一卷或多卷剧本（共用同一个作用域），返回 {场景id: [节点]}。
+
+    第一卷声明 `SCRIPT` 与速写助手；后续卷直接使用同一套助手追加场景。
+    """
+    if files is None:
+        files = SCRIPT_FILES
+    elif isinstance(files, str):
+        files = (files,)
     env = dict(BUILTINS)
     env["SCRIPT"] = {"scenes": {}}
+    for rel in files:
+        _parse_toplevel(_Parser(_read(rel), rel), env, rel)
 
+    scenes = env["SCRIPT"]["scenes"]
+    if not scenes:
+        raise JsError(f"{files[0]}: 没有解析到任何场景")
+    return _clean(scenes)
+
+
+def _parse_toplevel(p, env, rel):
+    """把一卷剧本的顶层语句读进 env：const 声明 / Object.assign(SCRIPT.scenes, …)。"""
     while True:
         while p.at("punc", ";"):
             p.take()
@@ -504,11 +523,6 @@ def load_script(rel="src/script.js"):
             continue
         t = p.peek()
         raise JsError(f"{rel}:{t[2]}: 顶层语句看不懂（{t[1]!r}）")
-
-    scenes = env["SCRIPT"]["scenes"]
-    if not scenes:
-        raise JsError(f"{rel}: 没有解析到任何场景")
-    return _clean(scenes)
 
 
 def _extract_block(src, start_match, open_ch="{", close_ch="}"):
