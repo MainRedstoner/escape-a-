@@ -275,6 +275,9 @@
     border-bottom:2px solid rgba(255,255,255,.06);}
   #chatWho{font-size:22px;color:#E8EEF9;letter-spacing:2px;}
   #chatStatus{font-size:12px;color:#5F8F7A;letter-spacing:1px;}
+  .chatEnd{margin-left:14px;background:transparent;border:1px solid #24384D;color:#8FA3B8;
+    font:inherit;font-size:13px;padding:6px 14px;cursor:pointer;letter-spacing:1px;display:none;}
+  .chatEnd:hover{border-color:#E0A458;color:#E0A458;}
   .chatMsgs{flex:1;min-height:0;overflow:auto;padding:24px 34px 150px;display:flex;
     flex-direction:column;gap:12px;}
   .cmsg{max-width:74%;padding:11px 16px;border:1px solid rgba(255,255,255,.08);
@@ -501,7 +504,8 @@
         <div id="chatContacts" class="chatContacts"></div>
       </div>
       <div class="chatMain">
-        <div class="chatTop"><span id="chatWho">选择一个联系人</span><span id="chatStatus"></span></div>
+        <div class="chatTop"><span id="chatWho">选择一个联系人</span><span id="chatStatus"></span>
+          <button id="chatEnd" class="chatEnd" type="button">结束对话</button></div>
         <div id="chatMsgs" class="chatMsgs"></div>
         <div id="chatCands" class="chatCands"></div>
         <div id="chatNext" class="chatNext">▸ 点击 / 空格继续</div>

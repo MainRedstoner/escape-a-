@@ -203,6 +203,11 @@ def main():
                 cj = (nd.get("continue") or {}).get("jump")
                 jumps.add(cj)
                 chk(cj in scenes, f"{at}: continue 缺少有效的 jump")
+                cex = nd.get("chatExit")
+                chk(cex is None or isinstance(cex, str), f"{at}: chatExit 必须是场景 id")
+                if isinstance(cex, str):
+                    jumps.add(cex)
+                    chk(cex in scenes, f"{at}: chatExit 指向不存在的场景 \"{cex}\"")
                 for k, c in enumerate(nd.get("chat") or []):
                     c_at = f"{at} 联系人{k + 1}"
                     chk(bool(c.get("name")), f"{c_at}: 缺少显示名")
@@ -295,6 +300,7 @@ def main():
                     if tool.get("action") is None and not tool.get("inline"):
                         queue.append(tool.get("jump"))
                 queue.append((nd.get("continue") or {}).get("jump"))
+                queue.append(nd.get("chatExit"))
                 for c in nd.get("chat") or []:
                     if not c.get("locked"):
                         queue.append(c.get("jump"))

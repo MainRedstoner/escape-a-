@@ -667,13 +667,14 @@ const ENGINE = (() => {
   }
 
   /* ---------------- 工作台（终端）/ 聊天 / 新闻 / 贴吧（第二章起） ----------------
-   * 剧本节点 { t: "work", title, tools, continue, chat, news, forum }：
+   * 剧本节点 { t: "work", title, tools, continue, chatExit, chat, news, forum }：
    *   tools: { id, emoji, name, jump?, action?: "chat"|"news"|"forum",
    *            inline?: { out, set, arg }, args?, need?, if? }
    *     - jump 工具点「发送」直接进场景；action 打开对应界面；
    *     - inline 工具在终端里直接跑（扫缓存），把 out 打到终端并写 set / arg；
    *     - need 是 continue 的解锁条件：所有 need 都满足才能离开工作台；
    *   continue: { jump } —— 确认「部分内容可能无法再次查看」后离开工作台；
+   *   chatExit: "场景" —— 聊天头部「结束对话」按钮的去向（追问选项全空时也走这里）；
    *   chat: 联系人 { id, name, real?, color?, avatar?, jump, locked? }
    *   news: 文章 { id, title, body, note?, hot?, set? }
    *   forum: { name, threads, templates } —— 贴吧界面
@@ -972,6 +973,31 @@ const ENGINE = (() => {
     return !!SYS.state.flags.chat_mode && SYS.state.vis.bg === "chat";
   }
 
+  function chatCanEnd() {
+    return !!(workNode && workNode.chatExit);
+  }
+  function showChatEnd() {
+    const b = document.getElementById("chatEnd");
+    if (b) b.style.display = chatCanEnd() ? "inline-block" : "none";
+  }
+  function hideChatEnd() {
+    const b = document.getElementById("chatEnd");
+    if (b) b.style.display = "none";
+  }
+
+  /* 「结束对话」：不写进聊天面板，直接从界面退出到联系人列表 */
+  function endChatScene() {
+    if (!chatInScene || !chatCanEnd()) return;
+    hideChatCands();
+    hideChatNext();
+    hideTextbox();
+    clearTimeout(chatAutoTimer);
+    clearChatTyping();
+    chatDraft = null;
+    chatInScene = false;
+    goto(workNode.chatExit, 0);
+  }
+
   function openChatScreen() {
     ui.hintBubble.style.display = "none";
     document.getElementById("ovWork").style.display = "none";
@@ -988,6 +1014,7 @@ const ENGINE = (() => {
     document.getElementById("chatMsgs").appendChild(el("div", "csys", "← 从左边挑一个联系人，或者点「返回工作台」"));
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
+    hideChatEnd();
     hideChatCands();
     renderChatContacts();
   }
@@ -1002,6 +1029,7 @@ const ENGINE = (() => {
     chatDraft = null;
     chatWho = null;
     chatWaitBack = null;
+    hideChatEnd();
     hideChatCands();
   }
 
@@ -1039,6 +1067,7 @@ const ENGINE = (() => {
       (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
+    hideChatEnd();
     renderChatContacts();
   }
 
@@ -1077,6 +1106,7 @@ const ENGINE = (() => {
     chatInScene = true;
     chatDraft = null;
     clearChatTyping();
+    showChatEnd();
     curChat = c.id;                // 从第一句起就记在这位联系人名下
     clearTimeout(chatAutoTimer);
     hideChatCands();
@@ -1134,6 +1164,7 @@ const ENGINE = (() => {
     renderChatLog(c.id);
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
+    hideChatEnd();
     hideChatCands();
     renderChatContacts();
   }
@@ -1148,6 +1179,7 @@ const ENGINE = (() => {
       chatInScene = true;
       renderChatContacts();
     }
+    showChatEnd();
   }
 
   function hideChatNext() {
@@ -1298,7 +1330,16 @@ const ENGINE = (() => {
     clearTimeout(chatAutoTimer);
     const glitchOn = SYS.state.vis.glitch;
     let opts = (nd.options || []).filter(o => !(glitchOn && o.hideInGlitch) && (!o.if || evalCond(o.if)));
-    if (!opts.length) opts = (nd.options || []).slice();
+    if (!opts.length) {
+      /* 追问看完了所有分支：没有可选项就自动结束对话，回联系人列表 */
+      if (chatCanEnd()) {
+        hideChatCands();
+        hideTextbox();
+        goto(workNode.chatExit, 0);
+        return;
+      }
+      opts = (nd.options || []).slice();
+    }
     chatOpts = opts;
     const bar = document.getElementById("chatCands");
     bar.innerHTML = "";
@@ -1615,6 +1656,7 @@ const ENGINE = (() => {
     });
     document.getElementById("btnContinue").addEventListener("click", leaveWorkbench);
     document.getElementById("chatBack").addEventListener("click", chatBackAction);
+    document.getElementById("chatEnd").addEventListener("click", endChatScene);
     document.getElementById("newsBack").addEventListener("click", backToWork);
     document.getElementById("forumBack").addEventListener("click", backToWork);
     document.getElementById("chatMsgs").addEventListener("click", () => onMainClick());

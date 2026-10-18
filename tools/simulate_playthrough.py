@@ -243,7 +243,8 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
         return seed / 0x7FFFFFFF
 
     st = {"trust": 0, "wanted": 0, "args": [], "flags": {}, "mood": init_mood,
-          "chats": 0, "newsread": 0, "chatted": set(), "done": set(), "chat_contacts": []}
+          "chats": 0, "newsread": 0, "chatted": set(), "done": set(),
+          "chat_contacts": [], "chat_exit": ""}
     visited = set()
     scene, idx, steps = "start", 0, 0
     log = []
@@ -298,6 +299,12 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
             # 选项条件（opt 的 if）：与引擎同语义；筛完只剩一个就直接选它
             if nd.get("mode") != "perm":
                 opts = [o for o in opts if not o.get("if") or eval_cond(o["if"], st, egg_meta)]
+            if not opts:
+                # 聊天追问的分支都看完了：自动结束对话，回联系人列表
+                if st["flags"].get("chat_mode") and st.get("chat_exit"):
+                    scene, idx = st["chat_exit"], 0
+                    continue
+                return {"err": f"选项全部不可用: {scene}", "steps": steps}
             if auto_skip:
                 o = nd["options"][0]
             elif len(opts) == 1:
@@ -332,6 +339,7 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
         elif t == "work":
             # 终端工作台：tool call 选工具 → continue（所有 need 满足才出现）
             st["chat_contacts"] = nd.get("chat") or []
+            st["chat_exit"] = nd.get("chatExit") or st.get("chat_exit", "")
             acts = []
             for tool in (nd.get("tools") or []):
                 if tool.get("if") and not eval_cond(tool["if"], st, egg_meta):

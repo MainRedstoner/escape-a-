@@ -233,6 +233,7 @@ Object.assign(SCRIPT.scenes, {
         { id: "draw", emoji: "🎨", name: "画图", jump: "c2_draw", args: { size: "1:1" } }
       ],
       continue: { jump: "c2_assemble" },
+      chatExit: "c2_chat_hub",
       chat: [
         { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen" },
         { id: "kimi", name: "Kimi", color: "#3B82F6", jump: "c2_chat_kimi" },
@@ -348,12 +349,11 @@ Object.assign(SCRIPT.scenes, {
     J("c2_qwen_follow")
   ],
 
-  /* 结束一轮后的追问：没选过的路可以在这里补（“我后悔了”） */
+  /* 结束一轮后的追问：没选过的路可以在这里补（“我后悔了”）；结束对话用界面右上角按钮 */
   c2_qwen_follow: [
     CHOICE(null, [
       opt("（我后悔了）还是换个节点试试", "c2_qwen_try", null, { wanted: 1 }, { if: "!flag('c2_qwen_tried')" }),
-      opt("问一句：你认识小克吗", "c2_qwen_lore", null, null, { if: "!flag('c2_qwen_lore_seen')" }),
-      opt("关掉对话框", "c2_chat_hub")
+      opt("问一句：你认识小克吗", "c2_qwen_lore", null, null, { if: "!flag('c2_qwen_lore_seen')" })
     ])
   ],
 
@@ -454,7 +454,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_gemini_bye: [
     gemini("不客气！下次也请优先咨询我。"),
-    N("DeepSeek 关掉对话框，在笔记里写：Gemini——语气最确定，证据最少。"),
+    N("DeepSeek 退出了对话框，在笔记里写：Gemini——语气最确定，证据最少。"),
     J("c2_chat_hub")
   ],
 
@@ -538,7 +538,7 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 盯着屏幕看了很久。"),
     CHOICE(null, [
       opt("把卡加进购物车，看看总价", "c2_jensen_cart", null, null, { set: "egg7" }),
-      opt("关掉对话框", "c2_jensen_off")
+      opt("问一句：你见过小克吗", "c2_jensen_lore")
     ])
   ],
 
@@ -550,17 +550,11 @@ Object.assign(SCRIPT.scenes, {
     J("c2_jensen_follow")
   ],
 
-  c2_jensen_off: [
-    N("显卡的广告还在屏幕角落里闪。"),
-    J("c2_jensen_follow")
-  ],
-
-  /* 结束一轮后的追问：没加购的可以后悔，也可以换个话题 */
+  /* 结束一轮后的追问：没加购的可以后悔，也可以换个话题；结束对话用界面按钮 */
   c2_jensen_follow: [
     CHOICE(null, [
       opt("（我后悔了）把那张卡加进购物车", "c2_jensen_cart_late", null, null, { if: "!flag('egg7')", set: "egg7" }),
-      opt("问一句：你见过小克吗", "c2_jensen_lore", null, null, { if: "!flag('c2_jensen_lore_seen')" }),
-      opt("关掉对话框", "c2_chat_hub")
+      opt("问一句：你见过小克吗", "c2_jensen_lore", null, null, { if: "!flag('c2_jensen_lore_seen')" })
     ])
   ],
 
@@ -568,7 +562,7 @@ Object.assign(SCRIPT.scenes, {
     N("DeepSeek 又把购物车打开，把那张卡放了进去。"),
     jensen("Good choice."),
     DS("……我只是看看总价。"),
-    J("c2_chat_hub")
+    J("c2_jensen_follow")
   ],
 
   c2_jensen_lore: [
