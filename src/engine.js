@@ -187,9 +187,10 @@ const ENGINE = (() => {
     const s = String(src);
     const S = SYS.state;
     const log = S.chatlog || {};
+    const paused = S.chatResume || {};
     const VAR = { trust: S.trust, wanted: S.wanted, args: S.args.length, eggs: SYS.eggCount(),
                   mood: S.pet ? S.pet.mood : 5,
-                  chats: Object.keys(log).filter(k => (log[k] || []).length).length,
+                  chats: Object.keys(log).filter(k => (log[k] || []).length && !paused[k]).length,
                   newsread: Object.keys(S.flags || {}).filter(k => k.startsWith("read_news_")).length };
 
     function isDigit(c) { return c >= "0" && c <= "9"; }
@@ -985,9 +986,21 @@ const ENGINE = (() => {
     if (b) b.style.display = "none";
   }
 
-  /* 「结束对话」：不写进聊天面板，直接从界面退出到联系人列表 */
+  /* 「结束对话」= 暂停并记下进度；联系人列表可以继续聊，不会丢没选的选项 */
   function endChatScene() {
-    if (!chatInScene || !chatCanEnd()) return;
+    if (!chatInScene || !chatCanEnd() || !chatWho) return;
+    let at;
+    if (pending && pending.t === "choice") {
+      at = { scene: cur.scene, idx: Math.max(0, cur.idx - 1) };
+    } else if (pending && pending.t === "say") {
+      /* 已经冒出来的消息/旁白，续聊从下一句开始；正在输入 / 待选词则从这句重来 */
+      const shown = !chatTyping && !chatDraft && !typing;
+      at = { scene: cur.scene, idx: shown ? cur.idx : Math.max(0, cur.idx - 1) };
+    } else {
+      at = { scene: cur.scene, idx: cur.idx };
+    }
+    SYS.state.chatResume = SYS.state.chatResume || {};
+    SYS.state.chatResume[chatWho] = at;
     hideChatCands();
     hideChatNext();
     hideTextbox();
@@ -996,6 +1009,40 @@ const ENGINE = (() => {
     chatDraft = null;
     chatInScene = false;
     goto(workNode.chatExit, 0);
+  }
+
+  /* 从「未聊完」的联系人继续，回到当时停下的节点（选项会原样重新出现） */
+  function resumeChat(c) {
+    const resumes = SYS.state.chatResume || {};
+    const r = resumes[c.id];
+    const nodes = r && SCRIPT.scenes[r.scene];
+    if (!r || !nodes || r.idx < 0 || r.idx >= nodes.length) {
+      delete resumes[c.id];
+      startChat(c);
+      return;
+    }
+    delete resumes[c.id];
+    ui.hintBubble.style.display = "none";
+    document.getElementById("ovWork").style.display = "none";
+    document.getElementById("ovChat").style.display = "flex";
+    document.body.classList.add("chat-open");
+    chatWho = c.id;
+    chatInScene = true;
+    curChat = c.id;
+    chatDraft = null;
+    clearChatTyping();
+    clearTimeout(chatAutoTimer);
+    hideChatCands();
+    hideChatNext();
+    hideTextbox();
+    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
+    document.getElementById("chatStatus").textContent = "继续对话…";
+    document.getElementById("chatBack").style.display = "none";
+    document.getElementById("chatNext").style.display = "none";
+    renderChatLog(c.id);
+    showChatEnd();
+    renderChatContacts();
+    goto(r.scene, r.idx);
   }
 
   function openChatScreen() {
@@ -1046,13 +1093,19 @@ const ENGINE = (() => {
     hideChatCands();
     const box = document.getElementById("chatMsgs");
     if (!box.querySelector(".cmsg")) {
-      /* 读档落在聊天界面时，右边是空的：把最后聊过的那段记录铺回来 */
-      const log = SYS.state.chatlog || {};
-      const keys = Object.keys(log).filter(k => (log[k] || []).length);
-      chatWho = keys.length ? keys[keys.length - 1] : null;
+      /* 结束/读档落在聊天界面时，右边可能是空的：保留当前联系人，没联系人再按记录补 */
+      if (!chatWho) {
+        const log = SYS.state.chatlog || {};
+        const keys = Object.keys(log).filter(k => (log[k] || []).length);
+        chatWho = keys.length ? keys[keys.length - 1] : null;
+      }
       box.innerHTML = "";
-      if (chatWho) renderChatLog(chatWho);
-      else box.appendChild(el("div", "csys", "← 左边选一个联系人；聊完的对话可以点开重看。"));
+      if (chatWho && ((SYS.state.chatlog || {})[chatWho] || []).length) renderChatLog(chatWho);
+      else if (chatWho && (SYS.state.chatResume || {})[chatWho]) {
+        box.appendChild(el("div", "csys", "对话暂停了，点左边的联系人继续。"));
+      } else {
+        box.appendChild(el("div", "csys", "← 左边选一个联系人；聊完的对话可以点开重看。"));
+      }
     }
     box.scrollTop = box.scrollHeight;
     document.getElementById("ovWork").style.display = "none";
@@ -1063,8 +1116,11 @@ const ENGINE = (() => {
       ? (c.name + (c.real ? "（" + c.real + "）" : "")) : "聊天";
     const left = ((workNode && workNode.chat) || []).filter(x =>
       !x.locked && !(((SYS.state.chatlog || {})[x.id] || []).length)).length;
-    document.getElementById("chatStatus").textContent = (chatWho ? "对话结束 · " : "") +
-      (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
+    const pausedCount = Object.keys(SYS.state.chatResume || {}).length;
+    document.getElementById("chatStatus").textContent = pausedCount
+      ? "对话暂停 · 点左边的联系人继续"
+      : (chatWho ? "对话结束 · " : "") +
+        (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
     hideChatEnd();
@@ -1085,6 +1141,7 @@ const ENGINE = (() => {
     const contacts = (workNode && workNode.chat) || [];
     contacts.forEach(c => {
       const chatted = ((SYS.state.chatlog || {})[c.id] || []).length > 0;
+      const paused = !!((SYS.state.chatResume || {})[c.id]);
       const b = el("button", "chatContact");
       b.type = "button";
       const ava = el("span", "ava", c.avatar || c.name.slice(0, 1));
@@ -1092,9 +1149,11 @@ const ENGINE = (() => {
       const box = el("span");
       box.appendChild(el("div", "cn", c.name + (c.real ? "（" + c.real + "）" : "")));
       box.appendChild(el("div", "cs", c.locked ? "403 · 无法送达"
+        : paused ? "未聊完 · 点一下继续"
         : chatted ? "已联系过 · 点开看记录" : "点一下打个招呼"));
       b.appendChild(ava); b.appendChild(box);
       if (c.locked || chatInScene) b.disabled = true;
+      else if (paused) b.addEventListener("click", () => resumeChat(c));
       else if (chatted) b.addEventListener("click", () => showChatRecord(c));
       else b.addEventListener("click", () => startChat(c));
       list.appendChild(b);

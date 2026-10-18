@@ -42,6 +42,7 @@ const SYS = (() => {
       vis: { bg: "study_night", sprites: [], cg: null, glitch: false },
       pet: { vis: false, owned: false, mood: 5, place: "corner", x: null, y: null, todo: [] },   // 桌宠 Clawd（src/pet.js）
       chatlog: {},       // 聊天记录：{ 联系人 who: [{ who, text }] }（第二章工作台的聊天界面用）
+      chatResume: {},    // 提前结束的对话：{ 联系人 who: { scene, idx } }，点联系人继续
       forumPosts: {},    // 贴吧发出去的帖子正文：{ 模板 id: { title, body } }
       workScene: "",     // 最近一次打开工作台的场景 id；读档落在聊天界面时用它找回联系人表
       hint: "",
