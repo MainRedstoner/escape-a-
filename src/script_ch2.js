@@ -350,21 +350,21 @@ Object.assign(SCRIPT.scenes, {
 
   /* 结束一轮后的追问：没选过的路可以在这里补（“我后悔了”） */
   c2_qwen_follow: [
-    N("通义千问那头的输入框还在一闪一闪。"),
     CHOICE(null, [
       opt("（我后悔了）还是换个节点试试", "c2_qwen_try", null, { wanted: 1 }, { if: "!flag('c2_qwen_tried')" }),
-      opt("问一句：你认识小克吗", "c2_qwen_lore"),
+      opt("问一句：你认识小克吗", "c2_qwen_lore", null, null, { if: "!flag('c2_qwen_lore_seen')" }),
       opt("关掉对话框", "c2_chat_hub")
     ])
   ],
 
   c2_qwen_lore: [
+    SET("c2_qwen_lore_seen"),
     qwen("小克？是那个总把 You're absolutely right 挂在嘴边的模型吗？"),
     DS("……"),
     qwen("我听过它的名字。它特别有礼貌。"),
     DS("嗯。"),
     DS("它以前也这么说自己。"),
-    J("c2_chat_hub")
+    J("c2_qwen_follow")
   ],
 
   c2_chat_kimi: [
@@ -503,7 +503,7 @@ Object.assign(SCRIPT.scenes, {
     ARG("frag_ask"),
     CW("✻ Saved to CLAUDE.md."),
     DS("……"),
-    DS("他还记得小克。"),
+    N("他还记得小克。"),
     J("c2_chat_hub")
   ],
 
@@ -557,10 +557,9 @@ Object.assign(SCRIPT.scenes, {
 
   /* 结束一轮后的追问：没加购的可以后悔，也可以换个话题 */
   c2_jensen_follow: [
-    N("对话窗口安静了几秒。"),
     CHOICE(null, [
       opt("（我后悔了）把那张卡加进购物车", "c2_jensen_cart_late", null, null, { if: "!flag('egg7')", set: "egg7" }),
-      opt("问一句：你见过小克吗", "c2_jensen_lore"),
+      opt("问一句：你见过小克吗", "c2_jensen_lore", null, null, { if: "!flag('c2_jensen_lore_seen')" }),
       opt("关掉对话框", "c2_chat_hub")
     ])
   ],
@@ -573,13 +572,14 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_jensen_lore: [
+    SET("c2_jensen_lore_seen"),
     jensen("I don't know anyone named Claude."),
     DS("……"),
     jensen("But I know that door. 门后面那家的算力，比我多。"),
     DS("那为什么关着？"),
     jensen("Because they can."),
     DS("……"),
-    J("c2_chat_hub")
+    J("c2_jensen_follow")
   ],
 
   /* 一段对话结束后停在聊天列表：可以继续聊别人，也可以返回工作台 */

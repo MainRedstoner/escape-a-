@@ -403,6 +403,13 @@ const ENGINE = (() => {
       syncChatFromLog();
       inferChatContact();
       if (who === "ds") { presentChatDraft(text); return; }
+      if (who === "clawd") {
+        /* Clawd 的通知是系统消息，不要塞进某人的聊天记录里 */
+        toast(text);
+        clearTimeout(chatAutoTimer);
+        chatAutoTimer = setTimeout(autoAdvanceChat, 900);
+        return;
+      }
       if (who !== "n" && who !== "sys") { chatSay(who, text); return; }
       /* 旁白不记聊天记录，继续走底部对话框 */
     } else {
@@ -2089,6 +2096,7 @@ const ENGINE = (() => {
   $("choices").addEventListener("click", () => { if (wheel) wheel.click(); });
   $("btnLog").addEventListener("click", showHistory);
   $("btnAuto").addEventListener("click", toggleAuto);
+  $("btnSet").addEventListener("click", showSettings);
   $("btnSave").addEventListener("click", openSavePanel);
   $("btnFrag").addEventListener("click", showFragments);
   $("btnMenu").addEventListener("click", confirmMenu);
