@@ -210,6 +210,81 @@
   ::-webkit-scrollbar-track{background:rgba(255,255,255,.04);}
 
   /* ---------- 选项框（组件样式在 src/token-choice.css） ---------- */
+
+  /* ---------- 工作台 / 聊天 / 新闻（第二章起，z 低于 HUD，功能键照常可用） ---------- */
+  #ovWork{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(3,5,8,.88);z-index:44;}
+  /* 工作台开着时，"问 Clawd" 的提示气泡在面板下面，先把这个按钮收掉 */
+  body.work-open #btnHint{opacity:.35;pointer-events:none;}
+  .wpanel{width:min(1180px,94vw);height:min(770px,86vh);display:flex;flex-direction:column;
+    background:linear-gradient(180deg,rgba(16,20,27,.995),rgba(10,13,18,.995));
+    border:1px solid var(--line);border-top:2px solid var(--clay);
+    box-shadow:0 24px 80px rgba(0,0,0,.9);}
+  .whead{display:flex;align-items:center;justify-content:space-between;gap:18px;
+    padding:20px 30px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
+  .whead h2{font-family:"Noto Serif SC","SimSun",serif;color:#EDF1F7;font-size:27px;
+    letter-spacing:7px;font-weight:700;margin:0;}
+  .wtabs{display:flex;gap:8px;}
+  .wtab{background:transparent;border:1px solid var(--line);color:var(--muted);
+    font:inherit;font-size:15px;letter-spacing:2px;padding:7px 18px;cursor:pointer;}
+  .wtab:hover{color:#fff;border-color:var(--steel);}
+  .wtab.active{color:#fff;border-color:var(--clay);background:rgba(217,119,87,.12);}
+  .wbody{flex:1;min-height:0;display:flex;gap:18px;padding:22px 28px;overflow:hidden;}
+  .wfoot{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;
+    padding:12px 30px;border-top:1px solid rgba(255,255,255,.06);
+    font-size:13px;color:var(--muted);letter-spacing:1px;}
+  /* 工作台卡片 */
+  .wgrid{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:14px;
+    align-content:start;overflow:auto;padding-right:4px;}
+  .wcard{position:relative;text-align:left;background:rgba(17,22,30,.92);
+    border:1px solid var(--line);border-left:3px solid var(--steel);
+    color:var(--text);font:inherit;padding:18px 20px;cursor:pointer;transition:border-color .12s,background .12s;}
+  .wcard:hover{border-left-color:var(--clay);background:rgba(28,34,45,.95);}
+  .wcard.done{opacity:.5;cursor:default;border-left-color:#3E5B4A;}
+  .wcard.done:hover{background:rgba(17,22,30,.92);border-left-color:#3E5B4A;}
+  .wcard .wt{font-size:20px;letter-spacing:1px;}
+  .wcard .ws{font-size:14px;color:var(--muted);margin-top:8px;line-height:1.6;}
+  .wcard .wmark{position:absolute;right:16px;top:14px;color:#63B37A;font-size:15px;letter-spacing:1px;}
+  /* 聊天 */
+  .chatWrap{display:flex;gap:16px;width:100%;min-height:0;}
+  .chatList{width:290px;flex:0 0 auto;overflow:auto;border:1px solid var(--line);
+    background:rgba(6,9,13,.6);}
+  .chatRow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    padding:11px 14px;border:0;border-bottom:1px solid rgba(255,255,255,.05);
+    background:transparent;color:var(--text);font:inherit;cursor:pointer;}
+  .chatRow:hover{background:rgba(255,255,255,.05);}
+  .chatRow.active{background:rgba(217,119,87,.10);}
+  .chatRow.locked{opacity:.35;cursor:default;}
+  .chatRow .ava{width:34px;height:34px;border-radius:50%;flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0B0E14;}
+  .chatRow .cn{font-size:17px;}
+  .chatRow .cs{font-size:12px;color:var(--muted);margin-top:3px;}
+  .chatLog{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;overflow:auto;
+    border:1px solid var(--line);background:rgba(6,9,13,.6);padding:20px;}
+  .chatLog .empty{margin:auto;color:var(--muted);font-size:16px;letter-spacing:1px;}
+  .bubble{max-width:78%;padding:10px 14px;border:1px solid var(--line);
+    background:rgba(21,27,36,.95);color:#DCE3EC;font-size:16px;line-height:1.7;}
+  .bubble.me{align-self:flex-end;background:rgba(77,107,254,.16);border-color:rgba(77,107,254,.42);}
+  .bubble .who{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;letter-spacing:1px;}
+  /* 新闻 */
+  .newsWrap{display:flex;gap:16px;width:100%;min-height:0;}
+  .newsList{width:430px;flex:0 0 auto;overflow:auto;border:1px solid var(--line);background:rgba(6,9,13,.6);}
+  .newsItem{display:block;width:100%;text-align:left;padding:13px 16px;border:0;
+    border-bottom:1px solid rgba(255,255,255,.05);background:transparent;color:#DCE3EC;
+    font:inherit;font-size:16px;line-height:1.5;cursor:pointer;}
+  .newsItem:hover{background:rgba(255,255,255,.05);}
+  .newsItem.hot{color:#FF8A78;}
+  .newsItem.read{opacity:.55;}
+  .newsBody{flex:1;min-width:0;overflow:auto;border:1px solid var(--line);
+    background:rgba(6,9,13,.6);padding:24px 28px;}
+  .newsBody .nb-tag{font-size:12px;letter-spacing:2px;color:#E5383B;margin-bottom:10px;}
+  .newsBody h3{font-family:"Noto Serif SC","SimSun",serif;font-size:26px;color:#F6EEE9;
+    margin:0 0 10px;line-height:1.5;letter-spacing:1px;}
+  .newsBody .nb-meta{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:18px;}
+  .newsBody p{font-size:17px;line-height:1.95;color:#B9C2CE;margin:0 0 14px;white-space:pre-wrap;}
+  .newsBody .nb-note{border-left:3px solid var(--clay);background:rgba(217,119,87,.08);
+    padding:12px 16px;font-size:15px;line-height:1.8;color:#E6CFC6;margin-top:18px;white-space:pre-wrap;}
+  .newsBody .empty{margin:auto;color:var(--muted);font-size:16px;}
 </style>
 <link rel="stylesheet" href="src/token-choice.css">
 <link rel="stylesheet" href="src/pet.css">
@@ -310,6 +385,25 @@
       <h2>CLAUDE.md <span id="fragCount" style="font-size:16px;color:var(--muted);font-weight:400;"></span></h2>
       <pre id="fragDoc" class="fragDoc"></pre>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
+
+    <!-- 工作台 / 聊天 / 新闻：第二章的 hub 界面（z 低于 HUD，右上角功能键照常可用） -->
+    <div id="ovWork" class="overlay">
+      <div class="wpanel">
+        <div class="whead">
+          <h2 id="workTitle">工作台</h2>
+          <div class="wtabs">
+            <button class="wtab active" data-tab="work" type="button">工作台</button>
+            <button class="wtab" data-tab="chat" type="button">聊天</button>
+            <button class="wtab" data-tab="news" type="button">新闻</button>
+          </div>
+        </div>
+        <div id="workBody" class="wbody"></div>
+        <div class="wfoot">
+          <span id="workHint">点一张卡继续 · 右上角功能键照常可用</span>
+          <span id="workSub"></span>
+        </div>
+      </div>
+    </div>
 
     <div id="ovAbout" class="overlay"><div class="panel"><h2>关于本模板</h2>
       <p><b>Escape A÷</b> 是一个零依赖的<b>视觉小说引擎模板</b>：纯原生 JS + Canvas + WebAudio，双击 index.html 即可运行。剧本以纯数据的形式写在 <b>src/script.js</b>（及分卷）里，引擎按节点语义执行，两者完全解耦。</p>

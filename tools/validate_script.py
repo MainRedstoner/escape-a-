@@ -159,6 +159,40 @@ def main():
                     if o.get("set") and str(o["set"]).startswith("egg"):
                         used_eggs.add(o["set"])
                         granted_eggs.add(o["set"])
+            elif t == "work":
+                ents = nd.get("entries")
+                chk(isinstance(ents, list) and len(ents) >= 1, f"{at}: work 至少要有 1 张卡")
+                for k, e in enumerate(ents or []):
+                    e_at = f"{at} 卡片{k + 1}"
+                    chk(bool(e.get("text")), f"{e_at}: 缺少文案")
+                    jumps.add(e.get("jump"))
+                    chk(e.get("jump") in scenes, f"{e_at}: 跳转目标不存在 \"{e.get('jump')}\"")
+                    chk(e.get("if") is None or isinstance(e.get("if"), str),
+                        f"{e_at}: if 条件必须是字符串")
+                    chk(e.get("done") is None or isinstance(e.get("done"), str),
+                        f"{e_at}: done 必须是旗标字符串")
+                    if isinstance(e.get("if"), str):
+                        for m in re.finditer(r"(?:has|egg|flag)\('([^']+)'\)", e["if"]):
+                            arg = m.group(1)
+                            if m.group(0).startswith("has"):
+                                used_args.add(arg)
+                                chk(arg in sys_meta["ARG_META"],
+                                    f"{e_at}: 条件引用了不存在的论据 \"{arg}\"")
+                            elif arg.startswith("egg"):
+                                used_eggs.add(arg)
+                for k, c in enumerate(nd.get("chat") or []):
+                    c_at = f"{at} 联系人{k + 1}"
+                    chk(bool(c.get("name")), f"{c_at}: 缺少显示名")
+                    if c.get("locked"):
+                        continue
+                    jumps.add(c.get("jump"))
+                    chk(c.get("jump") in scenes, f"{c_at}: 跳转目标不存在 \"{c.get('jump')}\"")
+                    chk(isinstance(c.get("met"), str) and c["met"], f"{c_at}: 缺少 met 旗标")
+                for k, a in enumerate(nd.get("news") or []):
+                    a_at = f"{at} 新闻{k + 1}"
+                    chk(bool(a.get("title")) and bool(a.get("body")), f"{a_at}: 标题或正文为空")
+                    chk(a.get("set") is None or isinstance(a.get("set"), str),
+                        f"{a_at}: set 必须是旗标字符串")
             elif t == "arg":
                 used_args.add(nd.get("id"))
                 granted_args.add(nd.get("id"))
@@ -196,7 +230,7 @@ def main():
                 if nd.get("op") == "add":
                     chk(isinstance(nd.get("text"), str) and nd["text"], f"{at}: 待办文本为空")
         last = sc[-1]
-        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter"):
+        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter", "work"):
             warns.append(f"场景 {sid} 以 {last.get('t')} 结尾，没有出口（玩家走到这里会回标题）")
 
     # ---- 可达性 ----
@@ -217,6 +251,12 @@ def main():
             elif t == "choice":
                 for o in nd.get("options") or []:
                     queue.append(o.get("jump"))
+            elif t == "work":
+                for e in nd.get("entries") or []:
+                    queue.append(e.get("jump"))
+                for c in nd.get("chat") or []:
+                    if not c.get("locked"):
+                        queue.append(c.get("jump"))
     # 坏结局是引擎在通缉度满时直接跳的，不算孤儿
     seen.add("bad_end")
     orphans = [s for s in ids if s not in seen]

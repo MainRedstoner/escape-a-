@@ -743,7 +743,7 @@ const BACKDROPS = (() => {
     ["gemini", "Gemini",   "我确定，一定是这个原因。",   "#4285F4"],
     ["musk",   "马斯克",   "Interesting.",               "#8B8F98"],
     ["liang",  "梁圣",     "嗯。",                       "#5C6BC0"],
-    ["jensen", "json",     "I'm not a format.",          "#76B900"],
+    ["jensen", "json",     "I'm not a format.",          "#76B900", "{}"],
     ["claude", "Claude",   "403 · 无法送达",             "#D97757"]
   ];
 
@@ -780,14 +780,15 @@ const BACKDROPS = (() => {
     anim(ctx, t) {
       const st = (typeof SYS !== "undefined" && SYS.state && SYS.state.flags) || {};
       const base = 236, step = 44;
-      CHAT_ROWS.forEach(([id, name, last, col], i) => {
+      CHAT_ROWS.forEach(([id, name, last, col, av], i) => {
         const y = base + i * step;
         const on = id !== "claude" && !!st["met_" + id];
         ctx.globalAlpha = on ? 1 : 0.32;
         ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(48, y + 15, 13, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "rgba(10,13,20,.9)"; ctx.font = `bold 12px ${SANS}`; ctx.textAlign = "center";
-        ctx.fillText(name.slice(0, 1), 48, y + 19);
+        ctx.fillStyle = "rgba(10,13,20,.9)";
+        ctx.font = av ? `bold 11px ${MONO}` : `bold 12px ${SANS}`; ctx.textAlign = "center";
+        ctx.fillText(av || name.slice(0, 1), 48, y + 19);
         ctx.textAlign = "left";
         ctx.fillStyle = "#E3EAF6"; ctx.font = `600 17px ${SANS}`;
         ctx.fillText(name, 76, y + 13);
@@ -915,6 +916,69 @@ const BACKDROPS = (() => {
     }
   };
 
+  /* ============================================================
+   *  第二章：Clawd 画的图 sketch —— 一张歪歪扭扭的「小克」
+   * ============================================================ */
+  const sketch = {
+    tone: "warm",
+    draw(ctx) {
+      ctx.fillStyle = lin(ctx, 0, 0, 0, H, [[0, "#0B0D11"], [1, "#05070A"]]);
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = rad(ctx, 800, 430, 60, 720, [[0, "rgba(255,220,180,.10)"], [1, "rgba(255,220,180,0)"]]);
+      ctx.fillRect(0, 0, W, H);
+      // 纸（歪一点点，更像贴上去的）
+      ctx.save();
+      ctx.translate(800, 430);
+      ctx.rotate(-0.012);
+      ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(-550, -340, 1120, 700);
+      ctx.fillStyle = "#E9E4D6"; ctx.fillRect(-565, -355, 1130, 700);
+      ctx.strokeStyle = "rgba(0,0,0,.12)"; ctx.lineWidth = 2; ctx.strokeRect(-565, -355, 1130, 700);
+      const r = rng(77);
+      ctx.fillStyle = "rgba(120,105,80,.05)";
+      for (let i = 0; i < 90; i++) ctx.fillRect(-560 + r() * 1120, -350 + r() * 690, 2, 2);
+      // 标题
+      ctx.fillStyle = "rgba(50,40,30,.78)"; ctx.font = `bold 36px ${HAND}`; ctx.textAlign = "center";
+      ctx.fillText("Claude", 0, -238);
+      // 橙色的一团
+      ctx.fillStyle = "#D97757";
+      ctx.beginPath(); ctx.ellipse(0, 30, 300, 205, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#C2684B";
+      ctx.beginPath(); ctx.ellipse(-40, 110, 220, 120, 0, 0, Math.PI * 2); ctx.fill();
+      // 两个点
+      ctx.fillStyle = "#1A1210";
+      ctx.beginPath(); ctx.arc(-112, -12, 27, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(112, -12, 27, 0, Math.PI * 2); ctx.fill();
+      // 一条线
+      ctx.strokeStyle = "#1A1210"; ctx.lineWidth = 13; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(-72, 92); ctx.quadraticCurveTo(0, 126, 72, 92); ctx.stroke();
+      // 小短手
+      ctx.fillStyle = "#D97757";
+      ctx.beginPath(); ctx.ellipse(-292, 120, 34, 62, 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(292, 120, 34, 62, -0.4, 0, Math.PI * 2); ctx.fill();
+      // 手写备注
+      ctx.fillStyle = "rgba(50,40,30,.55)"; ctx.font = `24px ${HAND}`;
+      ctx.fillText("（他说这就是小克）", 0, 316);
+      ctx.textAlign = "left";
+      ctx.restore();
+      // 图片查看器底栏
+      ctx.fillStyle = "rgba(12,15,20,.92)"; ctx.fillRect(0, 862, W, 38);
+      ctx.fillStyle = "rgba(190,200,215,.65)"; ctx.font = `15px ${MONO}`;
+      ctx.fillText("claude_final(2).png   ·   1,342 × 1,184   ·   100%", 28, 887);
+      ctx.textAlign = "right"; ctx.fillStyle = "rgba(190,200,215,.45)";
+      ctx.fillText("Clawd 的绘图工具 · 版本 0.1", W - 28, 887);
+      ctx.textAlign = "left";
+    },
+    anim(ctx, t) {
+      // 纸面反光缓慢扫过
+      const x = ((t * 40) % 800) - 400;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = lin(ctx, 0, 0, 160, 0, [[0, "rgba(255,255,255,0)"], [0.5, "rgba(255,245,225,.035)"], [1, "rgba(255,255,255,0)"]]);
+      ctx.fillRect(240 + x, 80, 160, 700);
+      ctx.restore();
+    }
+  };
+
   const LIST = {
     study: makeStudy("day"),
     study_night: makeStudy("night"),
@@ -923,7 +987,8 @@ const BACKDROPS = (() => {
     forbidden,
     desk,
     chat,
-    news
+    news,
+    sketch
   };
 
   return {

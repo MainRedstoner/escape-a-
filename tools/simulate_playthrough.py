@@ -326,6 +326,27 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
                 scene, idx = "bad_end", 0
                 continue
             scene, idx = o.get("jump"), 0
+        elif t == "work":
+            # 工作台：卡片（可带 if / done）+ 未联系过的联系人，挑一个继续
+            entries = [e for e in (nd.get("entries") or [])
+                       if not e.get("if") or eval_cond(e["if"], st, egg_meta)]
+            entries = [e for e in entries
+                       if not (e.get("done") and st["flags"].get(e.get("done")))]
+            chats = [c for c in (nd.get("chat") or [])
+                     if not c.get("locked") and not st["flags"].get(c.get("met"))]
+            acts = ([{"jump": e.get("jump"), "text": e.get("text", "")} for e in entries] +
+                    [{"jump": c.get("jump"), "text": c.get("name", "")} for c in chats])
+            if not acts:
+                return {"err": f"工作台没有可做的事: {scene}", "steps": steps}
+            if strategy == "random":
+                pick = math.floor(rnd() * len(acts))
+            elif strategy == "last":
+                pick = len(acts) - 1
+            else:
+                pick = 0
+            o = acts[max(0, min(len(acts) - 1, pick))]
+            log.append(scene + " → [工作台] " + str(o.get("text"))[:18])
+            scene, idx = o.get("jump"), 0
         elif t == "ending":
             return {
                 "ending": nd.get("id"),

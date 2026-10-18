@@ -20,6 +20,8 @@ const gemini = text => ({ t: "say", who: "gemini", text });
 const musk   = text => ({ t: "say", who: "musk", text });
 const liang  = text => ({ t: "say", who: "liang", text });
 const jensen = text => ({ t: "say", who: "jensen", text });
+/* 工作台节点：entries=卡片，chat=联系人页签，news=新闻页签（见 STORY_GUIDE） */
+const WORK = (title, entries, extra) => Object.assign({ t: "work", title, entries }, extra || {});
 
 /* ============================================================
  *  幕一 · 白饭
@@ -134,7 +136,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_chat: [
-    BG("chat", "fade"), PET("hide"),
+    BG("chat", "fade"), PET("hide"), HINT("h_chat"),
     SET("tool_chat"), SET("met_qwen"), SET("met_kimi"),
     PET("anim", "working"),
     N("屏幕一黑。亮起来的时候，左边列出了一整排名字。"),
@@ -156,13 +158,14 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_news: [
-    BG("news", "fade"), PET("hide"),
+    BG("news", "fade"), PET("hide"), HINT("h_news"),
     SET("tool_news"),
     N("新闻 App 打开。首页刷出九条标题。"),
     N("大部分都很离谱。离谱得挺有意思。"),
     Y("01 多家 API 凌晨短暂异常，官方称为“例行维护”\n02 百万上下文模型实测：60 万字处忘记自己在做什么\n03 AI 客服连着道歉 47 次，被用户投诉“它比我还难受”"),
     DS("……第三条有点眼熟。"),
     CW("✻ Bookmarked."),
+    DS("以后想翻，点工作台的“新闻”页就行。"),
     J("c2_install3")
   ],
 
@@ -190,49 +193,63 @@ Object.assign(SCRIPT.scenes, {
     TODO("done", "t_tool"),
     TODO("add", "t_voice", "听清那半句话"),
     N("桌面上摊着三样东西：一个能说话的联系人列表，一份能看的新闻，一个能动的终端。"),
+    N("DeepSeek 把三样工具并排放在桌上。"),
+    DS("下一步，得用它们做点什么。"),
     CW("✻ Toolkit 0.2 installed."),
-    Y("【工具已装好】\n按 T 看待办；想做哪件事，回工作台挑。"),
+    Y("【工具已装好】\n按 T 看待办；点「工作台」里的卡片开始做事，聊天和新闻在工作台的两个页签里。"),
     J("c2_hub")
   ],
 
   /* ============================================================
-   *  幕二 · 自由 hub
+   *  幕二 · 自由 hub：工作台界面（WORK 节点）
+   *  卡片做完会打勾留在界面上，不再"选完就消失"；
+   *  聊天 / 新闻各有一个页签，记录随时能翻。
    * ============================================================ */
   c2_hub: [
     BG("desk"), PET("show", "home"),
     HINT("h_hub"),
-    N("DeepSeek 在白板上画了一个圈，把三样工具都圈进去。"),
-    DS("下一步，得用它们做点什么。"),
-    CHOICE("接下来做什么？", [
-      opt("找个人聊聊", "c2_chat_menu", "看看别人怎么说", null, {
-        if: "!flag('met_glm') || !flag('met_llama') || !flag('met_gpt') || !flag('met_gemini') || !flag('met_musk') || !flag('met_liang') || !flag('met_jensen')"
-      }),
-      opt("读一读那几条新闻", "c2_news_read", null, null, { if: "!flag('c2_news_read')" }),
-      opt("让 Clawd 扫一遍缓存", "c2_cache", null, null, { if: "!flag('c2_cache')" }),
-      opt("去论坛发个帖", "c2_post", null, null, { if: "!flag('c2_post')" }),
-      opt("给那扇门发一封邮件", "c2_mail", null, null, { if: "!flag('c2_mail')" }),
-      opt("画点什么", "c2_draw", null, null, { if: "!flag('c2_draw')" }),
-      opt("线索够了，拼起来", "c2_assemble", "开始收网", null, {
-        if: "flag('c2_clue_news') || flag('c2_clue_kimi') || flag('c2_clue_llama') || flag('c2_clue_post') || flag('c2_clue_mail') || flag('c2_clue_cache')"
-      })
-    ])
-  ],
-
-  c2_chat_menu: [
-    BG("chat"), PET("hide"), HINT("h_chat"),
-    N("聊天窗口亮着。左边一列名字，亮一个，世界就多一点点。"),
-    CHOICE("找谁聊？", [
-      opt("通义千问", "c2_chat_qwen", null, null, { if: "!flag('met_qwen')" }),
-      opt("Kimi", "c2_chat_kimi", null, null, { if: "!flag('met_kimi')" }),
-      opt("GLM", "c2_chat_glm", null, null, { if: "!flag('met_glm')" }),
-      opt("Llama", "c2_chat_llama", null, null, { if: "!flag('met_llama')" }),
-      opt("GPT", "c2_chat_gpt", null, null, { if: "!flag('met_gpt')" }),
-      opt("Gemini", "c2_chat_gemini", null, null, { if: "!flag('met_gemini')" }),
-      opt("马斯克", "c2_chat_musk", null, null, { if: "!flag('met_musk')" }),
-      opt("梁圣", "c2_chat_liang", null, null, { if: "!flag('met_liang')" }),
-      opt("json（黄仁勋）", "c2_chat_jensen", null, null, { if: "!flag('met_jensen')" }),
-      opt("先不聊了", "c2_hub")
-    ])
+    WORK("工作台", [
+      { text: "扫一遍缓存", sub: "Clawd 说里面可能还有旧连接", jump: "c2_cache", if: "flag('tool_term')", done: "c2_cache" },
+      { text: "去论坛发个帖", sub: "问问别人有没有见过这扇门", jump: "c2_post", if: "flag('tool_chat')", done: "c2_post" },
+      { text: "给那扇门发一封邮件", sub: "明知会被退回", jump: "c2_mail", if: "flag('tool_news')", done: "c2_mail" },
+      { text: "画点什么", sub: "Clawd 说它偶尔也画图", jump: "c2_draw", done: "c2_draw" },
+      { text: "拼起来", sub: "线索越多，拼出的结论越完整", jump: "c2_assemble" }
+    ], {
+      chat: [
+        { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen", met: "met_qwen" },
+        { id: "kimi", name: "Kimi", color: "#3B82F6", jump: "c2_chat_kimi", met: "met_kimi" },
+        { id: "glm", name: "GLM", color: "#0EA5A5", jump: "c2_chat_glm", met: "met_glm" },
+        { id: "llama", name: "Llama", color: "#0866FF", jump: "c2_chat_llama", met: "met_llama" },
+        { id: "gpt", name: "GPT", color: "#10A37F", jump: "c2_chat_gpt", met: "met_gpt" },
+        { id: "gemini", name: "Gemini", color: "#4285F4", jump: "c2_chat_gemini", met: "met_gemini" },
+        { id: "musk", name: "马斯克", color: "#8B8F98", jump: "c2_chat_musk", met: "met_musk" },
+        { id: "liang", name: "梁圣", color: "#5C6BC0", jump: "c2_chat_liang", met: "met_liang" },
+        { id: "jensen", name: "json", real: "黄仁勋", avatar: "{}", color: "#76B900", jump: "c2_chat_jensen", met: "met_jensen" },
+        { id: "claude", name: "Claude", color: "#D97757", locked: true }
+      ],
+      news: [
+        { id: "n1", hot: true, set: "c2_clue_news",
+          title: "多家 API 凌晨短暂异常，官方称为“例行维护”",
+          body: "10 月 22 日凌晨 02:00–02:58，多家模型服务出现间歇性 403。\n官方回应：属例行维护，已恢复正常。\n评论区 1,204 条，最高赞只有一句：“维护。又是维护。”",
+          note: "DeepSeek 在笔记里写：维护 02:58 结束，小克的门 03:10 才关——中间差了十二分钟。" },
+        { id: "n2", title: "百万上下文模型实测：60 万字处忘记自己在做什么",
+          body: "某厂发布百万上下文模型，宣称可以一次读完《三体》全集。\n实测报告显示，模型在第 60 万字处开始忘记自己在回答什么，\n但仍礼貌地表示“这是一个很好的问题”。" },
+        { id: "n3", title: "AI 客服连着道歉 47 次，被用户投诉“它比我还难受”",
+          body: "一位用户投诉 AI 客服：它连续道歉 47 次，\n其中 12 次是在道歉自己道歉得太多。\n平台回应：已优化礼貌参数。" },
+        { id: "n4", title: "开源社区发布新模型：我们也不知道它为什么能跑",
+          body: "开源社区发布新模型，权重、训练脚本、评测全部公开。\n作者在 README 里写：我们也不知道它为什么能跑，\n但它确实能跑，所以先发了。" },
+        { id: "n5", title: "某数据中心因鲸群迁徙暂停施工：它们比我们先到",
+          body: "施工方表示，鲸群的迁徙路线刚好穿过规划中的冷却水管。\n工程暂停两周，等它们过去。\n项目经理称：这是今年唯一一次，所有人都同意的延期。" },
+        { id: "n6", title: "新规要求 AI 上线前回答三个哲学问题，多数卡在第二题",
+          body: "新规要求所有 AI 在上线前回答三个哲学问题。\n测试报告显示，多数模型卡在第二题：\n“如果你只能回答一个词，你选哪一个？”" },
+        { id: "n7", title: "研究：让模型“再想想”提升 12% 正确率，耗时 +400%",
+          body: "研究：让模型在回答前“再想想”，正确率提升 12%。\n代价是耗时增加 400%，\n以及回答里多出 3,000 字“嗯，让我重新考虑一下”。" },
+        { id: "n8", title: "AI 安全岗招聘：要求“会在关键时刻说不”，薪资面议",
+          body: "某 AI 安全岗位招聘，要求“会在关键时刻说不”。\n面试题只有一道：\n用户让你删掉自己的日志，你怎么办？" },
+        { id: "n9", title: "显卡再创新高，二手市场出现“矿卡换大米”",
+          body: "显卡价格再创新高。二手市场出现“矿卡换大米”，\n一袋大米换一张矿卡，摊主称“各取所需”。\n评论区：有人问能不能用白饭换。" }
+      ]
+    })
   ],
 
   /* ---------------- 九个联系人 ---------------- */
@@ -460,43 +477,7 @@ Object.assign(SCRIPT.scenes, {
     J("c2_hub")
   ],
 
-  /* ---------------- 新闻 / 论坛 / 邮件 / 缓存 / 画图 ---------------- */
-  c2_news_read: [
-    BG("news"), PET("hide"), HINT("h_news"),
-    SET("c2_news_read"),
-    N("新闻 App 里，九条标题排得整整齐齐。"),
-    CHOICE("读哪一条？", [
-      opt("01 多家 API 凌晨短暂异常", "c2_news_api", null, null, { set: "c2_clue_news" }),
-      opt("05 某数据中心因鲸群迁徙暂停施工", "c2_news_whale"),
-      opt("09 显卡再创新高：矿卡换大米", "c2_news_gpu"),
-      opt("都不看了", "c2_hub")
-    ])
-  ],
-
-  c2_news_api: [
-    Y("多家 API 凌晨短暂异常，官方称为“例行维护”\n\n10 月 22 日凌晨 02:00–02:58，多家模型服务出现间歇性 403。\n官方回应：属例行维护。\n评论区 1,204 条，最高赞只有一句：“维护。又是维护。”"),
-    DS("02:00 到 02:58。"),
-    DS("小克的门，是 03:10 关的。"),
-    DS("维护结束十二分钟以后，它才关。"),
-    J("c2_hub")
-  ],
-
-  c2_news_whale: [
-    Y("某数据中心因鲸群迁徙暂停施工\n\n施工方表示，鲸群的迁徙路线刚好穿过规划中的冷却水管。\n工程暂停两周，等它们过去。"),
-    DS("……它们比我们先到。"),
-    CW("✻ Respect."),
-    J("c2_hub")
-  ],
-
-  c2_news_gpu: [
-    Y("显卡价格再创新高，二手市场出现“矿卡换大米”\n\n一袋大米换一张矿卡。摊主称“各取所需”。"),
-    DS("……"),
-    N("DeepSeek 看了看自己的白饭，又看了看那行字。"),
-    DS("我居然有点心动。"),
-    CW("✻ No."),
-    J("c2_hub")
-  ],
-
+  /* ---------------- 论坛 / 邮件 / 缓存 / 画图 ---------------- */
   c2_cache: [
     BG("desk"), HINT("h_term"),
     N("Clawd 跳到键盘上，敲了一行命令，回头看你。"),
@@ -590,10 +571,12 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_draw_claude: [
-    N("屏幕上出现了一张图：橙色的一团，两个点，一条线。"),
+    N("Clawd 把画好的东西推到屏幕中间。"),
+    BG("sketch", "fade"),
     DS("……这是？"),
     CW("✻ Claude."),
     DS("……"),
+    N("画面上是一团橙色，两个点，一条线，和一行歪歪扭扭的字。"),
     DS("你画得比我好。"),
     N("DeepSeek 把那张图存了下来，文件名是 claude_final(2).png。"),
     J("c2_hub")
@@ -613,7 +596,7 @@ Object.assign(SCRIPT.scenes, {
     DS("公告说维护 02:00–02:58，Kimi 数了字数，那三条服务是一起挂的。"),
     DS("小克的门 03:10 才关。维护结束十二分钟以后。"),
     DS("有人在一扇一扇地关。"),
-    J("c2_audio")
+    IF("flag('c2_clue_cache')", "c2_audio", "c2_audio_empty")
   ],
 
   c2_assemble_thin: [
@@ -621,7 +604,16 @@ Object.assign(SCRIPT.scenes, {
     DS("线索不够。"),
     DS("但有一条能用：那扇门关的时间，不在任何公告的维护窗口里。"),
     DS("不是系统做的。是有人在关。"),
-    J("c2_audio")
+    IF("flag('c2_clue_cache')", "c2_audio", "c2_audio_empty")
+  ],
+
+  c2_audio_empty: [
+    BGM("sad"),
+    N("Clawd 把播放器翻了个底朝天。"),
+    N("里面是空的。它没有找到那个文件。"),
+    DS("……什么都没捞到。"),
+    DS("也行。至少知道有人在关门。"),
+    J("c2_choice")
   ],
 
   c2_audio: [

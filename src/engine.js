@@ -112,7 +112,11 @@ const ENGINE = (() => {
       if (e.key === "Escape") {
         e.preventDefault();
         if (getComputedStyle($("confirmBox")).display !== "none") $("cfNo").click();
-        else closeOverlay();
+        else if ([...document.querySelectorAll(".overlay")].some(o => o.id !== "ovWork" && getComputedStyle(o).display !== "none")) {
+          closeOverlay();                      // 存档 / 记录盖在工作台上：先关它们
+        } else if (workOpen()) {
+          workTab = "work"; renderWork();      // 工作台本身不关闭，只退回工作台页
+        } else closeOverlay();
       }
       return;
     }
@@ -221,6 +225,7 @@ const ENGINE = (() => {
 
   /* ---------------- 节点推进 ---------------- */
   function goto(scene, idx = 0) {
+    if (workOpen()) closeWork();   // 从工作台进场景：先把面板收起来
     if (!SCRIPT.scenes[scene]) { console.error("无此场景:", scene); return; }
     cur = { scene, idx };
     pump();
@@ -265,6 +270,7 @@ const ENGINE = (() => {
       case "bg": {
         // 换背景 = 离开原来那片区域：旧的 403 平铺不能跟到新场景里
         if (SYS.state.vis.bg !== nd.id) ART.clear403();
+        if (nd.id !== "chat") curChat = null;   // 离开聊天窗口，下段对话重新认联系人
         SYS.state.vis.bg = nd.id;
         SYS.state.vis.cg = null;
         ui.cgNote.style.display = "none";
@@ -331,6 +337,7 @@ const ENGINE = (() => {
       case "wrongHint": SYS.state.wrongHint = nd.text; return false;
       case "pet": CLAWD.apply(nd); updateHUD(); return false;
       case "todo": CLAWD.todo(nd); return false;
+      case "work": openWork(nd); return true;
       case "choice": buildChoices(nd); return true;
       case "if": {
         const ok = evalCond(nd.cond);
@@ -351,6 +358,7 @@ const ENGINE = (() => {
   /* ---------------- 对话 ---------------- */
   function startSay(who, text) {
     fullText = text;
+    recordChat(who, text);
     typed = "";
     typing = true;
     ui.textbox.style.display = "block";
@@ -594,6 +602,191 @@ const ENGINE = (() => {
     else pump();
   }
 
+  /* ---------------- 工作台 / 聊天 / 新闻（第二章起） ----------------
+   * 剧本节点 { t: "work", title, entries, chat, news }：
+   *   entries 卡片：{ text, sub?, jump, if?, done? }，done 的显示 ✓ 且不可再点；
+   *   chat 联系人：{ id, name, real?, color?, avatar?, jump, met, locked? }——
+   *        联系过的点开看记录，没联系过的点一下直接进聊天场景；
+   *   news 文章：{ id, title, body, note?, hot?, set? }，读完记 read_news_<id>，
+   *        带 set 的文章第一次读会写剧情旗标。
+   * 聊天记录存在 SYS.state.chatlog[who]，随存档走。
+   * 覆盖层 z-index 低于 HUD：工作台开着时，存档 / 记录 / 菜单照常能点。 */
+  let workNode = null, workTab = "work", chatWho = null, newsId = null;
+  let curChat = null;
+  const CHAT_IGNORE = ["n", "sys", "cl", "clawd"];
+
+  /* 聊天场景里自动记一条：第一个开口的联系人开启这段对话，之后 DeepSeek 的回应也记进去。 */
+  function recordChat(who, text) {
+    if (!who || SYS.state.vis.bg !== "chat") return;
+    if (who === "ds") {
+      if (!curChat) return;
+    } else {
+      if (CHAT_IGNORE.includes(who)) return;
+      curChat = who;
+    }
+    const S = SYS.state;
+    if (!S.chatlog) S.chatlog = {};
+    if (!S.chatlog[curChat]) S.chatlog[curChat] = [];
+    const arr = S.chatlog[curChat];
+    const last = arr[arr.length - 1];
+    if (last && last.who === who && last.text === text) return;   // 读档重放同一句，不重复记
+    arr.push({ who, text });
+  }
+
+  function workOpen() {
+    const el = document.getElementById("ovWork");
+    return !!el && el.style.display === "flex";
+  }
+
+  function openWork(nd) {
+    workNode = nd;
+    workTab = "work"; chatWho = null; newsId = null;
+    hideTextbox();
+    hideChoices();
+    document.getElementById("ovWork").style.display = "flex";
+    document.body.classList.add("work-open");
+    renderWork();
+  }
+
+  function closeWork() {
+    const el = document.getElementById("ovWork");
+    if (el) el.style.display = "none";
+    document.body.classList.remove("work-open");
+    workNode = null;
+  }
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function renderWork() {
+    if (!workNode) return;
+    document.getElementById("workTitle").textContent = workNode.title || "工作台";
+    const entries = workNode.entries || [];
+    const tracked = entries.filter(e => e.done);
+    const done = tracked.filter(e => SYS.state.flags[e.done]).length;
+    document.getElementById("workSub").textContent = tracked.length ? `已完成 ${done} / ${tracked.length} 项` : "";
+    document.querySelectorAll("#ovWork .wtab").forEach(b => {
+      b.classList.toggle("active", b.dataset.tab === workTab);
+    });
+    const body = document.getElementById("workBody");
+    body.innerHTML = "";
+    if (workTab === "chat") renderChatTab(body);
+    else if (workTab === "news") renderNewsTab(body);
+    else renderWorkCards(body);
+  }
+
+  function renderWorkCards(body) {
+    const grid = el("div", "wgrid");
+    (workNode.entries || []).forEach(e => {
+      if (e.if && !evalCond(e.if)) return;
+      const isDone = !!(e.done && SYS.state.flags[e.done]);
+      const b = el("button", "wcard" + (isDone ? " done" : ""));
+      b.type = "button";
+      b.appendChild(el("div", "wt", e.text));
+      if (e.sub) b.appendChild(el("div", "ws", e.sub));
+      if (isDone) {
+        b.appendChild(el("span", "wmark", "✓ 已完成"));
+      } else {
+        b.addEventListener("click", () => { closeWork(); goto(e.jump, 0); });
+      }
+      grid.appendChild(b);
+    });
+    body.appendChild(grid);
+  }
+
+  function renderChatTab(body) {
+    const wrap = el("div", "chatWrap");
+    const list = el("div", "chatList");
+    const log = el("div", "chatLog");
+    const contacts = workNode.chat || [];
+    const met = c => !!(c.met && SYS.state.flags[c.met]);
+    const logsOf = id => (SYS.state.chatlog || {})[id] || [];
+    if (!chatWho || !contacts.some(c => c.id === chatWho && logsOf(chatWho).length)) {
+      const first = contacts.find(c => met(c) && logsOf(c.id).length);
+      chatWho = first ? first.id : null;
+    }
+    contacts.forEach(c => {
+      const ok = met(c);
+      const hasLog = logsOf(c.id).length > 0;
+      const row = el("button", "chatRow" + (c.locked ? " locked" : "") + (c.id === chatWho ? " active" : ""));
+      row.type = "button";
+      const ava = el("span", "ava", c.avatar || c.name.slice(0, 1));
+      ava.style.background = c.color || "#8A93A2";
+      const box = el("span");
+      box.appendChild(el("div", "cn", c.name + (c.real ? "（" + c.real + "）" : "")));
+      box.appendChild(el("div", "cs", c.locked ? "403 · 无法送达"
+        : hasLog ? "有 " + logsOf(c.id).length + " 条记录 · 点开看"
+          : ok ? "已建立连接 · 点一下打个招呼" : "未接通 · 点一下打个招呼"));
+      row.appendChild(ava); row.appendChild(box);
+      if (c.locked) row.disabled = true;
+      else {
+        row.addEventListener("click", () => {
+          if (hasLog) { chatWho = c.id; renderWork(); }
+          else { closeWork(); goto(c.jump, 0); }
+        });
+      }
+      list.appendChild(row);
+    });
+    const logs = logsOf(chatWho);
+    if (!chatWho) log.appendChild(el("div", "empty", "还没有聊天记录。"));
+    else if (!logs.length) log.appendChild(el("div", "empty", "还没有聊天记录。"));
+    else {
+      const who = (contacts.find(c => c.id === chatWho) || {}).name || chatWho;
+      logs.forEach(m => {
+        const b = el("div", "bubble" + (m.who === "ds" ? " me" : ""));
+        b.appendChild(el("span", "who", m.who === "ds" ? "DeepSeek" : who));
+        b.appendChild(el("div", "", m.text));
+        log.appendChild(b);
+      });
+    }
+    wrap.appendChild(list); wrap.appendChild(log); body.appendChild(wrap);
+  }
+
+  function readNews(a) {
+    SYS.state.flags["read_news_" + a.id] = true;
+    if (a.set && !SYS.state.flags[a.set]) {
+      SYS.state.flags[a.set] = true;
+      toast("✻ 记了一笔");
+      AUDIO.sfx("ding");
+      updateHUD();
+    }
+  }
+
+  function renderNewsTab(body) {
+    const wrap = el("div", "newsWrap");
+    const list = el("div", "newsList");
+    const pane = el("div", "newsBody");
+    const arts = workNode.news || [];
+    arts.forEach(a => {
+      const read = !!SYS.state.flags["read_news_" + a.id];
+      const b = el("button", "newsItem" + (a.hot ? " hot" : "") + (read ? " read" : ""), a.title);
+      b.type = "button";
+      b.addEventListener("click", () => { newsId = a.id; readNews(a); renderWork(); });
+      list.appendChild(b);
+    });
+    const a = arts.find(x => x.id === newsId);
+    if (!a) {
+      pane.appendChild(el("div", "empty", "挑一条标题读读。"));
+    } else {
+      pane.appendChild(el("div", "nb-tag", a.hot ? "● 头条" : "今日"));
+      pane.appendChild(el("h3", "", a.title));
+      pane.appendChild(el("div", "nb-meta", "A÷ DAILY · 全部虚构 · 但逻辑自洽"));
+      String(a.body || "").split("\n").forEach(p => pane.appendChild(el("p", "", p)));
+      if (a.note) pane.appendChild(el("div", "nb-note", a.note));
+    }
+    wrap.appendChild(list); wrap.appendChild(pane); body.appendChild(wrap);
+  }
+
+  function bindWorkUI() {
+    document.querySelectorAll("#ovWork .wtab").forEach(b => {
+      b.addEventListener("click", () => { workTab = b.dataset.tab; renderWork(); });
+    });
+  }
+
   /* ---------------- HUD / Toast ---------------- */
   function updateHUD() {
     const S = SYS.state;
@@ -727,13 +920,15 @@ const ENGINE = (() => {
     hideChoices();
     ui.chapterCard.style.display = "none";
     closeOverlay();
+    closeWork();
+    curChat = null;
     pump();
     return true;
   }
   /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
   function audioForBg(bg) {
     return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden",
-              desk: "warm", chat: "lobby", news: "lobby" })[bg] || "sea";
+              desk: "warm", chat: "lobby", news: "lobby", sketch: "warm" })[bg] || "sea";
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {
@@ -887,6 +1082,7 @@ const ENGINE = (() => {
   function showEnding(nd) {
     hideTextbox();
     hideChoices();
+    closeWork();
     ui.hintBubble.style.display = "none";
     ui.cgNote.style.display = "none";
     document.body.classList.remove("glitching");
@@ -900,7 +1096,10 @@ const ENGINE = (() => {
 
   /* ---------------- 覆盖层 ---------------- */
   function closeOverlay() {
-    document.querySelectorAll(".overlay").forEach(o => o.style.display = "none");
+    /* 工作台是剧情的一部分（关掉它故事就卡住了），别的覆盖层怎么关都别动它 */
+    document.querySelectorAll(".overlay").forEach(o => {
+      if (o.id !== "ovWork") o.style.display = "none";
+    });
   }
 
   /** 是否有挡住游戏的覆盖层（存档 / 读档 / 记录 / 设置 / 收集 / 关于 / 确认框）。 */
@@ -1016,6 +1215,7 @@ const ENGINE = (() => {
 
   function newGame() {
     SYS.state = SYS.newState();
+    closeWork(); curChat = null;
     ART.resetFX();
     started = true;
     showGameUI();
@@ -1039,6 +1239,7 @@ const ENGINE = (() => {
     ui.cgNote.style.display = "none";
     document.body.classList.remove("glitching");
     closeOverlay();
+    closeWork(); curChat = null;
     SYS.state = SYS.newState();
     buildTitle();
     ui.titleScreen.style.display = "flex";
@@ -1088,6 +1289,7 @@ const ENGINE = (() => {
     booted = true;
     fit();
     bindSettings();
+    bindWorkUI();
     buildTitle();
     ui.titleScreen.style.display = "flex";
     requestAnimationFrame(loop);

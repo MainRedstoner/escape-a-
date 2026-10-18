@@ -256,6 +256,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
 | `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`、`{ auto: true }`（只用于权限请求）、`{ if: "条件" }`（条件为假时这一项不出现）。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
 | `PERM` | `(cmd, options, extra?)` | `choice` + `mode:"perm"` | **权限请求框**：Clawd 想执行 `cmd`，玩家批准 / 不再询问 / 拒绝。选项里带 `{ auto: true }` 的那一项会记下 `auto:<cmd>` 旗标，之后同一命令直接自动批准 |
+| `WORK` | `(title, entries, extra?)` | `work` | **工作台界面**：卡片（可带 `if` / `done`）+ 聊天 / 新闻页签。详见下面「工作台」一节 |
 | `END` | `(id, tag, title, text)` | `ending` | 结局：显示结局画面、记录进结局收集。id 必须在 `ENDING_META` 登记 |
 
 ### 权限请求框（`mode: "perm"`）
@@ -288,6 +289,33 @@ PERM("curl -I https://claude.ai/", [
 
 **解锁时机**：面板与 HUD 上的「记忆碎片」计数默认隐藏，剧本里用 `SET("md_seen")` 打开
 （序章在 `c1_zero` 拿到 CLAUDE.md 的那一刻设置）。在那之前按 `?` 只会提示"还没拿到 CLAUDE.md"。
+
+### 工作台（`WORK` 节点）
+
+写一次节点，引擎打开一个全屏的「工作台」界面（第二章的 hub 就是它）：卡片 + 聊天 / 新闻两个页签。
+
+```js
+WORK("工作台", [
+  { text: "扫一遍缓存", sub: "里面可能还有旧连接", jump: "c2_cache", if: "flag('tool_term')", done: "c2_cache" },
+  { text: "拼起来", sub: "线索越多，拼出的越完整", jump: "c2_assemble" }
+], {
+  chat: [
+    { id: "qwen", name: "通义千问", color: "#7C4DFF", jump: "c2_chat_qwen", met: "met_qwen" }
+  ],
+  news: [
+    { id: "n1", hot: true, set: "c2_clue_news", title: "…", body: "…", note: "…" }
+  ]
+})
+```
+
+* `entries`：卡片。`if` 为假不显示；`done` 是旗标名——已完成的卡片显示「✓ 已完成」并**留在界面上**，不再"选完就消失"。
+* `chat`：联系人页签。没联系过的（`met` 旗标为假）点一下直接跳到 `jump` 场景；
+  联系过且有记录的，点开就在右侧看气泡记录。聊天记录由引擎在 `BG("chat")` 场景里自动记
+  （第一个开口的联系人 → 之后 DeepSeek 的回应），存在 `SYS.state.chatlog`，随存档走。
+* `news`：新闻页签。点标题读正文；带 `set` 的文章第一次读会写剧情旗标（可以当线索），读完记 `read_news_<id>`。
+* 工作台开着时 HUD 功能键照常可用（存档 / 记录 / 菜单会盖在上面），Esc 只会退回「工作台」页。
+* 模拟器把 `entries` 与未联系过的 `chat` 当成一组选项跑；校验器检查跳转目标、`met` / `done` / 新闻正文。
+* 场景最后一个节点可以是 `work`（它自己就是出口）；玩家点了卡片才会跳走。
 
 ### 选项框（TokenChoice 滑道选择器）
 
@@ -341,7 +369,7 @@ CHOICE("要不要回头？", [
 
 ### 场景的三条铁律
 
-1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / chapter`，否则玩家走到末尾会莫名回标题（校验器会警告）。
+1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / chapter / work`，否则玩家走到末尾会莫名回标题（校验器会警告）。
 2. **每个 if 都要两个出口**（见上）。
 3. **每个场景都要有入口**：从 `start` 出发沿跳转可达，否则是孤儿场景（校验器会警告；`bad_end` 除外，引擎兜底）。
 

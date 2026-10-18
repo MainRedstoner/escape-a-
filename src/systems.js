@@ -41,6 +41,7 @@ const SYS = (() => {
       chapter: "序章",
       vis: { bg: "study_night", sprites: [], cg: null, glitch: false },
       pet: { vis: false, owned: false, mood: 5, place: "corner", x: null, y: null, todo: [] },   // 桌宠 Clawd（src/pet.js）
+      chatlog: {},       // 聊天记录：{ 联系人 who: [{ who, text }] }（第二章工作台的聊天界面用）
       hint: "",
       wrongHint: null,   // 深度思考被污染时显示的假提示（WHINT 节点）
       history: []
