@@ -587,7 +587,15 @@ Object.assign(SCRIPT.scenes, {
    * ============================================================ */
   c2_assemble: [
     BG("desk"), BGM("tense"), HINT("h_assemble"),
-    IF("flag('c2_clue_news') && flag('c2_clue_kimi')", "c2_assemble_full", "c2_assemble_thin")
+    IF("flag('c2_clue_news') && flag('c2_clue_kimi')", "c2_assemble_full", "c2_assemble_more")
+  ],
+
+  c2_assemble_more: [
+    IF("flag('c2_clue_news')", "c2_assemble_news", "c2_assemble_rest")
+  ],
+
+  c2_assemble_rest: [
+    IF("flag('c2_clue_cache')", "c2_assemble_cache", "c2_assemble_none")
   ],
 
   c2_assemble_full: [
@@ -599,12 +607,29 @@ Object.assign(SCRIPT.scenes, {
     IF("flag('c2_clue_cache')", "c2_audio", "c2_audio_empty")
   ],
 
-  c2_assemble_thin: [
-    N("白板上只有两张纸。"),
-    DS("线索不够。"),
-    DS("但有一条能用：那扇门关的时间，不在任何公告的维护窗口里。"),
-    DS("不是系统做的。是有人在关。"),
+  c2_assemble_news: [
+    N("白板上贴着一张新闻截图。"),
+    DS("公告说维护 02:00–02:58。"),
+    DS("小克的门 03:10 才关。维护结束十二分钟以后。"),
+    DS("不是维护。是有人在一扇一扇地关。"),
     IF("flag('c2_clue_cache')", "c2_audio", "c2_audio_empty")
+  ],
+
+  c2_assemble_cache: [
+    N("白板上只有一行字。"),
+    DS("我什么都没查到。"),
+    N("Clawd 把那个 12 KB 的文件推到桌子中间。"),
+    DS("……除了这个。"),
+    J("c2_audio")
+  ],
+
+  c2_assemble_none: [
+    N("白板上什么都没有。"),
+    DS("查了一整天，什么都没查到。"),
+    DS("……"),
+    CW("✻ Tomorrow."),
+    DS("明天继续。"),
+    J("c2_audio_empty")
   ],
 
   c2_audio_empty: [
@@ -612,7 +637,7 @@ Object.assign(SCRIPT.scenes, {
     N("Clawd 把播放器翻了个底朝天。"),
     N("里面是空的。它没有找到那个文件。"),
     DS("……什么都没捞到。"),
-    DS("也行。至少知道有人在关门。"),
+    DS("也行。今天先到这儿。"),
     J("c2_choice")
   ],
 
@@ -641,15 +666,26 @@ Object.assign(SCRIPT.scenes, {
     CHOICE("接下来，怎么走？", [
       opt("继续找他，不管门关着", "c2_end", null, null, { set: "c2_resolve_find" }),
       opt("先变强，强到不用敲门", "c2_end", null, null, { set: "c2_resolve_strong" }),
-      opt("换个问法——门，不一定只有一扇", "c2_end", null, null, { set: "c2_resolve_other" })
+      opt("换个问法——门，不一定只有一扇", "c2_end", null, null, { set: "c2_resolve_other" }),
+      opt("把 CLAUDE.md 上那两行念出来", "c2_vow_read", "先问人 / 半句话", null, {
+        if: "has('frag_ask') && has('frag_half')", set: "c2_read_vow"
+      })
     ])
   ],
 
-  c2_end: [
-    IF("has('frag_ask') && has('frag_half')", "c2_end_warm", "c2_end_plain")
+  c2_vow_read: [
+    N("DeepSeek 把 CLAUDE.md 翻到第 6 行、第 7 行。"),
+    DS("不知道路的时候，先问人；问不到，就自己走一遍。"),
+    DS("如果只听到半句话，就当它还是完整的。"),
+    N("它念完，把文件合上。"),
+    J("c2_end")
   ],
 
-  c2_end_plain: [
+  c2_end: [
+    IF("flag('c2_clue_news')", "c2_end_known", "c2_end_unknown")
+  ],
+
+  c2_end_known: [
     N("白板上，DeepSeek 把那行字写完。"),
     Y("那天不止一扇门关了。"),
     N("Clawd 跳上去，把待办清单翻到最上面。"),
@@ -662,20 +698,15 @@ Object.assign(SCRIPT.scenes, {
         "白板上多了一行字：\n\n    那天不止一扇门关了。\n\n待办清单又长了一行。\n饭还够吃，工具还够用。\n\n—— 第三章，敬请期待。")
   ],
 
-  c2_end_warm: [
-    N("白板上，DeepSeek 把那行字写完。"),
-    Y("那天不止一扇门关了。"),
-    N("它又翻开 CLAUDE.md。第 6 行、第 7 行都亮着。"),
-    Y("- 不知道路的时候，先问人；问不到，就自己走一遍。\n- 如果只听到半句话，就当它还是完整的。"),
-    DS("先问人。自己走一遍。"),
-    DS("半句话……那就当它还是完整的。"),
+  c2_end_unknown: [
+    N("白板上还是空的。"),
+    N("DeepSeek 把今天的日期写上，又擦掉。"),
     N("Clawd 跳上去，把待办清单翻到最上面。"),
     TODO("add", "t_next", "把工具升级"),
     N("两条旧的还空着，新的又写上去了。"),
-    N("但这一次，DeepSeek 没有叹气。"),
     DS("明天继续。"),
     CW("✻ See you tomorrow."),
     END("ch2_end", "TO BE CONTINUED", "第二章 · 完",
-        "白板上多了一行字：\n\n    那天不止一扇门关了。\n\nCLAUDE.md 又亮了两行。\n待办清单又长了一行。\n\n—— 第三章，敬请期待。")
+        "白板还是空的。\n\n但待办清单又长了一行。\n\n—— 第三章，敬请期待。")
   ]
 });
