@@ -971,7 +971,8 @@ const ENGINE = (() => {
     return !!elm && elm.style.display === "flex";
   }
   function chatActive() {
-    return !!SYS.state.flags.chat_mode && SYS.state.vis.bg === "chat";
+    /* chatInScene 兜底：从工作台续聊时即使 bg 还没切回来，也不让对话退化成普通文本框/滑道 */
+    return !!chatInScene || (!!SYS.state.flags.chat_mode && SYS.state.vis.bg === "chat");
   }
 
   function chatCanEnd() {
@@ -1001,6 +1002,7 @@ const ENGINE = (() => {
     }
     SYS.state.chatResume = SYS.state.chatResume || {};
     SYS.state.chatResume[chatWho] = at;
+    hideChoices();
     hideChatCands();
     hideChatNext();
     hideTextbox();
@@ -1022,6 +1024,10 @@ const ENGINE = (() => {
       return;
     }
     delete resumes[c.id];
+    /* 从工作台重新进来时背景已经切回 desk；续聊要把聊天场景的 bg / 模式一起还原，
+       否则选项会退化成普通滑道、对话会退回底部文本框。 */
+    SYS.state.vis.bg = "chat";
+    SYS.state.flags.chat_mode = true;
     ui.hintBubble.style.display = "none";
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovChat").style.display = "flex";
@@ -1032,6 +1038,7 @@ const ENGINE = (() => {
     chatDraft = null;
     clearChatTyping();
     clearTimeout(chatAutoTimer);
+    hideChoices();
     hideChatCands();
     hideChatNext();
     hideTextbox();
@@ -1116,11 +1123,15 @@ const ENGINE = (() => {
       ? (c.name + (c.real ? "（" + c.real + "）" : "")) : "聊天";
     const left = ((workNode && workNode.chat) || []).filter(x =>
       !x.locked && !(((SYS.state.chatlog || {})[x.id] || []).length)).length;
-    const pausedCount = Object.keys(SYS.state.chatResume || {}).length;
-    document.getElementById("chatStatus").textContent = pausedCount
+    const resumes = SYS.state.chatResume || {};
+    const pausedCount = Object.keys(resumes).length;
+    const curPaused = !!(chatWho && resumes[chatWho]);
+    document.getElementById("chatStatus").textContent = curPaused
       ? "对话暂停 · 点左边的联系人继续"
-      : (chatWho ? "对话结束 · " : "") +
-        (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
+      : pausedCount
+        ? "还有 " + pausedCount + " 个对话未聊完 · 点左边继续"
+        : (chatWho ? "对话结束 · " : "") +
+          (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
     hideChatEnd();
@@ -1142,6 +1153,7 @@ const ENGINE = (() => {
     contacts.forEach(c => {
       const chatted = ((SYS.state.chatlog || {})[c.id] || []).length > 0;
       const paused = !!((SYS.state.chatResume || {})[c.id]);
+      const active = chatInScene && chatWho === c.id;
       const b = el("button", "chatContact");
       b.type = "button";
       const ava = el("span", "ava", c.avatar || c.name.slice(0, 1));
@@ -1149,6 +1161,7 @@ const ENGINE = (() => {
       const box = el("span");
       box.appendChild(el("div", "cn", c.name + (c.real ? "（" + c.real + "）" : "")));
       box.appendChild(el("div", "cs", c.locked ? "403 · 无法送达"
+        : active ? "对话中…"
         : paused ? "未聊完 · 点一下继续"
         : chatted ? "已联系过 · 点开看记录" : "点一下打个招呼"));
       b.appendChild(ava); b.appendChild(box);
@@ -1381,6 +1394,7 @@ const ENGINE = (() => {
 
   function buildChatChoices(nd) {
     ensureChatOpen();
+    hideChoices();
     syncChatFromLog();
     inferChatContact();
     hideTextbox();
@@ -1412,6 +1426,7 @@ const ENGINE = (() => {
     });
     bar.style.display = "flex";
     hideChatNext();
+    document.getElementById("chatStatus").textContent = "轮到你说话了 · 选一句发出去";
   }
 
   function pickChatChoice(o) {
