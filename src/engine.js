@@ -139,10 +139,16 @@ const ENGINE = (() => {
       }
       return;
     }
-    /* 聊天界面：候选词用数字键选 */
+    /* 聊天界面：候选词用数字键选（DeepSeek 的单句候选也一样） */
     if (chatActive() && chatOpts.length) {
       const i = "123456789".indexOf(e.key);
-      if (i >= 0 && i < chatOpts.length) { e.preventDefault(); pickChatChoice(chatOpts[i]); return; }
+      if (i >= 0 && i < chatOpts.length) {
+        e.preventDefault();
+        const o = chatOpts[i];
+        if (o && o.draft !== undefined) sendChatDraft(o.draft);
+        else pickChatChoice(o);
+        return;
+      }
     }
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
@@ -253,6 +259,8 @@ const ENGINE = (() => {
   /* ---------------- 节点推进 ---------------- */
   function goto(scene, idx = 0) {
     if (workOpen()) closeWork();   // 从工作台进场景：先把面板收起来
+    chatDraft = null;              // 换场景了，别让上一句待发的台词卡住推进
+    clearTimeout(chatAutoTimer);
     if (!SCRIPT.scenes[scene]) { console.error("无此场景:", scene); return; }
     cur = { scene, idx };
     pump();
@@ -386,9 +394,17 @@ const ENGINE = (() => {
   /* ---------------- 对话 ---------------- */
   function startSay(who, text) {
     fullText = text;
-    recordChat(who, text);
-    /* 聊天模式：联系人和 DeepSeek 的话直接冒气泡；旁白仍然走底部对话框 */
-    if (chatActive() && who !== "n" && who !== "sys") { chatSay(who, text); return; }
+    /* 聊天模式：DeepSeek 的话先出候选词（只有一个也出），点了才发；
+       联系人的话直接冒气泡；旁白仍然走底部对话框，等玩家点。 */
+    if (chatActive()) {
+      ensureChatOpen();
+      syncChatFromLog();
+      if (who === "ds") { presentChatDraft(text); return; }
+      recordChat(who, text);
+      if (who !== "n" && who !== "sys") { chatSay(who, text); return; }
+    } else {
+      recordChat(who, text);
+    }
     typed = "";
     typing = true;
     ui.textbox.style.display = "block";
@@ -422,13 +438,8 @@ const ENGINE = (() => {
     ui.text.textContent = typed;
     typing = false;
     ui.nextArrow.style.display = "block";
-    /* 聊天模式的旁白也用对话框，但自动往下走：对方的消息不用一句一点 */
-    if (chatActive() && pending && pending.t === "say") {
-      clearTimeout(chatAutoTimer);
-      chatAutoTimer = setTimeout(autoAdvanceChat, 900);
-      return;
-    }
-    if (autoMode && pending && pending.t === "say") {
+    /* 聊天模式的旁白停在对话框，等玩家点；不自动往下走 */
+    if (!chatActive() && autoMode && pending && pending.t === "say") {
       clearTimeout(autoTimer);
       autoTimer = setTimeout(() => { if (pending && pending.t === "say") advance(); }, SYS.settings.autoDelay);
     }
@@ -444,6 +455,7 @@ const ENGINE = (() => {
   function advance() {
     if (!pending) return;
     if (overlayOpen()) return;   // 覆盖层开着时不推进（自动播放 / Ctrl 快进也停下来）
+    if (chatDraft) return;       // DeepSeek 的台词等玩家从候选词里选，不能顺手跳过
     if (pending.t !== "say" && pending.t !== "chapter") return;
     clearTimeout(chatAutoTimer);
     hideTextbox();
@@ -661,6 +673,7 @@ const ENGINE = (() => {
   let chatWho = null;
   let chatInScene = false;     // 正在一段对话里：联系人列表先锁住，别让人中途换人
   let chatAutoTimer = null;    // 对方消息自动冒出来的计时器
+  let chatDraft = null;        // DeepSeek 待发送的台词：先出候选词，玩家点了才发出去
   let chatWaitBack = null;     // 「聊完先留在聊天界面」时的返回场景（null = 回工作台）
   let newsId = null;
   let forumTid = null, forumTpl = null, forumCompose = false;
@@ -908,6 +921,7 @@ const ENGINE = (() => {
     document.body.classList.add("chat-open");
     chatWho = null;
     chatInScene = false;
+    chatDraft = null;
     clearTimeout(chatAutoTimer);
     document.getElementById("chatWho").textContent = "选择一个联系人";
     document.getElementById("chatStatus").textContent = "";
@@ -925,31 +939,44 @@ const ENGINE = (() => {
     document.body.classList.remove("chat-open");
     clearTimeout(chatAutoTimer);
     chatInScene = false;
+    chatDraft = null;
     chatWaitBack = null;
     hideChatCands();
   }
 
-  /* 聊完停在这里：左边还能换人，聊过的点开看记录，返回键回工作台 */
+  /* 聊完停在这里：保留刚才那段对话，左边还能换人 / 点开记录，返回键回工作台 */
   function openChatWait(nd) {
     recoverWork();
     chatWaitBack = nd.back || null;
     chatInScene = false;
-    chatWho = null;
+    chatDraft = null;
     curChat = null;
     hideTextbox();
     clearTimeout(chatAutoTimer);
+    hideChatCands();
+    const box = document.getElementById("chatMsgs");
+    if (!box.querySelector(".cmsg")) {
+      /* 读档落在聊天界面时，右边是空的：把最后聊过的那段记录铺回来 */
+      const log = SYS.state.chatlog || {};
+      const keys = Object.keys(log).filter(k => (log[k] || []).length);
+      chatWho = keys.length ? keys[keys.length - 1] : null;
+      box.innerHTML = "";
+      if (chatWho) renderChatLog(chatWho);
+      else box.appendChild(el("div", "csys", "← 左边选一个联系人；聊完的对话可以点开重看。"));
+    }
+    box.scrollTop = box.scrollHeight;
     document.getElementById("ovWork").style.display = "none";
     document.getElementById("ovChat").style.display = "flex";
     document.body.classList.add("chat-open");
-    document.getElementById("chatWho").textContent = "聊天";
-    const left = ((workNode && workNode.chat) || []).filter(c =>
-      !c.locked && !(((SYS.state.chatlog || {})[c.id] || []).length)).length;
-    document.getElementById("chatStatus").textContent = "还剩 " + left + " 个没聊；聊过的点开看记录";
-    document.getElementById("chatMsgs").innerHTML = "";
-    document.getElementById("chatMsgs").appendChild(el("div", "csys", "← 左边选联系人；聊完的对话可以点开重看。"));
+    const c = ((workNode && workNode.chat) || []).find(x => x.id === chatWho);
+    document.getElementById("chatWho").textContent = c
+      ? (c.name + (c.real ? "（" + c.real + "）" : "")) : "聊天";
+    const left = ((workNode && workNode.chat) || []).filter(x =>
+      !x.locked && !(((SYS.state.chatlog || {})[x.id] || []).length)).length;
+    document.getElementById("chatStatus").textContent = (chatWho ? "对话结束 · " : "") +
+      (left ? "还剩 " + left + " 个没聊" : "都聊过了，点「返回工作台」");
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
-    hideChatCands();
     renderChatContacts();
   }
 
@@ -986,8 +1013,10 @@ const ENGINE = (() => {
   function startChat(c) {
     chatWho = c.id;
     chatInScene = true;
+    chatDraft = null;
     curChat = c.id;                // 从第一句起就记在这位联系人名下
     clearTimeout(chatAutoTimer);
+    hideChatCands();
     renderChatContacts();          // 对话期间把左边的联系人锁住
     document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
     document.getElementById("chatStatus").textContent = "连接中…";
@@ -996,22 +1025,50 @@ const ENGINE = (() => {
     goto(c.jump, 0);
   }
 
-  function showChatRecord(c) {
-    ensureChatOpen();
-    chatInScene = false;
-    chatWho = c.id;
-    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
-    document.getElementById("chatStatus").textContent = "聊天记录";
+  function renderChatLog(who) {
     const box = document.getElementById("chatMsgs");
     box.innerHTML = "";
-    ((SYS.state.chatlog || {})[c.id] || []).forEach(m => {
+    const c = ((workNode && workNode.chat) || []).find(x => x.id === who) || {};
+    ((SYS.state.chatlog || {})[who] || []).forEach(m => {
       const mine = m.who === "ds";
       const bubble = el("div", "cmsg" + (mine ? " me" : ""));
-      bubble.appendChild(el("span", "who", mine ? "DeepSeek" : ((SPEAKERS[m.who] || {}).name || c.name)));
+      bubble.appendChild(el("span", "who", mine ? "DeepSeek" : ((SPEAKERS[m.who] || {}).name || c.name || "对方")));
       bubble.appendChild(el("div", "", m.text));
       box.appendChild(bubble);
     });
     box.scrollTop = box.scrollHeight;
+  }
+
+  /* 读档落在聊天中途：把这段时间的聊天记录铺回来，别只剩一句空提示 */
+  function syncChatFromLog() {
+    const box = document.getElementById("chatMsgs");
+    if (box.querySelector(".cmsg")) return;
+    const log = SYS.state.chatlog || {};
+    let who = curChat;
+    if (who) {
+      if (!(log[who] || []).length) return;
+    } else {
+      const keys = Object.keys(log).filter(k => (log[k] || []).length);
+      who = keys.length ? keys[keys.length - 1] : null;
+      if (!who) return;
+    }
+    chatWho = who;
+    curChat = who;
+    const c = ((workNode && workNode.chat) || []).find(x => x.id === who) || {};
+    document.getElementById("chatWho").textContent = c.name
+      ? c.name + (c.real ? "（" + c.real + "）" : "") : "聊天";
+    document.getElementById("chatStatus").textContent = "在线";
+    renderChatLog(who);
+  }
+
+  function showChatRecord(c) {
+    ensureChatOpen();
+    chatInScene = false;
+    chatDraft = null;
+    chatWho = c.id;
+    document.getElementById("chatWho").textContent = (c.name || "") + (c.real ? "（" + c.real + "）" : "");
+    document.getElementById("chatStatus").textContent = "聊天记录";
+    renderChatLog(c.id);
     document.getElementById("chatNext").style.display = "none";
     document.getElementById("chatBack").style.display = "";
     hideChatCands();
@@ -1035,9 +1092,7 @@ const ENGINE = (() => {
     if (n) n.style.display = "none";
   }
 
-  function chatSay(who, text) {
-    ensureChatOpen();
-    hideTextbox();
+  function appendChatBubble(who, text) {
     const box = document.getElementById("chatMsgs");
     const mine = who === "ds";
     const bubble = el("div", "cmsg" + (mine ? " me" : ""));
@@ -1051,16 +1106,56 @@ const ENGINE = (() => {
     bubble.appendChild(el("div", "", text));
     box.appendChild(bubble);
     box.scrollTop = box.scrollHeight;
+    return bubble;
+  }
+
+  /* 对方的消息自动冒出来；到 DeepSeek 的台词就停下来等玩家选 */
+  function chatSay(who, text) {
+    ensureChatOpen();
+    hideTextbox();
+    chatDraft = null;
+    appendChatBubble(who, text);
     typing = false;
     hideChatCands();
     hideChatNext();
-    /* 对方的消息自动冒出来，不用一句一点；被覆盖层挡住时等它关掉再继续 */
     clearTimeout(chatAutoTimer);
     chatAutoTimer = setTimeout(autoAdvanceChat, 900);
   }
 
+  /* 单条候选词：就算只有一句，也要玩家点一下才会发出去 */
+  function presentChatDraft(text) {
+    ensureChatOpen();
+    syncChatFromLog();
+    hideTextbox();
+    chatDraft = text;
+    clearTimeout(chatAutoTimer);
+    chatOpts = [{ draft: text }];
+    const bar = document.getElementById("chatCands");
+    bar.innerHTML = "";
+    const b = el("button", "chatCand");
+    b.type = "button";
+    b.appendChild(el("span", "n", "1"));
+    b.appendChild(el("span", "", text));
+    b.addEventListener("click", () => sendChatDraft(text));
+    bar.appendChild(b);
+    bar.style.display = "flex";
+    hideChatNext();
+    document.getElementById("chatStatus").textContent = "轮到你说话了 · 选一句发出去";
+  }
+
+  function sendChatDraft(text) {
+    if (!chatDraft) return;
+    chatDraft = null;
+    hideChatCands();
+    ensureChatOpen();
+    hideTextbox();
+    recordChat("ds", text);
+    appendChatBubble("ds", text);
+    if (pending && pending.t === "say") advance();
+  }
+
   function autoAdvanceChat() {
-    if (!chatActive()) return;
+    if (!chatActive() || chatDraft) return;
     if (overlayOpen()) { chatAutoTimer = setTimeout(autoAdvanceChat, 500); return; }
     if (pending && pending.t === "say") advance();
   }
@@ -1073,7 +1168,9 @@ const ENGINE = (() => {
 
   function buildChatChoices(nd) {
     ensureChatOpen();
+    syncChatFromLog();
     hideTextbox();
+    chatDraft = null;
     clearTimeout(chatAutoTimer);
     const glitchOn = SYS.state.vis.glitch;
     let opts = (nd.options || []).filter(o => !(glitchOn && o.hideInGlitch) && (!o.if || evalCond(o.if)));
@@ -1094,15 +1191,13 @@ const ENGINE = (() => {
   }
 
   function pickChatChoice(o) {
+    if (o && o.draft !== undefined) { sendChatDraft(o.draft); return; }
     clearTimeout(chatAutoTimer);
+    chatDraft = null;
     hideChatCands();
     pushHistory(null, "【选择】" + o.text, true);
-    const box = document.getElementById("chatMsgs");
-    const bubble = el("div", "cmsg me");
-    bubble.appendChild(el("span", "who", "DeepSeek"));
-    bubble.appendChild(el("div", "", o.text));
-    box.appendChild(bubble);
-    box.scrollTop = box.scrollHeight;
+    recordChat("ds", o.text);
+    appendChatBubble("ds", o.text);
     SYS.applyEffects(o.fx);
     if (o.set) SYS.state.flags[o.set] = true;
     if (o.give && !SYS.state.args.includes(o.give)) {
@@ -1423,7 +1518,7 @@ const ENGINE = (() => {
   function snapshot() {
     /* pump() 在阻塞节点上会把 cur.idx 推到"下一个"；对 say 之外的选择 / 工作台 / 结局，
        那个位置可能正好是场景末尾，读档会直接回标题。所以这些节点存"当前节点"的位置。 */
-    const blocking = pending && pending.t !== "say" && pending.t !== "chapter";
+    const blocking = (pending && pending.t !== "say" && pending.t !== "chapter") || !!chatDraft;
     const at = blocking ? { scene: cur.scene, idx: Math.max(0, cur.idx - 1) } : cur;
     return JSON.parse(JSON.stringify({ cur: at, hintKey, state: SYS.state }));
   }
