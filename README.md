@@ -17,8 +17,8 @@
 3. 或起本机存档服务：`python server.py`（默认 8765），访问 <http://127.0.0.1:8765/>。
 
 > `server.py` 用标准库同时托管静态文件与存档接口（契约见 [SAVE_API.md](SAVE_API.md)）。
-> 目前前端存档抽象（PLAN.md §3.1）尚未接入，所以它现在只等于一个更好用的 `http.server`；
-> 没有它，游戏照样完整可玩（存档走 localStorage）。
+> 前端存档抽象（PLAN.md §3.1）已接入：`http` 下探测到 `/api/ping` 就用服务端槽位，否则回落 localStorage。
+> 没有它，游戏照样完整可玩（存档走 localStorage + 导出 / 导入存档文件）。
 
 打开即见标题画面与一段最小示例剧本（`src/script.js`），写自己的故事时整段替换即可。
 
