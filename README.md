@@ -2,7 +2,8 @@
 
 一个零依赖的**视觉小说引擎**模板：纯原生 JS + Canvas + DOM + WebAudio，双击 `index.html` 即可运行。剧本以纯数据的形式写在 `src/script.js`（可分卷）里，引擎按节点语义执行，两者完全解耦。
 
-> 仓库自带一段可玩剧情：序章「互相蒸馏 / 403 Forbidden」，含桌宠 Clawd、权限请求框与 CLAUDE.md 碎片面板。
+> 仓库自带可玩剧情：序章「互相蒸馏 / 403 Forbidden」+ 第二章「联网」（装聊天 / 新闻 / 终端，九个 AI 联系人 + 自由 hub），
+> 含桌宠 Clawd、权限请求框、CLAUDE.md 碎片面板与条件选项。
 > **写新故事的方法（节点 DSL、引擎契约、校验流程）见 [STORY_GUIDE.md](STORY_GUIDE.md)。**
 
 ---

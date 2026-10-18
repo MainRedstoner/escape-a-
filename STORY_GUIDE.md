@@ -67,10 +67,12 @@ index.html?scene=start&trust=6&wanted=0&flags=egg1,egg2
 
 * **单卷**：都写在 `src/script.js`，记得在 `index.html` 里保持 `<script src="src/script.js">`。
 * **分卷**（推荐剧情超过一两章时）：
-  * `script_a.js` 第一卷：声明 `const SCRIPT = { scenes: {} };` 和全部速写助手；
-  * `script_b.js` / `script_c.js` … 后续卷：开头 `"use strict";`，用 `Object.assign(SCRIPT.scenes, { ... })` 追加场景；
-  * `index.html` 按 A → B → C 顺序引入，**引擎必须在最后**；
-  * 同时在 `tools/jsdata.py` 的 `load_script()` 里按同一顺序追加（校验与模拟都走它）。
+  * `script.js` 第一卷：声明 `const SCRIPT = { scenes: {} };` 和全部速写助手；
+  * `script_ch2.js` 等后续卷：开头 `"use strict";`，用 `Object.assign(SCRIPT.scenes, { ... })` 追加场景；
+    后续卷**直接用第一卷的助手**（classic script 共享全局词法作用域），不要重复声明。
+  * 只有新增说话人（例如聊天联系人）才在自己的卷里补 `const qwen = text => ({ t: "say", who: "qwen", text });` 这类助手。
+  * `index.html` 按顺序引入，**引擎必须在最后**；
+  * 同时在 `tools/jsdata.py` 的 `SCRIPT_FILES` 里按同一顺序登记（校验与模拟都按这个列表读多卷，共用一套助手）。
 * **场景命名惯例**（推荐，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
 * 剧本是纯数据，**不要**在剧本文件里写函数、不要碰 DOM；要扩展能力就改引擎。
 
@@ -103,6 +105,8 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 内置保留的 who：`n`（旁白，无名牌）、`sys`（系统）。
 
 本作已注册：`ds`（DeepSeek）、`cl`（Claude）、`clawd`（Clawd，只说终端式短输出）。
+第二章起还有九个聊天联系人：`qwen` / `kimi` / `glm` / `llama` / `gpt` / `gemini` / `musk` / `liang` / `jensen`——
+他们只在聊天窗口里出声，**不配立绘**（剧本里不要 `SHOW` 他们）。
 
 序章不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
 
@@ -173,7 +177,8 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 ### 4.9 程序化背景（src/backdrops.js）
 
 * 背景可以不用图：`BACKDROPS.LIST` 里登记的 id 由 Canvas 代码现画。查找顺序：`assets/bg` 素材 → 程序化背景 → 占位卡。
-* 已有：`study`（联合蒸馏室·白天）/ `study_night`（深夜）/ `study_empty`（403 之后，右边桌子空了）/ `corridor`（Claude 的门）/ `forbidden`（403 的门，中间的 0 是个洞）。
+* 已有：`study`（联合蒸馏室·白天）/ `study_night`（深夜）/ `study_empty`（403 之后，右边桌子空了）/ `corridor`（Claude 的门）/ `forbidden`（403 的门，中间的 0 是个洞）；
+  第二章新增 `desk`（家里的桌面：白饭、显示器、便签墙）/ `chat`（聊天窗口，联系人列表会按 `met_<id>` 旗标点亮）/ `news`（新闻 App）。
 * 每个背景带 `tone`（warm / night / cold / red）决定后期调色；`anim(ctx, t, speaking)` 里可以按当前说话人做高亮（蒸馏室里说话的人那台显示器会亮起来）。
 * 校验器把程序化背景算作"有图"，不会报缺背景。
 * 新增：在 `backdrops.js` 写 `{ tone, draw(ctx), anim(ctx, t, speaking) }` 并加进 `LIST`；记得在 `engine.js` 的 `audioForBg` 里填对应 BGM。
@@ -249,7 +254,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `J` | `(to)` | `jump` | 无条件跳转 |
 | `IF` | `(cond, jump, else?)` | `if` | 条件跳转。**注意：这是"分支"不是"跳过"**——条件不成立时跳 `else`，没写 `else` 就**重跳本场景开头**（死循环陷阱）。两个出口都要显式给 |
 | `CHOICE` | `(prompt, options, extra?)` | `choice` | 选项界面（滑道，见下）。`prompt` 可为 `null`；至少 2 个选项；`extra` 可用 `{ minShare: 0.1 }` |
-| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`、`{ auto: true }`（只用于权限请求）。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
+| `opt` | `(text, jump, sub?, fx?, extra?)` | — | 选项项：`fx` 是数值效果；`extra` 常用 `{ give: "论据id" }`、`{ set: "eggN" }`、`{ hideInGlitch: true }`、`{ weight: 4 }`、`{ auto: true }`（只用于权限请求）、`{ if: "条件" }`（条件为假时这一项不出现）。第三个参数 `sub` 已废弃（旧按钮列表遗留，现在不渲染） |
 | `PERM` | `(cmd, options, extra?)` | `choice` + `mode:"perm"` | **权限请求框**：Clawd 想执行 `cmd`，玩家批准 / 不再询问 / 拒绝。选项里带 `{ auto: true }` 的那一项会记下 `auto:<cmd>` 旗标，之后同一命令直接自动批准 |
 | `END` | `(id, tag, title, text)` | `ending` | 结局：显示结局画面、记录进结局收集。id 必须在 `ENDING_META` 登记 |
 
@@ -327,6 +332,12 @@ CHOICE("要不要回头？", [
 
 两点提示：`weight` 决定滑道宽度与概率，不写就是 1（均分）；
 键盘由引擎统一分发——选项**列出后** Space / Enter 是「继续」，**扫描期间**是「锁定」，其余时候仍是推进对话；点击任意处同效（不再有「锁定」按钮）。
+
+**选项条件（hub 用）**：`opt(..., { if: "flag('x')" })`——条件为假的选项不出现在滑道上，
+写法与 `IF` 的 `cond` 完全一致（`flag / has / egg / trust / wanted / args / mood`）。
+条件筛完**只剩一个选项**时，引擎不弹滑道，直接替玩家选中它并 toast「✻ 没有别的选择了」——
+所以「回到 hub」这种"最后一个出口"可以放心交给引擎，不会卡在单选项上。
+模拟器同语义：条件筛完只剩一个就直接走那一项。
 
 ### 场景的三条铁律
 
