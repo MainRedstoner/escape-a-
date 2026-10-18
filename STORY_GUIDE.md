@@ -240,7 +240,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | 助手 | 签名 | 节点 | 语义 |
 | --- | --- | --- | --- |
 | `CW` | `(text)` | `say` | Clawd 说话（who=clawd）；只写终端式短输出，如 `✻ Pondering…` |
-| `PET` | `("show", place?)` | `pet` | 显示 Clawd；`place` ∈ `corner / desk / door` |
+| `PET` | `("show", place?)` | `pet` | 显示 Clawd；`place` ∈ `corner / desk / home / door`（`home` = 第二章家里桌面，显示器前） |
 | `PET` | `("hide")` / `("own")` | `pet` | 隐藏 / 成为玩家的桌宠（toast「获得桌宠」，解锁拖动、问 Clawd、待办） |
 | `PET` | `("mood", ±d)` | `pet` | 心情 ±，0~10 |
 | `PET` | `("anim", name)` | `pet` | 临时姿势：`happy / scared / working / sleep / idle` |

@@ -66,6 +66,7 @@ const CLAWD = (() => {
   function home() {
     const s = S();
     if (s.place === "desk") return anchor("desk");
+    if (s.place === "home") return anchor("home");
     if (s.x !== null && s.y !== null) return [s.x, s.y];
     return CORNER.slice();
   }
@@ -176,7 +177,7 @@ const CLAWD = (() => {
           pos = from.slice();
           emerge = { t0: now, from, floor: anchor("floor") };
         } else {
-          s.place = where === "desk" ? "desk" : "corner";
+          s.place = (where === "desk" || where === "home") ? where : "corner";
           pos = home();
           pop = { t0: now };
         }

@@ -35,7 +35,7 @@ BGMS = ["sea", "lobby", "tense", "warm", "cold", "grave", "sad", "boss", "ending
 FXS = ["shake", "flash", "alarm", "alarmOff", "glitch", "glitchOff", "403", "403Off"]
 # 桌宠（src/pet.js）的节点参数
 PET_OPS = ["show", "hide", "own", "mood", "anim", "say"]
-PET_PLACES = ["corner", "desk", "door"]
+PET_PLACES = ["corner", "desk", "home", "door"]
 PET_ANIMS = ["idle", "happy", "scared", "working", "sleep"]
 TODO_OPS = ["add", "done"]
 

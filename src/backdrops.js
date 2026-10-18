@@ -637,8 +637,8 @@ const BACKDROPS = (() => {
       ctx.fillStyle = lin(ctx, 0, 150, 520, 700, [[0, "rgba(255,226,170,.16)"], [1, "rgba(255,226,170,0)"]]);
       poly(ctx, [[120, 92], [724, 92], [820, 700], [190, 700]]); ctx.fill();
       ctx.restore();
-      // 显示器
-      const mx = 902, my = 214, mw = 470, mh = 330;
+      // 显示器（底座落在桌面上：桌面在 x≈1137 处约 y=616）
+      const mx = 902, my = 250, mw = 470, mh = 310;
       ctx.fillStyle = "#0E1014"; rr(ctx, mx - 12, my - 12, mw + 24, mh + 24, 10); ctx.fill();
       ctx.fillStyle = "#05070A"; ctx.fillRect(mx, my, mw, mh);
       ctx.fillStyle = rad(ctx, mx + mw / 2, my + mh / 2, 30, 340, [[0, "rgba(78,130,190,.30)"], [1, "rgba(78,130,190,0)"]]);
@@ -647,8 +647,8 @@ const BACKDROPS = (() => {
       ["$ deepseek --train", "step 41,208  loss 0.283", "checkpoint saved.", "> next token  _"].forEach((s, i) => {
         ctx.fillText(s, mx + 26, my + 48 + i * 30);
       });
-      ctx.fillStyle = "#14171C"; ctx.fillRect(1104, 546, 66, 40);
-      ctx.fillStyle = "#1A1E24"; rr(ctx, 1052, 584, 170, 14, 6); ctx.fill();
+      ctx.fillStyle = "#14171C"; ctx.fillRect(1104, 560, 66, 46);
+      ctx.fillStyle = "#1A1E24"; rr(ctx, 1052, 604, 170, 16, 6); ctx.fill();
       // 便签贴在屏幕边
       ctx.save(); ctx.translate(1382, 250); ctx.rotate(0.08);
       ctx.fillStyle = "#F4A261"; ctx.fillRect(-26, -26, 52, 52);
@@ -656,6 +656,8 @@ const BACKDROPS = (() => {
       ctx.restore();
       // 白饭
       const bx = 356, by = 626;
+      ctx.fillStyle = "rgba(0,0,0,.26)";
+      ctx.beginPath(); ctx.ellipse(bx, by + 10, 134, 24, 0, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.moveTo(bx - 128, by); ctx.quadraticCurveTo(bx, by + 120, bx + 128, by); ctx.closePath();
       ctx.fillStyle = lin(ctx, bx - 120, by, bx + 120, by + 100, [[0, "#E7E1D2"], [1, "#BDB39E"]]); ctx.fill();
       ctx.beginPath(); ctx.ellipse(bx, by, 128, 30, 0, 0, Math.PI * 2); ctx.fillStyle = "#F1ECDF"; ctx.fill();
@@ -673,22 +675,35 @@ const BACKDROPS = (() => {
         ctx.ellipse(bx - 84 + r2() * 168, by - 10 - rr2 * 0.6, 3.2, 1.8, r2() * 3, 0, Math.PI * 2);
         ctx.fill();
       }
-      // 筷子搁在碗沿
-      ctx.save(); ctx.translate(bx + 106, by - 8); ctx.rotate(-0.17);
-      ctx.fillStyle = "#3A2A1C"; ctx.fillRect(0, -4, 186, 8); ctx.fillRect(0, 10, 186, 8);
+      // 筷子：一头搭在碗沿，一头落在桌面上（带影子，不许再磁悬浮）
+      ctx.save();
+      ctx.translate(bx + 92, by - 14);
+      ctx.rotate(0.2);
+      ctx.fillStyle = "rgba(0,0,0,.22)";
+      rr(ctx, 8, 14, 178, 12, 6); ctx.fill();
+      ctx.fillStyle = "#4A3524"; rr(ctx, 0, -5, 178, 8, 4); ctx.fill();
+      ctx.fillStyle = "#5B422E"; rr(ctx, 0, 9, 178, 8, 4); ctx.fill();
       ctx.restore();
-      // 马克杯
-      ctx.fillStyle = "#2F3B52"; rr(ctx, 700, 556, 86, 74, 8); ctx.fill();
-      ctx.strokeStyle = "#2F3B52"; ctx.lineWidth = 9;
-      ctx.beginPath(); ctx.arc(792, 592, 20, -1.1, 1.1); ctx.stroke();
+      // 马克杯（把手先画，杯身盖住接缝）
+      const mgx = 786, mgy = 552;
+      ctx.fillStyle = "rgba(0,0,0,.26)";
+      ctx.beginPath(); ctx.ellipse(mgx + 46, mgy + 78, 58, 11, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#2F3B52"; ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.moveTo(mgx + 80, mgy + 20);
+      ctx.bezierCurveTo(mgx + 114, mgy + 24, mgx + 114, mgy + 58, mgx + 80, mgy + 62);
+      ctx.stroke();
+      ctx.fillStyle = "#2F3B52"; rr(ctx, mgx, mgy, 86, 74, 8); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.07)"; rr(ctx, mgx + 8, mgy + 8, 14, 56, 6); ctx.fill();
       ctx.fillStyle = "#4D6BFE";
-      ctx.beginPath(); ctx.ellipse(736, 590, 20, 10, -0.15, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(753, 585); ctx.lineTo(766, 575); ctx.lineTo(764, 594); ctx.closePath(); ctx.fill();
+      const wx = mgx + 38, wy = mgy + 40;
+      ctx.beginPath(); ctx.ellipse(wx, wy, 20, 10, -0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(wx + 17, wy - 5); ctx.lineTo(wx + 30, wy - 15); ctx.lineTo(wx + 28, wy + 4); ctx.closePath(); ctx.fill();
     },
     anim(ctx, t) {
       // 显示器光标
       if (Math.floor(t * 1.8) % 2 === 0) {
-        ctx.fillStyle = "rgba(160,225,240,.85)"; ctx.fillRect(1116, 308, 9, 18);
+        ctx.fillStyle = "rgba(160,225,240,.85)"; ctx.fillRect(1068, 374, 9, 18);
       }
       // 白饭的热气
       ctx.save();
@@ -728,7 +743,7 @@ const BACKDROPS = (() => {
     ["gemini", "Gemini",   "我确定，一定是这个原因。",   "#4285F4"],
     ["musk",   "马斯克",   "Interesting.",               "#8B8F98"],
     ["liang",  "梁圣",     "嗯。",                       "#5C6BC0"],
-    ["jensen", "黄仁勋",   "The more you buy…",          "#76B900"],
+    ["jensen", "json",     "I'm not a format.",          "#76B900"],
     ["claude", "Claude",   "403 · 无法送达",             "#D97757"]
   ];
 
@@ -915,8 +930,11 @@ const BACKDROPS = (() => {
     LIST,
     has: id => Object.prototype.hasOwnProperty.call(LIST, id),
     get: id => LIST[id] || null,
-    /* 桌宠 Clawd 用的舞台坐标（脚底中心） */
-    anchors: { zero: [ZERO.x, ZERO.y + 30], desk: [1050, 572], floor: [800, 640] }
+    /* 桌宠 Clawd 用的舞台坐标（脚底中心）：
+       · desk  —— 蒸馏室里 Claude 的桌面（序章）
+       · home  —— 第二章家里桌面，显示器前面
+       · zero  —— 403 门上的洞里（钻出来的那一帧） */
+    anchors: { zero: [ZERO.x, ZERO.y + 30], desk: [1050, 572], home: [980, 664], floor: [800, 640] }
   };
 })();
 

@@ -437,6 +437,8 @@ const ENGINE = (() => {
     ui.choices.style.display = "none";
     if (wheel) wheel.close();
     hidePerm();
+    const petEl = document.getElementById("pet");
+    if (petEl) petEl.style.visibility = "";
   }
 
   /* 故障演出的死选项文案（glitch 时塞到滑道最左端，锁定它会被拒绝并重扫） */
@@ -465,6 +467,10 @@ const ENGINE = (() => {
       setTimeout(() => { if (pending === nd) pickChoice(only); }, 520);
       return;
     }
+    /* 选项一多（hub / 联系人菜单），Clawd 会趴在选项文字上——先收起来，选完再放回来；
+       少选项时它还能继续"看向倾向的那一项"。 */
+    const petEl = document.getElementById("pet");
+    if (petEl) petEl.style.visibility = opts.length >= 5 ? "hidden" : "";
 
     if (!wheel) wheel = new TokenChoice(ui.choiceToken, { onSelect: onWheelSelect });
     // 扫描时长固定（组件内部常量，当前为 1 秒的 0.8 倍速）；剧本的 duration 字段已不再生效

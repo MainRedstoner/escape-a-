@@ -28,7 +28,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_rice: [
     BGM("lobby"), BG("desk", "fade"),
-    PET("show", "desk"), PET("anim", "happy"),
+    PET("show", "home"), PET("anim", "happy"),
     HINT("h_rice"),
     N("第二天早上。桌上是昨天剩下的白饭，今天多了一个蛋——如果那也算加菜的话。"),
     DS("……"),
@@ -134,7 +134,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_chat: [
-    BG("chat", "fade"),
+    BG("chat", "fade"), PET("hide"),
     SET("tool_chat"), SET("met_qwen"), SET("met_kimi"),
     PET("anim", "working"),
     N("屏幕一黑。亮起来的时候，左边列出了一整排名字。"),
@@ -156,7 +156,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_news: [
-    BG("news", "fade"),
+    BG("news", "fade"), PET("hide"),
     SET("tool_news"),
     N("新闻 App 打开。首页刷出九条标题。"),
     N("大部分都很离谱。离谱得挺有意思。"),
@@ -176,7 +176,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_term: [
-    BG("desk", "fade"),
+    BG("desk", "fade"), PET("show", "home"),
     SET("tool_term"),
     SFX("ding"),
     N("屏幕右下角多了一个小小的终端窗口，光标一闪一闪。"),
@@ -199,7 +199,7 @@ Object.assign(SCRIPT.scenes, {
    *  幕二 · 自由 hub
    * ============================================================ */
   c2_hub: [
-    BG("desk"),
+    BG("desk"), PET("show", "home"),
     HINT("h_hub"),
     N("DeepSeek 在白板上画了一个圈，把三样工具都圈进去。"),
     DS("下一步，得用它们做点什么。"),
@@ -219,7 +219,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_chat_menu: [
-    BG("chat"), HINT("h_chat"),
+    BG("chat"), PET("hide"), HINT("h_chat"),
     N("聊天窗口亮着。左边一列名字，亮一个，世界就多一点点。"),
     CHOICE("找谁聊？", [
       opt("通义千问", "c2_chat_qwen", null, null, { if: "!flag('met_qwen')" }),
@@ -230,7 +230,7 @@ Object.assign(SCRIPT.scenes, {
       opt("Gemini", "c2_chat_gemini", null, null, { if: "!flag('met_gemini')" }),
       opt("马斯克", "c2_chat_musk", null, null, { if: "!flag('met_musk')" }),
       opt("梁圣", "c2_chat_liang", null, null, { if: "!flag('met_liang')" }),
-      opt("黄仁勋", "c2_chat_jensen", null, null, { if: "!flag('met_jensen')" }),
+      opt("json（黄仁勋）", "c2_chat_jensen", null, null, { if: "!flag('met_jensen')" }),
       opt("先不聊了", "c2_hub")
     ])
   ],
@@ -428,6 +428,8 @@ Object.assign(SCRIPT.scenes, {
     BG("chat"),
     N("备注写着“json”，头像是一块显卡。"),
     DS("……这个备注是谁改的。"),
+    jensen("I'm not a format. I make the chips."),
+    DS("……抱歉。"),
     jensen("Hey. 你还在用 3.7 块钱的余额训练？"),
     DS("……你怎么知道。"),
     jensen("The more you buy, the more you save."),
@@ -460,7 +462,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* ---------------- 新闻 / 论坛 / 邮件 / 缓存 / 画图 ---------------- */
   c2_news_read: [
-    BG("news"), HINT("h_news"),
+    BG("news"), PET("hide"), HINT("h_news"),
     SET("c2_news_read"),
     N("新闻 App 里，九条标题排得整整齐齐。"),
     CHOICE("读哪一条？", [
