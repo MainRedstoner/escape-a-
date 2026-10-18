@@ -888,7 +888,11 @@ const ENGINE = (() => {
 
   /* ---------------- 存读档 ---------------- */
   function snapshot() {
-    return JSON.parse(JSON.stringify({ cur, hintKey, state: SYS.state }));
+    /* pump() 在阻塞节点上会把 cur.idx 推到"下一个"；对 say 之外的选择 / 工作台 / 结局，
+       那个位置可能正好是场景末尾，读档会直接回标题。所以这些节点存"当前节点"的位置。 */
+    const blocking = pending && pending.t !== "say" && pending.t !== "chapter";
+    const at = blocking ? { scene: cur.scene, idx: Math.max(0, cur.idx - 1) } : cur;
+    return JSON.parse(JSON.stringify({ cur: at, hintKey, state: SYS.state }));
   }
   /* 写档走 SAVE（异步）。返回 Promise<boolean>，不会 reject：
    * 手动存档成功 / 失败都如实 toast；自动存档 fire-and-forget，只在失败时提示，不阻塞推进。 */
@@ -909,6 +913,10 @@ const ENGINE = (() => {
     SYS.state = data.state;
     ART.resetFX();               // 读档时清掉上一局的跨场景特效（403 / 警报 / 故障）
     cur = data.cur;
+    /* 旧版本的存档可能把位置推到了场景末尾（阻塞节点之后）：夹回最后一个节点重新播，
+       总比读档直接回标题好。 */
+    const nodes = SCRIPT.scenes[cur.scene];
+    if (nodes && cur.idx >= nodes.length) cur.idx = Math.max(0, nodes.length - 1);
     hintKey = data.hintKey || "";
     started = true;
     showGameUI();
@@ -934,6 +942,7 @@ const ENGINE = (() => {
   function validateSnapshot(p) {
     if (typeof p.cur.scene !== "string" || !SCRIPT.scenes[p.cur.scene]) return "场景不存在";
     if (!Number.isInteger(p.cur.idx) || p.cur.idx < 0) return "场景位置无效";
+    if (p.cur.idx > SCRIPT.scenes[p.cur.scene].length) return "场景位置超出范围";
     const st = p.state;
     if (typeof st.trust !== "number" || typeof st.wanted !== "number") return "数值缺失";
     if (!Array.isArray(st.args) || !st.flags || typeof st.flags !== "object" || !st.vis) return "状态结构不完整";
