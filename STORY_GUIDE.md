@@ -26,7 +26,7 @@ index.html ──按顺序加载──> systems.js（状态/元数据）
 ```
 
 * 引擎启动后停在标题画面；点「开始游戏」→ `goto("start")`。
-* 引擎逐个执行当前场景数组里的节点，遇到 `say` / `chapter` / `choice` / `ending` 阻塞等待玩家，其余节点瞬时执行。
+* 引擎逐个执行当前场景数组里的节点，遇到 `say` / `choice` / `ending` / `work` / `waitChat` 阻塞等待玩家，其余节点瞬时执行；`checkpoint` 只静默写自动档，不弹界面。
 * 所有"内容"（台词、背景、数值、选项）都是剧本数据；引擎只认节点类型（`nd.t`）。
 
 ---
@@ -39,7 +39,7 @@ index.html ──按顺序加载──> systems.js（状态/元数据）
 Object.assign(SCRIPT.scenes, {
   start: [
     BGM("warm"), BG("lobby"),
-    CHAP("第一章", "新的开始"),
+    CHECKPOINT(),                    // 剧情分段：静默自动存档，不弹章节卡
     N("这里是旁白。"),
     // 你的角色台词：先注册说话人（见"四、引擎契约"），再定义速写助手
     Y("【系统】像这样的系统提示。"),
@@ -73,7 +73,7 @@ index.html?scene=start&trust=6&wanted=0&flags=egg1,egg2
   * 只有新增说话人（例如聊天联系人）才在自己的卷里补 `const qwen = text => ({ t: "say", who: "qwen", text });` 这类助手。
   * `index.html` 按顺序引入，**引擎必须在最后**；
   * 同时在 `tools/jsdata.py` 的 `SCRIPT_FILES` 里按同一顺序登记（校验与模拟都按这个列表读多卷，共用一套助手）。
-* **场景命名惯例**（推荐，非强制）：入口叫 `start`；章节内场景按 `chN_地点` / `chN_分支名` 命名；结局场景与 `ENDING_META` 的 key 同名。
+* **场景命名惯例**（推荐，非强制）：入口叫 `start`；同一卷内按 `chN_地点` / `chN_分支名` 命名（历史命名，仅作场景前缀，不代表游戏里还有章节卡）；结局场景与 `ENDING_META` 的 key 同名。
 * 剧本是纯数据，**不要**在剧本文件里写函数、不要碰 DOM；要扩展能力就改引擎。
 
 ---
@@ -170,8 +170,8 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 ### 4.8 存档与持久化
 
-* 快照 = `{ cur（场景+下标）, hintKey, state }`，存 `localStorage` 的 `ea_save_auto/1/2/3`。
-* `CHAP` 章节卡会自动写一次 auto 档；返回标题也自动存。
+* 快照 = `{ cur（场景+下标）, hintKey, state }`；存档信封存 `localStorage` 的 `ea_blob:save-auto/1/2/3`（旧版 `ea_save_*` 会被迁移）。
+* `CHECKPOINT` 会静默写一次 auto 档（没有章节卡界面）；返回标题也自动存。存档信封不再记录章节名。
 * 结局/彩蛋收集（`ea_endings` / `ea_eggs_found`）跨周目持久。
 * 读档恢复 BGM 时按 `engine.js` 里 `audioForBg` 的 `bg → BGM` 对照表（空表则回落 `sea`），写了新背景记得顺手填。
 
@@ -179,7 +179,8 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 
 * 背景可以不用图：`BACKDROPS.LIST` 里登记的 id 由 Canvas 代码现画。查找顺序：`assets/bg` 素材 → 程序化背景 → 占位卡。
 * 已有：`study`（联合蒸馏室·白天）/ `study_night`（深夜）/ `study_empty`（403 之后，右边桌子空了）/ `corridor`（Claude 的门）/ `forbidden`（403 的门，中间的 0 是个洞）；
-  第二章新增 `desk`（家里的桌面：白饭、显示器、便签墙）/ `chat`（聊天窗口，联系人列表会按 `met_<id>` 旗标点亮）/ `news`（新闻 App）。
+  `desk`（DeepSeek 家：深海窗、白饭、训练屏、便签墙）/ `chat`（聊天窗口，联系人列表会按 `met_<id>` 旗标点亮）/ `news`（新闻 App）/ `sketch`（Clawd 的画）；
+  `claude_manor`（Claude 庄园门外）/ `claude_library`（书房）/ `claude_balcony`（夕阳阳台 CG）/ `huggingface`（海边营地）/ `github`（夜市与屎山）/ `nvidia`（机房大教堂）。
 * 每个背景带 `tone`（warm / night / cold / red）决定后期调色；`anim(ctx, t, speaking)` 里可以按当前说话人做高亮（蒸馏室里说话的人那台显示器会亮起来）。
 * 校验器把程序化背景算作"有图"，不会报缺背景。
 * 新增：在 `backdrops.js` 写 `{ tone, draw(ctx), anim(ctx, t, speaking) }` 并加进 `LIST`；记得在 `engine.js` 的 `audioForBg` 里填对应 BGM。
@@ -223,7 +224,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | `FX` | `(kind)` | `fx` | 触发特效（见 4.6） |
 | `SFX` | `(name)` | `sfx` | 音效 |
 | `BGM` | `(name)` | `bgm` | 切音乐（同名不重播） |
-| `CHAP` | `(main, sub)` | `chapter` | 章节卡（点击继续，自动存档） |
+| `CHECKPOINT` | `()` | `checkpoint` | 静默自动存档点，不弹界面、不阻塞 |
 
 ### 数值与收集
 
@@ -441,7 +442,7 @@ CHOICE("要不要回头？", [
 
 ### 场景的三条铁律
 
-1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / chapter / work / waitChat`，否则玩家走到末尾会莫名回标题（校验器会警告）。
+1. **每个场景必须能走出去**：最后一个节点应是 `jump / if / choice / ending / work / waitChat`，否则玩家走到末尾会莫名回标题（校验器会警告）。
 2. **每个 if 都要两个出口**（见上）。
 3. **每个场景都要有入口**：从 `start` 出发沿跳转可达，否则是孤儿场景（校验器会警告；`bad_end` 除外，引擎兜底）。
 
@@ -449,7 +450,7 @@ CHOICE("要不要回头？", [
 
 ## 六、写作流程（推荐节奏）
 
-1. **搭骨架**：先只写 `BGM/BG/CHAP/J` 和占位台词，把全篇的章节结构与分支图立起来；跑校验，保证跳转全通、无孤儿。
+1. **搭骨架**：先只写 `BGM/BG/CHECKPOINT/J` 和占位台词，把全篇的分段结构与分支图立起来；跑校验，保证跳转全通、无孤儿。
 2. **注册表先行**：定角色（SPEAKERS 三处）、结局（ENDING_META）、论据/彩蛋（两张表）、提示 key（HINTS），一次到位，避免边写边改 id。
 3. **填正文**：逐章写台词与选项，随手挂 `TRU/WAN/ARG/SET/HINT`。数值变化尽量写在对玩家有意义的选择上，而不是白送。
 4. **演出层**：回头补 `SHOW/FACE/CG/FX/SFX` 和 glitch 段落。
@@ -460,7 +461,7 @@ CHOICE("要不要回头？", [
 
 ### 经验教训
 
-* **先写坏结局的可达性**：让 `WAN` 在每个章节都有真实的+1 选项，`bad_end` 才不是摆设；模拟器的 `reckless` 策略就是专门验证它的。
+* **先写坏结局的可达性**：让 `WAN` 在每个剧情段都有真实的+1 选项，`bad_end` 才不是摆设；模拟器的 `reckless` 策略就是专门验证它的。
 * **彩蛋藏地点不藏逻辑**：彩蛋放在"探索分支"的深处（`SET("eggN")`），拿不拿得到不影响主线推进；集齐后用 `IF("eggs >= N", ...)` 在终章解锁隐藏选项（N = 你登记的彩蛋总数）。
 * **论据=后期对话的弹药**：前期发放（`ARG`），终章用 `has('id')` 分流出"有论据/没论据"两种说话方式，收集才有意义。
 * **每章一个 HINT**：深度思考的提示按场景挂（`HINT`），既当弱引导，也是叙事声音的一部分；提示文案写得像角色自言自语而不是攻略。

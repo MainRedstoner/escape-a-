@@ -7,7 +7,7 @@
  *     接口契约见 SAVE_API.md；后端只认 key 与字节，存档格式全归本文件。
  *
  * 约定：
- *   · 一条存档 = 一份信封 { format, version, slot, ts, chapter, payload }，
+ *   · 一条存档 = 一份信封 { format, version, slot, ts, payload }，
  *     localStorage 存的、导出的 .json、PUT 的 body 是同一份字节，迁移只写在本文件。
  *   · init() 时把全部槽位拉进内存缓存，UI 用 meta() / hasAny() / latest() 同步渲染；
  *     只有 read / write / remove / importFile 是异步的。
@@ -163,7 +163,7 @@ const SAVE = (() => {
     0(old, slot) {
       return {
         format: FORMAT, version: 1, slot: slot || null,
-        ts: old.ts || 0, chapter: old.chapter || (old.state && old.state.chapter) || "",
+        ts: old.ts || 0,
         payload: { cur: old.cur, hintKey: old.hintKey || "", state: old.state }
       };
     }
@@ -196,10 +196,10 @@ const SAVE = (() => {
     return env;
   }
 
-  function encode(slot, payload, meta) {
+  function encode(slot, payload) {
     return {
       format: FORMAT, version: VERSION, slot,
-      ts: Date.now(), chapter: (meta && meta.chapter) || "",
+      ts: Date.now(),
       payload
     };
   }
@@ -236,7 +236,7 @@ const SAVE = (() => {
     if (c.error) return { slot, error: c.error.code, message: describe(c.error) };
     const st = c.env.payload.state;
     return {
-      slot, ts: c.env.ts, chapter: c.env.chapter,
+      slot, ts: c.env.ts,
       trust: st.trust, wanted: st.wanted
     };
   }
@@ -310,8 +310,8 @@ const SAVE = (() => {
     });
   }
 
-  function write(slot, payload, metaInfo) {
-    return writeEnvelope(slot, encode(slot, JSON.parse(JSON.stringify(payload)), metaInfo));
+  function write(slot, payload) {
+    return writeEnvelope(slot, encode(slot, JSON.parse(JSON.stringify(payload))));
   }
 
   function remove(slot) {

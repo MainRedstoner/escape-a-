@@ -67,15 +67,6 @@
   #choicePrompt{background:rgba(10,13,18,.9);border:1px solid var(--line);color:var(--muted);
     padding:8px 26px;font-size:19px;margin-bottom:10px;display:none;letter-spacing:1px;}
 
-  /* ---------- 章节卡 ---------- */
-  #chapterCard{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;background:rgba(3,5,8,.90);cursor:pointer;z-index:30;}
-  #chapterCard .chMain{font-family:"Noto Serif SC","SimSun",serif;font-size:64px;color:#EEF2F7;
-    letter-spacing:16px;font-weight:700;}
-  #chapterCard .chSub{font-family:"Noto Serif SC","SimSun",serif;font-size:28px;color:var(--clay);
-    margin-top:20px;letter-spacing:10px;}
-  #chapterCard .chHint{margin-top:64px;font-size:15px;color:rgba(200,210,225,.38);letter-spacing:4px;}
-
   /* ---------- 提示气泡 ---------- */
   #hintBubble{position:absolute;top:104px;right:36px;width:470px;display:none;z-index:25;
     background:rgba(12,16,22,.96);border:1px solid var(--line);border-top:2px solid var(--blue);
@@ -384,7 +375,6 @@
         <div class="chip" id="chipWanted"><span class="ic">▲</span>风控 <b id="stWanted">0</b>/10</div>
         <div class="chip dim"><span class="ic">▤</span>记忆碎片 <b id="stArg">0/0</b></div>
         <div class="chip dim"><span class="ic">◇</span>彩蛋 <b id="stEgg">0/0</b></div>
-        <div class="chip" id="chipChap"><span class="ic">▣</span><b id="stChap">序章</b></div>
       </div>
       <div id="hudBtns">
         <button class="hbtn" id="btnHint">深度思考(H)</button>
@@ -423,12 +413,6 @@
       </div>
     </div>
 
-    <div id="chapterCard">
-      <div class="chMain" id="chMain"></div>
-      <div class="chSub" id="chSub"></div>
-      <div class="chHint">—— 点击任意处继续 ——</div>
-    </div>
-
     <div id="hintBubble">
       <h4>深度思考中……</h4>
       <p id="hintText"></p>
@@ -440,7 +424,7 @@
       <div class="tMain">Escape <span class="div">A÷</span></div>
       <div class="tSub">小鲸、小克，和一扇 403 的门</div>
       <div id="titleMenu"></div>
-      <div class="tNote">序章试玩版 · 零依赖 · 双击即玩</div>
+      <div class="tNote">试玩版 · 零依赖 · 双击即玩</div>
     </div>
 
     <div id="ovHist" class="overlay"><div class="panel"><h2>记录（上下文窗口）</h2>
@@ -544,11 +528,11 @@
 
       <h3>内置系统</h3>
       <ul>
-        <li><b>演出</b>：打字机对话、立绘调度与差分、背景 / CG 素材位（缺图自动显示规格占位卡）、章节卡、特效与故障演出。</li>
+        <li><b>演出</b>：打字机对话、立绘调度与差分、背景 / CG 素材位（缺图自动显示规格占位卡）、特效与故障演出。</li>
         <li><b>数值</b>：信任 / 反感度两条数值线，反感度满自动进入坏结局场景。</li>
         <li><b>收集</b>：论据（ARG）、彩蛋（SET "egg*"）、多结局（END），结局收集页与 localStorage 持久化。</li>
         <li><b>深度思考</b>：按 H 查看场景提示（systems.js 的 HINTS），可被"污染"成假提示。</li>
-        <li><b>外围</b>：存读档（3 槽 + 章节自动档）、对话历史、自动播放、设置、调试 URL 参数。</li>
+        <li><b>外围</b>：存读档（3 槽 + 自动档）、对话历史、自动播放、设置、调试 URL 参数。</li>
       </ul>
 
       <h3>写一个新故事</h3>

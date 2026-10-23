@@ -37,7 +37,7 @@
 | `Ctrl`（按住） | 快进 |
 | `Esc` | 菜单 |
 
-存档：3 个手动槽位 + 章节自动存档，标题画面与游戏内共用一个「存档 / 读档」面板：点槽位展开读取 / 保存 / 导出 / 导入 / 删除，覆盖与删除都会先确认。`file://` 直开时走 localStorage；用 `python server.py` 起服务时写本机磁盘（换浏览器不丢档）。契约见 SAVE_API.md。
+存档：3 个手动槽位 + 剧情检查点自动存档，标题画面与游戏内共用一个「存档 / 读档」面板：点槽位展开读取 / 保存 / 导出 / 导入 / 删除，覆盖与删除都会先确认。`file://` 直开时走 localStorage；用 `python server.py` 起服务时写本机磁盘（换浏览器不丢档）。契约见 SAVE_API.md。
 
 设置：游戏内 HUD 的「设置」或标题菜单打开，可调文字速度 / 自动播放间隔 / 音量 / 打字音效 / 素材角标，改动会记在 localStorage。
 
@@ -50,7 +50,7 @@ index.html            页面骨架 / 暗色主题 / 覆盖层 / 标题画面
 assets/manifest.js    素材清单（自动生成；file:// 下只能用 <script> 加载，所以是 .js）
 assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分），缺图自动显示规格占位卡
 src/systems.js        状态、数值（羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
-src/backdrops.js      程序化背景：Canvas 手绘的蒸馏室 / 走廊 / 403 之门（零素材）
+src/backdrops.js      程序化背景：Canvas 手绘的蒸馏室 / 走廊 / 深海房间 / 庄园 / 营地 / 夜市 / 机房（零素材）
 src/art.js            绘制层：素材位加载 + 程序化背景 + 占位卡 + 后期（调色 / 暗角 / 颗粒 / 故障 / 403）
 src/pet.js / pet.css  桌宠 Clawd：像素绘制、摸摸 / 拖动、问 Clawd、待办清单
 src/audio.js          WebAudio 芯片音乐与音效（程序化合成，零音频素材）

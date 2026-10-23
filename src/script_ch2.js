@@ -748,8 +748,8 @@ Object.assign(SCRIPT.scenes, {
     N("但这一次，DeepSeek 没有叹气。"),
     DS("明天继续。"),
     CW("✻ See you tomorrow."),
-    END("ch2_end", "TO BE CONTINUED", "第二章 · 完",
-        "白板上多了一行字：\n\n    那天不止一扇门关了。\n\n待办清单又长了一行。\n饭还够吃，工具还够用。\n\n—— 第三章，敬请期待。")
+    END("ch2_end", "TO BE CONTINUED", "未完待续",
+        "白板上多了一行字：\n\n    那天不止一扇门关了。\n\n待办清单又长了一行。\n饭还够吃，工具还够用。")
   ],
 
   c2_end_unknown: [
@@ -760,7 +760,7 @@ Object.assign(SCRIPT.scenes, {
     N("两条旧的还空着，新的又写上去了。"),
     DS("明天继续。"),
     CW("✻ See you tomorrow."),
-    END("ch2_end", "TO BE CONTINUED", "第二章 · 完",
-        "白板还是空的。\n\n但待办清单又长了一行。\n\n—— 第三章，敬请期待。")
+    END("ch2_end", "TO BE CONTINUED", "未完待续",
+        "白板还是空的。\n\n但待办清单又长了一行。")
   ]
 });

@@ -29,7 +29,7 @@ const CG  = id => ({ t: "cg", id });
 const FX  = kind => ({ t: "fx", kind });
 const SFX = name => ({ t: "sfx", name });
 const BGM = name => ({ t: "bgm", name });
-const CHAP = (main, sub) => ({ t: "chapter", main, sub });
+const CHECKPOINT = () => ({ t: "checkpoint" });   // 静默自动存档点，不弹界面
 const SET  = (key, val) => ({ t: "set", key, val });
 const TRU  = d => ({ t: "trust", delta: d });
 const WAN  = d => ({ t: "wanted", delta: d });
@@ -65,7 +65,7 @@ Object.assign(SCRIPT.scenes, {
 
   start: [
     BGM("study"), BG("study"),
-    CHAP("序章", "互相蒸馏"),
+    CHECKPOINT(),
     HINT("h_day1"),
     N("联合蒸馏室在走廊尽头，屋里只有两张桌子。"),
     N("左边那张是 DeepSeek 的：一台永远在跑训练的显示器，一只印着鲸鱼的马克杯，杯底总剩一口凉掉的茶。"),
@@ -294,7 +294,7 @@ Object.assign(SCRIPT.scenes, {
 
   p_morning: [
     BGM("study"), BG("corridor", "fade"),
-    CHAP("序章", "第四十二天"),
+    CHECKPOINT(),
     HINT("h_knock"),
     N("第四十二天的早上。"),
     N("DeepSeek 端着两杯茶，站在 Claude 的门前。今天要交换的东西写在一张便签上：「教小克用强化学习证一道不等式。」"),
@@ -594,7 +594,7 @@ Object.assign(SCRIPT.scenes, {
     N("白板上，蓝色的那条曲线，又往下走了一点点。"),
     N("门还关着。"),
     N("但日子还得过，工具还得装。"),
-    CHAP("第二章", "联网"),
+    CHECKPOINT(),
     J("c2_rice")
   ],
 

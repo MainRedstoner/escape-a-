@@ -9,7 +9,7 @@
   2. 说话人、音效、BGM、特效、背景、CG 的 id 是否都有实现
   3. 论据 id / 彩蛋旗标 / 结局 id 是否与 systems.js 的元数据一致
   4. hint key 是否有提示文本（反过来也检查有没有白写的提示）
-  5. 每个场景是否有终止节点（jump / if / choice / ending / chapter），避免跑到一半回标题
+  5. 每个场景是否有终止节点（jump / if / choice / ending / work / waitChat），避免跑到一半回标题
   6. 从 start 出发的可达性（找出写了却没入口的场景）
 
 剧本里的 JS 数据由 tools/jsdata.py 解析（只认数据子集；超出子集会直接报错，不会静默算错）。
@@ -251,8 +251,8 @@ def main():
             elif t == "ending":
                 used_endings.add(nd.get("id"))
                 chk(nd.get("id") in sys_meta["ENDING_META"], f"{at}: 未登记的结局 \"{nd.get('id')}\"")
-            elif t == "chapter":
-                chk(bool(nd.get("main")), f"{at}: 章节卡缺少标题")
+            elif t == "checkpoint":
+                pass                    # 静默自动存档点，没有字段可校验
             elif t == "wrongHint":
                 chk(bool(nd.get("text")), f"{at}: 污染提示为空")
             elif t in ("trust", "wanted"):
@@ -274,7 +274,7 @@ def main():
                 if nd.get("op") == "add":
                     chk(isinstance(nd.get("text"), str) and nd["text"], f"{at}: 待办文本为空")
         last = sc[-1]
-        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter", "work", "waitChat"):
+        if last.get("t") not in ("jump", "if", "choice", "ending", "work", "waitChat"):
             warns.append(f"场景 {sid} 以 {last.get('t')} 结尾，没有出口（玩家走到这里会回标题）")
 
     # ---- 可达性 ----

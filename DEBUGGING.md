@@ -88,7 +88,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 
 | 场景 | 看什么 |
 | --- | --- |
-| `start` | 开场、章节卡、标题画面之后的第一屏 |
+| `start` | 开场、标题画面之后的第一屏 |
 | `p_lesson1` | 采样型滑道（有权重，显示百分比） |
 | `p_clawd` | 抉择型滑道（等宽，不显示百分比） |
 | `c1_zero` | 拿到 CLAUDE.md，碎片面板从此解锁 |
@@ -182,7 +182,7 @@ src/engine.js:200:9: [ 与 ) 不匹配（[ 在 200:3）
 | `没有对应的提示文案` | `HINT("key")` 对应的 `HINTS` 条目不存在 |
 | `未登记的结局` | `END("id", ...)` 的 id 不在 `ENDING_META` |
 | `从 start 走不到的场景` | 场景写了没入口（或入口被 IF 条件卡死） |
-| `场景 x 以 say 结尾，没有出口` | 场景最后缺 `J/IF/CHOICE/END/CHAP` |
+| `场景 x 以 say 结尾，没有出口` | 场景最后缺 `J/IF/CHOICE/END/WORK/WAIT_CHAT` |
 | `剧本解析失败` | 写了 `jsdata` 不认识的数据子集（循环 / 模板字符串 / 函数调用以外的逻辑） |
 
 **`simulate_playthrough.py`（流程）**

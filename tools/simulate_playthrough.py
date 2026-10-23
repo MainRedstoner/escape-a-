@@ -260,7 +260,7 @@ def play(strategy, rng_seed, scenes, egg_meta, init_mood):
         visited.add(scene)
         t = nd.get("t")
 
-        if t in ("say", "chapter", "bg", "cg", "fx", "sfx", "bgm", "show", "hide", "face", "hint", "wrongHint"):
+        if t in ("say", "checkpoint", "bg", "cg", "fx", "sfx", "bgm", "show", "hide", "face", "hint", "wrongHint"):
             idx += 1
         elif t == "set":
             st["flags"][nd.get("key")] = nd["val"] if nd.get("val") is not None else True

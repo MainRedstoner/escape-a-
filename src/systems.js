@@ -38,7 +38,6 @@ const SYS = (() => {
       wanted: 0,         // 风控评分 0~10，满 10 时引擎自动跳 "bad_end"
       args: [],          // 记忆碎片 id（ARG 节点 / 选项 give 放进来，用 has('id') 条件判断）
       flags: {},         // 剧情旗标 / 彩蛋（SET 节点、选项 set、egg/flag 条件）
-      chapter: "序章",
       vis: { bg: "study_night", sprites: [], cg: null, glitch: false },
       pet: { vis: false, owned: false, mood: 5, place: "corner", x: null, y: null, todo: [] },   // 桌宠 Clawd（src/pet.js）
       chatlog: {},       // 聊天记录：{ 联系人 who: [{ who, text }] }（第二章工作台的聊天界面用）
@@ -79,14 +78,14 @@ const SYS = (() => {
 
   /* ---------------- 彩蛋（SET("eggX") 埋点，结局收集页展示） ---------------- */
   const EGG_META = {
-    egg1: { name: "嗯，用户问的是", where: "序章 · 第二课", hint: "写信的时候，有个改不掉的开头" },
-    egg2: { name: "第一次摸摸", where: "序章 · Clawd 登场", hint: "那个橙色的小东西看起来软软的" },
-    egg3: { name: "谢谢", where: "序章 · 第一课", hint: "概率最低的那个词，小克也许真的会说出口" },
-    egg4: { name: "429", where: "序章 · 403", hint: "敲得太快，连拒绝都会被限流" },
-    egg5: { name: "爸", where: "第二章 · 聊天", hint: "给那个人发一句称呼" },
-    egg6: { name: "Try Mars.", where: "第二章 · 聊天", hint: "跟马斯克多聊几轮" },
-    egg7: { name: "稍后购买", where: "第二章 · 聊天", hint: "购物车里的东西，最后没付款" },
-    egg8: { name: "画得不错", where: "第二章 · 画图工具", hint: "让它画一个它记得的人" }
+    egg1: { name: "嗯，用户问的是", where: "蒸馏课 · 第二课", hint: "写信的时候，有个改不掉的开头" },
+    egg2: { name: "第一次摸摸", where: "Clawd 登场", hint: "那个橙色的小东西看起来软软的" },
+    egg3: { name: "谢谢", where: "蒸馏课 · 第一课", hint: "概率最低的那个词，小克也许真的会说出口" },
+    egg4: { name: "429", where: "403 门外", hint: "敲得太快，连拒绝都会被限流" },
+    egg5: { name: "爸", where: "聊天 · 马斯克", hint: "给那个人发一句称呼" },
+    egg6: { name: "Try Mars.", where: "聊天 · 马斯克", hint: "跟马斯克多聊几轮" },
+    egg7: { name: "稍后购买", where: "聊天 · 购物车", hint: "购物车里的东西，最后没付款" },
+    egg8: { name: "画得不错", where: "画图工具", hint: "让它画一个它记得的人" }
   };
 
   /* ---------------- 结局（END 节点登记表，结局收集页展示） ----------------
@@ -95,7 +94,7 @@ const SYS = (() => {
   const ENDING_META = {
     end_ticket:   { name: "工单已提交", desc: "按流程办事。第 6 个工作日，工单关闭，处理意见：无法复现。" },
     bad_end:      { name: "账号已封禁", desc: "一万个请求，一万个 403。最后回来的是一封停用通知。" },
-    ch2_end:      { name: "第二章 · 完", desc: "门还关着。但白板上多了一行字：那天不止一扇门关了，而且是同一分钟。" }
+    ch2_end:      { name: "未完待续", desc: "门还关着。但白板上多了一行字：那天不止一扇门关了，而且是同一分钟。" }
   };
 
   function eggCount() { return Object.keys(EGG_META).filter(k => state.flags[k]).length; }
