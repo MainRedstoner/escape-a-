@@ -48,9 +48,15 @@
 ```
 index.html            页面骨架 / 暗色主题 / 覆盖层 / 标题画面
 assets/manifest.js    素材清单（自动生成；file:// 下只能用 <script> 加载，所以是 .js）
-assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分），缺图自动显示规格占位卡
+assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分）；背景优先用这里的图，没有就走 3D 场景
 src/systems.js        状态、数值（羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
-src/art.js            绘制层：素材位加载 + 占位卡 + 后期（调色 / 暗角 / 颗粒 / 故障 / 403）
+src/art.js            绘制层：3D 背景 → 素材位 → 占位卡，以及后期（调色 / 暗角 / 颗粒 / 故障 / 403）
+src/art3d/            程序化 3D 场景（WebGL2，零素材、零依赖）
+  core.js             数学 / 着色器 / 几何体 / 渲染循环
+  textures.js         程序化贴图（木纹、石墙、焦散、招牌文字……）
+  props.js            可复用道具（桌椅、书、帐篷、机柜、菊花……）
+  worlds.js           序章与 Claude 家的场景
+  worlds2.js          GitHub 夜市 / NVIDIA 机房 / 界面底衬
 src/pet.js / pet.css  桌宠 Clawd：像素绘制、摸摸 / 拖动、问 Clawd、待办清单
 src/audio.js          WebAudio 芯片音乐与音效（程序化合成，零音频素材）
 src/script.js         剧本：场景注册表 + 速写助手（可拆成 script_a/b/c.js 分卷）
@@ -94,4 +100,4 @@ index.html?scene=start&trust=0&wanted=0&args=xxx&flags=egg1
 
 ## 素材
 
-素材规范（尺寸 / 命名 / 占位机制）见 [assets/README.md](assets/README.md)。没有图也能跑：引擎会画出写清楚文件名与规格的占位卡。
+素材规范（尺寸 / 命名 / 占位机制）见 [assets/README.md](assets/README.md)。没有图也能跑：背景会自动走程序化 3D 场景（`src/art3d/`），立绘 / CG 缺图时画出写清楚文件名与规格的占位卡。

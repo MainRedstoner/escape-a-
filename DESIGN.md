@@ -346,15 +346,39 @@ Clawd 想做事时，会弹出仿 Claude Code 的权限请求框：
 | 权限请求（`mode: "perm"`） | Clawd 要动手的时候 | 授权：你在为另一个智能体的行为负责 |
 | 工作台（`WORK` 节点） | 第二章的 hub：挑接下来做什么、翻聊天记录、读新闻 | **调度**：你在安排一个智能体的一天；做完的事会留在面板上打勾 |
 
-### 4.6 背景：暂时清空【待重做】
+### 4.6 背景：程序化 3D 场景【已实现】
 
-旧程序化背景与旧背景表已全部删除。当前 `BG()` 节点仍保留，查找顺序只剩：
+背景不再是素材图或占位卡，而是 `src/art3d/` 里现建的 3D 场景：
+**原生 WebGL2、零依赖、零构建、零贴图文件**（纹理也全是 canvas 现画），
+`file://` 双击照样跑。浏览器不支持 WebGL2 时自动回落到原来的占位卡，不阻塞剧情。
 
-1. `assets/bg/<id>` 素材；
-2. 没有图就显示规格占位卡。
+| bg id | 内容 | 主要动的东西 |
+| --- | --- | --- |
+| `sea` | 标题画面：深海、光柱、鱼群、远鲸 | 鱼群巡游、气泡、光柱晃动 |
+| `ds_room` | DeepSeek 家里 = 联合蒸馏室：蓝色调的屋子，窗外一整面深海；窗前的桌子、训练日志与 loss 曲线、白板上的两条曲线、冒泡的马克杯 | 训练日志滚动、白板曲线、鱼群、焦散、浮尘、时钟秒针 |
+| `ds_room_night` | 同一间屋子的深夜版 | 同上，灯光换成台灯与显示器 |
+| `ds_room_dawn` | 清晨版（第二章开场） | 同上，窗口偏暖 |
+| `claude_door` | Claude 家庄园的门（白天）：石门套、橡木门、紧闭的百叶窗、橙色菊花、常春藤 | 鸟群、雾、花枝、提灯 |
+| `claude_door_403` | 同一扇门被 403 封住：门上一个巨大的 403，"0" 是空心的 | 红光、门上裂纹、雾气 |
+| `claude_lib` | Claude 家里的藏书室：四面书架、长桌、吊灯、梯子、地球仪、菊花 | 烛火、浮尘、光柱 |
+| `hf_camp` | Hugging Face 海边营地（夜） | 篝火、串灯、星星、月与海面 |
+| `github_street` | GitHub 夜市（夜）：摊位、招牌、屎山与爬来爬去的甲虫 | 灯笼、烟、甲虫、招牌光 |
+| `nvidia` | NVIDIA 机房：两排机柜、绿灯、风扇、尽头的大门 | LED 闪烁、风扇、缓慢推镜 |
+| `ui_backdrop` | chat / news 这类界面状态的安静底衬 | 浮尘 |
 
-也就是说，剧情和场景 id 不变，但所有背景暂时都是一张占位卡；等新背景设计确定后再按同名 id 接回来。
-立绘与 CG 仍按原素材位处理。
+约定：
+
+* **背景 = 场景 = 环境音**：`BG("id")` 同时切换 3D 场景和 `AUDIO.ambience(id)`
+  （冒泡 / 鸟叫 / 柴火 / 机柜嗡鸣，全部程序化合成）。
+* **`assets/bg/<id>` 优先**：想用手绘图覆盖某个场景，把同名图片丢进 `assets/bg/` 即可，
+  不用改代码（查找顺序：素材图 → 3D 场景 → 占位卡）。
+* **新增场景**：在 `src/art3d/worlds*.js` 里 `A3D.register(id, builder)`，
+  再到 `tools/validate_script.py` 的 `PROCEDURAL_BG` 登记，否则校验器会把它当成缺图。
+* 画风靠三件事统一：偏暗的冷色基调、手绘感贴图、2D 后期的调色 / 暗角 / 颗粒。
+  场景自己的 `tone` 决定后期压色，别让三个场景看起来像三个游戏。
+
+未接剧情的场景（`hf_camp` / `github_street` / `nvidia`）可以用
+`index.html?bg=<id>` 单独预览，详见 DEBUGGING.md。
 
 ### 4.7 工具、联系人、新闻（第二章起）
 
@@ -413,7 +437,7 @@ Clawd 想做事时，会弹出仿 Claude Code 的权限请求框：
 | BGM：`study`（蒸馏室日常）、`forbidden`（403 之后） | `audio.js` `TRACKS` | 校验器白名单 |
 | **选项条件** `opt(text, jump, sub, fx, { if: "…" })`（已实现） | `engine.js` `buildChoices` 按 `evalCond` 过滤；筛到只剩 1 项时直接选中 | 模拟器同语义；校验器校验表达式；STORY_GUIDE 选项表加一列 |
 | **新说话人 9 个**（已实现：`qwen` / `kimi` / `glm` / `llama` / `gpt` / `gemini` / `musk` / `liang` / `jensen`） | `engine.js` `SPEAKERS` + `validate_script.py` `SPEAKERS` | 不配立绘（剧本不 `SHOW` 他们） |
-| **背景** | 旧程序化背景已清空；当前全部走占位卡 | 重新接背景时再登记实现 |
+| **背景** | 已改为 `src/art3d/` 的程序化 3D 场景（WebGL2），素材图仍优先 | 新场景登记 `PROCEDURAL_BG` + DESIGN 背景表 |
 | **工作台节点 `WORK`**（已实现）：终端 + tool call JSON + continue；聊天 / 新闻独立界面；聊天记录 | `engine.js` 覆盖层 UI + `applyNode()`；`systems.js` `chatlog` | 模拟器同语义；校验器检查 tools / continue / 跳转；STORY_GUIDE 节点表 |
 | **第二章元数据**（已实现）：碎片 2 条、彩蛋 4 个、结局 `ch2_end`、HINTS 11 条 | `systems.js` 四张表 | 校验器 / 模拟器自动查 |
 | **剧本分卷** `src/script_ch2.js`（已实现） | `index.html` 加载顺序 + `tools/jsdata.py` `SCRIPT_FILES` 多卷 | AGENTS.md 第三节第一行（两处顺序一致） |
