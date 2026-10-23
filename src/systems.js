@@ -38,7 +38,7 @@ const SYS = (() => {
       wanted: 0,         // 风控评分 0~10，满 10 时引擎自动跳 "bad_end"
       args: [],          // 记忆碎片 id（ARG 节点 / 选项 give 放进来，用 has('id') 条件判断）
       flags: {},         // 剧情旗标 / 彩蛋（SET 节点、选项 set、egg/flag 条件）
-      vis: { bg: "blank", sprites: [], cg: null, glitch: false },
+      vis: { bg: "sea", sprites: [], cg: null, glitch: false },
       pet: { vis: false, owned: false, mood: 5, place: "corner", x: null, y: null, todo: [] },   // 桌宠 Clawd（src/pet.js）
       chatlog: {},       // 聊天记录：{ 联系人 who: [{ who, text }] }（第二章工作台的聊天界面用）
       chatResume: {},    // 提前结束的对话：{ 联系人 who: { scene, idx } }，点联系人继续

@@ -309,6 +309,7 @@ const ENGINE = (() => {
         if (SYS.state.vis.bg !== nd.id) ART.clear403();
         if (nd.id !== "chat") { curChat = null; closeChatScreen(); }   // 离开聊天窗口，收起聊天界面
         SYS.state.vis.bg = nd.id;
+        AUDIO.ambience(nd.id);          // 背景 = 场景，也是环境音的开关
         SYS.state.vis.cg = null;
         ui.cgNote.style.display = "none";
         if (nd.fx === "fade") { ART.trigger("flash"); AUDIO.sfx("whoosh"); }
@@ -1853,6 +1854,7 @@ const ENGINE = (() => {
     catch (e) { toast("读档失败：" + SAVE.describe(e)); AUDIO.sfx("deny"); return false; }
     SYS.state = data.state;
     ART.resetFX();               // 读档时清掉上一局的跨场景特效（403 / 警报 / 故障）
+    syncAmbience();
     cur = data.cur;
     /* 旧版本的存档可能把位置推到了场景末尾（阻塞节点之后）：夹回最后一个节点重新播，
        总比读档直接回标题好。 */
@@ -1876,6 +1878,11 @@ const ENGINE = (() => {
   /* 读档恢复 BGM 用。背景暂时全部留空，统一回落 "sea"。 */
   function audioForBg() {
     return "sea";
+  }
+  /** 读档 / 回标题：背景可能不是通过 BG 节点设的，单独同步一次环境音 */
+  function syncAmbience() {
+    const bg = SYS.state.vis.bg || "";
+    AUDIO.ambience(bg === "chat" || bg === "news" ? "ui_backdrop" : bg);
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {
@@ -2178,6 +2185,7 @@ const ENGINE = (() => {
   function toTitle() {
     started = false;
     ART.resetFX();               // 回标题时别把 403 平铺带回来
+    syncAmbience();
     hideTextbox();
     hideChoices();
     ui.hud.style.display = "none";
@@ -2240,10 +2248,14 @@ const ENGINE = (() => {
     bindWorkUI();
     buildTitle();
     ui.titleScreen.style.display = "flex";
+    /* ?bg=<id>：标题画面上直接预览某个背景（美术调试用，见 DEBUGGING.md） */
+    const bgQ = new URLSearchParams(location.search).get("bg");
+    if (bgQ) SYS.state.vis.bg = bgQ;
     requestAnimationFrame(loop);
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
     AUDIO.playBGM("sea");
+    AUDIO.ambience("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
     // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「读档」按钮；失败只提示，不阻塞游戏

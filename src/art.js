@@ -360,24 +360,27 @@ const ART = (() => {
       ctx.translate((Math.random() - 0.5) * 16 * k, (Math.random() - 0.5) * 16 * k);
     }
 
-    /* --- 背景：只认 assets/bg；没有就显示占位卡 --- */
+    /* --- 背景：素材图 → 3D 场景 → 占位卡，挨个试 --- */
     const bgId = vis.bg || "sea";
     const bgRec = imgOf("bg", bgId);
+    let bg3d = false;
     if (bgRec) {
       cover(ctx, bgRec.img, W, H);
       ctx.fillStyle = "rgba(4,7,12,.18)"; ctx.fillRect(0, 0, W, H);  // 统一压暗
+    } else if (typeof A3D !== "undefined" && A3D.draw(ctx, bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId, t)) {
+      bg3d = true;          // 3D 场景整幅画好，气氛粒子由场景自己负责
     } else {
       placeholderBG(ctx, bgId, t, "（当前为占位卡：正式美术替换后自动生效）");
     }
     /* 空舞台连气氛粒子也不要，保持真正留空。 */
-    if (bgId !== "blank") atmosphere(ctx, t);
+    if (!bg3d && bgId !== "blank") atmosphere(ctx, t);
 
     /* --- CG --- */
     if (vis.cg) {
       const cgRec = imgOf("cg", vis.cg);
       if (cgRec) { cover(ctx, cgRec.img, W, H); }
       else placeholderCG(ctx, vis.cg);
-      post(ctx, t, vis);
+      post(ctx, t, vis, bgId, bg3d);
       draw403(ctx, nowMs);
       ctx.restore();
       return;
@@ -386,7 +389,7 @@ const ART = (() => {
     /* --- 立绘 --- */
     for (const sp of vis.sprites) drawSprite(ctx, sp, t, speaking);
 
-    post(ctx, t, vis);
+    post(ctx, t, vis, bgId, bg3d);
     draw403(ctx, nowMs);
     ctx.restore();
   }
@@ -399,9 +402,9 @@ const ART = (() => {
     night: ["rgb(176,192,240)", "rgb(206,214,238)", "rgb(170,178,206)"],
     red:   ["rgb(255,206,200)", "rgb(240,214,212)", "rgb(206,176,176)"]
   };
-  function post(ctx, t, vis) {
+  function post(ctx, t, vis, bgId, bg3d) {
     const W2 = W, H2 = H;
-    const tone = TONES.cold;
+    const tone = (bg3d && typeof A3D !== "undefined" && A3D.toneOf(bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId)) || TONES.cold;
     // 整体压色
     ctx.globalCompositeOperation = "multiply";
     const cg = ctx.createLinearGradient(0, 0, 0, H2);
@@ -411,10 +414,10 @@ const ART = (() => {
     ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
     ctx.globalCompositeOperation = "source-over";
 
-    // 暗角（比常规更重，但别把立绘吃掉）
+    // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
     const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
     vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(2,4,8,0.52)");
+    vg.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
 
     // 胶片颗粒

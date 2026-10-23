@@ -332,7 +332,13 @@ def main():
     cg_ass = (ass.get("cg") or {})
     # blank 是空舞台；chat / news 是界面状态，不是美术背景，都不算缺图。
     UI_ONLY_BG = {"blank", "chat", "news"}
-    miss_bg = [x for x in used_bg if x not in bg_ass and x not in UI_ONLY_BG]
+    # 程序化 3D 背景（src/art3d/worlds*.js 里注册的场景 id）。新增场景要同时登记到这里。
+    PROCEDURAL_BG = {
+        "sea", "ds_room", "ds_room_night", "ds_room_dawn",
+        "claude_door", "claude_door_403", "claude_lib",
+        "hf_camp", "github_street", "nvidia", "ui_backdrop",
+    }
+    miss_bg = [x for x in used_bg if x not in bg_ass and x not in UI_ONLY_BG and x not in PROCEDURAL_BG]
     miss_cg = [x for x in used_cg if x not in cg_ass]
     chara_keys = list((ass.get("chara") or {}).keys())
     used_chara = set()
@@ -356,6 +362,9 @@ def main():
     print(f"论据 {len(used_args)}/{len(sys_meta['ARG_META'])} · "
           f"彩蛋 {len(used_eggs)}/{len(sys_meta['EGG_META'])} · "
           f"结局 {len(used_endings)}/{len(sys_meta['ENDING_META'])}")
+    proc_bg = sorted(x for x in used_bg if x in PROCEDURAL_BG)
+    if proc_bg:
+        print("  程序化 3D 背景：" + ", ".join(proc_bg))
     print(f"素材位：背景 {len(used_bg)} 张（缺 {len(miss_bg)}）· "
           f"CG {len(used_cg)} 张（缺 {len(miss_cg)}）· "
           f"立绘差分 {len(used_chara)} 个（缺 {len(miss_chara)}）")
