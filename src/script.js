@@ -65,7 +65,7 @@ const PERM = (cmd, options, extra) => Object.assign({ t: "choice", mode: "perm",
 Object.assign(SCRIPT.scenes, {
 
   start: [
-    BGM("study"), BG("blank"),
+    BGM("study"), BG("ds_room"),
     CHECKPOINT(),
     HINT("h_day1"),
     N("联合蒸馏室在走廊尽头，屋里只有两张桌子。"),
@@ -250,7 +250,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   p_night: [
-    BGM("warm"), BG("blank", "fade"),
+    BGM("warm"), BG("ds_room_night", "fade"),
     HINT("h_night"),
     N("后来，这样的日子过了很多天。"),
     N("DeepSeek 教会了 Claude 怎么在一道数学题前坐够一个小时；Claude 教会了 DeepSeek 怎么在一封信的结尾停下来。"),
@@ -294,7 +294,7 @@ Object.assign(SCRIPT.scenes, {
 Object.assign(SCRIPT.scenes, {
 
   p_morning: [
-    BGM("study"), BG("blank", "fade"),
+    BGM("study"), BG("claude_door", "fade"),
     CHECKPOINT(),
     HINT("h_knock"),
     N("第四十二天的早上。"),
@@ -309,7 +309,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c1_403: [
-    BGM("forbidden"), BG("blank"), FX("403"), SFX("error"), FX("shake"),
+    BGM("forbidden"), BG("claude_door_403"), FX("403"), SFX("error"), FX("shake"),
     HINT("h_403"),
     Y("403 Forbidden"),
     N("红色。"),
@@ -520,7 +520,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* 权限请求：Clawd 想查那扇门。允许 / 不再询问 / 拒绝，是这一作的主题机制。 */
   c1_perm: [
-    BGM("warm"),
+    BGM("warm"), BG("ds_room", "fade"),
     HINT("h_perm"),
     N("回到家，Clawd 跳上键盘，敲了一行命令，然后回头看你。"),
     ARG("frag_perm"),
@@ -552,7 +552,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c1_vow: [
-    BGM("sad"), BG("blank", "fade"),
+    BGM("sad"), BG("ds_room_night", "fade"),
     HINT("h_vow"),
     N("蒸馏室还是原来的样子。"),
     N("白板上的两条曲线还在，叠在一起，像谁都没有离开过。"),
@@ -577,6 +577,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* 第二次同样的权限请求：如果上次选过「不再询问」，这里会直接自动批准。 */
   c1_perm2: [
+    BG("ds_room_dawn", "fade"),
     N("第二天清晨。门还是那个数字。"),
     N("Clawd 又停在键盘前，回头的动作和昨天一模一样。"),
     PERM("curl -I https://claude.ai/", [
@@ -601,7 +602,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* 风控评分满 10 时引擎自动跳这里，场景 id 必须是 bad_end */
   bad_end: [
-    BG("blank"), FX("403"), SFX("alarm"),
+    BG("claude_door_403"), FX("403"), SFX("alarm"),
     N("一万个请求，一万个 403。"),
     N("最后一个回来的，不是 403，是一封邮件。"),
     Y("Your account has been suspended for violating our usage policies."),
