@@ -575,21 +575,43 @@ const A3DTex = (() => {
     },
 
     rackPanel() {
-      return get("rackPanel", 256, 256, (x, w, h) => {
-        x.fillStyle = "#20252b"; x.fillRect(0, 0, w, h);
-        // 机架面板上的一排排服务器
-        for (let j = 0; j < 8; j++) {
-          const y = 6 + j * 31;
-          x.fillStyle = "#2c333b"; x.fillRect(6, y, w - 12, 27);
-          x.fillStyle = "#161a1f"; x.fillRect(9, y + 3, w - 18, 21);
-          // 硬盘位
-          for (let i = 0; i < 6; i++) {
-            x.fillStyle = "#20262d"; x.fillRect(14 + i * 36, y + 5, 28, 17);
-            x.fillStyle = "rgba(120,140,160,.12)"; x.fillRect(14 + i * 36, y + 5, 28, 1.5);
+      return get("rackPanel", 512, 512, (x, w, h) => {
+        const r = rnd(111);
+        x.fillStyle = "#101418"; x.fillRect(0, 0, w, h);
+        // 1U 服务器：每层一条，亮边框 + 黑面板 + 硬盘位 + 烘进去的灯
+        const rows = 14, rh = h / rows;
+        for (let j = 0; j < rows; j++) {
+          const y = j * rh;
+          // 单元外框
+          x.fillStyle = "#252c34"; x.fillRect(4, y + 2, w - 8, rh - 4);
+          x.fillStyle = "#0b0e12"; x.fillRect(7, y + 5, w - 14, rh - 10);
+          // 顶部高光（钣金折边）
+          x.fillStyle = "rgba(190,215,240,.20)"; x.fillRect(4, y + 2, w - 8, 2);
+          x.fillStyle = "rgba(0,0,0,.65)"; x.fillRect(4, y + rh - 3, w - 8, 3);
+          // 硬盘位（一排小方块）
+          const bays = 7;
+          for (let i = 0; i < bays; i++) {
+            const bw = (w - 90) / bays;
+            const bx = 16 + i * bw;
+            x.fillStyle = "#1a2027"; x.fillRect(bx, y + 9, bw - 6, rh - 19);
+            x.fillStyle = "rgba(160,190,215,.14)"; x.fillRect(bx, y + 9, bw - 6, 1.5);
+            x.fillStyle = "rgba(0,0,0,.5)"; x.fillRect(bx, y + rh - 12, bw - 6, 2);
           }
-          x.fillStyle = "rgba(0,0,0,.5)"; x.fillRect(6, y + 27, w - 12, 3);
+          // 右侧电源 / 状态灯
+          x.fillStyle = "#141a20"; x.fillRect(w - 64, y + 8, 50, rh - 16);
+          for (let k = 0; k < 2; k++) {
+            const lx = w - 54 + k * 12, ly = y + rh / 2;
+            const green = r() < 0.8;
+            x.fillStyle = green ? "rgba(90,255,120,.9)" : "rgba(255,190,90,.85)";
+            x.beginPath(); x.arc(lx, ly, 2.6, 0, 7); x.fill();
+            x.fillStyle = green ? "rgba(60,200,90,.25)" : "rgba(255,180,80,.2)";
+            x.beginPath(); x.arc(lx, ly, 6, 0, 7); x.fill();
+          }
         }
-        grain(x, w, w, { freq: 5, oct: 3, strength: 0.16, seed: 111 });
+        // 两侧竖导轨
+        x.fillStyle = "#323a44"; x.fillRect(0, 0, 4, h); x.fillRect(w - 4, 0, 4, h);
+        x.fillStyle = "rgba(200,220,240,.12)"; x.fillRect(2, 0, 1, h); x.fillRect(w - 3, 0, 1, h);
+        grain(x, w, w, { freq: 5, oct: 3, strength: 0.14, seed: 111 });
       });
     },
     tileFloor() {

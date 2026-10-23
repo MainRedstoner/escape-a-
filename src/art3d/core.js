@@ -376,6 +376,7 @@ const A3D = (() => {
    *  WebGL 上下文
    * ============================================================ */
   let gcv = null, gl = null, ready = false, failReason = "";
+  let anisoExt = null, maxAniso = 1;
   let skyProg, litProg, seaProg, ptProg, glowProg;
   let res = { w: W, h: H };
 
@@ -679,6 +680,11 @@ const A3D = (() => {
     glowProg = program(GLOW_VS, GLOW_FS, ["aPos", "aNor", "aUV", "aCol"]);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    // 各向异性过滤：地面 / 机柜这种掠射角的贴图不糊成条纹
+    anisoExt = gl.getExtension("EXT_texture_filter_anisotropic");
+    if (anisoExt) {
+      maxAniso = Math.min(8, gl.getParameter(anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1);
+    }
     ready = true;
     return true;
   }
@@ -743,6 +749,9 @@ const A3D = (() => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.generateMipmap(gl.TEXTURE_2D);
+    if (anisoExt && !opts.clamp) {
+      gl.texParameterf(gl.TEXTURE_2D, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+    }
     return t;
   }
   function updateTex(t, cv) {

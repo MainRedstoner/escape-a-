@@ -51,6 +51,7 @@ assets/manifest.js    素材清单（自动生成；file:// 下只能用 <script
 assets/bg|cg|chara/   素材位（背景 / CG / 立绘差分）；背景优先用这里的图，没有就走 3D 场景
 src/systems.js        状态、数值（羁绊 / 风控）、记忆碎片 / 彩蛋 / 结局元数据、提示库
 src/art.js            绘制层：3D 背景 → 素材位 → 占位卡，以及后期（调色 / 暗角 / 颗粒 / 故障 / 403）
+art-preview.html      3D 场景预览页（双击就开；左侧列表 / 全部缩略图 / 纯净模式）
 src/art3d/            程序化 3D 场景（WebGL2，零素材、零依赖）
   core.js             数学 / 着色器 / 几何体 / 渲染循环
   textures.js         程序化贴图（木纹、石墙、焦散、招牌文字……）
@@ -101,3 +102,6 @@ index.html?scene=start&trust=0&wanted=0&args=xxx&flags=egg1
 ## 素材
 
 素材规范（尺寸 / 命名 / 占位机制）见 [assets/README.md](assets/README.md)。没有图也能跑：背景会自动走程序化 3D 场景（`src/art3d/`），立绘 / CG 缺图时画出写清楚文件名与规格的占位卡。
+
+想看全部 3D 场景：直接双击 **`art-preview.html`**（和游戏共用同一套 `src/art3d/`）。
+左侧切场景，`全部场景` 一次生成缩略图，`游戏后期` 开关可以对比调色 / 暗角 / 颗粒。

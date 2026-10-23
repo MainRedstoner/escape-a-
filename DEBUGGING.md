@@ -105,6 +105,11 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 ## 3.5 3D 背景怎么调
 
 背景是 `src/art3d/` 里现建的 WebGL2 场景（程序化几何 + 程序化贴图），不是图片。
+
+**最快的看法：双击 `art-preview.html`**（`file://` 可用）。左侧切场景、
+`全部场景` 生成缩略图、`游戏后期` 开关对比调色，底部有 FPS 和顶点数；
+`H` 纯净模式、`G` 缩略图、`←/→` 切场景、`1–9` 直选。
+
 排查按这个顺序：
 
 1. **先确认渲染层活着**：控制台 `A3D.ok` 应为 `true`；`false` 看 `A3D.failReason`。
