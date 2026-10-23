@@ -77,13 +77,40 @@ const A3DWorlds = (() => {
   function whaleMesh() {
     if (whaleMeshCache) return whaleMeshCache;
     const b = new A3D.Builder();
-    b.sphere(m4(0, 0, 0, 0, 0, 0.08, 4.2, 1.5, 1.35), 1, 16, 12, [1, 1, 1]);
-    // 尾叶
-    b.tri(m4(0, 0, 0), [-4.0, 0.1, 0], [-5.6, 0.9, 0.2], [-5.3, 0, 0], null, [0.9, 0.9, 0.9]);
-    b.tri(m4(0, 0, 0), [-4.0, 0.1, 0], [-5.3, 0, 0], [-5.6, -0.8, 0.2], null, [0.9, 0.9, 0.9]);
-    // 胸鳍
-    b.tri(m4(0, 0, 0), [1.4, -0.6, 0.9], [0.2, -1.3, 2.0], [0.5, -0.9, 0.7], null, [0.85, 0.85, 0.85]);
-    b.tri(m4(0, 0, 0), [1.4, -0.6, -0.9], [0.2, -1.3, -2.0], [0.5, -0.9, -0.7], null, [0.85, 0.85, 0.85]);
+    const nm = A3D.M.normalMat(M.ident());
+    // 身体：沿 +X 放样，尾细头圆，横截面比竖截面宽
+    const rings = 16, seg = 10;
+    const P = (i, k) => {
+      const t = i / (rings - 1);
+      const x = -4.6 + t * 9.0;
+      const shape = Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.05)), 0.55);
+      const r = 1.45 * shape * (0.72 + 0.42 * t) + 0.008;
+      const a = (k / seg) * TAU;
+      return [x, Math.cos(a) * r * 0.82, Math.sin(a) * r];
+    };
+    for (let i = 0; i < rings - 1; i++) {
+      for (let k = 0; k < seg; k++) {
+        const k2 = (k + 1) % seg;
+        const q = [P(i, k), P(i + 1, k), P(i + 1, k2), P(i, k2)];
+        const uv = [[i / rings, k / seg], [(i + 1) / rings, k / seg], [(i + 1) / rings, (k + 1) / seg], [i / rings, (k + 1) / seg]];
+        for (let z = 0; z < 4; z++) {
+          const p = q[z];
+          const n = A3D.norm3([p[1] * 0.25, p[1], p[2] * 0.9]);
+          const sh = 0.66 + 0.34 * (1 - (p[1] / 1.3 + 1) * 0.5);
+          b._v(b.d, M.ident(), nm, p[0], p[1], p[2], n[0], n[1], n[2], uv[z][0], uv[z][1], [sh, sh, sh], 0);
+        }
+        b._pushQuad(b.count - 4);
+      }
+    }
+    // 尾鳍：两片扁平的尾叶
+    b.tri(M.ident(), [-4.2, 0.05, 0], [-6.4, 0.35, 1.7], [-4.9, 0, 0.35], null, [0.86, 0.86, 0.86]);
+    b.tri(M.ident(), [-4.2, 0.05, 0], [-4.9, 0, -0.35], [-6.4, 0.35, -1.7], null, [0.8, 0.8, 0.8]);
+    b.tri(M.ident(), [-4.2, -0.05, 0], [-6.4, 0.35, 1.7], [-4.2, 0.05, 0], null, [0.9, 0.9, 0.9]);
+    // 胸鳍：向后掠
+    b.tri(M.ident(), [1.4, -0.55, 0.7], [0.0, -1.15, 2.5], [0.5, -0.8, 0.6], null, [0.82, 0.82, 0.82]);
+    b.tri(M.ident(), [1.4, -0.55, -0.7], [0.0, -1.15, -2.5], [0.5, -0.8, -0.6], null, [0.82, 0.82, 0.82]);
+    // 背鳍
+    b.tri(M.ident(), [-1.9, 0.7, 0], [-1.1, 1.08, 0], [-0.7, 0.72, 0], null, [0.9, 0.9, 0.9]);
     whaleMeshCache = A3D.meshFrom(b);
     return whaleMeshCache;
   }
@@ -142,8 +169,8 @@ const A3DWorlds = (() => {
     const tone = [0.72, 0.88, 1.0];
 
     // 远处的礁石 / 海床剪影
-    const rockB = st.pen("rock", null, { tint: [0.04, 0.12, 0.16], rim: 0.05, spec: 0 });
-    rocks(rockB, m4(0, -3.2, -16), 16, 26, 3, [0.05, 0.13, 0.17]);
+    const rockB = st.pen("rock", null, { tint: [0.06, 0.15, 0.19], rim: 0.15, spec: 0 });
+    rocks(rockB, m4(0, -3.8, -18), 11, 30, 3, [0.07, 0.15, 0.19]);
     // 海带
     const kelp = st.pen("kelp", T.leaf(), { cutout: true, tint: [0.18, 0.5, 0.36], sway: 1, rim: 0.25 });
     const kr = rng(21);
@@ -152,7 +179,7 @@ const A3DWorlds = (() => {
       const h = 3 + kr() * 5;
       for (let k = 0; k < 4; k++) {
         P.leafBlade(kelp, m4(x + (kr() - 0.5) * 0.8, -3.4, z + (kr() - 0.5) * 0.8,
-          0, kr() * TAU, 1.2 + kr() * 0.5, 1, 1, 1), h * (0.6 + kr() * 0.5), 0.16, [0.7, 1, 0.85]);
+          0, kr() * TAU, 1.2 + kr() * 0.5, 1, 1, 1), h * (0.6 + kr() * 0.5), 0.3, [0.7, 1, 0.85]);
       }
     }
 
@@ -165,11 +192,11 @@ const A3DWorlds = (() => {
     // 鲸鱼：远远地横穿过去
     const whale = whaleMesh();
     st.dyn.push({
-      batch: { mesh: whale, tint: [0.09, 0.2, 0.28], spec: 0.25, rim: 0.35, unlit: false },
+      batch: { mesh: whale, tint: [0.05, 0.13, 0.19], spec: 0.2, rim: 0.2, unlit: false },
       matrix: t => {
-        const a = t * 0.045;
-        return M.trs(Math.cos(a) * 9, 3.2 + Math.sin(t * 0.4) * 0.4, -20 + Math.sin(a) * 4,
-          0, 0.5 + Math.sin(a) * 0.5, Math.sin(t * 0.5) * 0.06, 1.5, 1.5, 1.5);
+        const a = t * 0.04;
+        return M.trs(Math.cos(a) * 10 - 2, 2.3 + Math.sin(t * 0.3) * 0.5, -32 + Math.sin(a) * 4,
+          0, 0.3 + Math.sin(a) * 0.3, Math.sin(t * 0.35) * 0.04, 0.8, 0.8, 0.8);
       }
     });
 
@@ -616,7 +643,7 @@ const A3DWorlds = (() => {
       matrix: t => {
         const a = t * 0.022;
         return M.trs(-6 + ((a * 3) % 26), 2.6 + Math.sin(t * 0.25) * 0.3, -10.5,
-          0, -0.6, 0.03, 0.55, 0.55, 0.55);
+          0, -0.6, 0.03, 0.42, 0.42, 0.42);
       }
     });
 
@@ -1360,7 +1387,7 @@ const A3DWorlds = (() => {
     P.crate(crateB, m4(-3.2, 0.18, -7.9, 0, 0.9, 0), 0.36, [0.5, 0.4, 0.3]);
     const barrelB = st.pen("barrel", T.woodDark(), { tint: [0.75, 0.62, 0.5] });
     P.barrel(barrelB, m4(2.6, 0, -7.6), 0.32, 0.8, [0.3, 0.3, 0.32], [1, 1, 1]);
-    const rugB = st.pen("campRug", T.rug(), { tint: [0.7, 0.5, 0.4] });
+    const rugB = st.pen("campRug", T.carpet(), { tint: [0.9, 0.7, 0.55] });
     rugB.quad.call(rugB, m4(-0.2, 0.02, -6.6, -Math.PI / 2, 0.2, 0), 3.4, 2.4, [1, 1, 1], [0, 0, 2, 1.5]);
 
     // 篝火
@@ -1415,6 +1442,12 @@ const A3DWorlds = (() => {
     for (const dx of [-0.55, 0.55]) {
       signBack.box.call(signBack, m4(-4.9 + dx, 1.05, -7.58, 0, 0.6, 0), 0.1, 1.6, 0.1, [1, 1, 1], 1.4);
     }
+
+    // 前景的木头与箱子
+    const logB = st.pen("log", T.woodDark(), { tint: [0.55, 0.42, 0.32] });
+    logB.cyl.call(logB, m4(-2.2, 0.08, -2.4, 0, 0.4, Math.PI / 2), 0.14, 0.13, 1.2, 8, [1, 1, 1], true);
+    logB.cyl.call(logB, m4(-1.5, 0.08, -2.0, 0, 1.1, Math.PI / 2), 0.12, 0.11, 0.9, 8, [1, 1, 1], true);
+    P.crate(st.pen("fgCrate", T.woodDark(), { tint: [0.6, 0.48, 0.36] }), m4(2.9, 0.24, -2.6, 0, 0.6, 0), 0.48, [1, 1, 1]);
 
     // 坐在火边的人影
     const figB = st.pen("figure", T.fabric(), { tint: [0.18, 0.16, 0.16] });
