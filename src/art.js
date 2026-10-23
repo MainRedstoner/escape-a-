@@ -255,6 +255,8 @@ const ART = (() => {
     const lg = ctx.createRadialGradient(800, 420, 60, 800, 420, 720);
     lg.addColorStop(0, "rgba(90,120,170,.10)"); lg.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H);
+    /* blank 是真正的空舞台：只有底色和网格，不放占位卡文字。 */
+    if (id === "blank") return;
     plate(ctx, 430, 250, 740, 330,
       "背景素材位 · " + id,
       ["规范：1920 × 1080 · 不限格式（jpg/png）",
@@ -287,35 +289,11 @@ const ART = (() => {
   }
 
   /* ============================================================
-   *  程序化背景（src/backdrops.js）：静态层画进离屏缓存，动态层每帧叠加
+   *  气氛层（不是美术，只是别让占位卡太空）
    * ============================================================ */
-  const BD = typeof BACKDROPS !== "undefined" ? BACKDROPS : null;
-  const bdCache = {};
-  function drawBackdrop(ctx, id, t, speaking) {
-    const bd = BD && BD.get(id);
-    if (!bd) return false;
-    let off = bdCache[id];
-    if (!off) {
-      off = document.createElement("canvas");
-      off.width = W; off.height = H;
-      bd.draw(off.getContext("2d"));
-      bdCache[id] = off;
-    }
-    ctx.drawImage(off, 0, 0);
-    if (bd.anim) bd.anim(ctx, t, speaking);
-    return true;
-  }
-  function toneOf(id) {
-    const bd = BD && BD.get(id);
-    return bd ? bd.tone : "cold";
-  }
-
-  /* ============================================================
-   *  程序化"气氛层"（不是美术，只是别让画面空着）
-   * ============================================================ */
-  function atmosphere(ctx, t, bgId) {
-    // 暖光背景 id 列表（由剧本/素材决定）；不在列表里的一律走冷光
-    const cold = toneOf(bgId) === "warm" ? 0 : 1;
+  function atmosphere(ctx, t) {
+    // 背景暂时全部留空，统一走冷光
+    const cold = 1;
     // 浮尘
     for (const d of FX.dust) {
       ctx.fillStyle = `rgba(180,200,230,${d.a})`;
@@ -371,7 +349,6 @@ const ART = (() => {
   /* ============================================================
    *  主绘制
    * ============================================================ */
-  let lastBgId = "sea";
   function paint(ctx, vis, t, speaking) {
     const nowMs = t * 1000;
     const shakeAge = nowMs - FX.shakeT;
@@ -383,17 +360,17 @@ const ART = (() => {
       ctx.translate((Math.random() - 0.5) * 16 * k, (Math.random() - 0.5) * 16 * k);
     }
 
-    /* --- 背景 --- */
+    /* --- 背景：只认 assets/bg；没有就显示占位卡 --- */
     const bgId = vis.bg || "sea";
-    lastBgId = bgId;
     const bgRec = imgOf("bg", bgId);
     if (bgRec) {
       cover(ctx, bgRec.img, W, H);
       ctx.fillStyle = "rgba(4,7,12,.18)"; ctx.fillRect(0, 0, W, H);  // 统一压暗
-    } else if (!drawBackdrop(ctx, bgId, t, speaking)) {
+    } else {
       placeholderBG(ctx, bgId, t, "（当前为占位卡：正式美术替换后自动生效）");
     }
-    atmosphere(ctx, t, bgId);
+    /* 空舞台连气氛粒子也不要，保持真正留空。 */
+    if (bgId !== "blank") atmosphere(ctx, t);
 
     /* --- CG --- */
     if (vis.cg) {
@@ -415,7 +392,7 @@ const ART = (() => {
   }
 
   /* --- 后期：暗角 / 冷调 / 颗粒 / 故障 --- */
-  /* 调色：程序化背景自带 tone，素材图 / 占位卡一律走 cold */
+  /* 调色：素材图 / 占位卡一律走 cold */
   const TONES = {
     cold:  ["rgb(196,214,255)", "rgb(222,228,240)", "rgb(200,208,226)"],
     warm:  ["rgb(255,236,214)", "rgb(255,242,228)", "rgb(232,218,204)"],
@@ -424,7 +401,7 @@ const ART = (() => {
   };
   function post(ctx, t, vis) {
     const W2 = W, H2 = H;
-    const tone = TONES[vis.cg ? "cold" : toneOf(vis.bg)] || TONES.cold;
+    const tone = TONES.cold;
     // 整体压色
     ctx.globalCompositeOperation = "multiply";
     const cg = ctx.createLinearGradient(0, 0, 0, H2);

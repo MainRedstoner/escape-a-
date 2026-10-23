@@ -1016,7 +1016,7 @@ const ENGINE = (() => {
       return;
     }
     delete resumes[c.id];
-    /* 从工作台重新进来时背景已经切回 desk；续聊要把聊天场景的 bg / 模式一起还原，
+    /* 从工作台重新进来时背景已经切回空白；续聊要把聊天场景的 bg / 模式一起还原，
        否则选项会退化成普通滑道、对话会退回底部文本框。 */
     SYS.state.vis.bg = "chat";
     SYS.state.flags.chat_mode = true;
@@ -1873,12 +1873,9 @@ const ENGINE = (() => {
     pump();
     return true;
   }
-  /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
-  function audioForBg(bg) {
-    return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden",
-              desk: "warm", chat: "lobby", news: "lobby", sketch: "warm",
-              claude_manor: "cold", claude_library: "warm", claude_balcony: "warm",
-              huggingface: "sea", github: "lobby", nvidia: "tense" })[bg] || "sea";
+  /* 读档恢复 BGM 用。背景暂时全部留空，统一回落 "sea"。 */
+  function audioForBg() {
+    return "sea";
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {

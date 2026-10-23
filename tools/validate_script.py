@@ -44,7 +44,6 @@ def main():
     story = jsdata.load_story()
     scenes = story["scenes"]
     sys_meta = story["sys"]
-    backdrops = story["backdrops"]
     ass = story["assets"] or {"bg": {}, "cg": {}, "chara": {}}
 
     errs, warns = [], []
@@ -331,7 +330,9 @@ def main():
     # ---- 素材到位情况 ----
     bg_ass = (ass.get("bg") or {})
     cg_ass = (ass.get("cg") or {})
-    miss_bg = [x for x in used_bg if x not in bg_ass and x not in backdrops]
+    # blank 是空舞台；chat / news 是界面状态，不是美术背景，都不算缺图。
+    UI_ONLY_BG = {"blank", "chat", "news"}
+    miss_bg = [x for x in used_bg if x not in bg_ass and x not in UI_ONLY_BG]
     miss_cg = [x for x in used_cg if x not in cg_ass]
     chara_keys = list((ass.get("chara") or {}).keys())
     used_chara = set()

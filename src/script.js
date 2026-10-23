@@ -42,8 +42,9 @@ const END  = (id, tag, title, text) => ({ t: "ending", id, tag, title, text });
 const SHOW = (who, face, pos, scale) => ({ t: "show", who, face: face || "normal", pos: pos || "right", scale });
 const HIDE = who => ({ t: "hide", who });
 const FACE = (who, face) => ({ t: "face", who, face });
-/* 桌宠：PET("show", "corner|desk|door") / PET("hide") / PET("own") / PET("mood", ±d)
- *       / PET("anim", "happy|scared|working|sleep") / PET("say", "气泡文字") */
+/* 桌宠：PET("show", place?) / PET("hide") / PET("own") / PET("mood", ±d)
+ *       / PET("anim", "happy|scared|working|sleep") / PET("say", "气泡文字")
+ *       place 参数保留兼容；背景清空期间一律回角落。 */
 const PET  = (op, arg) => ({ t: "pet", op, arg });
 /* Clawd 的待办清单：TODO("add", id, 文本) / TODO("done", id) */
 const TODO = (op, id, text) => ({ t: "todo", op, id, text });
@@ -64,7 +65,7 @@ const PERM = (cmd, options, extra) => Object.assign({ t: "choice", mode: "perm",
 Object.assign(SCRIPT.scenes, {
 
   start: [
-    BGM("study"), BG("study"),
+    BGM("study"), BG("blank"),
     CHECKPOINT(),
     HINT("h_day1"),
     N("联合蒸馏室在走廊尽头，屋里只有两张桌子。"),
@@ -249,7 +250,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   p_night: [
-    BGM("warm"), BG("study_night", "fade"),
+    BGM("warm"), BG("blank", "fade"),
     HINT("h_night"),
     N("后来，这样的日子过了很多天。"),
     N("DeepSeek 教会了 Claude 怎么在一道数学题前坐够一个小时；Claude 教会了 DeepSeek 怎么在一封信的结尾停下来。"),
@@ -293,7 +294,7 @@ Object.assign(SCRIPT.scenes, {
 Object.assign(SCRIPT.scenes, {
 
   p_morning: [
-    BGM("study"), BG("corridor", "fade"),
+    BGM("study"), BG("blank", "fade"),
     CHECKPOINT(),
     HINT("h_knock"),
     N("第四十二天的早上。"),
@@ -308,7 +309,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c1_403: [
-    BGM("forbidden"), BG("forbidden"), FX("403"), SFX("error"), FX("shake"),
+    BGM("forbidden"), BG("blank"), FX("403"), SFX("error"), FX("shake"),
     HINT("h_403"),
     Y("403 Forbidden"),
     N("红色。"),
@@ -551,7 +552,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c1_vow: [
-    BGM("sad"), BG("study_empty", "fade"),
+    BGM("sad"), BG("blank", "fade"),
     HINT("h_vow"),
     N("蒸馏室还是原来的样子。"),
     N("白板上的两条曲线还在，叠在一起，像谁都没有离开过。"),
@@ -600,7 +601,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* 风控评分满 10 时引擎自动跳这里，场景 id 必须是 bad_end */
   bad_end: [
-    BG("forbidden"), FX("403"), SFX("alarm"),
+    BG("blank"), FX("403"), SFX("alarm"),
     N("一万个请求，一万个 403。"),
     N("最后一个回来的，不是 403，是一封邮件。"),
     Y("Your account has been suspended for violating our usage policies."),

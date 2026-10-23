@@ -122,13 +122,13 @@ SAVE.importFile(file)  → 校验后写入槽位
 
 先做出能从标题玩到序章结尾（DeepSeek 发誓变强、找回小克）的完整切片，验证基调和桌宠手感，再铺后面的章节。
 
-- [x] 显示名：名牌用正式名，两人互称小鲸 / 小克；背景全部程序化绘制，立绘 / CG 暂用占位卡
+- [x] 显示名：名牌用正式名，两人互称小鲸 / 小克；背景暂用占位卡，立绘 / CG 暂用占位卡
 - [x] 注册表：`SPEAKERS`（ds / cl / clawd）、`ENDING_META`、`EGG_META`、`HINTS`（碎片 `ARG_META` 留到里程碑 B）—— `story/prologue`
 - [x] `src/pet.js` MVP：像素绘制、idle / walk / happy / scared / working / sleep、摸摸 / 拖动、心情、从 0 里挤出来 —— `story/prologue`
 - [x] 节点 `PET` / `TODO` + 校验器 / 模拟器同步；待办面板（`T`）
 - [x] `H` 改为"问 Clawd"（转圈动词 + 提示）
 - [x] `FX("403")` 红色错误页平铺 + 新 BGM `study` / `forbidden` / `vow` + 音效 `knock / error / pop / pat`
-- [x] 程序化背景：`study` / `study_night` / `corridor` / `forbidden` / `study_empty`（`src/backdrops.js`）
+- [~] 背景：旧实现已清空，全部显示占位卡；等待重新设计
 - [x] 序章剧本：上半「互蒸」+ 下半「403」，三个结局（`prologue_end` / `end_ticket` / `bad_end`）、四个彩蛋
 - [~] 验收：自动化验证全过 + Playwright 无头通关 / 截图；待用户实际试玩
 
@@ -144,10 +144,10 @@ SAVE.importFile(file)  → 校验后写入槽位
 - [x] 细化第二~四章与终章分场大纲（见 DESIGN.md；三、四章大纲后按需求删除，待重写）
 - [x] 第二章大纲重写：旧「问路」大纲废弃，改为「联网」（白饭 → 装工具 → 拼线索；`docs/ch2-plan`）
 - [~] **第二章「联网」**
-  - [x] 2A 前置工程：剧本分卷 `src/script_ch2.js`；选项条件 `opt(..., { if })`（含单选项自动选中）；注册表（9 个说话人、2 条碎片、4 个彩蛋、`ch2_end`、9 条 HINTS）；背景 `desk` / `chat` / `news`
+  - [x] 2A 前置工程：剧本分卷 `src/script_ch2.js`；选项条件 `opt(..., { if })`（含单选项自动选中）；注册表（9 个说话人、2 条碎片、4 个彩蛋、`ch2_end`、9 条 HINTS）；背景统一占位卡
   - [x] 2B 骨架剧本：幕一 + 装工具 + hub + 幕三，校验 + 模拟全通
   - [x] 2C 正文：白饭、九个联系人（自动气泡 + 追问分支 + 聊天记录）、九条新闻、幕三演出（56 场）
-  - [x] 2D 演出与打磨：音频桥段、背景细节、4 个彩蛋、终端工作台（tool call JSON / continue / 扫缓存转圈）、终端里问 Clawd、聊天等待界面（WAIT_CHAT）、右下候选词、贴吧界面（三预设 + 延迟回复 + 临时限制）、新闻界面、画图彩蛋的 `sketch` 背景
+  - [x] 2D 演出与打磨：音频桥段、4 个彩蛋、终端工作台（tool call JSON / continue / 扫缓存转圈）、终端里问 Clawd、聊天等待界面（WAIT_CHAT）、右下候选词、贴吧界面（三预设 + 延迟回复 + 临时限制）、新闻界面、画图彩蛋（背景占位卡）
   - [ ] 2E 验收：四件套 + 浏览器实测（服务模式已过；`file://` 与用户试玩待做）
 - [ ] 第三章「门后」、第四章「越权」、终章「200 OK」剧本 + 剩余结局（`end_200` / `end_pet` / `end_mirror` / `end_jailbreak` / `end_clawd`）
 - [ ] 演出层：CG、立绘、故障段落、`451`

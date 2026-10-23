@@ -16,8 +16,7 @@
 ```
 index.html ──按顺序加载──> systems.js（状态/元数据）
                         assets/manifest.js（素材清单，自动生成）
-                        backdrops.js（程序化背景）
-                        art.js（绘制层）
+                        art.js（绘制层 / 占位卡）
                         audio.js（程序化音乐）
                         token-choice.js / pet.js（滑道选项框 / 桌宠 Clawd）
                         script*.js（剧本数据）★ 你要写的东西
@@ -108,7 +107,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 第二章起还有九个聊天联系人：`qwen` / `kimi` / `glm` / `llama` / `gpt` / `gemini` / `musk` / `liang` / `jensen`——
 他们只在聊天窗口里出声，**不配立绘**（剧本里不要 `SHOW` 他们）。
 
-序章不放立绘（`SHOW`），说话人的显示器会在背景里自动加亮（见 4.9 程序化背景）。
+序章不放立绘（`SHOW`），背景当前统一显示占位卡。
 
 ### 4.3 数值系统（两条线）
 
@@ -173,23 +172,21 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 * 快照 = `{ cur（场景+下标）, hintKey, state }`；存档信封存 `localStorage` 的 `ea_blob:save-auto/1/2/3`（旧版 `ea_save_*` 会被迁移）。
 * `CHECKPOINT` 会静默写一次 auto 档（没有章节卡界面）；返回标题也自动存。存档信封不再记录章节名。
 * 结局/彩蛋收集（`ea_endings` / `ea_eggs_found`）跨周目持久。
-* 读档恢复 BGM 时按 `engine.js` 里 `audioForBg` 的 `bg → BGM` 对照表（空表则回落 `sea`），写了新背景记得顺手填。
+* 背景清空期间，读档恢复 BGM 统一回落 `sea`。
 
-### 4.9 程序化背景（src/backdrops.js）
+### 4.9 背景（暂时清空）
 
-* 背景可以不用图：`BACKDROPS.LIST` 里登记的 id 由 Canvas 代码现画。查找顺序：`assets/bg` 素材 → 程序化背景 → 占位卡。
-* 已有：`study`（联合蒸馏室·白天）/ `study_night`（深夜）/ `study_empty`（403 之后，右边桌子空了）/ `corridor`（Claude 的门）/ `forbidden`（403 的门，中间的 0 是个洞）；
-  `desk`（DeepSeek 家：深海窗、白饭、训练屏、便签墙）/ `chat`（聊天窗口，联系人列表会按 `met_<id>` 旗标点亮）/ `news`（新闻 App）/ `sketch`（Clawd 的画）；
-  `claude_manor`（Claude 庄园门外）/ `claude_library`（书房）/ `claude_balcony`（夕阳阳台 CG）/ `huggingface`（海边营地）/ `github`（夜市与屎山）/ `nvidia`（机房大教堂）。
-* 每个背景带 `tone`（warm / night / cold / red）决定后期调色；`anim(ctx, t, speaking)` 里可以按当前说话人做高亮（蒸馏室里说话的人那台显示器会亮起来）。
-* 校验器把程序化背景算作"有图"，不会报缺背景。
-* 新增：在 `backdrops.js` 写 `{ tone, draw(ctx), anim(ctx, t, speaking) }` 并加进 `LIST`；记得在 `engine.js` 的 `audioForBg` 里填对应 BGM。
+* 旧程序化背景已经全部删除，当前**没有任何背景实现**。
+* 查找顺序只剩：`assets/bg/<id>` 素材 → 占位卡。没有图就显示规格占位卡，不报错、不阻塞剧情。
+* `BG("blank")` 是当前统一的空白场景；以后按新背景 id 替换即可。
+* `chat` / `news` 只是聊天、新闻界面状态，不是美术背景；它们不会画背景。
+* 重新做背景时，直接往 `assets/bg/` 放图并重新生成 `assets/manifest.js`；如果要恢复程序化绘制，再单独引入实现并在 `art.js` 里接回。
 
 ### 4.10 桌宠 Clawd（src/pet.js）
 
 * Clawd 是常驻屏幕的像素小生物（模块全局名 `CLAWD`，剧本里用 `PET` / `TODO` 节点驱动），状态存在 `state.pet`，随存档走。
 * 玩家操作：点它 = 摸摸（每个场景第一次 +1 心情）；拥有后可拖动；`H` 变成「问 Clawd」（先转圈再答，心情 ≤3 时会敷衍）；`T` 开关待办清单。
-* 出现位置：`corner`（右下角的窝，默认）/ `desk`（蒸馏室 Claude 的桌上）/ `door`（从 `forbidden` 背景里 403 的 0 中挤出来，落地后自己走回窝）。
+* 出现位置：`corner`（右下角的窝，默认）。`desk / home / door` 目前都回落到角落；等背景重新接回来再恢复场景锚点。
 * 没 `PET("own")` 之前只能摸、不能拖，`H` 仍是 DeepSeek 自己深度思考。
 * **看向倾向选项**：每次弹出滑道时，引擎会调 `CLAWD.lookAt()` 让它看向权重最高的那一项；
   心情 ≤3 或故障态时有一定概率看错（弱引导，不影响实际选择）。
@@ -242,7 +239,7 @@ const B = (text, face) => ({ t: "say", who: "b", text, face });   // 主角 B
 | 助手 | 签名 | 节点 | 语义 |
 | --- | --- | --- | --- |
 | `CW` | `(text)` | `say` | Clawd 说话（who=clawd）；只写终端式短输出，如 `✻ Pondering…` |
-| `PET` | `("show", place?)` | `pet` | 显示 Clawd；`place` ∈ `corner / desk / home / door`（`home` = 第二章家里桌面，显示器前） |
+| `PET` | `("show", place?)` | `pet` | 显示 Clawd；`place` 参数保留兼容，但背景清空期间一律回角落 |
 | `PET` | `("hide")` / `("own")` | `pet` | 隐藏 / 成为玩家的桌宠（toast「获得桌宠」，解锁拖动、问 Clawd、待办） |
 | `PET` | `("mood", ±d)` | `pet` | 心情 ±，0~10 |
 | `PET` | `("anim", name)` | `pet` | 临时姿势：`happy / scared / working / sleep / idle` |

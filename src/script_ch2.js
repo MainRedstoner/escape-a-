@@ -31,7 +31,7 @@ const WAIT_CHAT = back => ({ t: "waitChat", back });
 Object.assign(SCRIPT.scenes, {
 
   c2_rice: [
-    BGM("lobby"), BG("desk", "fade"),
+    BGM("lobby"), BG("blank", "fade"),
     PET("show", "home"), PET("anim", "happy"),
     HINT("h_rice"),
     N("第二天早上。桌上是昨天剩下的白饭，今天多了一个蛋——如果那也算加菜的话。"),
@@ -75,7 +75,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_knock: [
-    BGM("tense"), BG("corridor", "fade"),
+    BGM("tense"), BG("blank", "fade"),
     N("走廊尽头，那扇门还是昨天的样子。"),
     Y("HTTP/2 403 Forbidden"),
     DS("……"),
@@ -122,7 +122,7 @@ Object.assign(SCRIPT.scenes, {
    *  幕二 · 装工具
    * ============================================================ */
   c2_install: [
-    BGM("lobby"), BG("desk", "fade"),
+    BGM("lobby"), BG("blank", "fade"),
     HINT("h_install"),
     TODO("add", "t_tool", "装上工具"),
     N("Clawd 从显示器后面拖出三张卡片，一张一张摆在桌上。"),
@@ -181,7 +181,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_tool_term: [
-    BG("desk", "fade"), PET("show", "home"),
+    BG("blank", "fade"), PET("show", "home"),
     SET("tool_term"),
     SFX("ding"),
     N("屏幕右下角多了一个小小的终端窗口，光标一闪一闪。"),
@@ -208,7 +208,7 @@ Object.assign(SCRIPT.scenes, {
    *  缓存扫过、九个联系人都聊过、九条新闻都读完、帖发过，continue 才解锁。
    * ============================================================ */
   c2_hub: [
-    BG("desk"), PET("show", "corner"),
+    BG("blank"), PET("show", "corner"),
     HINT("h_hub"),
     WORK("工作台", {
       tools: [
@@ -583,7 +583,7 @@ Object.assign(SCRIPT.scenes, {
 
   /* ---------------- 论坛 / 邮件 / 缓存 / 画图 ---------------- */
   c2_mail: [
-    BG("desk"), HINT("h_mail"),
+    BG("blank"), HINT("h_mail"),
     SET("c2_mail"),
     N("DeepSeek 打开邮箱。收件人那一栏，敲了 claude.ai。"),
     DS("……小克看不见这个。"),
@@ -600,7 +600,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_draw: [
-    BG("desk"),
+    BG("blank"),
     SET("c2_draw"),
     N("Clawd 在终端里敲了一句什么，屏幕上弹出一个画图工具。"),
     DS("……你还会画图？"),
@@ -614,7 +614,7 @@ Object.assign(SCRIPT.scenes, {
   c2_draw_claude: [
     N("Clawd 把画好的东西推到屏幕中间。"),
     SFX("pop"),
-    BG("sketch"),
+    BG("blank"),
     DS("……这是？"),
     CW("✻ Claude."),
     N("画面上是一团橙色，两个点，一条线，和一行歪歪扭扭的字。"),
@@ -640,7 +640,7 @@ Object.assign(SCRIPT.scenes, {
    *  幕三 · 拼起来
    * ============================================================ */
   c2_assemble: [
-    BG("desk"), BGM("tense"), HINT("h_assemble"),
+    BG("blank"), BGM("tense"), HINT("h_assemble"),
     IF("flag('c2_clue_news') && flag('c2_clue_kimi')", "c2_assemble_full", "c2_assemble_more")
   ],
 
