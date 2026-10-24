@@ -1281,8 +1281,9 @@ const A3DWorlds = (() => {
     const termScreen = st.pen("termScreen", null, { unlit: true, tint: [0.1, 0.55, 0.4] });
     termScreen.quad.call(termScreen, m4(cx - 0.08, deskH + 0.032, cz - 0.34, -Math.PI / 2, 0, 0), 0.3, 0.19, [1, 1, 1], [0, 0, 1, 1]);
     for (let i = 0; i < 3; i++) {
-      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.05, cz + 0.52 - i * 0.01, 0, Math.PI / 2, 0),
-        0.2, 0.12, 0.05, [0.3 + i * 0.04, 0.2 + i * 0.05, 0.3 + i * 0.06]);
+      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.044, cz + 0.52 - i * 0.012,
+        0, Math.PI / 2 + (i - 1) * 0.05, 0),
+        0.2, 0.042, 0.16, [0.3 + i * 0.06, 0.2 + i * 0.06, 0.28 + i * 0.04]);
     }
     P.book(bookB, m4(cx + 0.1, deskH + 0.003, cz - 0.1, 0, 0.12, 0), 0.28, 0.04, 0.2, [0.2, 0.16, 0.24]);
     Gbox(metalDark, cx + 0.1, deskH + 0.05, cz - 0.02, 0.02, 0.02, 0.18, [0.8, 0.85, 0.9]);
