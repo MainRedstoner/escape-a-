@@ -404,30 +404,35 @@ const ART = (() => {
   };
   function post(ctx, t, vis, bgId, bg3d) {
     const W2 = W, H2 = H;
-    const tone = (bg3d && typeof A3D !== "undefined" && A3D.toneOf(bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId)) || TONES.cold;
-    // 整体压色
-    ctx.globalCompositeOperation = "multiply";
-    const cg = ctx.createLinearGradient(0, 0, 0, H2);
-    cg.addColorStop(0, tone[0]);
-    cg.addColorStop(0.55, tone[1]);
-    cg.addColorStop(1, tone[2]);
-    ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
-    ctx.globalCompositeOperation = "source-over";
+    const realBg = bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId;
+    const gradeOn = !(bg3d && typeof A3D !== "undefined" &&
+      A3D.postOf && A3D.postOf(realBg) === false);
+    if (gradeOn) {
+      const tone = (bg3d && typeof A3D !== "undefined" && A3D.toneOf(realBg)) || TONES.cold;
+      // 整体压色
+      ctx.globalCompositeOperation = "multiply";
+      const cg = ctx.createLinearGradient(0, 0, 0, H2);
+      cg.addColorStop(0, tone[0]);
+      cg.addColorStop(0.55, tone[1]);
+      cg.addColorStop(1, tone[2]);
+      ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
+      ctx.globalCompositeOperation = "source-over";
 
-    // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
-    const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
+      // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
+      const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
+      vg.addColorStop(0, "rgba(0,0,0,0)");
+      vg.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
 
-    // 胶片颗粒
-    ctx.save();
-    ctx.globalAlpha = 0.05;
-    for (let i = 0; i < 160; i++) {
-      ctx.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
-      ctx.fillRect(Math.random() * W2, Math.random() * H2, 1.6, 1.6);
+      // 胶片颗粒
+      ctx.save();
+      ctx.globalAlpha = 0.05;
+      for (let i = 0; i < 160; i++) {
+        ctx.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
+        ctx.fillRect(Math.random() * W2, Math.random() * H2, 1.6, 1.6);
+      }
+      ctx.restore();
     }
-    ctx.restore();
 
     // 警报红光
     if (FX.alarm > 0) {

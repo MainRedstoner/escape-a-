@@ -1160,6 +1160,12 @@ const A3D = (() => {
     return [css(0.94, 0.96), css(1, 1), css(0.86, 0.9)];
   }
 
+  /** 这个场景在游戏里是否走 2D 后期（tone / 暗角 / 颗粒）；ds_room 单独关掉 */
+  function postOf(id) {
+    const sc = scenes[id] && scenes[id].__built;
+    return sc ? sc.post !== false : true;
+  }
+
   function setCamOverride(cam) {
     camOverride = cam ? {
       eye: cam.eye ? cam.eye.slice() : null,
@@ -1170,7 +1176,7 @@ const A3D = (() => {
   function clearCamOverride() { camOverride = null; }
 
   return {
-    W, H, M, Builder, init, draw, register, has, toneOf,
+    W, H, M, Builder, init, draw, register, has, toneOf, postOf,
     setCamOverride, clearCamOverride,
     debugScene: () => curScene,
     get ok() { return ready; }, get failReason() { return failReason; },

@@ -43,6 +43,8 @@
   .btn:hover{border-color:var(--clay);color:#fff;}
   .btn.on{background:rgba(217,119,87,.16);border-color:var(--clay);color:#FFE3D7;}
   .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.42;cursor:not-allowed;}
+  .btn:disabled:hover{border-color:var(--line);color:var(--text);}
 
   /* ---------- 主体 ---------- */
   main{flex:1;display:flex;min-height:0;}
@@ -276,13 +278,13 @@
   <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选 · L 光影</span>
 </div>
 
-<script src="src/art3d/core.js?v=34"></script>
-<script src="src/art3d/textures.js?v=34"></script>
-<script src="src/art3d/props.js?v=34"></script>
-<script src="src/art3d/flock.js?v=34"></script>
-<script src="src/art3d/decor.js?v=34"></script>
-<script src="src/art3d/worlds.js?v=34"></script>
-<script src="src/art3d/worlds2.js?v=34"></script>
+<script src="src/art3d/core.js?v=35"></script>
+<script src="src/art3d/textures.js?v=35"></script>
+<script src="src/art3d/props.js?v=35"></script>
+<script src="src/art3d/flock.js?v=35"></script>
+<script src="src/art3d/decor.js?v=35"></script>
+<script src="src/art3d/worlds.js?v=35"></script>
+<script src="src/art3d/worlds2.js?v=35"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -295,7 +297,7 @@
 
 const SCENES = [
   { id: "sea",            name: "深海 / 标题画面",        desc: "光柱、鱼群、远处鲸影；标题画面和被水淹没的梦。", group: "序章" },
-  { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼蒸馏室：床、两张桌子、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章" },
+  { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼蒸馏室：床、两张桌子、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章", post: false },
   { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "石门套、橡木门、紧闭的百叶窗、常春藤，门口石池里的橙色菊花。", group: "序章" },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。", group: "后面的章节" },
@@ -529,6 +531,16 @@ function openLightPanel() {
   const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
   if (s) { buildLightPanel(s); lightDirty = false; } else lightDirty = true;
 }
+function syncPostButton() {
+  const sc = SCENES[cur];
+  const on = !sc || sc.post !== false;
+  const b = $("btnPost");
+  if (!b) return;
+  b.disabled = !on;
+  b.classList.toggle("on", on && showPost);
+  b.title = on ? "模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒" : "该场景在游戏里已关闭后期（保留警报/闪白/故障）";
+}
+
 function closeLightPanel() {
   lightPanelOpen = false;
   $("lightPanel").classList.remove("show");
@@ -570,6 +582,7 @@ function select(i) {
   $("capDesc").textContent = sc.desc;
   markSide();
   document.title = sc.name + " · Escape A÷ 3D 预览";
+  syncPostButton();
   needInit = true;
   lightDirty = true;
   orbit = null;
@@ -600,7 +613,7 @@ function drawFrame(t) {
     ctx.fillText("场景构建失败：" + sc.id + "（看控制台）", W / 2, H / 2);
     return;
   }
-  if (showPost) post2d(ctx, sc.id);
+  if (showPost && sc.post !== false) post2d(ctx, sc.id);
   const s = A3D.debugScene();
   if (s) {
     let v = 0;
@@ -679,7 +692,7 @@ function fillThumb(sc) {
     A3D.draw(offCtx, sc.id, 2.4);
     A3D.clearCamOverride();
   }
-  if (showPost) post2d(offCtx, sc.id);
+  if (showPost && sc.post !== false) post2d(offCtx, sc.id);
   const th = document.createElement("canvas");
   th.width = 480; th.height = 270;
   th.getContext("2d").drawImage(off, 0, 0, 480, 270);
@@ -723,7 +736,7 @@ function closeGrid() {
 /* ---------------- 交互 ---------------- */
 $("btnPost").addEventListener("click", () => {
   showPost = !showPost;
-  $("btnPost").classList.toggle("on", showPost);
+  syncPostButton();
   // 后期开关变了，缩略图要重来
   for (const k in thumbs) delete thumbs[k];
   if ($("grid").classList.contains("show")) { renderCards(); buildThumbs(); }
@@ -838,7 +851,7 @@ function boot() {
   }
   $("stGl").textContent = "可用";
   $("stGl").className = "ok";
-  $("btnPost").classList.add("on");
+  syncPostButton();
   requestAnimationFrame(t => { fpsT = t; loop(t); });
 }
 boot();

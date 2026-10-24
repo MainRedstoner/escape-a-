@@ -1487,25 +1487,26 @@ const A3DWorlds = (() => {
         glow: night ? [0.14, 0.3, 0.38] : [0.34, 0.58, 0.62], sun: [0.42, 0.9], horizon: 0.12
       },
       lights: {
-        sun: A3D.norm3([-0.35, 0.85, -0.45]),
-        sunCol: night ? [0.2, 0.19, 0.2] : [0.44, 0.39, 0.27],
-        skyCol: night ? [0.18, 0.2, 0.26] : [0.18, 0.21, 0.26],
+        sun: A3D.norm3([-0.342, 0.831, -0.44]),
+        sunCol: night ? [0.2, 0.19, 0.2] : [0, 0, 0],
+        skyCol: night ? [0.18, 0.2, 0.26] : [0, 0, 0],
         groundCol: night ? [0.14, 0.12, 0.12] : [0.19, 0.16, 0.13],
         fog: { col: night ? [0.04, 0.04, 0.05] : [0.08, 0.09, 0.1], near: 5, far: 22 },
         fogAmt: 0.3,
         points: [
-          { name: "吊灯", pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 1.8 },
-          { name: "壁灯", pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.84, 0.36], range: 5.0, inten: 0.45 },
-          { name: "台灯", pos: [-1.0, 1.3, -2.9], col: [1.0, 0.85, 0.36], range: 3.4, inten: night ? 1.2 : 0.8 },
-          { name: "显示器", pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
-          { name: "窗光", pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.35 },
-          { name: "床头灯", pos: [-1.4, 0.8, -3.15], col: [1.0, 0.85, 0.38], range: 4.2, inten: 0.48 }
+          { name: "吊灯", pos: [0, 2.4, -1.4], col: [1.0, 0.671, 0.361], range: 6.0, inten: night ? 1.3 : 1.0 },
+          { name: "壁灯", pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.639, 0.302], range: 5.0, inten: 1.04 },
+          { name: "台灯", pos: [-1.0, 1.3, -2.9], col: [0.996, 0.847, 0.365], range: 3.4, inten: night ? 1.2 : 0 },
+          { name: "显示器", pos: [monX, monY, monZ + 0.45], col: [0, 0.102, 0.341], range: 2.8, inten: night ? 1.0 : 1.33 },
+          { name: "窗光", pos: [0, 1.9, zBack + 0.2], col: [0, 0.416, 1.0], range: 7.0, inten: night ? 0.3 : 0.1 },
+          { name: "床头灯", pos: [-1.4, 0.8, -3.15], col: [1.0, 0.678, 0.38], range: 4.2, inten: 0.88 }
         ]
       },
       shadow: { pos: [0, 2.4, -1.4], far: 9, index: 0, bias: 0.002, size: 2048 },
       batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
       flock: flock,
       tone: night ? [0.94, 0.92, 0.94] : [0.91, 0.9, 0.88],
+      post: false,   // 这间房在游戏里跳过调色/暗角/颗粒，保留警报/闪白/故障
       swayAmp: 0.5,
       update(t, sc) {
         sc.cam.eye = [-0.95 + Math.sin(t * 0.21) * 0.03, 1.5 + Math.sin(t * 0.33) * 0.01, 1.55 + Math.cos(t * 0.18) * 0.025];
