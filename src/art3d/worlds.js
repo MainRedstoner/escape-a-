@@ -1100,7 +1100,7 @@ const A3DWorlds = (() => {
     /* ---------- 材质：没有木头 ---------- */
     const paint = st.pen("paint", T.paint(), { tint: night ? [0.6, 0.67, 0.8] : [0.85, 0.89, 0.95], spec: 0.08 });
     const deskTop = st.pen("deskTop", T.paint(), { tint: night ? [0.5, 0.57, 0.7] : [0.66, 0.74, 0.88], spec: 0.1 });
-    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 0.98, 0.8], emissive: [0.35, 0.22, 0.08] });
+    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 1.0, 0.72], emissive: [0.4, 0.3, 0.06] });
     const metal = st.pen("metal", T.metal(), { tint: night ? [0.55, 0.6, 0.7] : [0.72, 0.78, 0.9], spec: 0.45 });
     const metalDark = st.pen("metalDark", T.darkMetal(), { tint: [0.75, 0.82, 0.95], spec: 0.32 });
     const ceramic = st.pen("ceramic", T.plasterPale(), { tint: [1.02, 1.04, 1.08], spec: 0.45 });
@@ -1162,7 +1162,7 @@ const A3DWorlds = (() => {
       zFront - zBack, RH, [1, 1, 1], [0, 0, 1, 1]);
     side.quad.call(side, m4(RW / 2, RH / 2, (zBack + zFront) / 2, 0, -Math.PI / 2, 0),
       zFront - zBack, RH, [1, 1, 1], [0, 0, 1, 1]);
-    const ceil = st.pen("ceil", null, { tint: night ? [0.4, 0.48, 0.66] : [0.58, 0.68, 0.86], spec: 0.02 });
+    const ceil = st.pen("ceil", null, { tint: night ? [0.4, 0.48, 0.66] : [0.78, 0.73, 0.64], spec: 0.02 });
     ceil.grid.call(ceil, m4(0, RH, (zBack + zFront) / 2, Math.PI, 0, 0), RW, zFront - zBack, 8, 8, [1, 1, 1], 1, 0.05, 0);
 
     /* ---------- 护墙板 + 气泡贴花 ---------- */
@@ -1207,7 +1207,7 @@ const A3DWorlds = (() => {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       Gbox(metalDark, -1.4 + sx * 0.17, 0.045, -3.15 + sz * 0.13, 0.035, 0.09, 0.035, [1, 1, 1]);
     }
-    P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.86, 0.62]);
+    P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.9, 0.58]);
     const bedHalo = st.pen("bedHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.28 });
     bedHalo.quad.call(bedHalo, m4(-1.4, 0.74, -3.05), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
@@ -1228,7 +1228,7 @@ const A3DWorlds = (() => {
     deskMat.quad.call(deskMat, m4(0.28, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
     P.keyboard(metalDark, m4(0.08, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
     P.mouse(metalDark, m4(0.56, deskH + 0.034, deskZ + 0.17));
-    P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.86, 0.62]);
+    P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
     const deskHalo = st.pen("deskHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.3 });
     deskHalo.quad.call(deskHalo, m4(deskX - 1.0, deskH + 0.26, deskZ - 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
     ceramic.cyl.call(ceramic, m4(-0.5, deskH + 0.005, deskZ + 0.24), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
@@ -1383,7 +1383,7 @@ const A3DWorlds = (() => {
       uvAnim: t => [Math.sin(t * 0.11) * 0.15 + t * 0.01, t * 0.016]
     });
     causticFloor.quad.call(causticFloor, m4(0.05, 0.02, -2.0, -Math.PI / 2, 0, 0), 3.4, 2.6, [1, 1, 1], [0, 0, 1.6, 1.3]);
-    const sunPatch = st.pen("sunPatch", T.glow(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.15, tint: [1.0, 0.76, 0.42] });
+    const sunPatch = st.pen("sunPatch", T.glow(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.15, tint: [1.0, 0.84, 0.38] });
     sunPatch.quad.call(sunPatch, m4(0.0, 0.016, -1.7, -Math.PI / 2, 0, 0), 3.0, 2.2, [1, 1, 1], [0, 0, 1, 1]);
     const rayB = st.pen("shafts", T.shaft(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.14, tint: [0.62, 0.86, 1.0] });
     for (let i = 0; i < 3; i++) {
@@ -1406,21 +1406,21 @@ const A3DWorlds = (() => {
 
     /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
     const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
-    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.95, 0.8], emissive: [0.3, 0.2, 0.08] });
+    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.36, 0.28, 0.06] });
     Gbox(lampMetal, 0, RH - 0.02, -1.4, 0.4, 0.02, 0.4, [1, 1, 1]);
-    P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.88, 0.66]);
+    P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.9, 0.56]);
     const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
     cordB.cyl.call(cordB, m4(0, 2.42, -1.4), 0.006, 0.006, 0.38, 4, [1, 1, 1], false);
-    const lampHalo = st.pen("lampHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.78, 0.42], opacity: night ? 0.45 : 0.26 });
+    const lampHalo = st.pen("lampHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.38], opacity: night ? 0.45 : 0.26 });
     lampHalo.quad.call(lampHalo, m4(0, RH - 0.52, -1.38), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
     const monHalo = st.pen("monHalo", T.glow(), { unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.26 });
     monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08), 1.1, 0.78, [1, 1, 1], [0, 0, 1, 1]);
     const sconce = st.pen("sconce", T.metal(), { tint: [1.0, 0.95, 0.85], spec: 0.5 });
-    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.96, 0.78], emissive: [0.35, 0.22, 0.08] });
+    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.99, 0.7], emissive: [0.4, 0.3, 0.06] });
     sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, -0.9), 0.16, 0.025, 0.025, [1, 1, 1], 1);
     sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, -0.9), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
     sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, -0.9), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
-    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.7, 0.38], opacity: 0.38 });
+    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.83, 0.36], opacity: 0.38 });
     sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.3, 2.18, -0.9, 0, -Math.PI / 2, 0), 0.85, 0.85, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 粒子 ---------- */
@@ -1453,23 +1453,23 @@ const A3DWorlds = (() => {
       },
       lights: {
         sun: A3D.norm3([-0.35, 0.85, -0.45]),
-        sunCol: night ? [0.2, 0.19, 0.2] : [0.46, 0.42, 0.37],
-        skyCol: night ? [0.18, 0.2, 0.26] : [0.22, 0.26, 0.32],
-        groundCol: night ? [0.14, 0.12, 0.12] : [0.2, 0.19, 0.19],
+        sunCol: night ? [0.2, 0.19, 0.2] : [0.5, 0.44, 0.3],
+        skyCol: night ? [0.18, 0.2, 0.26] : [0.2, 0.24, 0.3],
+        groundCol: night ? [0.14, 0.12, 0.12] : [0.21, 0.18, 0.14],
         fog: { col: night ? [0.04, 0.04, 0.05] : [0.08, 0.09, 0.1], near: 5, far: 22 },
         fogAmt: 0.3,
         points: [
-          { pos: [0, 2.4, -1.4], col: [1.0, 0.76, 0.48], range: 6.0, inten: night ? 1.3 : 0.9 },
-          { pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.72, 0.42], range: 5.0, inten: 0.45 },
-          { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.7, 0.4], range: 3.4, inten: night ? 1.2 : 0.8 },
+          { pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 0.9 },
+          { pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.84, 0.36], range: 5.0, inten: 0.45 },
+          { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.85, 0.36], range: 3.4, inten: night ? 1.2 : 0.8 },
           { pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
           { pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.35 },
-          { pos: [-1.4, 0.8, -3.15], col: [1.0, 0.73, 0.42], range: 4.2, inten: 0.48 }
+          { pos: [-1.4, 0.8, -3.15], col: [1.0, 0.85, 0.38], range: 4.2, inten: 0.48 }
         ]
       },
       batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
       flock: flock,
-      tone: night ? [0.94, 0.92, 0.94] : [0.89, 0.91, 0.95],
+      tone: night ? [0.94, 0.92, 0.94] : [0.91, 0.9, 0.88],
       swayAmp: 0.5,
       update(t, sc) {
         sc.cam.eye = [-0.95 + Math.sin(t * 0.21) * 0.03, 1.5 + Math.sin(t * 0.33) * 0.01, 1.55 + Math.cos(t * 0.18) * 0.025];
