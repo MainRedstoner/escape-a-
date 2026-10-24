@@ -549,7 +549,7 @@ const A3DDecor = (() => {
         0.035, 0.028, legH, 8, C.woodDark, true);
     }
     /* 床架 */
-    G.box.call(bWood, at(m, 0, legH + frameT / 2, 0), w, frameT, len - 0.06, C.wood, 1.4);
+    G.box.call(bWood, at(m, 0, legH + frameT / 2, 0), w, frameT, len, C.wood, 1.4);
     /* 床垫 */
     G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
     /* 蓝色被子：盖住靠床尾的 3/4，圆润一点 */
@@ -568,11 +568,8 @@ const A3DDecor = (() => {
       bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.025), 0, -len / 2 - 0.03), 0.038, 0.032, 1.02, 8, C.woodDark, true);
       bWood.sphere.call(bWood, at(m, sx * (w / 2 - 0.025), 1.04, -len / 2 - 0.03), 0.045, 8, 5, C.woodLit);
     }
-    /* 床尾的浅色搭毯：和蓝被子拉开层次 */
-    G.box.call(bSheet, at(m, 0, topY + 0.006, len / 2 - 0.30), w - 0.06, 0.028, 0.18, C.fabricLit, 2.0);
     /* 床尾板 */
-    G.box.call(bWood, at(m, 0, 0.36, len / 2 + 0.025), w, 0.30, 0.05, C.wood, 1.5);
-    G.box.call(bFabric, at(m, 0, topY - 0.02, len / 2 - 0.16), w - 0.04, 0.03, 0.16, C.fabricDark, 2.0);
+    G.box.call(bWood, at(m, 0, 0.36, len / 2), w, 0.30, 0.05, C.wood, 1.5);
   }
 
   /** 书桌：m 原点在落地中心，桌面在 y=h；白漆桌板 + 金属腿 */
