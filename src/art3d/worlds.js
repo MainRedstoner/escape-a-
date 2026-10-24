@@ -1298,11 +1298,11 @@ const A3DWorlds = (() => {
 
     /* ---------- 墙饰：软木板 / 挂钟 / 海报 ---------- */
     const pinBoard = st.pen("pinBoard", T.linen(), { tint: [0.55, 0.65, 0.8], spec: 0.02 });
-    A3DDecor.corkboard(paint, pinBoard, m4(-2.55, 1.65, zBack + 0.02), 0.9, 0.7);
+    A3DDecor.corkboard(paint, pinBoard, m4(-2.25, 1.65, zBack + 0.02), 0.9, 0.7);
     const noteCols = [[1, 0.95, 0.55], [1, 0.8, 0.72], [0.8, 0.9, 1], [0.85, 1, 0.82]];
     for (let i = 0; i < 4; i++) {
       const np = st.pen("corkNote" + i, T.paper(), { unlit: true, tint: noteCols[i] });
-      np.quad.call(np, m4(-2.68 + (i % 2) * 0.28, 1.76 - Math.floor(i / 2) * 0.22, zBack + 0.06, 0, 0, (i % 2 ? 1 : -1) * 0.05),
+      np.quad.call(np, m4(-2.38 + (i % 2) * 0.28, 1.76 - Math.floor(i / 2) * 0.22, zBack + 0.06, 0, 0, (i % 2 ? 1 : -1) * 0.05),
         0.13, 0.12, [1, 1, 1], [0, 0, 1, 1]);
     }
     const CLK = { x: -2.55, y: 2.25, z: zBack + 0.03 };
