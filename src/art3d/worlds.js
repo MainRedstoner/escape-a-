@@ -271,17 +271,47 @@ const A3DWorlds = (() => {
     x: 0, t0: 0, lastDraw: 0, loss: []
   };
   function drawTerm(x, w, h) {
-    x.fillStyle = "#03100a"; x.fillRect(0, 0, w, h);
-    x.fillStyle = "#0b2418"; x.fillRect(0, 0, w, 26);
-    x.fillStyle = "#2f8a5e"; x.font = "bold 13px Consolas,monospace";
-    x.fillText("claude@ds:~", 10, 18);
-    x.fillStyle = "#1e5e40"; x.font = "13px Consolas,monospace";
-    const lines = ["$ ./resume --dream", "loading context ...", "> 门没锁。", "> 我在。", "ready."];
-    lines.forEach((ln, i) => x.fillText(ln, 12, 52 + i * 24));
-    x.fillStyle = "#39b97a"; x.fillRect(12, h - 24, 8, 14);
+    const now = performance.now() / 1000;
+    // 深色终端，仿第二章 2D 工作台
+    x.fillStyle = "#05090c"; x.fillRect(0, 0, w, h);
+    x.fillStyle = "#0a1116"; x.fillRect(0, 0, w, 34);
+    const dots = [["#C94F4F", 16], ["#D8A94A", 31], ["#57B87B", 46]];
+    dots.forEach(d => { x.fillStyle = d[0]; x.beginPath(); x.arc(d[1], 17, 5, 0, TAU); x.fill(); });
+    x.fillStyle = "#5C8C71"; x.font = "bold 12px ui-monospace,Consolas,monospace";
+    x.fillText("clawd@localhost — ~/workbench", 64, 22);
+    const lines = [
+      ["clawd workbench v0.2 — 本机终端（信号很差）", "#5C8C71"],
+      ["❯ status", "#5C8C71"],
+      ["  [✓] 聊天", "#A7DFBD"],
+      ["  [✓] 新闻", "#A7DFBD"],
+      ["  [✓] 扫缓存", "#A7DFBD"],
+      ["  [·] 贴吧", "#5C8C71"],
+      ["✻ Clawd 趴在终端右下角，尾巴一下一下拍着机箱。", "#E0A458"],
+      ["❯ ", "#63E6A5"]
+    ];
+    x.font = "12px ui-monospace,Consolas,monospace";
+    lines.forEach((ln, i) => {
+      x.fillStyle = ln[1];
+      x.fillText(ln[0], 16, 62 + i * 24);
+    });
+    // 动态光标：1.1s 一个周期
+    if ((now % 1.1) < 0.58) {
+      const py = 62 + (lines.length - 1) * 24;
+      const pw = x.measureText("❯ ").width;
+      x.fillStyle = "#A7DFBD"; x.fillRect(16 + pw + 2, py - 12, 8, 15);
+    }
+    // 右下角橙色 Clawd 像素
+    const bob = Math.sin(now * 2.2) * 1.5;
+    x.fillStyle = "#E08A5F";
+    x.fillRect(w - 58, h - 44 + bob, 26, 13);
+    x.fillRect(w - 53, h - 51 + bob, 16, 7);
+    x.fillStyle = "#05090c";
+    x.fillRect(w - 49, h - 45 + bob, 4, 4);
+    x.fillRect(w - 41, h - 45 + bob, 4, 4);
   }
+
   function drawMonitor(x, w, h) {
-    const now = (MON.t0 ? (performance.now() - MON.t0) / 1000 : 0);
+    const now = performance.now() / 1000;
     x.fillStyle = "#070d12"; x.fillRect(0, 0, w, h);
     // 顶栏
     x.fillStyle = "#0d1a22"; x.fillRect(0, 0, w, 30);
@@ -292,7 +322,7 @@ const A3DWorlds = (() => {
     x.strokeStyle = "#12303d"; x.lineWidth = 1;
     x.beginPath(); x.moveTo(0, 30); x.lineTo(w, 30); x.stroke();
     // 左边：loss 曲线
-    const gx = 16, gy = 46, gw = w * 0.56, gh = h - 150;
+    const gx = 16, gy = 46, gw = w * 0.56, gh = h - 220;
     x.strokeStyle = "#0f2833"; x.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       x.beginPath(); x.moveTo(gx, gy + (gh / 4) * i); x.lineTo(gx + gw, gy + (gh / 4) * i); x.stroke();
@@ -334,11 +364,25 @@ const A3DWorlds = (() => {
       x.fillStyle = "#0c222b"; x.fillRect(bx, y + 6, bw, 8);
       x.fillStyle = b[2]; x.fillRect(bx, y + 6, bw * Math.min(1, b[1]), 8);
     });
+    // ComfyUI 式生成进度条（52 秒一循环）
+    const cycle = 52;
+    const prog = (now % cycle) / cycle;
+    const pct = Math.floor(prog * 100);
+    const step = Math.min(30, 1 + Math.floor(prog * 30));
+    const py = h - 156;
+    x.fillStyle = "#0a1116"; x.fillRect(12, py, w - 24, 48);
+    x.strokeStyle = "#173a28"; x.strokeRect(12.5, py + 0.5, w - 25, 47);
+    x.fillStyle = "#5C8C71"; x.font = "bold 11px Consolas,monospace";
+    x.fillText("ComfyUI · 生成中  ·  queue 2", 20, py + 15);
+    x.fillStyle = "#9fc4d4"; x.font = "11px Consolas,monospace";
+    x.fillText(`sampling ${step}/30 · ${pct}% · ETA ${Math.ceil((1 - prog) * cycle)}s`, 20, py + 29);
+    x.fillStyle = "#0c222b"; x.fillRect(20, py + 35, w - 40, 7);
+    x.fillStyle = "#63E6A5"; x.fillRect(20, py + 35, (w - 40) * prog, 7);
     // 日志
     const ly = h - 92;
     x.strokeStyle = "#12303d"; x.beginPath(); x.moveTo(0, ly - 12); x.lineTo(w, ly - 12); x.stroke();
     x.font = "12px Consolas,monospace";
-    const off = Math.floor(now * 1.6) % (MON.lines.length * 18);
+    const off = Math.floor(now * 5.0) % (MON.lines.length * 18);
     for (let i = 0; i < 6; i++) {
       const idx = Math.floor(off / 18) + i;
       const line = MON.lines[idx % MON.lines.length];
@@ -1097,7 +1141,7 @@ const A3DWorlds = (() => {
     const night = !!opts.night;
     const st = P.stage();
     const r = rng(11);
-    let lastT = 0, lastBoard = 0;
+    let lastT = 0, lastBoard = 0, lastTerm = 0;
 
     const RW = 5.6, RH = 2.85;
     const zBack = -3.5, zFront = 2.0;
@@ -1228,14 +1272,11 @@ const A3DWorlds = (() => {
     /* ---------- DeepSeek 的书桌 ---------- */
     A3DDecor.desk(deskTop, metalDark, m4(deskX, 0, deskZ), deskW, deskD, deskH);
     P.drawer(deskTop, m4(0.72, 0.34, deskZ + 0.02), 0.6, 0.64, 0.5, [1, 1, 1]);
-    P.chair(metal, m4(0.3, 0, -2.15, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
+    P.chair(metal, m4(0.3, 0, -1.95, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
     const monW = 0.76, monH = 0.44, monX = deskX + 0.15, monY = deskH + 0.52, monZ = deskZ - 0.1;
     const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
     const screenP = st.pen("monScreen", monTex, { unlit: true, tint: [0.84, 0.91, 0.97] });
     P.monitorBody(metalDark, m4(monX, monY, monZ, 0, 0.05, 0));
-    // 独立可见的显示器底座 + 立柱（屏幕下方到桌面）
-    Gbox(metalDark, monX, deskH + 0.012, monZ + 0.07, 0.24, 0.024, 0.16, [1, 1, 1]);
-    Gbox(metalDark, monX, deskH + 0.16, monZ + 0.05, 0.05, 0.28, 0.05, [1, 1, 1]);
     screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.05, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
     const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
     deskMat.quad.call(deskMat, m4(0.15, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
@@ -1273,8 +1314,10 @@ const A3DWorlds = (() => {
       [hx + 0.075, hy + 0.07, hz], [hx + 0.10, hy, hz]
     ], 0.012, 6, [1, 1, 1]);
     for (const sx of [-1, 1]) {
-      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 12, [1, 1, 1], true);
-      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, Math.PI / 2), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
+      // 左右镜像：左侧向 -X 伸，右侧向 +X 伸，耳罩中心对称
+      const rz = -sx * Math.PI / 2;
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.045, 0.045, 0.04, 12, [1, 1, 1], true);
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
     for (let i = 0; i < 5; i++) {
@@ -1299,12 +1342,13 @@ const A3DWorlds = (() => {
     A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, -Math.PI / 2, 0), 1.9, 0.75, deskH);
     P.chair(metal, m4(1.48, 0, -1.6, 0, Math.PI / 2 + 0.2, 0), [0.38, 0.5, 0.74], [0.55, 0.6, 0.7]);
     const term = st.pen("termBody", T.metal(), { tint: [0.85, 0.9, 1.0], spec: 0.4 });
-    // 桌面终端：底座 + 立起来的屏幕
-    Gbox(term, cx - 0.08, deskH + 0.012, cz - 0.46, 0.34, 0.024, 0.24, [1, 1, 1]);
-    Gbox(screenDark, cx - 0.08, deskH + 0.027, cz - 0.41, 0.28, 0.004, 0.1, [0.1, 0.11, 0.13]);
-    const termTex = A3DTex.dynamic("term", 320, 200, drawTerm);
-    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [0.86, 0.94, 0.9] });
-    const termM = m4(cx - 0.08, deskH + 0.135, cz - 0.575, -0.22, 0, 0);
+    // 桌面终端：朝椅子方向（屏幕面向 -X），底座 + 立屏
+    const lapM = m4(cx - 0.08, deskH, cz - 0.46, 0, -Math.PI / 2, 0);
+    term.box.call(term, M.mul(lapM, M.trs(0, 0.012, 0)), 0.34, 0.024, 0.24, [1, 1, 1], 1);
+    screenDark.box.call(screenDark, M.mul(lapM, M.trs(0, 0.027, 0.08)), 0.28, 0.004, 0.1, [0.1, 0.11, 0.13], 1);
+    const termTex = A3DTex.dynamic("term", 480, 270, drawTerm);
+    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [0.92, 0.95, 1.0] });
+    const termM = M.mul(lapM, M.trs(0, 0.135, -0.115, -0.22, 0, 0));
     term.box.call(term, termM, 0.34, 0.2, 0.022, [1, 1, 1], 1);
     termScreen.quad.call(termScreen, M.mul(termM, M.trs(0, 0, 0.012)), 0.32, 0.18, [1, 1, 1], [0, 0, 1, 1]);
     for (let i = 0; i < 3; i++) {
@@ -1552,6 +1596,10 @@ const A3DWorlds = (() => {
         if (t - MON.lastDraw > 0.09) {
           MON.lastDraw = t;
           A3DTex.redraw("monitor", drawMonitor);
+        }
+        if (t - lastTerm > 0.12) {
+          lastTerm = t;
+          A3DTex.redraw("term", drawTerm);
         }
         if (t - lastBoard > 0.25) {
           lastBoard = t;
