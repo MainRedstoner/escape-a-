@@ -1200,18 +1200,18 @@ const A3DWorlds = (() => {
     const bedFabric = st.pen("bedFabric", T.linen(), { tint: night ? [0.38, 0.48, 0.7] : [0.5, 0.64, 0.92], spec: 0.03 });
     const bedSheet = st.pen("bedSheet", T.linen(), { tint: [0.98, 1.0, 1.04], spec: 0.02 });
     A3DDecor.bed(metalDark, bedFabric, bedSheet, m4(-2.2, 0, -2.4), 1.0, 1.9);
-    // 床头柜：白漆柜体 + 黑金属腿
-    Gbox(deskTop, -1.35, 0.47, -1.0, 0.44, 0.05, 0.38, [1, 1, 1]);
-    Gbox(deskTop, -1.35, 0.27, -1.0, 0.4, 0.36, 0.34, [1, 1, 1]);
-    Gbox(metalDark, -1.35, 0.34, -0.81, 0.16, 0.014, 0.02, [1, 1, 1]);
+    // 床头柜：白漆柜体 + 黑金属腿，放在床头（床的右前方）
+    Gbox(deskTop, -1.4, 0.47, -3.15, 0.42, 0.05, 0.36, [1, 1, 1]);
+    Gbox(deskTop, -1.4, 0.27, -3.15, 0.38, 0.36, 0.32, [1, 1, 1]);
+    Gbox(metalDark, -1.4, 0.34, -2.97, 0.16, 0.014, 0.02, [1, 1, 1]);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      Gbox(metalDark, -1.35 + sx * 0.18, 0.045, -1.0 + sz * 0.14, 0.035, 0.09, 0.035, [1, 1, 1]);
+      Gbox(metalDark, -1.4 + sx * 0.17, 0.045, -3.15 + sz * 0.13, 0.035, 0.09, 0.035, [1, 1, 1]);
     }
-    P.tableLamp(metal, shadeWarm, m4(-1.35, 0.5, -1.0), 0.34, [1.0, 0.86, 0.62]);
+    P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.86, 0.62]);
     const bedHalo = st.pen("bedHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.28 });
-    bedHalo.quad.call(bedHalo, m4(-1.35, 0.74, -0.9), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
-    P.book(bookB, m4(-1.42, 0.5, -1.08, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
-    P.mug(mugB, m4(-1.2, 0.5, -0.94), 0.04, [0.85, 0.8, 0.75]);
+    bedHalo.quad.call(bedHalo, m4(-1.4, 0.74, -3.05), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
+    P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
+    P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
     metalDark.cyl.call(metalDark, m4(-1.3, 0.01, -2.0), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
     metalDark.torus.call(metalDark, m4(-1.3, 0.35, -2.0), 0.18, 0.012, 14, 5, [1, 1, 1]);
 
@@ -1302,8 +1302,8 @@ const A3DWorlds = (() => {
     const noteCols = [[1, 0.95, 0.55], [1, 0.8, 0.72], [0.8, 0.9, 1], [0.85, 1, 0.82]];
     for (let i = 0; i < 4; i++) {
       const np = st.pen("corkNote" + i, T.paper(), { unlit: true, tint: noteCols[i] });
-      np.quad.call(np, m4(-2.83 + (i % 2) * 0.34, 1.77 - Math.floor(i / 2) * 0.24, zBack + 0.065, 0, 0, (i % 2 ? 1 : -1) * 0.06),
-        0.15, 0.14, [1, 1, 1], [0, 0, 1, 1]);
+      np.quad.call(np, m4(-2.72 + (i % 2) * 0.34, 1.76 - Math.floor(i / 2) * 0.22, zBack + 0.06, 0, 0, (i % 2 ? 1 : -1) * 0.05),
+        0.13, 0.12, [1, 1, 1], [0, 0, 1, 1]);
     }
     const CLK = { x: -2.55, y: 2.25, z: zBack + 0.03 };
     const clockRim = st.pen("clockRim", T.metal(), { tint: [0.9, 0.95, 1.0], spec: 0.45 });
@@ -1397,7 +1397,7 @@ const A3DWorlds = (() => {
       shadowB.quad.call(shadowB, m4(x, 0.014, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
     };
     sh(-2.2, -2.4, 1.1, 2.0, 0);
-    sh(-1.35, -1.0, 0.55, 0.5, 0);
+    sh(-1.4, -3.15, 0.55, 0.5, 0);
     sh(deskX, deskZ, 2.5, 0.9, 0);
     sh(0.3, -2.15, 0.6, 0.6, 0.25);
     sh(cx, cz, 0.95, 2.1, 0);
@@ -1464,7 +1464,7 @@ const A3DWorlds = (() => {
           { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.7, 0.4], range: 3.4, inten: night ? 1.2 : 0.8 },
           { pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
           { pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.35 },
-          { pos: [-1.35, 0.8, -1.0], col: [1.0, 0.73, 0.42], range: 4.2, inten: 0.48 }
+          { pos: [-1.4, 0.8, -3.15], col: [1.0, 0.73, 0.42], range: 4.2, inten: 0.48 }
         ]
       },
       batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
