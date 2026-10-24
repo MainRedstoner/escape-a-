@@ -1385,10 +1385,11 @@ const A3DWorlds = (() => {
     causticFloor.quad.call(causticFloor, m4(0.05, 0.02, -2.0, -Math.PI / 2, 0, 0), 3.4, 2.6, [1, 1, 1], [0, 0, 1.6, 1.3]);
     const sunPatch = st.pen("sunPatch", T.glow(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.15, tint: [1.0, 0.84, 0.38] });
     sunPatch.quad.call(sunPatch, m4(0.0, 0.016, -1.7, -Math.PI / 2, 0, 0), 3.0, 2.2, [1, 1, 1], [0, 0, 1, 1]);
-    const rayB = st.pen("shafts", T.shaft(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.14, tint: [0.62, 0.86, 1.0] });
+    const rayB = st.pen("shafts", T.shaft(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.12, tint: [0.62, 0.86, 1.0] });
     for (let i = 0; i < 3; i++) {
-      rayB.quad.call(rayB, m4(-0.8 + i * 0.8, 1.75, zBack + 0.9 + i * 0.4, 0.42, 0.04 * i, -0.12, 1, 1, 1),
-        1.4 + i * 0.2, 4.2, [1, 1, 1], [0, 0, 1, 1]);
+      // 从窗口斜向地面：顶端在窗内，底端落在房间地板上，不再穿天花板
+      rayB.quad.call(rayB, m4(-0.8 + i * 0.8, 1.3, zBack + 0.55 + i * 0.12, -0.55, 0, -0.06 + i * 0.06, 1, 1, 1),
+        0.45, 2.4, [1, 1, 1], [0, 0, 1, 1]);
     }
 
     /* ---------- 接触阴影 + 窗光方向的软投影 + 墙脚 AO ---------- */
