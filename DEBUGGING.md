@@ -108,7 +108,8 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 
 **最快的看法：双击 `art-preview.html`**（`file://` 可用）。左侧切场景、
 `全部场景` 生成缩略图、`游戏后期` 开关对比调色，底部有 FPS 和顶点数；
-`H` 纯净模式、`G` 缩略图、`←/→` 切场景、`1–9` 直选。
+画面里可以 **拖拽旋转 / Shift 或右键拖拽平移 / 滚轮缩放 / WASD 移动 / QE 升降 / R 重置**，
+`H` 纯净模式、`G` 缩略图、`1–9` 直选；滚轮现在只缩放，不再切场景。
 
 排查按这个顺序：
 

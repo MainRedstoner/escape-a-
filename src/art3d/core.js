@@ -768,6 +768,7 @@ const A3D = (() => {
   function has(id) { return !!scenes[id] && init(); }
 
   let cur = null, curId = "", curScene = null;
+  let camOverride = null;   // 预览页的自由相机：场景 update 之后覆盖 cam
   const scratchMat = M.ident();
 
   function setBatch(b, t, view) {
@@ -987,9 +988,21 @@ const A3D = (() => {
         return false;
       }
       sc.__id = id;
+      if (sc.cam) {
+        sc.__cam0 = {
+          eye: sc.cam.eye.slice(),
+          target: sc.cam.target.slice(),
+          fov: sc.cam.fov
+        };
+      }
       scenes[id].__built = sc;
     }
     if (sc.update) sc.update(t, sc);
+    if (camOverride && sc.cam) {
+      if (camOverride.eye) sc.cam.eye = camOverride.eye.slice();
+      if (camOverride.target) sc.cam.target = camOverride.target.slice();
+      if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
+    }
     render(sc, t);
     ctx.drawImage(gcv, 0, 0, W, H);
     return true;
@@ -1009,8 +1022,18 @@ const A3D = (() => {
     return [css(0.94, 0.96), css(1, 1), css(0.86, 0.9)];
   }
 
+  function setCamOverride(cam) {
+    camOverride = cam ? {
+      eye: cam.eye ? cam.eye.slice() : null,
+      target: cam.target ? cam.target.slice() : null,
+      fov: cam.fov
+    } : null;
+  }
+  function clearCamOverride() { camOverride = null; }
+
   return {
     W, H, M, Builder, init, draw, register, has, toneOf,
+    setCamOverride, clearCamOverride,
     debugScene: () => curScene,
     get ok() { return ready; }, get failReason() { return failReason; },
     get canvas() { return gcv; },

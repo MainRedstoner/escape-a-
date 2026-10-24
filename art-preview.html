@@ -87,7 +87,8 @@
     background:#000;border:1px solid #202834;border-radius:3px;overflow:hidden;
     box-shadow:0 24px 80px rgba(0,0,0,.75);
   }
-  #stage{display:block;width:100%;height:100%;}
+  #stage{display:block;width:100%;height:100%;cursor:grab;touch-action:none;}
+  #stage:active{cursor:grabbing;}
   #caption{
     position:absolute;left:0;right:0;bottom:0;padding:26px 22px 14px;
     background:linear-gradient(0deg,rgba(3,5,8,.88),rgba(3,5,8,0));
@@ -218,16 +219,16 @@
   <span>WebGL2 <b id="stGl">检查中…</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
-  <span class="keys">← → 切换 · 1–9 直选 · G 全部 · Space 轮播 · H 纯净 · F5 刷新</span>
+  <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选</span>
 </div>
 
-<script src="src/art3d/core.js?v=11"></script>
-<script src="src/art3d/textures.js?v=11"></script>
-<script src="src/art3d/props.js?v=11"></script>
-<script src="src/art3d/flock.js?v=11"></script>
-<script src="src/art3d/decor.js?v=11"></script>
-<script src="src/art3d/worlds.js?v=11"></script>
-<script src="src/art3d/worlds2.js?v=11"></script>
+<script src="src/art3d/core.js?v=17"></script>
+<script src="src/art3d/textures.js?v=17"></script>
+<script src="src/art3d/props.js?v=17"></script>
+<script src="src/art3d/flock.js?v=17"></script>
+<script src="src/art3d/decor.js?v=17"></script>
+<script src="src/art3d/worlds.js?v=17"></script>
+<script src="src/art3d/worlds2.js?v=17"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -240,9 +241,7 @@
 
 const SCENES = [
   { id: "sea",            name: "深海 / 标题画面",        desc: "光柱、鱼群、远处鲸影；标题画面和被水淹没的梦。", group: "序章" },
-  { id: "ds_room",        name: "DeepSeek 家里 · 白天",   desc: "一整面深海的窗、鱼群、礁石；桌前滚动的训练日志与 loss 曲线，白板上两条曲线。", group: "序章" },
-  { id: "ds_room_night",  name: "DeepSeek 家里 · 深夜",   desc: "同一间屋子，灯换成台灯与显示器；窗外是更深的蓝。", group: "序章" },
-  { id: "ds_room_dawn",   name: "DeepSeek 家里 · 清晨",   desc: "第二章开场，窗口偏暖一档。", group: "序章" },
+  { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼蒸馏室：床、两张桌子、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章" },
   { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "石门套、橡木门、紧闭的百叶窗、常春藤，门口石池里的橙色菊花。", group: "序章" },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。", group: "后面的章节" },
@@ -263,6 +262,59 @@ const thumbs = {};       // id -> canvas（480×270）
 let thumbBusy = false, thumbAll = false;
 
 const $ = id => document.getElementById(id);
+
+/* ---------------- 自由相机（轨道 + 平移 + 缩放 + WASD） ---------------- */
+let orbit = null, defaultCam = null, needInit = true;
+let drag = null;
+const held = {};
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+function initOrbit(cam) {
+  if (!cam || !cam.eye || !cam.target) return;
+  const ex = cam.eye[0] - cam.target[0];
+  const ey = cam.eye[1] - cam.target[1];
+  const ez = cam.eye[2] - cam.target[2];
+  const dist = Math.max(0.4, Math.hypot(ex, ey, ez));
+  defaultCam = { eye: cam.eye.slice(), target: cam.target.slice(), fov: cam.fov || 50 };
+  orbit = {
+    target: cam.target.slice(),
+    yaw: Math.atan2(ex, ez),
+    pitch: Math.asin(clamp(ey / dist, -1, 1)),
+    dist: dist,
+    fov: cam.fov || 50
+  };
+}
+function camFromOrbit() {
+  const cp = Math.cos(orbit.pitch);
+  return {
+    eye: [
+      orbit.target[0] + Math.sin(orbit.yaw) * cp * orbit.dist,
+      orbit.target[1] + Math.sin(orbit.pitch) * orbit.dist,
+      orbit.target[2] + Math.cos(orbit.yaw) * cp * orbit.dist
+    ],
+    target: orbit.target.slice(),
+    fov: orbit.fov
+  };
+}
+function resetOrbit() {
+  if (defaultCam) initOrbit(defaultCam);
+}
+function moveOrbit(dt) {
+  if (!orbit) return;
+  const speed = 2.8 * Math.min(0.05, Math.max(0, dt));
+  const sy = Math.sin(orbit.yaw), cy = Math.cos(orbit.yaw);
+  let dx = 0, dy = 0, dz = 0;
+  if (held.w) { dx -= sy; dz -= cy; }
+  if (held.s) { dx += sy; dz += cy; }
+  if (held.d) { dx += cy; dz -= sy; }
+  if (held.a) { dx -= cy; dz += sy; }
+  if (held.q) dy += 1;
+  if (held.e) dy -= 1;
+  orbit.target[0] = clamp(orbit.target[0] + dx * speed, -12, 12);
+  orbit.target[1] = clamp(orbit.target[1] + dy * speed, 0.15, 3.4);
+  orbit.target[2] = clamp(orbit.target[2] + dz * speed, -12, 12);
+}
+
 
 /* ---------------- 2D 后期：和游戏 art.js 的 post() 保持一致 ---------------- */
 function post2d(c, id) {
@@ -319,12 +371,29 @@ function select(i) {
   $("capDesc").textContent = sc.desc;
   markSide();
   document.title = sc.name + " · Escape A÷ 3D 预览";
+  needInit = true;
+  orbit = null;
+  defaultCam = null;
+  if (typeof A3D !== "undefined" && A3D.clearCamOverride) A3D.clearCamOverride();
 }
 function drawFrame(t) {
   const sc = SCENES[cur];
   if (!(typeof A3D !== "undefined" && A3D.ok)) return;
   ctx.clearRect(0, 0, W, H);
-  if (!A3D.draw(ctx, sc.id, t)) {
+  let ok;
+  if (needInit) {
+    if (A3D.clearCamOverride) A3D.clearCamOverride();
+    ok = A3D.draw(ctx, sc.id, t);
+    if (ok) {
+      const s = A3D.debugScene();
+      if (s && s.cam) initOrbit(s.cam);
+      needInit = false;
+    }
+  } else {
+    if (orbit && A3D.setCamOverride) A3D.setCamOverride(camFromOrbit());
+    ok = A3D.draw(ctx, sc.id, t);
+  }
+  if (!ok) {
     ctx.fillStyle = "#05070A"; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#7D8798"; ctx.font = "22px 'Noto Sans SC',sans-serif";
     ctx.textAlign = "center";
@@ -345,6 +414,8 @@ function drawFrame(t) {
 let last = performance.now(), fpsN = 0, fpsT = 0;
 function loop(now) {
   const t = now / 1000;
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  moveOrbit(dt);
   drawFrame(t);
   fpsN++;
   if (now - fpsT > 500) {
@@ -399,7 +470,14 @@ function renderCards() {
 }
 function fillThumb(sc) {
   offCtx.clearRect(0, 0, W, H);
+  if (A3D.clearCamOverride) A3D.clearCamOverride();
   if (!A3D.draw(offCtx, sc.id, 2.4)) return false;
+  const s0 = A3D.debugScene();
+  if (s0 && s0.__cam0 && A3D.setCamOverride) {
+    A3D.setCamOverride(s0.__cam0);
+    A3D.draw(offCtx, sc.id, 2.4);
+    A3D.clearCamOverride();
+  }
   if (showPost) post2d(offCtx, sc.id);
   const th = document.createElement("canvas");
   th.width = 480; th.height = 270;
@@ -461,41 +539,81 @@ $("btnClean").addEventListener("click", () => {
   $("btnClean").classList.toggle("on", document.body.classList.contains("clean"));
 });
 window.addEventListener("keydown", e => {
-  if (e.key === "ArrowRight" || e.key === "d") { select(cur + 1); }
-  else if (e.key === "ArrowLeft" || e.key === "a") { select(cur - 1); }
-  else if (e.key === "g" || e.key === "G") {
+  const k = e.key, kl = k.toLowerCase();
+  if (k === "ArrowLeft") { if (orbit) orbit.yaw += 0.08; e.preventDefault(); return; }
+  if (k === "ArrowRight") { if (orbit) orbit.yaw -= 0.08; e.preventDefault(); return; }
+  if (k === "ArrowUp") { if (orbit) orbit.pitch = clamp(orbit.pitch + 0.06, -1.45, 1.45); e.preventDefault(); return; }
+  if (k === "ArrowDown") { if (orbit) orbit.pitch = clamp(orbit.pitch - 0.06, -1.45, 1.45); e.preventDefault(); return; }
+  if (kl === "r") { resetOrbit(); return; }
+  if (kl === "w" || kl === "a" || kl === "s" || kl === "d" || kl === "q" || kl === "e") {
+    held[kl] = true;
+    return;
+  }
+  if (k === "g" || k === "G") {
     $("grid").classList.contains("show") ? closeGrid() : openGrid();
   }
-  else if (e.key === "h" || e.key === "H") { $("btnClean").click(); }
-  else if (e.key === "Escape") {
+  else if (k === "h" || k === "H") { $("btnClean").click(); }
+  else if (k === "Escape") {
     if ($("grid").classList.contains("show")) closeGrid();
     else if (document.body.classList.contains("clean")) $("btnClean").click();
   }
-  else if (e.key === " ") {
+  else if (k === " ") {
     e.preventDefault();
     $("btnAuto").click();
   }
-  else if (/^[1-9]$/.test(e.key)) {
-    const i = +e.key - 1;
+  else if (/^[1-9]$/.test(k)) {
+    const i = +k - 1;
     if (i < SCENES.length) select(i);
   }
 });
+window.addEventListener("keyup", e => {
+  const kl = e.key.toLowerCase();
+  if (kl in held) held[kl] = false;
+});
+window.addEventListener("blur", () => { for (const k in held) held[k] = false; });
 
-/* 滚轮切换（别在网格里滚的时候切） */
-let wheelLock = 0;
-window.addEventListener("wheel", e => {
-  if ($("grid").classList.contains("show")) return;
-  const now = performance.now();
-  if (now - wheelLock < 420) return;
-  if (Math.abs(e.deltaY) < 8) return;
-  wheelLock = now;
-  select(cur + (e.deltaY > 0 ? 1 : -1));
-}, { passive: true });
+/* 自由相机：画布上拖拽旋转 / Shift 或右键平移，滚轮缩放（不再切场景） */
+cv.addEventListener("pointerdown", e => {
+  if (!orbit) return;
+  drag = { mode: (e.button === 0 && !e.shiftKey) ? "orbit" : "pan", x: e.clientX, y: e.clientY };
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+});
+cv.addEventListener("pointermove", e => {
+  if (!drag || !orbit) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.mode === "orbit") {
+    orbit.yaw -= dx * 0.0035;
+    orbit.pitch = clamp(orbit.pitch + dy * 0.0035, -1.45, 1.45);
+    return;
+  }
+  const cp = Math.cos(orbit.pitch);
+  const f = [-Math.sin(orbit.yaw) * cp, -Math.sin(orbit.pitch), -Math.cos(orbit.yaw) * cp];
+  const r = [Math.cos(orbit.yaw), 0, -Math.sin(orbit.yaw)];
+  const up = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const scale = orbit.dist * 0.0016;
+  orbit.target[0] += -r[0] * dx * scale + up[0] * dy * scale;
+  orbit.target[1] += -r[1] * dx * scale + up[1] * dy * scale;
+  orbit.target[2] += -r[2] * dx * scale + up[2] * dy * scale;
+});
+cv.addEventListener("pointerup", e => {
+  drag = null;
+  try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+cv.addEventListener("pointercancel", () => { drag = null; });
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("wheel", e => {
+  if (!orbit) return;
+  e.preventDefault();
+  orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0011), 0.7, 17);
+}, { passive: false });
 
 /* ---------------- 启动 ---------------- */
 function boot() {
   buildSide();
-  select(0);
+  const start = SCENES.findIndex(s => s.id === "ds_room");
+  select(start >= 0 ? start : 0);
   if (typeof A3D !== "undefined") A3D.init();      // 先建上下文，A3D.ok 才有意义
   if (typeof A3D === "undefined" || !A3D.ok) {
     $("fail").classList.add("show");
@@ -515,6 +633,13 @@ boot();
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
 
 
 
