@@ -114,6 +114,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 排查按这个顺序：
 
 1. **先确认渲染层活着**：控制台 `A3D.ok` 应为 `true`；`false` 看 `A3D.failReason`。
+   `ds_room` 的吊灯有真 cubemap 阴影：`A3D.debugScene().__shadow` 有对象才说明 shadow map 建成功；没有就是 FBO/深度贴图构建失败，看控制台 `[A3D] 阴影构建失败`。
    `A3D` 都没定义，通常是 `index.html` 的 `src/art3d/*.js` 没加载（顺序：core → textures → props → worlds → worlds2 → art）。
 2. **看控制台有没有 shader 报错**：着色器编译失败会打印完整源码和行号，按行号改 `src/art3d/core.js`。
 3. **单独预览一个场景**：`index.html?bg=ds_room`（可选 id 见 DESIGN.md 4.6）。

@@ -1405,19 +1405,6 @@ const A3DWorlds = (() => {
     sh(1.48, -1.6, 0.6, 0.6, 0.2);
     sh(-1.3, -2.0, 0.4, 0.4, 0);
 
-    // 窗光从左后方来，家具的影子往右前拉；叠在接触阴影上
-    const castB = st.pen("castShadow", T.glow(), { unlit: true, blend: "alpha", tint: [0.008, 0.012, 0.022], opacity: 0.38 });
-    const cast = (x, z, w, d, rot) => {
-      castB.quad.call(castB, m4(x, 0.0155, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
-    };
-    cast(-1.95, -2.1, 1.6, 2.4, -0.08);
-    cast(0.35, -2.55, 2.4, 1.25, 0.03);
-    cast(0.55, -1.9, 0.8, 0.95, 0.2);
-    cast(-1.15, -2.9, 0.65, 0.75, 0.05);
-    cast(2.45, -1.45, 1.0, 2.3, 0);
-    cast(1.7, -1.35, 0.8, 0.9, 0.2);
-    cast(-1.1, -1.75, 0.6, 0.7, 0);
-
     // 墙脚 AO：让地板和墙的交界沉下去
     const aoB = st.pen("floorAO", T.glow(), { unlit: true, blend: "alpha", tint: [0.008, 0.012, 0.022], opacity: 0.32 });
     const ao = (x, z, w, d) => {
@@ -1452,8 +1439,8 @@ const A3DWorlds = (() => {
     dsh(cx + 0.16, dtop, cz + 0.38, 0.18, 0.18, 0);
 
     /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
-    const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
-    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.36, 0.28, 0.06] });
+    const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5, noShadow: true });
+    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.36, 0.28, 0.06], noShadow: true });
     Gbox(lampMetal, 0, RH - 0.02, -1.4, 0.4, 0.02, 0.4, [1, 1, 1]);
     P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.9, 0.56]);
     const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
@@ -1500,13 +1487,13 @@ const A3DWorlds = (() => {
       },
       lights: {
         sun: A3D.norm3([-0.35, 0.85, -0.45]),
-        sunCol: night ? [0.2, 0.19, 0.2] : [0.5, 0.44, 0.3],
-        skyCol: night ? [0.18, 0.2, 0.26] : [0.2, 0.24, 0.3],
-        groundCol: night ? [0.14, 0.12, 0.12] : [0.21, 0.18, 0.14],
+        sunCol: night ? [0.2, 0.19, 0.2] : [0.44, 0.39, 0.27],
+        skyCol: night ? [0.18, 0.2, 0.26] : [0.18, 0.21, 0.26],
+        groundCol: night ? [0.14, 0.12, 0.12] : [0.19, 0.16, 0.13],
         fog: { col: night ? [0.04, 0.04, 0.05] : [0.08, 0.09, 0.1], near: 5, far: 22 },
         fogAmt: 0.3,
         points: [
-          { pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 0.9 },
+          { pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 1.8 },
           { pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.84, 0.36], range: 5.0, inten: 0.45 },
           { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.85, 0.36], range: 3.4, inten: night ? 1.2 : 0.8 },
           { pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
@@ -1514,6 +1501,7 @@ const A3DWorlds = (() => {
           { pos: [-1.4, 0.8, -3.15], col: [1.0, 0.85, 0.38], range: 4.2, inten: 0.48 }
         ]
       },
+      shadow: { pos: [0, 2.4, -1.4], far: 9, index: 0, bias: 0.002, size: 2048 },
       batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
       flock: flock,
       tone: night ? [0.94, 0.92, 0.94] : [0.91, 0.9, 0.88],

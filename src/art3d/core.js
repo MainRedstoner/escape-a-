@@ -377,7 +377,8 @@ const A3D = (() => {
    * ============================================================ */
   let gcv = null, gl = null, ready = false, failReason = "";
   let anisoExt = null, maxAniso = 1;
-  let skyProg, litProg, seaProg, ptProg, glowProg;
+  let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg;
+  let shadowFbo = null, dummyShadow = null;
   let res = { w: W, h: H };
 
   function compile(type, src) {
@@ -494,6 +495,7 @@ const A3D = (() => {
 
   const LIT_FS = `#version 300 es
   precision highp float;
+  precision highp samplerCubeShadow;
   in vec3 vWorld; in vec3 vNor; in vec2 vUV; in vec3 vCol; in float vFogDepth;
   out vec4 o;
   uniform sampler2D uTex;
@@ -505,6 +507,32 @@ const A3D = (() => {
   uniform vec3 uPointPos[6], uPointCol[6];
   uniform float uPointRange[6];
   uniform vec2 uUVOff, uUVScale;
+  uniform samplerCubeShadow uShadowMap;
+  uniform int uShadowIdx;
+  uniform float uShadowOn, uShadowFar, uShadowBias;
+  float pointShadow(vec3 wp, vec3 n, vec3 lp) {
+    vec3 d = wp - lp;
+    float dist = length(d);
+    vec3 nd = d / max(dist, 0.0001);
+    vec3 p = wp + n * 0.02;
+    vec3 dp = p - lp;
+    float ref = length(dp) / uShadowFar + uShadowBias;
+    vec3 up = abs(nd.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 t = normalize(cross(up, nd));
+    vec3 b = cross(nd, t);
+    float sum = 0.0;
+    float R = 0.04;
+    float D = 0.7071;
+    sum += texture(uShadowMap, vec4(normalize(dp + t * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp - t * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp + b * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp - b * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp + (t * D + b * D) * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp + (-t * D + b * D) * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp + (t * D - b * D) * R), ref));
+    sum += texture(uShadowMap, vec4(normalize(dp + (-t * D - b * D) * R), ref));
+    return sum * 0.125;
+  }
   void main(){
     vec2 uv = vUV * uUVScale + uUVOff;
     vec4 tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
@@ -533,14 +561,37 @@ const A3D = (() => {
         float att = clamp(1.0 - dist / uPointRange[i], 0.0, 1.0);
         att *= att;
         float nd = clamp(dot(n, d / max(dist, 0.0001)) * 0.5 + 0.5, 0.0, 1.0);
-        col += alb * uPointCol[i] * att * (0.25 + 0.75 * nd);
-        col += uPointCol[i] * uSpec * att * pow(max(dot(n, normalize(d / max(dist,0.0001) + v)), 0.0), 40.0) * 0.6;
+        float sh = 1.0;
+        if (uShadowOn > 0.5 && i == uShadowIdx) sh = pointShadow(vWorld, n, uPointPos[i]);
+        col += alb * uPointCol[i] * att * (0.25 + 0.75 * nd) * sh;
+        col += uPointCol[i] * uSpec * att * pow(max(dot(n, normalize(d / max(dist,0.0001) + v)), 0.0), 40.0) * 0.6 * sh;
       }
     }
     col += uEmissive * (uUseTex > 0.5 ? tx.rgb : vec3(1.0)) * uEmisBoost;
     float f = smoothstep(uFogNear, uFogFar, vFogDepth) * uFogAmt;
     col = mix(col, uFogCol, f);
     o = vec4(col, a);
+  }`;
+
+  const SHADOW_VS = `#version 300 es
+  layout(location=0) in vec3 aPos;
+  uniform mat4 uVP, uModel;
+  out vec3 vWorld;
+  void main(){
+    vec4 w = uModel * vec4(aPos, 1.0);
+    vWorld = w.xyz;
+    gl_Position = uVP * w;
+  }`;
+
+  const SHADOW_FS = `#version 300 es
+  precision highp float;
+  uniform vec3 uLightPos;
+  uniform float uFar;
+  in vec3 vWorld;
+  out vec4 o;
+  void main(){
+    gl_FragDepth = clamp(length(vWorld - uLightPos) / uFar, 0.0, 1.0);
+    o = vec4(1.0);
   }`;
 
   const SEA_VS = `#version 300 es
@@ -678,6 +729,13 @@ const A3D = (() => {
     seaProg = program(SEA_VS, SEA_FS, ["aPos", "aNor", "aUV"]);
     ptProg = program(POINT_VS, POINT_FS, ["aPos", "aCol", "aSize", "aParam"]);
     glowProg = program(GLOW_VS, GLOW_FS, ["aPos", "aNor", "aUV", "aCol"]);
+    shadowProg = program(SHADOW_VS, SHADOW_FS, ["aPos"]);
+    shadowFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    dummyShadow = makeDepthCube(1);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     // 各向异性过滤：地面 / 机柜这种掠射角的贴图不糊成条纹
@@ -771,6 +829,77 @@ const A3D = (() => {
   let camOverride = null;   // 预览页的自由相机：场景 update 之后覆盖 cam
   const scratchMat = M.ident();
 
+
+  /* ---------------- 点光阴影（cubemap shadow map） ---------------- */
+  function makeDepthCube(size) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, tex);
+    for (let i = 0; i < 6; i++) {
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.DEPTH_COMPONENT24,
+        size, size, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    }
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+    return tex;
+  }
+
+  function buildShadow(sc) {
+    const sh = sc.shadow;
+    if (!sh || !gl || !shadowProg) { sc.__shadow = null; return; }
+    const size = sh.size || 1024;
+    const far = sh.far || 9;
+    const tex = makeDepthCube(size);
+    try {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
+      gl.drawBuffers([gl.NONE]);
+      gl.readBuffer(gl.NONE);
+      gl.viewport(0, 0, size, size);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(shadowProg.p);
+      gl.uniform3fv(shadowProg.u.uLightPos, sh.pos);
+      gl.uniform1f(shadowProg.u.uFar, far);
+      const proj = M.perspective(Math.PI / 2, 1, 0.05, far);
+      const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
+      const ups = [[0,-1,0], [0,-1,0], [0,0,1], [0,0,-1], [0,-1,0], [0,-1,0]];
+      for (let f = 0; f < 6; f++) {
+        const d = dirs[f], up = ups[f];
+        const view = M.lookAt(sh.pos,
+          [sh.pos[0] + d[0], sh.pos[1] + d[1], sh.pos[2] + d[2]], up);
+        const vp = M.mul(proj, view);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+          gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, tex, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+          throw new Error("shadow FBO incomplete");
+        }
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.uniformMatrix4fv(shadowProg.u.uVP, false, vp);
+        for (const b of sc.batches) {
+          if (b.noShadow || b.blend || (b.opacity !== undefined && b.opacity < 0.999)) continue;
+          gl.uniformMatrix4fv(shadowProg.u.uModel, false, b.model || scratchMat);
+          gl.bindVertexArray(b.mesh.vao);
+          gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
+        }
+      }
+      sc.__shadow = { tex, far, idx: sh.index || 0,
+        bias: sh.bias === undefined ? 0.0025 : sh.bias };
+    } catch (e) {
+      console.error("[A3D] 阴影构建失败", e);
+      sc.__shadow = null;
+    } finally {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, W, H);
+      gl.bindVertexArray(null);
+    }
+  }
+
   function setBatch(b, t, view) {
     const P = litProg, u = P.u;
     gl.uniformMatrix4fv(u.uModel, false, b.model || scratchMat);
@@ -829,6 +958,14 @@ const A3D = (() => {
       gl.uniform3fv(u.uPointCol, col);
       gl.uniform1fv(u.uPointRange, rng);
     }
+    const sh = scene.__shadow;
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, sh ? sh.tex : dummyShadow);
+    gl.uniform1i(u.uShadowMap, 3);
+    gl.uniform1f(u.uShadowOn, sh ? 1 : 0);
+    gl.uniform1i(u.uShadowIdx, sh ? sh.idx : 0);
+    gl.uniform1f(u.uShadowFar, sh ? sh.far : 1);
+    gl.uniform1f(u.uShadowBias, sh ? sh.bias : 0);
   }
 
   function drawSky(scene, t) {
@@ -1003,6 +1140,7 @@ const A3D = (() => {
       if (camOverride.target) sc.cam.target = camOverride.target.slice();
       if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
     }
+    if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
     render(sc, t);
     ctx.drawImage(gcv, 0, 0, W, H);
     return true;

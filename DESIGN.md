@@ -375,6 +375,7 @@ Clawd 想做事时，会弹出仿 Claude Code 的权限请求框：
 * **新增场景**：在 `src/art3d/worlds*.js` 里 `A3D.register(id, builder)`，
   再到 `tools/validate_script.py` 的 `PROCEDURAL_BG` 登记，否则校验器会把它当成缺图。
 * 画风靠三件事统一：统一的白天暖色脚本、手绘感贴图、2D 后期的调色 / 暗角 / 颗粒。
+* **真阴影**：`src/art3d/core.js` 支持点光 cubemap shadow map（深度 pass + 8-tap PCF）；目前只有 `ds_room` 的吊灯启用（2048、6 面，灯罩/灯架标了 `noShadow`）。太阳、其他灯和其他场景暂不投影，无阴影场景绑 1x1 dummy cube。
   墙面本身是纯色，护墙板、压条、气泡贴花都是单独的几何 / 贴花，不往墙上糊噪点。
   场景自己的 `tone` 决定后期压色，别让三个场景看起来像三个游戏。
 * `ds_room` 的鱼群用 `src/art3d/flock.js` 的 boids：40 条鱼，每条跟随最近的 7 条，
