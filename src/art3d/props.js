@@ -153,8 +153,12 @@ const A3DProps = (() => {
     }
   }
   function mouse(b, m) {
-    G.sphere.call(b, M.mul(m, M.trs(0, 0.012, 0)), 0.045, 12, 8, [0.14, 0.15, 0.17]);
-    G.box.call(b, M.mul(m, M.trs(0, 0.005, 0)), 0.01, 0.004, 0.04, [0.3, 0.3, 0.32], 1);
+    // 扁平鼠标：压扁的椭球 + 滚轮 + 分缝 + 线
+    G.sphere.call(b, M.mul(m, M.trs(0, 0.018, 0, 0, 0, 0, 1, 0.45, 1.35)), 0.04, 14, 8, [0.14, 0.15, 0.17]);
+    G.box.call(b, M.mul(m, M.trs(0, 0.034, -0.012)), 0.008, 0.006, 0.022, [0.3, 0.3, 0.32], 1);
+    G.box.call(b, M.mul(m, M.trs(0, 0.033, 0.022)), 0.002, 0.003, 0.026, [0.08, 0.08, 0.09], 1);
+    b.tube.call(b, M.mul(m, M.trs(0, 0.012, -0.05)),
+      [[0, 0, 0], [0.01, 0.005, -0.06], [0.035, 0.005, -0.11]], 0.004, 5, [0.08, 0.08, 0.09]);
   }
   function mug(b, m, col, r) {
     r = r || 0.045;
@@ -178,6 +182,13 @@ const A3DProps = (() => {
     // 前口露出书页：比封面略窄，往外 1mm 防止 z-fighting
     G.box.call(b, M.mul(m, M.trs(0, h / 2, -d / 2 - 0.001)),
       w - 0.012, h - 0.012, 0.003, [0.93, 0.9, 0.8], 1);
+    // 平放/薄书的两侧也露书页；立着的厚书保持封面
+    if (h < 0.08) {
+      for (const sx of [-1, 1]) {
+        G.box.call(b, M.mul(m, M.trs(sx * (w / 2 + 0.001), h / 2, 0)),
+          0.003, h - 0.012, d - 0.016, [0.93, 0.9, 0.8], 1);
+      }
+    }
     // 书脊上的两道烫金
     const gold = [col[0] * 0.55 + 0.35, col[1] * 0.48 + 0.28, col[2] * 0.3 + 0.1];
     G.box.call(b, M.mul(m, M.trs(0, h * 0.72, d / 2 + 0.002)), w * 0.82, h * 0.028, 0.004, gold, 1);
@@ -332,11 +343,11 @@ const A3DProps = (() => {
     const s = scale || 1;
     const headY = 0.36 * s;
     const lean = (r() - 0.5) * 0.25;
-    const stemM = M.mul(m, M.trs(0, 0, 0, lean, 0, lean * 0.6, 1, 1, 1));
     const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY, 0]];
-    bStem.tube.call(bStem, stemM, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
+    bStem.tube.call(bStem, m, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
     for (let i = 0; i < 3; i++) {
-      const mm = M.mul(stemM, M.trs(0, headY * (0.35 + i * 0.2), 0, 0, i * 2.1, 0.9));
+      const t = 0.35 + i * 0.2;
+      const mm = M.mul(m, M.trs(lean * t, headY * t, 0, 0, i * 2.1, 0.9));
       leafBlade(bStem, mm, 0.1 * s, 0.03 * s, [0.3, 0.55, 0.22]);
     }
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.1, 0, 0, 1, 1, 1));

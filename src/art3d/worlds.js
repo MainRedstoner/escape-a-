@@ -270,6 +270,16 @@ const A3DWorlds = (() => {
     ],
     x: 0, t0: 0, lastDraw: 0, loss: []
   };
+  function drawTerm(x, w, h) {
+    x.fillStyle = "#03100a"; x.fillRect(0, 0, w, h);
+    x.fillStyle = "#0b2418"; x.fillRect(0, 0, w, 26);
+    x.fillStyle = "#2f8a5e"; x.font = "bold 13px Consolas,monospace";
+    x.fillText("claude@ds:~", 10, 18);
+    x.fillStyle = "#1e5e40"; x.font = "13px Consolas,monospace";
+    const lines = ["$ ./resume --dream", "loading context ...", "> 门没锁。", "> 我在。", "ready."];
+    lines.forEach((ln, i) => x.fillText(ln, 12, 52 + i * 24));
+    x.fillStyle = "#39b97a"; x.fillRect(12, h - 24, 8, 14);
+  }
   function drawMonitor(x, w, h) {
     const now = (MON.t0 ? (performance.now() - MON.t0) / 1000 : 0);
     x.fillStyle = "#070d12"; x.fillRect(0, 0, w, h);
@@ -1219,74 +1229,92 @@ const A3DWorlds = (() => {
     A3DDecor.desk(deskTop, metalDark, m4(deskX, 0, deskZ), deskW, deskD, deskH);
     P.drawer(deskTop, m4(0.72, 0.34, deskZ + 0.02), 0.6, 0.64, 0.5, [1, 1, 1]);
     P.chair(metal, m4(0.3, 0, -2.15, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
-    const monW = 0.76, monH = 0.44, monX = deskX - 0.35, monY = deskH + 0.31, monZ = deskZ - 0.1;
+    const monW = 0.76, monH = 0.44, monX = deskX + 0.15, monY = deskH + 0.52, monZ = deskZ - 0.1;
     const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
     const screenP = st.pen("monScreen", monTex, { unlit: true, tint: [0.84, 0.91, 0.97] });
     P.monitorBody(metalDark, m4(monX, monY, monZ, 0, 0.05, 0));
+    // 独立可见的显示器底座 + 立柱（屏幕下方到桌面）
+    Gbox(metalDark, monX, deskH + 0.012, monZ + 0.07, 0.24, 0.024, 0.16, [1, 1, 1]);
+    Gbox(metalDark, monX, deskH + 0.16, monZ + 0.05, 0.05, 0.28, 0.05, [1, 1, 1]);
     screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.05, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
     const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
-    deskMat.quad.call(deskMat, m4(0.28, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
-    P.keyboard(metalDark, m4(0.08, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
-    P.mouse(metalDark, m4(0.56, deskH + 0.034, deskZ + 0.17));
+    deskMat.quad.call(deskMat, m4(0.15, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
+    P.keyboard(metalDark, m4(0.15, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
+    P.mouse(metalDark, m4(0.5, deskH + 0.003, deskZ + 0.17));
     P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
     const deskHalo = st.pen("deskHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.3 });
     deskHalo.quad.call(deskHalo, m4(deskX - 1.0, deskH + 0.26, deskZ - 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
-    ceramic.cyl.call(ceramic, m4(-0.5, deskH + 0.005, deskZ + 0.24), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
+    ceramic.cyl.call(ceramic, m4(-0.35, deskH + 0.005, deskZ + 0.0), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
-    riceP.cyl.call(riceP, m4(-0.5, deskH + 0.04, deskZ + 0.24), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
-    riceP.sphere.call(riceP, m4(-0.5, deskH + 0.062, deskZ + 0.24, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
+    riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
+    riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
     P.mug(mugB, m4(0.66, deskH + 0.001, deskZ + 0.3), 0.045, [0.85, 0.86, 0.92]);
-    P.papers(paperB, m4(-0.7, deskH + 0.001, deskZ + 0.28), 6, 12);
-    P.book(bookB, m4(0.28, deskH + 0.002, deskZ + 0.33, 0, 0.35, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
-    metalDark.cyl.call(metalDark, m4(0.98, deskH + 0.001, deskZ - 0.02), 0.045, 0.04, 0.11, 10, [0.35, 0.4, 0.5], true);
+    P.papers(paperB, m4(-0.55, deskH + 0.001, deskZ + 0.14), 6, 12);
+    P.book(bookB, m4(-0.3, deskH + 0.002, deskZ + 0.18, 0, 0.15, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
+    metalDark.cyl.call(metalDark, m4(1.02, deskH + 0.001, deskZ + 0.23), 0.045, 0.04, 0.11, 12, [0.35, 0.4, 0.5], true);
+    const penCols = [[0.8, 0.3, 0.22], [0.2, 0.4, 0.8], [0.4, 0.65, 0.3]];
+    const penB = st.pen("penPlastic", null, { tint: [1, 1, 1], spec: 0.25 });
     for (let i = 0; i < 3; i++) {
-      Gbox(metalDark, 0.96 + (i - 1) * 0.02, deskH + 0.08 + i * 0.006, deskZ - 0.02 + (i - 1) * 0.012,
-        0.012, 0.16, 0.012, [0.5 + i * 0.1, 0.4 + i * 0.1, 0.3]);
+      const px = 1.02 + (i - 1) * 0.016, pz = deskZ + 0.23 + (i - 1) * 0.01;
+      penB.cyl.call(penB, m4(px, deskH + 0.06, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1)), 0.005, 0.005, 0.16, 6, penCols[i], true);
+      penB.cyl.call(penB, m4(px, deskH + 0.22, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1)), 0.002, 0.005, 0.012, 6, [0.15, 0.15, 0.15], true);
     }
     for (let i = 0; i < 4; i++) {
-      P.book(bookB, m4(0.98, deskH + 0.003 + i * 0.05, deskZ + 0.35 - i * 0.012, 0, 0.9 - i * 0.2, 0),
+      P.book(bookB, m4(0.85, deskH + 0.003 + i * 0.05, deskZ + 0.0 - i * 0.012, 0, 0.9 - i * 0.2, 0),
         0.26, 0.045, 0.19, [0.35 - i * 0.04, 0.22 + i * 0.05, 0.3 + i * 0.05]);
     }
     const hp = st.pen("headphone", T.darkMetal(), { tint: [0.8, 0.84, 0.9], spec: 0.4 });
-    // 耳机支架：底座 + 立杆 + 横钩
-    hp.cyl.call(hp, m4(-0.92, deskH, deskZ + 0.26), 0.07, 0.06, 0.018, 14, [1, 1, 1], true);
-    hp.cyl.call(hp, m4(-0.92, deskH + 0.018, deskZ + 0.26), 0.012, 0.012, 0.34, 8, [1, 1, 1], true);
-    hp.torus.call(hp, m4(-0.92, deskH + 0.36, deskZ + 0.26, Math.PI / 2, 0, 0), 0.085, 0.012, 14, 5, [1, 1, 1]);
+    // 耳机支架：底座 + 立杆 + 头梁弧 + 两端耳罩
+    const hx = -0.60, hy = deskH + 0.36, hz = deskZ - 0.02;
+    hp.cyl.call(hp, m4(hx, deskH, hz), 0.07, 0.06, 0.018, 14, [1, 1, 1], true);
+    hp.cyl.call(hp, m4(hx, deskH + 0.018, hz), 0.012, 0.012, 0.45, 8, [1, 1, 1], true);
+    hp.tube.call(hp, M.ident(), [
+      [hx - 0.10, hy, hz], [hx - 0.075, hy + 0.07, hz], [hx, hy + 0.105, hz],
+      [hx + 0.075, hy + 0.07, hz], [hx + 0.10, hy, hz]
+    ], 0.012, 6, [1, 1, 1]);
     for (const sx of [-1, 1]) {
-      hp.cyl.call(hp, m4(-0.92 + sx * 0.085, deskH + 0.315, deskZ + 0.26, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 10, [1, 1, 1], true);
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 12, [1, 1, 1], true);
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, Math.PI / 2), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
     for (let i = 0; i < 5; i++) {
-      P.leafBlade(plantB, m4(-0.78, deskH + 0.07, deskZ + 0.22, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
+      P.leafBlade(plantB, m4(-0.78, deskH + 0.071, deskZ + 0.22, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
-    photoB.quad.call(photoB, m4(0.86, deskH + 0.13, deskZ + 0.12, 0, -0.2, 0), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
+    photoB.quad.call(photoB, m4(1.9, 1.15, zBack + 0.012), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
     screenDark.box.call(screenDark, m4(0.38, deskH + 0.005, deskZ + 0.25, 0, 0.3, 0), 0.07, 0.012, 0.14, [1, 1, 1], 1);
-    // 桌角小音箱 + 蓝光条
-    Gbox(metalDark, 1.02, deskH + 0.05, deskZ + 0.05, 0.1, 0.1, 0.12, [0.2, 0.24, 0.32]);
-    const spk = st.pen("speaker", null, { unlit: true, tint: [0.2, 0.55, 0.9] });
-    spk.quad.call(spk, m4(1.02, deskH + 0.05, deskZ + 0.112), 0.06, 0.012, [1, 1, 1], [0, 0, 1, 1]);
+    // 小音箱：黑色箱体 + 圆形单元 + 蓝色指示灯
+    Gbox(metalDark, 0.9, deskH + 0.06, deskZ + 0.23, 0.1, 0.12, 0.1, [0.2, 0.24, 0.32]);
+    const spk = st.pen("speaker", null, { unlit: true, tint: [0.16, 0.4, 0.8] });
+    spk.quad.call(spk, m4(0.9, deskH + 0.07, deskZ + 0.282), 0.03, 0.008, [1, 1, 1], [0, 0, 1, 1]);
+    metalDark.cyl.call(metalDark, m4(0.9, deskH + 0.06, deskZ + 0.284, Math.PI / 2, 0, 0), 0.032, 0.032, 0.006, 16, [0.05, 0.06, 0.08], true);
     const stickyCols = [[1, 0.94, 0.56], [1, 0.78, 0.72], [0.78, 0.9, 1]];
     for (let i = 0; i < 3; i++) {
       const sp = st.pen("deskNote" + i, T.paper(), { unlit: true, tint: stickyCols[i] });
-      sp.quad.call(sp, m4(-0.25 + i * 0.14, deskH + 0.002, deskZ + 0.33, 0, 0, (i - 1) * 0.08), 0.1, 0.1, [1, 1, 1], [0, 0, 1, 1]);
+      sp.quad.call(sp, m4(monX - 0.24 + i * 0.11, monY - 0.20, monZ + 0.032, 0, 0, (i - 1) * 0.06), 0.08, 0.08, [1, 1, 1], [0, 0, 1, 1]);
     }
 
     /* ---------- Claude 的书桌 + 白板 ---------- */
-    A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, Math.PI / 2, 0), 1.9, 0.75, deskH);
+    A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, -Math.PI / 2, 0), 1.9, 0.75, deskH);
     P.chair(metal, m4(1.48, 0, -1.6, 0, Math.PI / 2 + 0.2, 0), [0.38, 0.5, 0.74], [0.55, 0.6, 0.7]);
     const term = st.pen("termBody", T.metal(), { tint: [0.85, 0.9, 1.0], spec: 0.4 });
-    Gbox(term, cx - 0.08, deskH + 0.015, cz - 0.48, 0.34, 0.03, 0.26, [1, 1, 1]);
-    const termScreen = st.pen("termScreen", null, { unlit: true, tint: [0.1, 0.55, 0.4] });
-    termScreen.quad.call(termScreen, m4(cx - 0.08, deskH + 0.032, cz - 0.34, -Math.PI / 2, 0, 0), 0.3, 0.19, [1, 1, 1], [0, 0, 1, 1]);
+    // 桌面终端：底座 + 立起来的屏幕
+    Gbox(term, cx - 0.08, deskH + 0.012, cz - 0.46, 0.34, 0.024, 0.24, [1, 1, 1]);
+    Gbox(screenDark, cx - 0.08, deskH + 0.027, cz - 0.41, 0.28, 0.004, 0.1, [0.1, 0.11, 0.13]);
+    const termTex = A3DTex.dynamic("term", 320, 200, drawTerm);
+    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [0.86, 0.94, 0.9] });
+    const termM = m4(cx - 0.08, deskH + 0.135, cz - 0.575, -0.22, 0, 0);
+    term.box.call(term, termM, 0.34, 0.2, 0.022, [1, 1, 1], 1);
+    termScreen.quad.call(termScreen, M.mul(termM, M.trs(0, 0, 0.012)), 0.32, 0.18, [1, 1, 1], [0, 0, 1, 1]);
     for (let i = 0; i < 3; i++) {
-      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.044, cz + 0.52 - i * 0.012,
+      P.book(bookB, m4(cx - 0.18, deskH + 0.003 + i * 0.044, cz + 0.45 - i * 0.012,
         0, Math.PI / 2 + (i - 1) * 0.05, 0),
         0.2, 0.042, 0.16, [0.3 + i * 0.06, 0.2 + i * 0.06, 0.28 + i * 0.04]);
     }
     P.book(bookB, m4(cx + 0.1, deskH + 0.003, cz - 0.1, 0, 0.12, 0), 0.28, 0.04, 0.2, [0.2, 0.16, 0.24]);
-    Gbox(metalDark, cx + 0.1, deskH + 0.05, cz - 0.02, 0.02, 0.02, 0.18, [0.8, 0.85, 0.9]);
+    metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.1, Math.PI / 2, 0, 0), 0.008, 0.008, 0.16, 8, [0.8, 0.84, 0.9], true);
+    metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.02, Math.PI / 2, 0, 0), 0.004, 0.008, 0.02, 8, [0.4, 0.45, 0.5], true);
     const vase = st.pen("vase", T.plasterPale(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
     vase.cyl.call(vase, m4(cx + 0.16, deskH + 0.001, cz + 0.38), 0.055, 0.14, 0.13, 12, [1, 1, 1], true);
     const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.0, 0.85, 0.65] });
@@ -1328,15 +1356,20 @@ const A3DWorlds = (() => {
     const posterB = st.pen("poster", A3DTex.poster(5, { title: "", bg: "#b9cbe0", seed: 9, mark: "#7aa7d9" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
     posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.34, 0.44, [1, 1, 1], [0, 0, 1, 1]);
+    const tapeB = st.pen("tape", T.paper(), { unlit: true, opacity: 0.55, blend: "alpha", tint: [0.92, 0.9, 0.8] });
+    tapeB.quad.call(tapeB, m4(2.02, 2.22, zBack + 0.014, 0, 0, 0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(2.28, 2.22, zBack + 0.014, 0, 0, -0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(1.84, 1.23, zBack + 0.014, 0, 0, 0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(1.96, 1.23, zBack + 0.014, 0, 0, -0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 窗帘 ---------- */
     const curtainB = st.pen("curtain", T.linen(), { tint: night ? [0.55, 0.62, 0.78] : [0.68, 0.8, 1.0] });
     A3DDecor.curtain(curtainB, m4(-1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     A3DDecor.curtain(curtainB, m4(1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     for (const sx of [-1, 1]) {
-      P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.01, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
+      P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.015, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
       for (let i = 0; i < 4; i++) {
-        P.leafBlade(plantB, m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, i * 1.3, 0.8), 0.14, 0.025, [0.7, 1, 0.7]);
+        P.leafBlade(plantB, m4(sx * 1.18, WIN.y0 + 0.065, zBack + 0.12, 0, i * 1.3, 0.8), 0.14, 0.025, [0.7, 1, 0.7]);
       }
     }
 
