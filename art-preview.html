@@ -151,6 +151,40 @@
   }
   @keyframes sp{to{transform:rotate(360deg)}}
 
+  /* ---------- 光源调试 ---------- */
+  #lightPanel{
+    position:absolute;top:14px;right:18px;width:320px;max-height:calc(100% - 28px);
+    display:none;flex-direction:column;z-index:8;
+    background:rgba(8,11,16,.97);border:1px solid var(--line);border-radius:5px;
+    box-shadow:0 22px 70px rgba(0,0,0,.72);
+  }
+  #lightPanel.show{display:flex;}
+  .lpHead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);}
+  .lpHead .t{font-size:13px;color:#EDF2F9;letter-spacing:1px;white-space:nowrap;}
+  .lpHead .id{font-family:Consolas,monospace;font-size:10.5px;color:var(--blue-pale);margin-left:auto;overflow:hidden;text-overflow:ellipsis;}
+  .lpHead button{background:transparent;border:none;color:var(--muted);font-size:19px;line-height:1;cursor:pointer;padding:0 2px;}
+  .lpHead button:hover{color:#fff;}
+  .lpBody{overflow-y:auto;padding:4px 12px 8px;min-height:0;}
+  .lpSec{font-size:10px;color:var(--muted);letter-spacing:1.6px;margin:9px 0 3px;text-transform:uppercase;}
+  .lpRow{display:grid;grid-template-columns:1fr 27px;gap:3px 8px;align-items:center;padding:5px 0;border-bottom:1px dashed rgba(44,53,66,.42);}
+  .lpRow .nm{font-size:12px;color:var(--text);min-width:0;display:flex;align-items:center;gap:6px;}
+  .lpRow .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lpRow input[type=color]{width:27px;height:21px;padding:0;border:1px solid var(--line);background:transparent;border-radius:3px;cursor:pointer;}
+  .lpRow input[type=range]{grid-column:1/2;width:100%;height:13px;accent-color:var(--clay);cursor:pointer;}
+  .lpRow .val{grid-column:2/3;grid-row:2;font-family:Consolas,monospace;font-size:10.5px;color:var(--muted);text-align:right;white-space:nowrap;}
+  .lpFoot{padding:7px 12px 9px;border-top:1px solid var(--line);}
+  .lpFoot .bar{display:flex;align-items:center;gap:8px;}
+  .lpFoot .bar .btn{padding:5px 10px;font-size:12px;}
+  #lightCopyState{font-size:11px;color:var(--muted);}
+  details.lpJson{margin-top:5px;}
+  details.lpJson summary{font-size:11px;color:var(--muted);cursor:pointer;letter-spacing:.5px;user-select:none;}
+  details.lpJson summary:hover{color:var(--text);}
+  #lightJson{display:none;width:100%;height:112px;margin-top:5px;background:#0B0F15;color:#A8BCFF;
+    border:1px solid var(--line);border-radius:3px;padding:6px 7px;font-family:Consolas,monospace;
+    font-size:10.5px;line-height:1.45;resize:vertical;white-space:pre;overflow:auto;}
+  #lightJson.show{display:block;}
+  body.clean #lightPanel{display:none;}
+
   #fail{
     position:absolute;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(4,6,9,.96);z-index:12;text-align:center;padding:40px;
@@ -169,6 +203,7 @@
   <span class="sub">程序化背景 · WebGL2 · 零素材</span>
   <span class="spacer"></span>
   <button class="btn" id="btnPost" title="模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒">游戏后期</button>
+  <button class="btn" id="btnLights" title="调所有光源的颜色/亮度，复制 JSON">光影</button>
   <button class="btn" id="btnAuto" title="每 8 秒切下一个场景">自动轮播</button>
   <button class="btn" id="btnGrid" title="一次看全部场景">全部场景</button>
   <button class="btn" id="btnClean" title="隐藏 UI，只看画面（Esc 退出）">纯净模式</button>
@@ -188,6 +223,25 @@
       <div id="caption">
         <div class="t"><span id="capName"></span><code id="capId"></code></div>
         <div class="d" id="capDesc"></div>
+      </div>
+    </div>
+
+    <div id="lightPanel" aria-label="光源调试">
+      <div class="lpHead">
+        <div class="t">光源调试</div>
+        <div class="id" id="lightScene">—</div>
+        <button id="lightClose" title="关闭">×</button>
+      </div>
+      <div class="lpBody" id="lightRows"></div>
+      <div class="lpFoot">
+        <div class="bar">
+          <button class="btn" id="lightCopy" title="复制当前所有光源的 JSON">复制 JSON</button>
+          <span id="lightCopyState"></span>
+        </div>
+        <details class="lpJson">
+          <summary>查看 JSON</summary>
+          <textarea id="lightJson" readonly spellcheck="false"></textarea>
+        </details>
       </div>
     </div>
 
@@ -219,16 +273,16 @@
   <span>WebGL2 <b id="stGl">检查中…</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
-  <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选</span>
+  <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选 · L 光影</span>
 </div>
 
-<script src="src/art3d/core.js?v=33"></script>
-<script src="src/art3d/textures.js?v=33"></script>
-<script src="src/art3d/props.js?v=33"></script>
-<script src="src/art3d/flock.js?v=33"></script>
-<script src="src/art3d/decor.js?v=33"></script>
-<script src="src/art3d/worlds.js?v=33"></script>
-<script src="src/art3d/worlds2.js?v=33"></script>
+<script src="src/art3d/core.js?v=34"></script>
+<script src="src/art3d/textures.js?v=34"></script>
+<script src="src/art3d/props.js?v=34"></script>
+<script src="src/art3d/flock.js?v=34"></script>
+<script src="src/art3d/decor.js?v=34"></script>
+<script src="src/art3d/worlds.js?v=34"></script>
+<script src="src/art3d/worlds2.js?v=34"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -340,6 +394,151 @@ function post2d(c, id) {
 }
 const TONES = { cold: ["rgb(196,214,255)", "rgb(222,228,240)", "rgb(200,208,226)"] };
 
+/* ---------------- 光源调试 ---------------- */
+let lightPanelOpen = false, lightDirty = true;
+const rgbToHex = c => "#" + [0, 1, 2].map(i => Math.round(clamp(c[i] || 0, 0, 1) * 255).toString(16).padStart(2, "0")).join("");
+const hexToRgb = h => {
+  const v = String(h || "#ffffff").replace("#", "");
+  return [0, 2, 4].map(i => parseInt(v.slice(i, i + 2), 16) / 255);
+};
+const r3 = n => Math.round((Number(n) || 0) * 1000) / 1000;
+const vec3 = c => [r3(c[0]), r3(c[1]), r3(c[2])];
+
+function lightRow(label, color, min, max, step, value, fmt, onColor, onValue) {
+  const row = document.createElement("div");
+  row.className = "lpRow";
+  const nm = document.createElement("div");
+  nm.className = "nm";
+  const sp = document.createElement("span");
+  sp.textContent = label;
+  nm.appendChild(sp);
+  const col = document.createElement("input");
+  col.type = "color"; col.value = rgbToHex(color);
+  const range = document.createElement("input");
+  range.type = "range"; range.min = min; range.max = max; range.step = step; range.value = value;
+  const val = document.createElement("div");
+  val.className = "val"; val.textContent = fmt(+value);
+  row.append(nm, col, range, val);
+  col.addEventListener("input", () => { onColor(hexToRgb(col.value)); updateLightJson(); });
+  range.addEventListener("input", () => { val.textContent = fmt(+range.value); onValue(+range.value); updateLightJson(); });
+  return row;
+}
+
+function buildLightPanel(s) {
+  if (!s) return;
+  const host = $("lightRows");
+  if (!host) return;
+  host.innerHTML = "";
+  const L = s.lights || {};
+  $("lightScene").textContent = s.__id || (SCENES[cur] && SCENES[cur].id) || "—";
+  const sec = t => {
+    const d = document.createElement("div");
+    d.className = "lpSec"; d.textContent = t; host.appendChild(d);
+  };
+  sec("环境 / 方向光");
+  [["sunCol", "太阳"], ["skyCol", "天光"], ["groundCol", "地面反弹"]].forEach(([key, label]) => {
+    let base = (L[key] || [1, 1, 1]).slice();
+    let mult = 1;
+    const apply = () => { L[key] = base.map(v => clamp(v * mult, 0, 4)); };
+    host.appendChild(lightRow(label, base, 0, 2, 0.01, 1, v => "×" + v.toFixed(2),
+      c => { base = c; apply(); },
+      v => { mult = v; apply(); }));
+  });
+  const pts = L.points || [];
+  if (pts.length) {
+    sec("点光源");
+    pts.forEach((p, i) => {
+      const col = (p.col || [1, 1, 1]).slice();
+      const inten = p.inten === undefined ? 1 : p.inten;
+      host.appendChild(lightRow(p.name || ("点光 " + (i + 1)), col, 0, 3, 0.01, inten, v => v.toFixed(2),
+        c => { p.col = c; },
+        v => { p.inten = v; }));
+    });
+  }
+  if (s.tone) {
+    sec("后期色调");
+    let base = s.tone.slice();
+    let strength = 1;
+    const apply = () => { s.tone = base.map(v => 1 + (v - 1) * strength); };
+    host.appendChild(lightRow("色调", base, 0, 1, 0.01, 1, v => v.toFixed(2),
+      c => { base = c; apply(); },
+      v => { strength = v; apply(); }));
+  }
+  updateLightJson();
+}
+
+function currentLightJson() {
+  const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
+  if (!s) return "{}";
+  const L = s.lights || {};
+  const out = {
+    scene: s.__id || (SCENES[cur] && SCENES[cur].id) || "",
+    sun: vec3(L.sun || [0, 1, 0]),
+    sunCol: vec3(L.sunCol || [0, 0, 0]),
+    skyCol: vec3(L.skyCol || [0, 0, 0]),
+    groundCol: vec3(L.groundCol || [0, 0, 0]),
+    points: (L.points || []).map((p, i) => ({
+      name: p.name || ("点光 " + (i + 1)),
+      pos: vec3(p.pos || [0, 0, 0]),
+      col: vec3(p.col || [1, 1, 1]),
+      inten: r3(p.inten === undefined ? 1 : p.inten),
+      range: r3(p.range === undefined ? 5 : p.range)
+    })),
+    tone: vec3(s.tone || [1, 1, 1])
+  };
+  return JSON.stringify(out, null, 2);
+}
+function updateLightJson() {
+  const ta = $("lightJson");
+  if (ta) ta.value = currentLightJson();
+}
+async function copyLightJson() {
+  const txt = currentLightJson();
+  const ta = $("lightJson");
+  if (ta) ta.value = txt;
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(txt);
+      ok = true;
+    }
+  } catch (e) {}
+  if (!ok) {
+    try {
+      const t = document.createElement("textarea");
+      t.value = txt;
+      t.style.position = "fixed"; t.style.left = "-9999px"; t.style.top = "0";
+      document.body.appendChild(t); t.focus(); t.select();
+      ok = document.execCommand("copy");
+      t.remove();
+    } catch (e) {}
+  }
+  const st = $("lightCopyState");
+  if (st) {
+    st.textContent = ok ? "已复制" : "复制失败，展开 JSON 手动选";
+    st.style.color = ok ? "#6FB58A" : "#D9534F";
+  }
+  const det = document.querySelector("details.lpJson");
+  if (det) det.open = true;
+  if (ta) ta.classList.add("show");
+}
+function openLightPanel() {
+  lightPanelOpen = true;
+  $("lightPanel").classList.add("show");
+  $("btnLights").classList.add("on");
+  const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
+  if (s) { buildLightPanel(s); lightDirty = false; } else lightDirty = true;
+}
+function closeLightPanel() {
+  lightPanelOpen = false;
+  $("lightPanel").classList.remove("show");
+  $("btnLights").classList.remove("on");
+}
+function toggleLightPanel() {
+  lightPanelOpen ? closeLightPanel() : openLightPanel();
+}
+
+
 /* ---------------- 侧栏 ---------------- */
 function buildSide() {
   const mk = (sc, i) => {
@@ -372,6 +571,7 @@ function select(i) {
   markSide();
   document.title = sc.name + " · Escape A÷ 3D 预览";
   needInit = true;
+  lightDirty = true;
   orbit = null;
   defaultCam = null;
   if (typeof A3D !== "undefined" && A3D.clearCamOverride) A3D.clearCamOverride();
@@ -407,6 +607,7 @@ function drawFrame(t) {
     (s.batches || []).forEach(b => { v += b.mesh ? b.mesh.count : 0; });
     $("stInfo").textContent = sc.id + " · " + (v / 1000).toFixed(0) + "k 顶点 · " +
       (s.dyn ? s.dyn.length : 0) + " 动态";
+    if (lightPanelOpen && lightDirty) { buildLightPanel(s); lightDirty = false; }
   }
 }
 
@@ -534,12 +735,22 @@ $("btnAuto").addEventListener("click", () => {
 });
 $("btnGrid").addEventListener("click", openGrid);
 $("btnGridClose").addEventListener("click", closeGrid);
+$("btnLights").addEventListener("click", toggleLightPanel);
+$("lightClose").addEventListener("click", closeLightPanel);
+$("lightCopy").addEventListener("click", copyLightJson);
+const lpDetails = document.querySelector("details.lpJson");
+if (lpDetails) lpDetails.addEventListener("toggle", () => {
+  if (lpDetails.open) { updateLightJson(); $("lightJson").classList.add("show"); }
+});
 $("btnClean").addEventListener("click", () => {
-  document.body.classList.toggle("clean");
-  $("btnClean").classList.toggle("on", document.body.classList.contains("clean"));
+  const clean = document.body.classList.toggle("clean");
+  $("btnClean").classList.toggle("on", clean);
+  if (clean) closeLightPanel();
 });
 window.addEventListener("keydown", e => {
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const k = e.key, kl = k.toLowerCase();
+  if (kl === "l") { toggleLightPanel(); return; }
   if (k === "ArrowLeft") { if (orbit) orbit.yaw += 0.08; e.preventDefault(); return; }
   if (k === "ArrowRight") { if (orbit) orbit.yaw -= 0.08; e.preventDefault(); return; }
   if (k === "ArrowUp") { if (orbit) orbit.pitch = clamp(orbit.pitch + 0.06, -1.45, 1.45); e.preventDefault(); return; }
@@ -554,7 +765,8 @@ window.addEventListener("keydown", e => {
   }
   else if (k === "h" || k === "H") { $("btnClean").click(); }
   else if (k === "Escape") {
-    if ($("grid").classList.contains("show")) closeGrid();
+    if (lightPanelOpen) closeLightPanel();
+    else if ($("grid").classList.contains("show")) closeGrid();
     else if (document.body.classList.contains("clean")) $("btnClean").click();
   }
   else if (k === " ") {
@@ -633,6 +845,7 @@ boot();
 </script>
 </body>
 </html>
+
 
 
 

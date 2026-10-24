@@ -1494,12 +1494,12 @@ const A3DWorlds = (() => {
         fog: { col: night ? [0.04, 0.04, 0.05] : [0.08, 0.09, 0.1], near: 5, far: 22 },
         fogAmt: 0.3,
         points: [
-          { pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 1.8 },
-          { pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.84, 0.36], range: 5.0, inten: 0.45 },
-          { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.85, 0.36], range: 3.4, inten: night ? 1.2 : 0.8 },
-          { pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
-          { pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.35 },
-          { pos: [-1.4, 0.8, -3.15], col: [1.0, 0.85, 0.38], range: 4.2, inten: 0.48 }
+          { name: "吊灯", pos: [0, 2.4, -1.4], col: [1.0, 0.85, 0.38], range: 6.0, inten: night ? 1.3 : 1.8 },
+          { name: "壁灯", pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.84, 0.36], range: 5.0, inten: 0.45 },
+          { name: "台灯", pos: [-1.0, 1.3, -2.9], col: [1.0, 0.85, 0.36], range: 3.4, inten: night ? 1.2 : 0.8 },
+          { name: "显示器", pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.5 },
+          { name: "窗光", pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.35 },
+          { name: "床头灯", pos: [-1.4, 0.8, -3.15], col: [1.0, 0.85, 0.38], range: 4.2, inten: 0.48 }
         ]
       },
       shadow: { pos: [0, 2.4, -1.4], far: 9, index: 0, bias: 0.002, size: 2048 },
