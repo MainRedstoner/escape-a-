@@ -356,10 +356,10 @@ const A3DDecor = (() => {
 
     /* 四条厚框条 */
     const zc = dep / 2 + 0.002;
-    G.box.call(bFrame, at(m, 0, h / 2 - bw / 2, zc), w, bw, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, 0, -h / 2 + bw / 2, zc), w, bw, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, -w / 2 + bw / 2, 0, zc), bw, h - bw * 2, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, w / 2 - bw / 2, 0, zc), bw, h - bw * 2, dep, C.wood, 1.3);
+    G.box.call(bFrame, at(m, 0, h / 2 - bw / 2, zc), w, bw, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, 0, -h / 2 + bw / 2, zc), w, bw, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, -w / 2 + bw / 2, 0, zc), bw, h - bw * 2, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, w / 2 - bw / 2, 0, zc), bw, h - bw * 2, dep, C.fabric, 1.3);
 
     /* 内侧一圈浅色斜口，显出框的厚度 */
     const lip = 0.011;
@@ -375,7 +375,7 @@ const A3DDecor = (() => {
     const bw = 0.06, dep = 0.05;
 
     /* 背板（只露出侧边） */
-    G.box.call(bFrame, at(m, 0, 0, 0.014), w - 0.02, h - 0.02, 0.028, C.woodDark, 1.2);
+    G.box.call(bFrame, at(m, 0, 0, 0.014), w - 0.02, h - 0.02, 0.028, C.fabricDark, 1.2);
 
     /* 软木板面：朝 +Z 的 quad，四周塞进木框下面 */
     G.quad.call(bBoard, at(m, 0, 0, 0.032),
@@ -383,18 +383,18 @@ const A3DDecor = (() => {
 
     /* 木框 */
     const zc = 0.03;
-    G.box.call(bFrame, at(m, 0, h / 2 - bw / 2, zc), w, bw, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, 0, -h / 2 + bw / 2, zc), w, bw, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, -w / 2 + bw / 2, 0, zc), bw, h - bw * 2, dep, C.wood, 1.3);
-    G.box.call(bFrame, at(m, w / 2 - bw / 2, 0, zc), bw, h - bw * 2, dep, C.wood, 1.3);
+    G.box.call(bFrame, at(m, 0, h / 2 - bw / 2, zc), w, bw, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, 0, -h / 2 + bw / 2, zc), w, bw, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, -w / 2 + bw / 2, 0, zc), bw, h - bw * 2, dep, C.fabric, 1.3);
+    G.box.call(bFrame, at(m, w / 2 - bw / 2, 0, zc), bw, h - bw * 2, dep, C.fabric, 1.3);
 
     /* 内圈木条，压住软木板边缘 */
     const lip = 0.008;
     const innerW = w - bw * 2, innerH = h - bw * 2;
-    G.box.call(bFrame, at(m, 0, innerH / 2 - lip / 2, 0.038), innerW, lip, 0.02, C.woodLit, 1.8);
-    G.box.call(bFrame, at(m, 0, -innerH / 2 + lip / 2, 0.038), innerW, lip, 0.02, C.woodLit, 1.8);
-    G.box.call(bFrame, at(m, -innerW / 2 + lip / 2, 0, 0.038), lip, innerH, 0.02, C.woodLit, 1.8);
-    G.box.call(bFrame, at(m, innerW / 2 - lip / 2, 0, 0.038), lip, innerH, 0.02, C.woodLit, 1.8);
+    G.box.call(bFrame, at(m, 0, innerH / 2 - lip / 2, 0.038), innerW, lip, 0.02, C.fabricLit, 1.8);
+    G.box.call(bFrame, at(m, 0, -innerH / 2 + lip / 2, 0.038), innerW, lip, 0.02, C.fabricLit, 1.8);
+    G.box.call(bFrame, at(m, -innerW / 2 + lip / 2, 0, 0.038), lip, innerH, 0.02, C.fabricLit, 1.8);
+    G.box.call(bFrame, at(m, innerW / 2 - lip / 2, 0, 0.038), lip, innerH, 0.02, C.fabricLit, 1.8);
 
     /* 几颗图钉（钉帽 + 一点点钉尖） */
     const pins = [
@@ -575,8 +575,21 @@ const A3DDecor = (() => {
     G.box.call(bFabric, at(m, 0, topY - 0.02, len / 2 - 0.16), w - 0.04, 0.03, 0.16, C.fabricDark, 2.0);
   }
 
+  /** 书桌：m 原点在落地中心，桌面在 y=h；白漆桌板 + 金属腿 */
+  function desk(bTop, bLegs, m, w = 1.6, d = 0.7, h = 0.74) {
+    const t = 0.055;
+    G.box.call(bTop, at(m, 0, h - t / 2, 0), w, t, d, C.fabricLit, 1.2);
+    G.box.call(bTop, at(m, 0, h - t - 0.012, 0), w - 0.06, 0.024, d - 0.06, C.fabric, 1.4);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      G.box.call(bLegs, at(m, sx * (w / 2 - 0.08), (h - t) / 2, sz * (d / 2 - 0.08)),
+        0.05, h - t, 0.05, C.dark, 1.2);
+    }
+    G.box.call(bLegs, at(m, 0, 0.15, -d / 2 + 0.08), w - 0.22, 0.035, 0.035, C.metal, 1.2);
+    G.box.call(bLegs, at(m, 0, h - t - 0.07, -d / 2 + 0.1), w - 0.3, 0.03, 0.04, C.metalDark, 1.2);
+  }
+
   return {
     sofa, armchair, ottoman, coffeeTable, floorLamp, wallShelf,
-    pictureFrame, corkboard, catBed, curtain, roundRug, wallClock, bed
+    pictureFrame, corkboard, catBed, curtain, roundRug, wallClock, bed, desk
   };
 })();

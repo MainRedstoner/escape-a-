@@ -372,6 +372,18 @@ const A3DTex = (() => {
         grain(x, w, w, { freq: 5, oct: 2, strength: 0.07, seed: 177 });
       });
     },
+    /** 哑光白漆：桌子 / 窗框 / 置物板用，替代木纹 */
+    paint() {
+      return get("paint", 256, 256, (x, w, h) => {
+        x.fillStyle = "#d9dee6"; x.fillRect(0, 0, w, h);
+        const r = rnd(191);
+        for (let i = 0; i < 26; i++) {
+          x.fillStyle = "rgba(" + (205 + r() * 30) + "," + (212 + r() * 26) + "," + (224 + r() * 22) + ",.14)";
+          x.fillRect(r() * w, r() * h, 18 + r() * 90, 2 + r() * 5);
+        }
+        grain(x, w, w, { freq: 4, oct: 2, strength: 0.05, seed: 191 });
+      });
+    },
     canvasTex() {
       return get("canvasTex", 256, 256, (x, w, h) => {
         x.fillStyle = "#8a7b63"; x.fillRect(0, 0, w, h);

@@ -387,662 +387,6 @@ const A3DWorlds = (() => {
     }
   }
 
-  function buildRoom(opts) {
-    const night = !!opts.night;
-    const st = P.stage();
-    const r = rng(11);
-    let lastT = 0;
-
-    const RW = 7.0, RD = 7.0, RH = 3.05;      // 房间：x ±3.5，z -4.4..2.6
-    const zBack = -4.4, zFront = 2.6;
-    const WIN = { x0: -1.9, x1: 1.45, y0: 0.82, y1: 2.6, z: zBack };
-
-    /* ---------- 地板 ---------- */
-    const floor = st.pen("floor", T.wood(), { tint: night ? [0.5, 0.52, 0.6] : [0.82, 0.88, 0.98], spec: 0.35 });
-    floor.grid.call(floor, m4(0, 0, (zBack + zFront) / 2), RW, zFront - zBack, 14, 16,
-      [0.9, 0.8, 0.7], 2.1, 0.14, 0);
-    // 踢脚线
-    const trim = st.pen("trim", T.woodDark(), { tint: [0.7, 0.72, 0.8] });
-    Gbox(trim, 0, 0.06, zBack + 0.03, RW, 0.12, 0.06, [0.8, 0.8, 0.85]);
-
-    /* ---------- 后墙（带窗洞，用格子跳过窗口） ---------- */
-    const wall = st.pen("wall", null, { tint: night ? [0.32, 0.43, 0.68] : [0.4, 0.55, 0.92], spec: 0.02 });
-    const cw = 0.22;
-    const cols = Math.round(RW / cw), rows = Math.round(RH / cw);
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        const x0 = -RW / 2 + i * cw, x1 = x0 + cw;
-        const y0 = j * cw, y1 = y0 + cw;
-        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-        if (cx > WIN.x0 && cx < WIN.x1 && cy > WIN.y0 && cy < WIN.y1) continue;
-        wall.quad.call(wall, m4(cx, cy, zBack, 0, 0, 0), cw, cw,
-          [1, 1, 1], [i / cols * RW, j / rows * RH, (i + 1) / cols * RW, (j + 1) / rows * RH]);
-      }
-    }
-    // 窗洞内侧的窗套：外框 + 内框 + 窗洞进深，让窗户真的嵌在墙里
-    const frame = st.pen("frame", T.woodDark(), { tint: [1.25, 1.12, 0.92], spec: 0.3 });
-    const fcx = (WIN.x0 + WIN.x1) / 2, fcy = (WIN.y0 + WIN.y1) / 2;
-    const fw = WIN.x1 - WIN.x0, fh = WIN.y1 - WIN.y0;
-    // 窗洞进深（墙内侧的四面）
-    const dT = 0.2;
-    Gbox(frame, WIN.x0 - 0.02, fcy, zBack - dT / 2, 0.04, fh + 0.02, dT, [0.82, 0.82, 0.8]);
-    Gbox(frame, WIN.x1 + 0.02, fcy, zBack - dT / 2, 0.04, fh + 0.02, dT, [0.82, 0.82, 0.8]);
-    Gbox(frame, fcx, WIN.y1 + 0.02, zBack - dT / 2, fw + 0.06, 0.04, dT, [0.8, 0.8, 0.78]);
-    Gbox(frame, fcx, WIN.y0 - 0.02, zBack - dT / 2, fw + 0.06, 0.04, dT, [0.8, 0.8, 0.78]);
-    // 外框（露在房间里这一侧）
-    Gbox(frame, fcx, WIN.y1 + 0.09, zBack + 0.06, fw + 0.34, 0.14, 0.13, [1, 1, 1]);
-    Gbox(frame, WIN.x0 - 0.1, fcy, zBack + 0.06, 0.2, fh + 0.32, 0.13, [1, 1, 1]);
-    Gbox(frame, WIN.x1 + 0.1, fcy, zBack + 0.06, 0.2, fh + 0.32, 0.13, [1, 1, 1]);
-    // 内框（细一圈，压出层次）
-    Gbox(frame, fcx, WIN.y1 - 0.01, zBack + 0.02, fw + 0.02, 0.1, 0.08, [0.92, 0.9, 0.84]);
-    Gbox(frame, WIN.x0 + 0.02, fcy, zBack + 0.02, 0.09, fh, 0.08, [0.92, 0.9, 0.84]);
-    Gbox(frame, WIN.x1 - 0.02, fcy, zBack + 0.02, 0.09, fh, 0.08, [0.92, 0.9, 0.84]);
-    // 中挺与横挡
-    Gbox(frame, fcx - 0.28, fcy, zBack + 0.02, 0.07, fh, 0.07, [0.95, 0.93, 0.88]);
-    Gbox(frame, fcx, WIN.y0 + fh * 0.66, zBack + 0.02, fw, 0.07, 0.07, [0.95, 0.93, 0.88]);
-    // 拱形装饰（窗上方的木弧）
-    const arcW = fw / 2 + 0.16;
-    for (let i = 0; i < 14; i++) {
-      const a0 = Math.PI * (i / 14), a1 = Math.PI * ((i + 1) / 14);
-      const cx0 = Math.cos(a0) * arcW, cy0 = WIN.y1 + 0.1 + Math.sin(a0) * 0.3;
-      const cx1 = Math.cos(a1) * arcW, cy1 = WIN.y1 + 0.1 + Math.sin(a1) * 0.3;
-      const mx = (cx0 + cx1) / 2 + fcx, my = (cy0 + cy1) / 2;
-      const len = Math.hypot(cx1 - cx0, cy1 - cy0);
-      frame.box.call(frame, m4(mx, my, zBack + 0.05, 0, 0, Math.atan2(cy1 - cy0, cx1 - cx0)),
-        len + 0.03, 0.06, 0.055, [1, 1, 1], 1.4);
-    }
-    // 窗台
-    const sill = st.pen("sill", T.woodPale(), { tint: [1.0, 1.02, 1.02] });
-    Gbox(sill, fcx, WIN.y0 - 0.055, zBack + 0.11, fw + 0.5, 0.075, 0.3, [1, 1, 1]);
-    // 窗台小物：两盆小小植物、一只贝壳
-    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2 });
-    const potB = st.pen("pot", T.stone(), { tint: [0.9, 0.85, 0.8] });
-    P.pot(potB, m4(WIN.x0 + 0.36, WIN.y0 - 0.012, zBack + 0.13), 0.075, 0.12, [0.6, 0.5, 0.42]);
-    for (let i = 0; i < 6; i++) {
-      P.leafBlade(plantB, m4(WIN.x0 + 0.36, WIN.y0 + 0.12, zBack + 0.11, 0, i * 1.1, 0.7 + (i % 3) * 0.2),
-        0.2 + (i % 4) * 0.04, 0.03, [0.6, 1, 0.6]);
-    }
-    P.pot(potB, m4(WIN.x1 - 0.3, WIN.y0 - 0.012, zBack + 0.13), 0.06, 0.09, [0.5, 0.42, 0.38]);
-    for (let i = 0; i < 5; i++) {
-      P.leafBlade(plantB, m4(WIN.x1 - 0.3, WIN.y0 + 0.09, zBack + 0.11, 0, i * 1.3 + 0.4, 0.8),
-        0.16, 0.022, [0.7, 1, 0.7]);
-    }
-
-    /* ---------- 左右墙 / 天花板 ---------- */
-    const sideWall = st.pen("side", null, { tint: night ? [0.28, 0.38, 0.6] : [0.36, 0.5, 0.86], spec: 0.02 });
-    sideWall.quad.call(sideWall, m4(-RW / 2, RH / 2, (zBack + zFront) / 2, 0, Math.PI / 2, 0),
-      zFront - zBack, RH, [1, 1, 1], [0, 0, 3.2, 3]);
-    sideWall.quad.call(sideWall, m4(RW / 2, RH / 2, (zBack + zFront) / 2, 0, -Math.PI / 2, 0),
-      zFront - zBack, RH, [1, 1, 1], [0, 0, 3.2, 3]);
-    const ceil = st.pen("ceil", null, { tint: night ? [0.42, 0.5, 0.7] : [0.5, 0.62, 0.84], spec: 0.02 });
-    ceil.grid.call(ceil, m4(0, RH, (zBack + zFront) / 2, Math.PI, 0, 0, 1, 1, 1),
-      RW, zFront - zBack, 8, 8, [1, 1, 1], 1, 0.05, 0);
-    /* ---------- 护墙板 / 墙贴：纯色墙上的装饰 ---------- */
-    const wtop = 0.91, wbot = 0.09;
-    const wain = st.pen("wainscot", null, { tint: night ? [0.5, 0.58, 0.78] : [0.7, 0.79, 0.95], spec: 0.02 });
-    const rail = st.pen("chairRail", null, { tint: night ? [0.24, 0.32, 0.48] : [0.34, 0.46, 0.68], spec: 0.04 });
-    const batten = st.pen("batten", null, { tint: night ? [0.58, 0.66, 0.86] : [0.82, 0.88, 0.98], spec: 0.02 });
-    // 后墙左右两段（窗台 x -2.12..1.67，避开）
-    Gbox(wain, -2.81, (wtop + wbot) / 2, zBack + 0.03, 1.32, wtop - wbot, 0.04, [1, 1, 1]);
-    Gbox(wain, 2.585, (wtop + wbot) / 2, zBack + 0.03, 1.79, wtop - wbot, 0.04, [1, 1, 1]);
-    // 左右墙
-    Gbox(wain, -RW / 2 + 0.03, (wtop + wbot) / 2, -0.9, 0.04, wtop - wbot, 6.92, [1, 1, 1]);
-    Gbox(wain, RW / 2 - 0.03, (wtop + wbot) / 2, -0.9, 0.04, wtop - wbot, 6.92, [1, 1, 1]);
-    // 压顶线
-    Gbox(rail, -2.81, wtop + 0.03, zBack + 0.055, 1.34, 0.06, 0.06, [1, 1, 1]);
-    Gbox(rail, 2.585, wtop + 0.03, zBack + 0.055, 1.81, 0.06, 0.06, [1, 1, 1]);
-    Gbox(rail, -RW / 2 + 0.045, wtop + 0.03, -0.9, 0.06, 0.06, 6.92, [1, 1, 1]);
-    Gbox(rail, RW / 2 - 0.045, wtop + 0.03, -0.9, 0.06, 0.06, 6.92, [1, 1, 1]);
-    // 竖向压条
-    for (let z = -4.1; z <= 2.3; z += 0.62) {
-      Gbox(batten, -RW / 2 + 0.045, (wtop + wbot) / 2, z, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
-      Gbox(batten, RW / 2 - 0.045, (wtop + wbot) / 2, z, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
-    }
-    for (let x = -3.35; x <= -2.25; x += 0.36) {
-      Gbox(batten, x, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
-    }
-    for (let x = 1.85; x <= 3.3; x += 0.36) {
-      Gbox(batten, x, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
-    }
-    // 墙面气泡贴花（单独画，不是墙本身的纹理）
-    const bubbleB = st.pen("wallBubbles", T.bubbles(), {
-      opacity: 0.58, blend: "alpha", tint: [0.9, 0.95, 1.0]
-    });
-    bubbleB.quad.call(bubbleB, m4(-RW / 2 + 0.02, 2.3, -3.0, 0, Math.PI / 2, 0), 1.5, 0.85, [1, 1, 1], [0, 0, 1, 1]);
-    bubbleB.quad.call(bubbleB, m4(2.55, 2.5, zBack + 0.02, 0, 0, 0), 1.4, 0.6, [1, 1, 1], [0, 0, 1, 1]);
-
-    // 横梁
-    const beam = st.pen("beam", T.woodDark(), { tint: [0.85, 0.88, 0.95] });
-    for (const z of [-2.6, -0.2, 2.0]) {
-      Gbox(beam, 0, RH - 0.11, z, RW, 0.2, 0.16, [1, 1, 1]);
-    }
-
-    /* ---------- 家具：DeepSeek 的桌子（窗下） ---------- */
-    const wood = st.pen("deskwood", T.woodDark(), { tint: [0.98, 1.0, 1.05], spec: 0.28 });
-    const deskX = 0.0, deskZ = -3.70, deskW = 2.5, deskD = 0.82, deskH = 0.75;
-    P.table(wood, m4(deskX, deskH, deskZ), deskW, deskD, deskH, [0.55, 0.4, 0.3], 0.07);
-    // 抽屉柜：从地面立起来，别再悬空
-    Gbox(wood, deskX + 0.78, 0.34, deskZ + 0.02, 0.72, 0.68, 0.62, [0.5, 0.36, 0.26]);
-    Gbox(wood, deskX + 0.78, 0.56, deskZ + 0.34, 0.64, 0.22, 0.02, [0.55, 0.4, 0.3]);
-    Gbox(wood, deskX + 0.78, 0.31, deskZ + 0.34, 0.64, 0.2, 0.02, [0.5, 0.36, 0.26]);
-    Gbox(wood, deskX + 0.78, 0.56, deskZ + 0.36, 0.16, 0.018, 0.018, [0.8, 0.66, 0.36]);
-    Gbox(wood, deskX + 0.78, 0.31, deskZ + 0.36, 0.16, 0.018, 0.018, [0.8, 0.66, 0.36]);
-
-    /* ---------- 显示器 + 键盘 ---------- */
-    const monW = 0.76, monH = 0.44, monX = deskX - 0.56, monY = deskH + 0.32, monZ = deskZ - 0.11;
-    P.monitorBody(wood, m4(monX, monY, monZ, 0, 0.06, 0));
-    MON.t0 = performance.now();
-    const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
-    const screenP = st.pen("monitorScreen", monTex, { unlit: true, tint: [1, 1, 1] });
-    screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.06, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
-    P.keyboard(wood, m4(deskX + 0.12, deskH + 0.012, deskZ + 0.19, 0, 0.04, 0), 0.46);
-    P.mouse(wood, m4(deskX + 0.52, deskH + 0.034, deskZ + 0.2));
-    const mugB = st.pen("mug", T.plaster(), { tint: [1, 1, 1] });
-    P.mug(mugB, m4(deskX + 0.92, deskH + 0.001, deskZ - 0.1), 0.045, [0.85, 0.86, 0.92]);
-    // 鲸鱼图案（一小块浅蓝）
-    const mugArt = st.pen("mugArt", null, { tint: [0.35, 0.55, 1.0] });
-    mugArt.box.call(mugArt, m4(deskX + 0.92, deskH + 0.046, deskZ - 0.1 + 0.046),
-      0.045, 0.022, 0.002, [1, 1, 1], 1);
-    P.papers(st.pen("paper", T.paper(), { tint: [1, 1, 1], spec: 0.02 }),
-      m4(deskX - 0.14, deskH + 0.001, deskZ + 0.26), 3, 9);
-    // 台灯
-    const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
-    const lampShade = st.pen("lampShade", T.canvasTex(), { tint: [1.15, 1.02, 0.82], emissive: [0.28, 0.18, 0.06] });
-    P.tableLamp(lampMetal, lampShade, m4(deskX - 1.04, deskH + 0.001, deskZ - 0.16), 0.38, [0.92, 0.84, 0.66]);
-    // 椅子
-    P.chair(st.pen("chair", T.fabric(), { tint: [0.9, 0.94, 1.0] }),
-      m4(deskX + 1.15, 0, deskZ + 0.75, 0, Math.PI + 0.35, 0), [0.34, 0.36, 0.4], [0.35, 0.24, 0.16]);
-    void deskW;
-
-    /* ---------- Claude 的桌子（右墙） ---------- */
-    const cx = 3.1, cz = -1.9;
-    P.table(wood, m4(cx, deskH, cz, 0, Math.PI / 2, 0), 2.0, 0.8, deskH, [0.5, 0.37, 0.28], 0.07);
-    // 整齐的书堆
-    const bookB = st.pen("book", T.fabric(), { tint: [1, 1, 1] });
-    for (let i = 0; i < 4; i++) {
-      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.055, cz + 0.55 - i * 0.01, 0, Math.PI / 2, 0),
-        0.22, 0.055, 0.3, [0.55 - i * 0.05, 0.18 + i * 0.04, 0.14 + i * 0.03]);
-    }
-    // 合上的笔记本 + 笔
-    P.book(bookB, m4(cx + 0.1, deskH + 0.003, cz - 0.1, 0, 0.12, 0), 0.3, 0.04, 0.22, [0.14, 0.14, 0.17]);
-    Gbox(st.pen("pen", T.brass(), { tint: [1, 1, 1], spec: 0.6 }),
-      cx + 0.1, deskH + 0.055, cz - 0.02, 0.02, 0.02, 0.2, [1, 1, 1]);
-    // 一朵橙色的花（小鲸每天换水的那一朵）
-    const stemB = st.pen("stem", null, { tint: [0.25, 0.45, 0.22] });
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.15, 0.95, 0.8], rim: 0.2 });
-    P.pot(st.pen("vase", T.glass(), { tint: [0.8, 0.9, 1.0], spec: 0.7 }),
-      m4(cx + 0.18, deskH + 0.001, cz + 0.42), 0.055, 0.14, [0.7, 0.8, 0.85]);
-    P.chrysanthemum(petalB, stemB, m4(cx + 0.18, deskH + 0.12, cz + 0.42), 0.8, [1.1, 0.9, 0.7], 4);
-    // 小终端（Clawd 的窝）
-    const term = st.pen("termBody", T.metal(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
-    Gbox(term, cx - 0.1, deskH + 0.015, cz - 0.52, 0.34, 0.03, 0.26, [1, 1, 1]);
-    // Claude 的椅子
-    P.chair(st.pen("chair2", T.fabric(), { tint: [0.72, 0.78, 0.9] }),
-      m4(cx - 0.72, 0, cz + 0.15, 0, Math.PI / 2 + 0.25, 0), [0.42, 0.5, 0.68], [0.3, 0.24, 0.18]);
-
-    /* ---------- DeepSeek 桌面上的零碎 ---------- */
-    const clutter = st.pen("clutter", T.metal(), { tint: [0.9, 0.92, 0.95], spec: 0.5 });
-    // 书堆
-    for (let i = 0; i < 3; i++) {
-      P.book(bookB, m4(1.12, deskH + 0.003 + i * 0.05, -3.92 + i * 0.01, 0, 0.9 - i * 0.2, 0),
-        0.24, 0.045, 0.18, [0.45 - i * 0.06, 0.2 + i * 0.06, 0.16 + i * 0.04]);
-    }
-    // 笔筒 + 三支笔
-    clutter.cyl.call(clutter, m4(1.06, deskH + 0.001, -3.62), 0.045, 0.04, 0.11, 10, [0.35, 0.38, 0.42], true);
-    for (let i = 0; i < 3; i++) {
-      Gbox(clutter, 1.05 + (i - 1) * 0.02, deskH + 0.08 + i * 0.006, -3.62 + (i - 1) * 0.012,
-        0.012, 0.16, 0.012, [0.6 + i * 0.1, 0.35 + i * 0.1, 0.25]);
-    }
-    // 耳机
-    const hp = st.pen("headphone", T.darkMetal(), { tint: [0.8, 0.82, 0.85], spec: 0.4 });
-    hp.torus.call(hp, m4(-0.95, deskH + 0.09, -3.45, Math.PI / 2, 0, 0), 0.085, 0.012, 14, 5, [1, 1, 1]);
-    for (const sx of [-1, 1]) {
-      hp.cyl.call(hp, m4(-0.95 + sx * 0.085, deskH + 0.045, -3.45, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 10, [1, 1, 1], true);
-    }
-    // 小本子
-    P.book(bookB, m4(0.35, deskH + 0.002, -3.44, 0, 0.35, 0), 0.2, 0.02, 0.26, [0.16, 0.18, 0.22]);
-    // 小盆栽
-    P.pot(potB, m4(-0.78, deskH + 0.001, -3.42), 0.06, 0.08, [0.55, 0.4, 0.3]);
-    for (let i = 0; i < 5; i++) {
-      P.leafBlade(plantB, m4(-0.78, deskH + 0.07, -3.42, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
-    }
-
-    /* ---------- 天花板的串灯 ---------- */
-    const fairyWire = st.pen("fairyWire", null, { tint: [0.12, 0.1, 0.09] });
-    const fairyBulb = st.pen("fairyBulb", null, { unlit: true, blend: "add", tint: [1.0, 0.78, 0.46], opacity: 0.95 });
-    const fairyGlow = st.pen("fairyGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.68, 0.35], opacity: 0.22 });
-    const fpts = [];
-    for (let i = 0; i <= 16; i++) {
-      const u = i / 16;
-      const x = -3.35 + u * 6.7;
-      const y = 2.78 - Math.sin(u * Math.PI) * 0.35;
-      const z = -0.45;
-      fpts.push([x, y, z]);
-      if (i > 0 && i < 16 && i % 2 === 0) {
-        fairyBulb.sphere.call(fairyBulb, m4(x, y - 0.05, z), 0.022, 6, 4, [1, 1, 1]);
-        fairyGlow.quad.call(fairyGlow, m4(x, y - 0.05, z + 0.02), 0.45, 0.45, [1, 1, 1], [0, 0, 1, 1]);
-      }
-    }
-    fairyWire.tube.call(fairyWire, M.ident(), fpts, 0.006, 4, [1, 1, 1]);
-    // 两端的小挂钩
-    for (const hx of [-3.35, 3.35]) {
-      fairyWire.cyl.call(fairyWire, m4(hx, 2.78, -0.45), 0.006, 0.006, 0.2, 4, [1, 1, 1], false);
-    }
-
-    /* ---------- 右墙的小壁灯 ---------- */
-    const sconce = st.pen("sconce", T.brass(), { tint: [1.0, 0.92, 0.8], spec: 0.5 });
-    const sconceShade = st.pen("sconceShade", T.canvasTex(), {
-      tint: [1.15, 0.96, 0.72], emissive: [0.4, 0.24, 0.08]
-    });
-    const sconceGlow = st.pen("sconceGlow", T.glow(), {
-      unlit: true, blend: "add", tint: [1.0, 0.7, 0.38], opacity: 0.42
-    });
-    // 墙上小臂 + 朝下的灯罩
-    sconce.box.call(sconce, m4(3.4, 2.5, -2.1), 0.22, 0.025, 0.025, [1, 1, 1], 1);
-    sconce.cyl.call(sconce, m4(3.32, 2.44, -2.1), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
-    sconceShade.cyl.call(sconceShade, m4(3.32, 2.3, -2.1), 0.13, 0.09, 0.16, 14, [1, 1, 1], false);
-    sconceGlow.quad.call(sconceGlow, m4(3.16, 2.3, -2.1, 0, -Math.PI / 2, 0), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
-
-    /* ---------- 垃圾桶 ---------- */
-    const bin = st.pen("bin", T.darkMetal(), { tint: [0.72, 0.66, 0.55], spec: 0.4 });
-    bin.cyl.call(bin, m4(-1.9, 0.01, -3.0), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
-    bin.torus.call(bin, m4(-1.9, 0.35, -3.0), 0.18, 0.012, 14, 5, [1, 1, 1]);
-    P.papers(st.pen("binPaper", T.paper(), { tint: [0.9, 0.88, 0.8] }), m4(-1.9, 0.3, -3.0), 2, 33);
-
-    /* ---------- 左侧：床 + 床头上方置物架 ---------- */
-    const bedWood = st.pen("bedWood", T.woodDark(), { tint: [0.85, 0.9, 1.0], spec: 0.28 });
-    const bedFabric = st.pen("bedFabric", T.linen(), { tint: [0.5, 0.64, 0.92], spec: 0.04 });
-    const bedSheet = st.pen("bedSheet", T.linen(), { tint: [1.06, 1.09, 1.12], spec: 0.03 });
-    A3DDecor.bed(bedWood, bedFabric, bedSheet, m4(-2.9, 0, -3.2), 1.05, 2.0);
-    // 床脚的小边桌 + 台灯
-    const bedTableWood = st.pen("bedTableWood", T.woodDark(), { tint: [0.95, 0.95, 1.0] });
-    A3DDecor.coffeeTable(bedTableWood, m4(-2.0, 0, -1.8), 0.5, 0.45, 0.5);
-    P.tableLamp(lampMetal, lampShade, m4(-2.0, 0.5, -1.8), 0.32, [1.0, 0.86, 0.62]);
-    const bedLampHalo = st.pen("bedLampHalo", T.glow(), {
-      unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.3
-    });
-    bedLampHalo.quad.call(bedLampHalo, m4(-2.0, 0.72, -1.7), 0.65, 0.65, [1, 1, 1], [0, 0, 1, 1]);
-    P.book(bookB, m4(-2.05, 0.5, -1.9, 0, 0.3, 0), 0.18, 0.035, 0.13, [0.3, 0.2, 0.16]);
-    P.mug(mugB, m4(-1.85, 0.5, -1.7), 0.04, [0.9, 0.8, 0.7]);
-    // 左墙装饰画 + 高绿植
-    const bedPic = st.pen("bedPic", A3DTex.poster(5, { title: "", bg: "#b7c9de", seed: 6, mark: "#7aa7d9" }),
-      { unlit: true, tint: [0.9, 0.95, 1.0] });
-    A3DDecor.pictureFrame(st.pen("bedPicFrame", T.woodDark(), { tint: [0.9, 0.92, 1.0] }), bedPic,
-      m4(-RW / 2 + 0.03, 1.9, -1.1, 0, Math.PI / 2, 0), 0.62, 0.46);
-    P.plant(plantB, m4(-3.15, 0, -0.55, 0, 0, 0, 1.0, 1.0, 1.0),
-      { potH: 0.26, potR: 0.14, leaves: 12, leafLen: 0.46, seed: 23, potCol: [0.4, 0.32, 0.28] });
-
-    /* ---------- 右墙：矮柜 + 杂物 ---------- */
-    const cab = st.pen("cabinet", T.woodDark(), { tint: [0.9, 0.95, 1.0] });
-    Gbox(cab, RW / 2 - 0.32, 0.36, -3.4, 0.6, 0.72, 1.4, [0.6, 0.55, 0.5]);
-    Gbox(cab, RW / 2 - 0.32, 0.75, -3.4, 0.64, 0.06, 1.48, [0.8, 0.78, 0.75]);
-    // 矮柜上的盆栽
-    P.plant(plantB, m4(RW / 2 - 0.32, 0.78, -3.7, 0, 0, 0, 1, 1, 1),
-      { potH: 0.18, potR: 0.12, leaves: 11, leafLen: 0.36, seed: 17, potCol: [0.5, 0.3, 0.2] });
-    // 矮柜上的旧收音机
-    Gbox(cab, RW / 2 - 0.32, 0.88, -3.05, 0.3, 0.2, 0.16, [0.4, 0.32, 0.22]);
-
-    /* ---------- 白板（左墙） ---------- */
-    const boardTex = A3DTex.dynamic("monitorWb", 512, 320, drawBoard);
-    const boardFrame = st.pen("boardFrame", T.woodDark(), { tint: [0.9, 0.95, 1.0] });
-    Gbox(boardFrame, -RW / 2 + 0.025, 1.55, 1.15, 0.05, 1.0, 1.62, [0.9, 0.9, 0.92]);
-    // 白板面板（unlit）
-    const bq = st.pen("boardFace", boardTex, { unlit: true, tint: [0.9, 0.95, 1.0] });
-    bq.quad.call(bq, m4(-RW / 2 + 0.055, 1.55, 1.15, 0, Math.PI / 2, 0), 1.5, 0.9, [1, 1, 1], [0, 0, 1, 1]);
-
-    /* ---------- 墙上的照片 / 便签 ---------- */
-    const photoB = st.pen("photo", A3DTex.poster(6, { title: "", bg: "#cfc6b0", seed: 4, mark: "#D97757" }),
-      { unlit: true, tint: [0.78, 0.8, 0.78] });
-    photoB.quad.call(photoB, m4(2.15, 2.1, zBack + 0.012, 0, 0, 0), 0.34, 0.42, [1, 1, 1], [0, 0, 1, 1]);
-    const photoB2 = st.pen("photo2", A3DTex.poster(4, { title: "", bg: "#b9c4c0", seed: 9, mark: "#4D6BFE" }),
-      { unlit: true, tint: [0.74, 0.78, 0.78] });
-    photoB2.quad.call(photoB2, m4(2.67, 2.02, zBack + 0.012, 0, 0, 0.03), 0.28, 0.34, [1, 1, 1], [0, 0, 1, 1]);
-    // 便签
-    const noteB = st.pen("note", T.paper(), { unlit: true, tint: [1, 0.95, 0.6] });
-    for (let i = 0; i < 4; i++) {
-      noteB.quad.call(noteB, m4(-3.05 + i * 0.17, 1.86 + (i % 2) * 0.05, zBack + 0.012, 0, 0, (i - 1.5) * 0.06),
-        0.11, 0.12, [1, 1, 1], [0, 0, 1, 1]);
-    }
-
-    /* ---------- 地毯 ---------- */
-    const rugB = st.pen("rug", T.rug(), { tint: night ? [0.3, 0.4, 0.6] : [0.42, 0.58, 0.9] });
-    rugB.quad.call(rugB, m4(0.2, 0.012, -1.6, -Math.PI / 2, 0, 0), 4.2, 2.8, [1, 1, 1], [0, 0, 2.6, 1.8]);
-
-    /* ---------- 天花板灯 ---------- */
-    const lampMetal2 = st.pen("lampMetal2", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
-    const lamppaper = st.pen("lamppaper", T.canvasTex(), { tint: [1.05, 0.95, 0.8], emissive: [0.3, 0.22, 0.1] });
-    Gbox(lampMetal2, 0.2, RH - 0.02, -1.6, 0.5, 0.02, 0.5, [1, 1, 1]);
-    P.paperLantern(lamppaper, lampMetal2, m4(0.2, RH - 0.5, -1.6, 0, 0, 0, 1, 1, 1), 0.15,
-      [1.0, 0.88, 0.66]);
-    // 吊灯的电线，别让灯罩浮在空中
-    const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
-    cordB.cyl.call(cordB, m4(0.2, 2.7, -1.6), 0.006, 0.006, 0.33, 4, [1, 1, 1], false);
-
-    /* ---------- 电线 / 小物 ---------- */
-    const cableB = st.pen("cable", null, { tint: [0.08, 0.08, 0.09], spec: 0.2 });
-    // 显示器电源线：从桌后往下走，再沿后墙脚走，不要横在桌子前面像根棍子
-    cableB.tube.call(cableB, m4(0, 0, 0), [
-      [deskX - 0.56, deskH + 0.18, deskZ - 0.18],
-      [deskX - 0.58, deskH - 0.05, deskZ - 0.38],
-      [deskX - 0.6, 0.02, deskZ - 0.5],
-      [deskX - 1.8, 0.015, zBack + 0.12],
-      [-3.3, 0.01, zBack + 0.15]
-    ], 0.006, 4, [1, 1, 1]);
-    // Claude 桌的线：贴着右墙走，藏在桌子后面
-    cableB.tube.call(cableB, m4(0, 0, 0), [
-      [cx - 0.1, deskH + 0.02, cz - 0.52],
-      [cx + 0.18, deskH - 0.12, cz - 0.5],
-      [cx + 0.22, 0.02, cz - 0.45],
-      [cx + 0.24, 0.01, cz + 0.7]
-    ], 0.006, 4, [1, 1, 1]);
-
-    /* ---------- 窗外的海 ---------- */
-    const seaQuad = new A3D.Builder();
-    const seaMesh = A3D.meshFrom(seaQuad.quad.call(seaQuad, m4(0, 1.3, -13), 30, 20, [1, 1, 1], [0, 0, 1, 1]));
-    st.sea.push({
-      mesh: seaMesh, tex: T.caustic(),
-      deep: night ? [0.006, 0.025, 0.05] : [0.015, 0.06, 0.1],
-      shallow: night ? [0.04, 0.13, 0.2] : [0.14, 0.44, 0.52],
-      rayCol: night ? [0.3, 0.6, 0.72] : [0.78, 0.94, 1.0],
-      fogCol: night ? [0.01, 0.045, 0.07] : [0.05, 0.16, 0.2],
-      causticAmt: night ? 0.45 : 1.2, density: 0.3, yBase: -1.6, ySpan: 5.6
-    });
-    // 窗外远处的礁石剪影
-    const rockB = st.pen("seaRock", null, { tint: [0.03, 0.09, 0.12], spec: 0 });
-    rocks(rockB, m4(0, -1.2, -11.5), 10, 16, 5, [0.05, 0.12, 0.14]);
-    // 海草
-    const kelp = st.pen("seaKelp", T.leaf(), { cutout: true, tint: [0.16, 0.42, 0.32], sway: 1, rim: 0.2 });
-    for (let i = 0; i < 16; i++) {
-      const x = -6 + r() * 12, z = -8.5 - r() * 3;
-      for (let k = 0; k < 3; k++) {
-        P.leafBlade(kelp, m4(x + (r() - 0.5) * 0.6, -1.6, z, 0, r() * TAU, 1.1 + r() * 0.4, 1, 1, 1),
-          1.4 + r() * 1.4, 0.1, [0.7, 1, 0.9]);
-      }
-    }
-    // 鱼群：boids（每条鱼跟随最近的 7 条，整群在窗洞内活动）
-    const flock = A3DFlock.create({
-      count: 46, seed: 7,
-      bounds: { min: [-1.9, 0.98, -8.5], max: [1.55, 2.48, -6.55] },
-      size: 0.2, neighborCount: 7
-    });
-    const fishMeshRef = fishMesh();
-    const fr = rng(91);
-    for (let i = 0; i < flock.state.count; i++) {
-      const col = P.mix([0.5, 0.78, 0.88], [0.92, 0.98, 1.0], fr() * 0.7);
-      st.dyn.push({
-        batch: { mesh: fishMeshRef, tint: col, spec: 0.35, rim: 0.45 },
-        matrix: () => flock.state.mats[i]
-      });
-    }
-
-    /* ---------- 窗玻璃 ---------- */
-    const glassB = st.pen("glass", T.glass(), { tint: [0.55, 0.75, 0.9], opacity: 0.24, blend: "alpha", spec: 0.9 });
-    glassB.quad.call(glassB, m4((WIN.x0 + WIN.x1) / 2, (WIN.y0 + WIN.y1) / 2, zBack + 0.015),
-      WIN.x1 - WIN.x0, WIN.y1 - WIN.y0, [1, 1, 1], [0, 0, 1.6, 1]);
-
-    /* ---------- 室内光斑（窗光投在地上的焦散） ---------- */
-    const causticFloor = st.pen("causticFloor", T.caustic(), {
-      unlit: true, blend: "add", opacity: 0.085, tint: [0.5, 0.78, 1.0],
-      uvAnim: t => [Math.sin(t * 0.11) * 0.15 + t * 0.01, t * 0.016]
-    });
-    causticFloor.quad.call(causticFloor, m4(0.1, 0.02, -2.6, -Math.PI / 2, 0, 0), 4.2, 3.4, [1, 1, 1], [0, 0, 1.6, 1.3]);
-    const causticWall = st.pen("causticWall", T.caustic(), {
-      unlit: true, blend: "add", opacity: 0.06, tint: [0.42, 0.7, 0.95],
-      uvAnim: t => [t * 0.012, -t * 0.009]
-    });
-    causticWall.quad.call(causticWall, m4(2.4, 1.5, zBack + 0.02, 0, 0, 0), 2.0, 1.9, [1, 1, 1], [0, 0, 1, 1]);
-    // 窗光落在地上的一小片暖光
-    const sunPatch = st.pen("sunPatch", T.glow(), {
-      unlit: true, blend: "add", opacity: night ? 0.07 : 0.17, tint: [1.0, 0.76, 0.42]
-    });
-    sunPatch.quad.call(sunPatch, m4(0.15, 0.016, -2.3, -Math.PI / 2, 0, 0), 3.6, 2.6, [1, 1, 1], [0, 0, 1, 1]);
-
-    /* ---------- 光柱 ---------- */
-    const rayB = st.pen("shafts", T.shaft(), {
-      unlit: true, blend: "add", opacity: night ? 0.07 : 0.16, tint: [0.62, 0.86, 1.0]
-    });
-    for (let i = 0; i < 4; i++) {
-      const sm = m4(-1.05 + i * 0.78, 1.75 + i * 0.04, zBack + 1.1 + i * 0.5,
-        0.42, 0.05 * i, -0.12, 1, 1, 1);
-      rayB.quad.call(rayB, sm, 1.6 + i * 0.28, 4.6, [1, 1, 1], [0, 0, 1, 1]);
-    }
-
-    /* ---------- 接触阴影：让家具真的“坐”在地上 ---------- */
-    const shadowB = st.pen("contactShadow", T.glow(), {
-      unlit: true, blend: "alpha", tint: [0.02, 0.03, 0.05], opacity: 0.5
-    });
-    const sh = (x, z, w, d, rot) => {
-      shadowB.quad.call(shadowB, m4(x, 0.014, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
-    };
-    sh(deskX, deskZ, 3.1, 1.5, 0);
-    sh(deskX + 1.15, deskZ + 0.75, 1.05, 1.05, 0.5);
-    sh(cx, cz, 2.4, 1.2, 0);
-    sh(-2.9, -3.2, 1.2, 2.1, 0);
-    sh(-2.0, -1.8, 0.6, 0.55, 0);
-    sh(-3.15, -0.55, 0.45, 0.45, 0);
-    sh(RW / 2 - 0.32, -3.4, 1.3, 1.8, 0);
-    sh(cx + 0.5, cz - 0.2, 0.9, 0.9, 0);
-    sh(cx - 0.72, cz + 0.15, 1.05, 1.05, 0.25);
-    sh(2.38, -3.55, 1.15, 1.1, 0.12);
-    sh(2.12, -2.62, 0.75, 0.75, 0);
-    sh(0.42, -1.35, 1.15, 0.75, 0);
-    sh(1.35, -2.4, 0.9, 0.9, 0);
-    sh(1.55, -3.6, 0.5, 0.5, 0);
-
-    /* ---------- 灯光的光晕（贴片式 bloom） ---------- */
-    const lampHalo = st.pen("lampHalo", T.glow(), {
-      unlit: true, blend: "add", tint: [1.0, 0.78, 0.42], opacity: night ? 0.45 : 0.26
-    });
-    lampHalo.quad.call(lampHalo, m4(0.2, RH - 0.52, -1.58, 0, 0, 0), 1.05, 1.05, [1, 1, 1], [0, 0, 1, 1]);
-    const monHalo = st.pen("monHalo", T.glow(), {
-      unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.28
-    });
-    monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08, 0, 0.06, 0), 1.15, 0.8, [1, 1, 1], [0, 0, 1, 1]);
-    const deskHalo = st.pen("deskHalo", T.glow(), {
-      unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.32
-    });
-    deskHalo.quad.call(deskHalo, m4(deskX - 1.04, deskH + 0.22, deskZ - 0.12), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
-
-    /* ---------- 墙面挂钟：木圈 + 米色表盘 + 刻度 + 10:10 ---------- */
-    const clockWood = st.pen("clockWood", T.woodDark(), { tint: [1.0, 0.85, 0.7], spec: 0.3 });
-    const clockFace = st.pen("clockFace", T.paper(), { unlit: true, tint: [1.06, 1.0, 0.9] });
-    const CLK = { x: -2.55, y: 2.2, z: zBack + 0.03 };
-    // 背板（贴墙）
-    clockWood.cyl.call(clockWood, m4(CLK.x, CLK.y, CLK.z - 0.03, Math.PI / 2, 0, 0), 0.235, 0.235, 0.03, 24,
-      [1, 1, 1], true);
-    // 外圈
-    clockWood.torus.call(clockWood, m4(CLK.x, CLK.y, CLK.z, Math.PI / 2, 0, 0), 0.215, 0.024, 24, 6, [1, 1, 1]);
-    // 表盘
-    clockFace.cyl.call(clockFace, m4(CLK.x, CLK.y, CLK.z + 0.001, Math.PI / 2, 0, 0), 0.195, 0.195, 0.006, 24,
-      [1, 1, 1], true);
-    // 刻度
-    const tickB = st.pen("clockTick", null, { unlit: true, tint: [0.25, 0.2, 0.15] });
-    for (let i = 0; i < 12; i++) {
-      const ang = (i / 12) * TAU;
-      const major = i % 3 === 0;
-      const rr = major ? 0.155 : 0.168;
-      const len = major ? 0.035 : 0.018;
-      const mm = M.mul(M.trs(CLK.x + Math.sin(ang) * rr, CLK.y + Math.cos(ang) * rr, CLK.z + 0.009, 0, 0, -ang),
-        M.trs(0, 0, 0, 0, 0, 0));
-      tickB.box.call(tickB, mm, major ? 0.014 : 0.008, len, 0.003, [1, 1, 1], 1);
-    }
-    // 时针 / 分针（10:10）
-    const handB = st.pen("clockHand", null, { tint: [0.12, 0.1, 0.09] });
-    const hourAng = -(10 + 10 / 60) / 12 * TAU;
-    const minAng = -(10 / 60) * TAU;
-    handB.box.call(handB, M.mul(M.trs(CLK.x, CLK.y, CLK.z + 0.013, 0, 0, hourAng), M.trs(0, 0.045, 0)),
-      0.016, 0.09, 0.005, [1, 1, 1], 1);
-    handB.box.call(handB, M.mul(M.trs(CLK.x, CLK.y, CLK.z + 0.015, 0, 0, minAng), M.trs(0, 0.062, 0)),
-      0.012, 0.124, 0.004, [1, 1, 1], 1);
-    // 中心轴
-    clockWood.sphere.call(clockWood, m4(CLK.x, CLK.y, CLK.z + 0.019, 0, 0, 0, 1, 1, 0.5), 0.018, 8, 5, [1, 1, 1]);
-
-    /* ---------- 桌上的白饭与保温壶 ---------- */
-    const ceramic = st.pen("ceramic", T.plasterPale(), { tint: [1.05, 1.05, 1.0], spec: 0.5 });
-    const rice = st.pen("rice", T.plasterPale(), { tint: [1.25, 1.22, 1.1], spec: 0.15 });
-    ceramic.cyl.call(ceramic, m4(deskX + 0.72, deskH + 0.005, deskZ - 0.32), 0.05, 0.075, 0.055, 14,
-      [1, 1, 1], true);
-    rice.cyl.call(rice, m4(deskX + 0.72, deskH + 0.04, deskZ - 0.32), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
-    rice.sphere.call(rice, m4(deskX + 0.72, deskH + 0.062, deskZ - 0.32, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
-    const bottle = st.pen("bottle", T.metal(), { tint: [0.7, 0.78, 0.85], spec: 0.7 });
-    bottle.cyl.call(bottle, m4(RW / 2 - 0.55, 0.78, -3.9), 0.05, 0.045, 0.24, 12, [1, 1, 1], true);
-    bottle.cyl.call(bottle, m4(RW / 2 - 0.55, 1.02, -3.9), 0.028, 0.028, 0.04, 10, [1, 1, 1], true);
-
-    /* ---------- 吊着的绿萝：真的垂下来 ---------- */
-    const hangM = m4(2.55, 2.75, -3.7, 0, 0, 0);
-    const rope = st.pen("rope", T.canvasTex(), { tint: [0.8, 0.75, 0.6] });
-    for (const sx of [-1, 1]) {
-      rope.cyl.call(rope, M.mul(hangM, M.trs(sx * 0.1, 0, 0)), 0.006, 0.006, 0.3, 4, [1, 1, 1], false);
-    }
-    P.pot(potB, M.mul(hangM, M.trs(0, -0.05, 0)), 0.12, 0.13, [0.52, 0.42, 0.34]);
-    const ivy = st.pen("ivy", T.leaf(), { cutout: true, tint: [0.55, 0.85, 0.55], sway: 1, rim: 0.2 });
-    const vine = st.pen("ivyVine", null, { tint: [0.2, 0.32, 0.18] });
-    const ir = rng(23);
-    for (let st2 = 0; st2 < 5; st2++) {
-      const a = (st2 / 5) * TAU + 0.3;
-      const ox = Math.cos(a) * 0.1, oz = Math.sin(a) * 0.1;
-      const len = 0.42 + ir() * 0.5;
-      const pts = [];
-      for (let k = 0; k <= 6; k++) {
-        const u = k / 6;
-        pts.push([ox * (1 - u * 0.3) + Math.sin(u * 3 + st2) * 0.03, -0.02 - u * len, oz * (1 - u * 0.3)]);
-      }
-      vine.tube.call(vine, M.mul(hangM, M.trs(0, 0, 0)), pts, 0.004, 3, [1, 1, 1]);
-      for (let k = 1; k <= 6; k++) {
-        const p = pts[k];
-        const side = k % 2 ? 1 : -1;
-        const mm = M.mul(M.mul(hangM, M.trs(p[0], p[1], p[2], 0, side * 1.3, -0.5 - ir() * 0.5)),
-          M.trs(0, 0, 0, 0, 0, 0));
-        P.leafBlade(ivy, mm, 0.1 + ir() * 0.07, 0.045, [0.75, 1, 0.7], 0.8);
-      }
-    }
-
-    /* ---------- 阅读角：扶手椅 + 落地灯 + 脚凳 ---------- */
-    const fabricWarm = st.pen("fabricWarm", T.linen(), { tint: [0.55, 0.68, 0.92], spec: 0.04 });
-    const fabricSoft = st.pen("fabricSoft", T.linen(), { tint: [0.65, 0.75, 0.96], spec: 0.04 });
-    const woodDeco = st.pen("woodDeco", T.woodDark(), { tint: [1.0, 0.86, 0.72], spec: 0.25 });
-    const metalDeco = st.pen("metalDeco", T.brass(), { tint: [0.95, 0.92, 0.85], spec: 0.5 });
-    const shadeDeco = st.pen("shadeDeco", T.canvasTex(), {
-      tint: [1.15, 0.98, 0.78], emissive: [0.32, 0.2, 0.07]
-    });
-    A3DDecor.armchair(woodDeco, fabricWarm, m4(2.38, 0, -3.55, 0, 0.12, 0));
-    A3DDecor.floorLamp(metalDeco, shadeDeco, m4(1.55, 0, -3.6, 0, 0, 0), 1.55);
-    A3DDecor.ottoman(fabricSoft, m4(2.12, 0, -2.62, 0, 0.3, 0));
-    const lampHaloDeco = st.pen("lampHaloDeco", T.glow(), {
-      unlit: true, blend: "add", tint: [1.0, 0.7, 0.38], opacity: 0.38
-    });
-    lampHaloDeco.quad.call(lampHaloDeco, m4(1.55, 1.3, -3.32, 0, 0, 0), 1.0, 1.0, [1, 1, 1], [0, 0, 1, 1]);
-
-    /* ---------- 茶几与猫窝 ---------- */
-    A3DDecor.coffeeTable(woodDeco, m4(0.42, 0.012, -1.35), 0.95, 0.55, 0.4);
-    A3DDecor.catBed(fabricSoft, m4(1.35, 0.012, -2.4, 0, 0.4, 0));
-    // 茶几上的书和杯子
-    P.book(bookB, m4(0.3, 0.414, -1.32, 0, 0.25, 0), 0.22, 0.035, 0.16, [0.4, 0.18, 0.14]);
-    P.book(bookB, m4(0.32, 0.449, -1.3, 0, 0.35, 0), 0.2, 0.03, 0.15, [0.16, 0.22, 0.34]);
-    P.mug(mugB, m4(0.62, 0.414, -1.42), 0.045, [0.9, 0.8, 0.7]);
-
-    /* ---------- 墙面：软木板 + 置物架 + 窗帘 ---------- */
-    const corkFrame = st.pen("corkFrame", T.woodDark(), { tint: [1.0, 0.82, 0.65] });
-    const corkBoard = st.pen("corkBoard", T.woodPale(), { tint: [1.05, 0.82, 0.58] });
-    A3DDecor.corkboard(corkFrame, corkBoard, m4(-2.8, 1.35, zBack + 0.02), 1.0, 0.75);
-    const noteCols = [[1, 0.95, 0.55], [1, 0.8, 0.72], [0.8, 0.9, 1.0], [0.85, 1, 0.82]];
-    for (let i = 0; i < 5; i++) {
-      const np = st.pen("corkNote" + i, T.paper(), { unlit: true, tint: noteCols[i % 4] });
-      np.quad.call(np, m4(-3.15 + (i % 3) * 0.28, 1.62 - Math.floor(i / 3) * 0.32, zBack + 0.058,
-        0, 0, (i % 2 ? 1 : -1) * 0.06), 0.16, 0.15, [1, 1, 1], [0, 0, 1, 1]);
-    }
-    const shelfDeco = st.pen("shelfDeco", T.woodDark(), { tint: [0.98, 0.82, 0.66] });
-    A3DDecor.wallShelf(shelfDeco, m4(2.55, 1.42, zBack + 0.02), 1.3, 0.5, 0.22, 2);
-    // 架子上摆书和小盆栽
-    for (let i = 0; i < 5; i++) {
-      P.book(bookB, m4(2.1 + i * 0.16, 1.366, zBack + 0.13, 0, Math.PI / 2, 0), 0.2, 0.12, 0.05,
-        [0.3 + i * 0.05, 0.16 + i * 0.03, 0.16 + (i % 2) * 0.12]);
-    }
-    P.pot(potB, m4(3.05, 1.67, zBack + 0.1), 0.05, 0.07, [0.55, 0.4, 0.3]);
-    for (let i = 0; i < 4; i++) {
-      P.leafBlade(plantB, m4(3.05, 1.73, zBack + 0.1, 0, i * 1.3, 0.8), 0.1, 0.025, [0.7, 1, 0.7]);
-    }
-    const curtainB = st.pen("curtainB", T.linen(), { tint: [0.6, 0.74, 0.98] });
-    A3DDecor.curtain(curtainB, m4(-2.06, 2.62, zBack + 0.1), 0.42, 1.9);
-    A3DDecor.curtain(curtainB, m4(1.58, 2.62, zBack + 0.1), 0.42, 1.9);
-
-    /* ---------- 地上的杂物 ---------- */
-    const trashB = st.pen("floorBooks", T.fabric(), { tint: [1, 1, 1] });
-    for (let i = 0; i < 5; i++) {
-      const bx = -2.6 + r() * 0.5, bz = -0.4 + r() * 0.6;
-      P.book(trashB, m4(bx, 0.002 + i * 0.045, bz, 0, r() * 0.7, 0), 0.24, 0.045, 0.3,
-        [0.35 + r() * 0.25, 0.16 + r() * 0.15, 0.12 + r() * 0.1]);
-    }
-
-    /* ---------- 粒子 ---------- */
-    const pts = [];
-    for (let i = 0; i < 130; i++) {
-      pts.push({
-        x: (r() - 0.5) * 7, y: 0.4 + r() * 2.6, z: -4.2 + r() * 5,
-        r: 0.8, g: 0.9, b: 1, a: 0.1 + r() * 0.3,
-        size: 0.004 + r() * 0.012, kind: 2, speed: 0.05 + r() * 0.1, phase: r() * TAU, wob: 0.08 + r() * 0.15
-      });
-    }
-    // 窗外气泡
-    for (let i = 0; i < 60; i++) {
-      pts.push({
-        x: -6 + r() * 12, y: 0 + r() * 4, z: -9 + r() * 4,
-        r: 0.6, g: 0.85, b: 1, a: 0.1 + r() * 0.25,
-        size: 0.01 + r() * 0.035, kind: 1, speed: 0.4 + r() * 0.6, phase: r() * TAU, wob: 0.05 + r() * 0.1
-      });
-    }
-    st.points.push({ mesh: A3D.pointMesh(pts), blend: "alpha", yMin: -0.3, yMax: 4.6, fogNear: 5, fogFar: 22 });
-
-    st.finish();
-    st.finishGlows();
-
-    const warmRoom = !night;
-    return {
-      cam: { eye: [-1.6, 1.55, 2.45], target: [0.15, 1.2, -4.4], fov: 45 },
-      sky: {
-        mode: 1, top: night ? [0.03, 0.1, 0.17] : [0.1, 0.3, 0.38],
-        bot: night ? [0.008, 0.03, 0.05] : [0.04, 0.11, 0.14],
-        glow: night ? [0.14, 0.3, 0.38] : [0.34, 0.58, 0.62], sun: [0.42, 0.9], horizon: 0.12
-      },
-      lights: {
-        sun: A3D.norm3([-0.4, 0.85, -0.45]),
-        sunCol: night ? [0.2, 0.19, 0.2] : [0.66, 0.52, 0.36],
-        skyCol: night ? [0.18, 0.2, 0.26] : [0.34, 0.36, 0.4],
-        groundCol: night ? [0.14, 0.12, 0.12] : [0.3, 0.24, 0.19],
-        fog: { col: night ? [0.05, 0.045, 0.05] : [0.1, 0.09, 0.08], near: 7, far: 30 },
-        fogAmt: 0.4,
-        points: [
-          { pos: [0.2, 2.5, -1.6], col: [1.0, 0.76, 0.48], range: 7.0, inten: night ? 1.35 : 1.05 },
-          { pos: [3.15, 2.2, -2.1], col: [1.0, 0.72, 0.42], range: 6.8, inten: 0.85 },
-          { pos: [-1.04, 1.35, -3.9], col: [1.0, 0.7, 0.4], range: 3.8, inten: night ? 1.25 : 0.95 },
-          { pos: [monX, monY, monZ + 0.5], col: [0.5, 0.72, 1.0], range: 3.0, inten: night ? 1.0 : 0.65 },
-          { pos: [0.0, 1.9, -4.2], col: [0.45, 0.62, 0.85], range: 8.5, inten: night ? 0.3 : 0.55 },
-          { pos: [1.55, 1.3, -3.3], col: [1.0, 0.72, 0.42], range: 5.6, inten: 0.62 }
-        ]
-      },
-      batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
-      flock: flock,
-      tone: night ? [0.94, 0.92, 0.94] : [0.97, 0.98, 1.0],
-      swayAmp: 0.6,
-      update(t, sc) {
-        // 极轻微的手持感：呼吸 + 一点点漂移
-        sc.cam.eye = [-1.6 + Math.sin(t * 0.21) * 0.035, 1.55 + Math.sin(t * 0.33) * 0.012, 2.45 + Math.cos(t * 0.18) * 0.03];
-        sc.cam.target = [0.15 + Math.sin(t * 0.17) * 0.035, 1.2 + Math.sin(t * 0.27) * 0.01, -4.4];
-        // 鱼群：按真实时间推进，再刷新矩阵
-        const dt = Math.min(0.05, Math.max(0, t - lastT));
-        lastT = t;
-        flock.update(dt, t);
-        flock.matrices();
-        // 监视器：约 11fps 刷新，别每帧重画
-        if (t - MON.lastDraw > 0.09) {
-          MON.lastDraw = t;
-          A3DTex.redraw("monitor", drawMonitor);
-        }
-      },
-      whiteboard: warmRoom
-    };
-  }
-
   /* 局部盒子助手：以中心为锚 */
   function Gbox(b, x, y, z, sx, sy, sz, col) {
     b.box.call(b, m4(x, y, z), sx, sy, sz, col, 1.2);
@@ -1735,12 +1079,424 @@ const A3DWorlds = (() => {
     };
   }
 
+  /* ============================================================
+   *  DeepSeek 家里 · 紧凑卧室版
+   *  5.6 × 5.5m，床 + 两张桌子；木器全部换成白漆 / 金属 / 亚麻
+   * ============================================================ */
+  function buildRoomCompact(opts) {
+    const night = !!opts.night;
+    const st = P.stage();
+    const r = rng(11);
+    let lastT = 0, lastBoard = 0;
+
+    const RW = 5.6, RH = 2.85;
+    const zBack = -3.5, zFront = 2.0;
+    const WIN = { x0: -1.55, x1: 1.55, y0: 0.82, y1: 2.48, z: zBack };
+    const deskX = 0, deskZ = -2.85, deskW = 2.3, deskD = 0.68, deskH = 0.74;
+    const cx = 2.2, cz = -1.75;
+    const fcx = (WIN.x0 + WIN.x1) / 2, fcy = (WIN.y0 + WIN.y1) / 2;
+    const fw = WIN.x1 - WIN.x0, fh = WIN.y1 - WIN.y0;
+
+    /* ---------- 材质：没有木头 ---------- */
+    const paint = st.pen("paint", T.paint(), { tint: night ? [0.6, 0.67, 0.8] : [0.94, 0.97, 1.0], spec: 0.08 });
+    const deskTop = st.pen("deskTop", T.paint(), { tint: night ? [0.5, 0.57, 0.7] : [0.72, 0.8, 0.94], spec: 0.1 });
+    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 0.98, 0.8], emissive: [0.35, 0.22, 0.08] });
+    const metal = st.pen("metal", T.metal(), { tint: night ? [0.55, 0.6, 0.7] : [0.72, 0.78, 0.9], spec: 0.45 });
+    const metalDark = st.pen("metalDark", T.darkMetal(), { tint: [0.75, 0.82, 0.95], spec: 0.32 });
+    const ceramic = st.pen("ceramic", T.plasterPale(), { tint: [1.02, 1.04, 1.08], spec: 0.45 });
+    const paperB = st.pen("paper", T.paper(), { tint: [1, 1, 1] });
+    const bookB = st.pen("book", T.paper(), { tint: [1, 1, 1] });
+    const potB = st.pen("pot", T.stone(), { tint: [0.8, 0.84, 0.9] });
+    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2 });
+    const mugB = st.pen("mug", T.metal(), { tint: [0.75, 0.82, 0.95], spec: 0.5 });
+    const screenDark = st.pen("screenDark", null, { unlit: true, tint: [0.03, 0.05, 0.08] });
+
+    /* ---------- 地面：蓝色地毯 ---------- */
+    const floor = st.pen("floor", T.linen(), { tint: night ? [0.32, 0.38, 0.5] : [0.55, 0.64, 0.8], spec: 0.02 });
+    floor.grid.call(floor, m4(0, 0, (zBack + zFront) / 2), RW, zFront - zBack, 10, 10,
+      [0.52, 0.58, 0.7], 1.6, 0.1, 0);
+    const trim = st.pen("trim", null, { tint: night ? [0.34, 0.42, 0.56] : [0.68, 0.77, 0.92] });
+    Gbox(trim, 0, 0.06, zBack + 0.03, RW, 0.12, 0.06, [1, 1, 1]);
+
+    /* ---------- 后墙 + 窗洞 ---------- */
+    const wall = st.pen("wall", null, { tint: night ? [0.28, 0.38, 0.6] : [0.38, 0.52, 0.9], spec: 0.02 });
+    const cw = 0.2, cols = Math.round(RW / cw), rows = Math.ceil(RH / cw);
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const x0 = -RW / 2 + i * cw, y0 = j * cw;
+        const cx2 = x0 + cw / 2, cy2 = y0 + cw / 2;
+        if (cx2 > WIN.x0 && cx2 < WIN.x1 && cy2 > WIN.y0 && cy2 < WIN.y1) continue;
+        wall.quad.call(wall, m4(cx2, cy2, zBack, 0, 0, 0), cw, cw, [1, 1, 1], [0, 0, 1, 1]);
+      }
+    }
+
+    /* ---------- 窗套 / 窗台：白漆 ---------- */
+    const dT = 0.18;
+    Gbox(paint, WIN.x0 - 0.02, fcy, zBack - dT / 2, 0.04, fh + 0.02, dT, [1, 1, 1]);
+    Gbox(paint, WIN.x1 + 0.02, fcy, zBack - dT / 2, 0.04, fh + 0.02, dT, [1, 1, 1]);
+    Gbox(paint, fcx, WIN.y1 + 0.02, zBack - dT / 2, fw + 0.06, 0.04, dT, [1, 1, 1]);
+    Gbox(paint, fcx, WIN.y0 - 0.02, zBack - dT / 2, fw + 0.06, 0.04, dT, [1, 1, 1]);
+    Gbox(paint, fcx, WIN.y1 + 0.08, zBack + 0.05, fw + 0.26, 0.12, 0.1, [1, 1, 1]);
+    Gbox(paint, WIN.x0 - 0.08, fcy, zBack + 0.05, 0.16, fh + 0.28, 0.1, [1, 1, 1]);
+    Gbox(paint, WIN.x1 + 0.08, fcy, zBack + 0.05, 0.16, fh + 0.28, 0.1, [1, 1, 1]);
+    Gbox(paint, fcx, WIN.y1 - 0.01, zBack + 0.02, fw + 0.02, 0.08, 0.07, [1, 1, 1]);
+    Gbox(paint, WIN.x0 + 0.02, fcy, zBack + 0.02, 0.08, fh, 0.07, [1, 1, 1]);
+    Gbox(paint, WIN.x1 - 0.02, fcy, zBack + 0.02, 0.08, fh, 0.07, [1, 1, 1]);
+    Gbox(paint, fcx - 0.26, fcy, zBack + 0.02, 0.06, fh, 0.06, [1, 1, 1]);
+    Gbox(paint, fcx, WIN.y0 + fh * 0.66, zBack + 0.02, fw, 0.06, 0.06, [1, 1, 1]);
+    const arcW = fw / 2 + 0.12;
+    for (let i = 0; i < 12; i++) {
+      const a0 = Math.PI * (i / 12), a1 = Math.PI * ((i + 1) / 12);
+      const cx0 = Math.cos(a0) * arcW, cy0 = WIN.y1 + 0.09 + Math.sin(a0) * 0.24;
+      const cx1 = Math.cos(a1) * arcW, cy1 = WIN.y1 + 0.09 + Math.sin(a1) * 0.24;
+      const mx = (cx0 + cx1) / 2 + fcx, my = (cy0 + cy1) / 2;
+      const len = Math.hypot(cx1 - cx0, cy1 - cy0);
+      paint.box.call(paint, m4(mx, my, zBack + 0.04, 0, 0, Math.atan2(cy1 - cy0, cx1 - cx0)),
+        len + 0.02, 0.05, 0.05, [1, 1, 1], 1.2);
+    }
+    Gbox(paint, fcx, WIN.y0 - 0.05, zBack + 0.1, fw + 0.36, 0.07, 0.26, [1, 1, 1]);
+
+    /* ---------- 左右墙 / 天花板：纯色 ---------- */
+    const side = st.pen("side", null, { tint: night ? [0.26, 0.36, 0.58] : [0.34, 0.48, 0.84], spec: 0.02 });
+    side.quad.call(side, m4(-RW / 2, RH / 2, (zBack + zFront) / 2, 0, Math.PI / 2, 0),
+      zFront - zBack, RH, [1, 1, 1], [0, 0, 1, 1]);
+    side.quad.call(side, m4(RW / 2, RH / 2, (zBack + zFront) / 2, 0, -Math.PI / 2, 0),
+      zFront - zBack, RH, [1, 1, 1], [0, 0, 1, 1]);
+    const ceil = st.pen("ceil", null, { tint: night ? [0.4, 0.48, 0.66] : [0.58, 0.68, 0.86], spec: 0.02 });
+    ceil.grid.call(ceil, m4(0, RH, (zBack + zFront) / 2, Math.PI, 0, 0), RW, zFront - zBack, 8, 8, [1, 1, 1], 1, 0.05, 0);
+
+    /* ---------- 护墙板 + 气泡贴花 ---------- */
+    const wtop = 0.9, wbot = 0.08;
+    const wain = st.pen("wainscot", null, { tint: night ? [0.5, 0.58, 0.78] : [0.7, 0.79, 0.95], spec: 0.02 });
+    const rail = st.pen("rail", null, { tint: night ? [0.24, 0.32, 0.48] : [0.34, 0.46, 0.68], spec: 0.04 });
+    const batten = st.pen("batten", null, { tint: night ? [0.58, 0.66, 0.86] : [0.82, 0.88, 0.98], spec: 0.02 });
+    Gbox(wain, -2.34, (wtop + wbot) / 2, zBack + 0.03, 0.88, wtop - wbot, 0.04, [1, 1, 1]);
+    Gbox(wain, 2.34, (wtop + wbot) / 2, zBack + 0.03, 0.88, wtop - wbot, 0.04, [1, 1, 1]);
+    Gbox(wain, -RW / 2 + 0.03, (wtop + wbot) / 2, -0.75, 0.04, wtop - wbot, 5.3, [1, 1, 1]);
+    Gbox(wain, RW / 2 - 0.03, (wtop + wbot) / 2, -0.75, 0.04, wtop - wbot, 5.3, [1, 1, 1]);
+    Gbox(rail, -2.34, wtop + 0.03, zBack + 0.055, 0.9, 0.06, 0.06, [1, 1, 1]);
+    Gbox(rail, 2.34, wtop + 0.03, zBack + 0.055, 0.9, 0.06, 0.06, [1, 1, 1]);
+    Gbox(rail, -RW / 2 + 0.045, wtop + 0.03, -0.75, 0.06, 0.06, 5.3, [1, 1, 1]);
+    Gbox(rail, RW / 2 - 0.045, wtop + 0.03, -0.75, 0.06, 0.06, 5.3, [1, 1, 1]);
+    for (let z = zBack + 0.35; z <= zFront - 0.25; z += 0.55) {
+      Gbox(batten, -RW / 2 + 0.045, (wtop + wbot) / 2, z, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
+      Gbox(batten, RW / 2 - 0.045, (wtop + wbot) / 2, z, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
+    }
+    for (const bx of [-2.72, -2.5, -2.28, -2.06]) {
+      Gbox(batten, bx, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
+    }
+    for (const bx of [2.06, 2.28, 2.5, 2.72]) {
+      Gbox(batten, bx, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
+    }
+    const bubbleB = st.pen("wallBubbles", T.bubbles(), { opacity: 0.55, blend: "alpha", tint: [0.9, 0.95, 1.0] });
+    bubbleB.quad.call(bubbleB, m4(-RW / 2 + 0.02, 2.2, -2.4, 0, Math.PI / 2, 0), 1.1, 0.7, [1, 1, 1], [0, 0, 1, 1]);
+    bubbleB.quad.call(bubbleB, m4(2.3, 2.5, zBack + 0.02, 0, 0, 0), 0.9, 0.5, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---------- 床前小地毯 ---------- */
+    const rugB = st.pen("rug", T.rug(), { tint: night ? [0.3, 0.4, 0.6] : [0.5, 0.66, 0.92], spec: 0.02 });
+    rugB.quad.call(rugB, m4(0.0, 0.011, -1.45, -Math.PI / 2, 0, 0), 3.2, 1.9, [1, 1, 1], [0, 0, 2.0, 1.3]);
+
+    /* ---------- 床 + 床头柜 ---------- */
+    const bedFabric = st.pen("bedFabric", T.linen(), { tint: night ? [0.38, 0.48, 0.7] : [0.5, 0.64, 0.92], spec: 0.03 });
+    const bedSheet = st.pen("bedSheet", T.linen(), { tint: [1.06, 1.09, 1.12], spec: 0.02 });
+    A3DDecor.bed(metalDark, bedFabric, bedSheet, m4(-2.2, 0, -2.4), 1.0, 1.9);
+    // 床头柜：白漆柜体 + 黑金属腿
+    Gbox(deskTop, -1.35, 0.47, -1.0, 0.44, 0.05, 0.38, [1, 1, 1]);
+    Gbox(deskTop, -1.35, 0.27, -1.0, 0.4, 0.36, 0.34, [1, 1, 1]);
+    Gbox(metalDark, -1.35, 0.34, -0.81, 0.16, 0.014, 0.02, [1, 1, 1]);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      Gbox(metalDark, -1.35 + sx * 0.18, 0.045, -1.0 + sz * 0.14, 0.035, 0.09, 0.035, [1, 1, 1]);
+    }
+    P.tableLamp(metal, shadeWarm, m4(-1.35, 0.5, -1.0), 0.34, [1.0, 0.86, 0.62]);
+    const bedHalo = st.pen("bedHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.28 });
+    bedHalo.quad.call(bedHalo, m4(-1.35, 0.74, -0.9), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
+    P.book(bookB, m4(-1.42, 0.5, -1.08, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
+    P.mug(mugB, m4(-1.2, 0.5, -0.94), 0.04, [0.85, 0.8, 0.75]);
+    metalDark.cyl.call(metalDark, m4(-1.3, 0.01, -2.0), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
+    metalDark.torus.call(metalDark, m4(-1.3, 0.35, -2.0), 0.18, 0.012, 14, 5, [1, 1, 1]);
+
+    /* ---------- DeepSeek 的书桌 ---------- */
+    A3DDecor.desk(deskTop, metalDark, m4(deskX, 0, deskZ), deskW, deskD, deskH);
+    P.drawer(deskTop, m4(0.78, 0.34, deskZ + 0.02), 0.68, 0.64, 0.58, [1, 1, 1]);
+    P.chair(metal, m4(0.3, 0, -2.15, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
+    const monW = 0.76, monH = 0.44, monX = deskX - 0.35, monY = deskH + 0.31, monZ = deskZ - 0.1;
+    const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
+    const screenP = st.pen("monScreen", monTex, { unlit: true, tint: [0.92, 0.99, 1.0] });
+    P.monitorBody(metalDark, m4(monX, monY, monZ, 0, 0.05, 0));
+    screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.05, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
+    const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
+    deskMat.quad.call(deskMat, m4(0.28, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
+    P.keyboard(metalDark, m4(0.08, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
+    P.mouse(metalDark, m4(0.56, deskH + 0.034, deskZ + 0.17));
+    P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.86, 0.62]);
+    const deskHalo = st.pen("deskHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.3 });
+    deskHalo.quad.call(deskHalo, m4(deskX - 1.0, deskH + 0.26, deskZ - 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
+    ceramic.cyl.call(ceramic, m4(-0.5, deskH + 0.005, deskZ + 0.24), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
+    const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
+    riceP.cyl.call(riceP, m4(-0.5, deskH + 0.04, deskZ + 0.24), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
+    riceP.sphere.call(riceP, m4(-0.5, deskH + 0.062, deskZ + 0.24, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
+    P.mug(mugB, m4(0.66, deskH + 0.001, deskZ + 0.3), 0.045, [0.85, 0.86, 0.92]);
+    P.papers(paperB, m4(-0.7, deskH + 0.001, deskZ + 0.28), 6, 12);
+    P.book(bookB, m4(0.28, deskH + 0.002, deskZ + 0.33, 0, 0.35, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
+    metalDark.cyl.call(metalDark, m4(0.98, deskH + 0.001, deskZ - 0.02), 0.045, 0.04, 0.11, 10, [0.35, 0.4, 0.5], true);
+    for (let i = 0; i < 3; i++) {
+      Gbox(metalDark, 0.96 + (i - 1) * 0.02, deskH + 0.08 + i * 0.006, deskZ - 0.02 + (i - 1) * 0.012,
+        0.012, 0.16, 0.012, [0.5 + i * 0.1, 0.4 + i * 0.1, 0.3]);
+    }
+    for (let i = 0; i < 4; i++) {
+      P.book(bookB, m4(0.98, deskH + 0.003 + i * 0.05, deskZ + 0.35 - i * 0.012, 0, 0.9 - i * 0.2, 0),
+        0.26, 0.045, 0.19, [0.35 - i * 0.04, 0.22 + i * 0.05, 0.3 + i * 0.05]);
+    }
+    const hp = st.pen("headphone", T.darkMetal(), { tint: [0.8, 0.84, 0.9], spec: 0.4 });
+    // 耳机支架：底座 + 立杆 + 横钩
+    hp.cyl.call(hp, m4(-0.92, deskH, deskZ + 0.26), 0.07, 0.06, 0.018, 14, [1, 1, 1], true);
+    hp.cyl.call(hp, m4(-0.92, deskH + 0.018, deskZ + 0.26), 0.012, 0.012, 0.34, 8, [1, 1, 1], true);
+    hp.torus.call(hp, m4(-0.92, deskH + 0.36, deskZ + 0.26, Math.PI / 2, 0, 0), 0.085, 0.012, 14, 5, [1, 1, 1]);
+    for (const sx of [-1, 1]) {
+      hp.cyl.call(hp, m4(-0.92 + sx * 0.085, deskH + 0.315, deskZ + 0.26, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 10, [1, 1, 1], true);
+    }
+    P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
+    for (let i = 0; i < 5; i++) {
+      P.leafBlade(plantB, m4(-0.78, deskH + 0.07, deskZ + 0.22, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
+    }
+    const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
+      { unlit: true, tint: [0.9, 0.95, 1.0] });
+    photoB.quad.call(photoB, m4(0.86, deskH + 0.13, deskZ + 0.12, 0, -0.2, 0), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
+    screenDark.box.call(screenDark, m4(0.38, deskH + 0.005, deskZ + 0.25, 0, 0.3, 0), 0.07, 0.012, 0.14, [1, 1, 1], 1);
+    // 桌角小音箱 + 蓝光条
+    Gbox(metalDark, 1.02, deskH + 0.05, deskZ + 0.05, 0.1, 0.1, 0.12, [0.2, 0.24, 0.32]);
+    const spk = st.pen("speaker", null, { unlit: true, tint: [0.2, 0.55, 0.9] });
+    spk.quad.call(spk, m4(1.02, deskH + 0.05, deskZ + 0.112), 0.06, 0.012, [1, 1, 1], [0, 0, 1, 1]);
+    const stickyCols = [[1, 0.94, 0.56], [1, 0.78, 0.72], [0.78, 0.9, 1]];
+    for (let i = 0; i < 3; i++) {
+      const sp = st.pen("deskNote" + i, T.paper(), { unlit: true, tint: stickyCols[i] });
+      sp.quad.call(sp, m4(-0.25 + i * 0.14, deskH + 0.002, deskZ + 0.33, 0, 0, (i - 1) * 0.08), 0.1, 0.1, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    /* ---------- Claude 的书桌 + 白板 ---------- */
+    A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, Math.PI / 2, 0), 1.9, 0.75, deskH);
+    P.chair(metal, m4(1.48, 0, -1.6, 0, Math.PI / 2 + 0.2, 0), [0.38, 0.5, 0.74], [0.55, 0.6, 0.7]);
+    const term = st.pen("termBody", T.metal(), { tint: [0.85, 0.9, 1.0], spec: 0.4 });
+    Gbox(term, cx - 0.08, deskH + 0.015, cz - 0.48, 0.34, 0.03, 0.26, [1, 1, 1]);
+    const termScreen = st.pen("termScreen", null, { unlit: true, tint: [0.1, 0.55, 0.4] });
+    termScreen.quad.call(termScreen, m4(cx - 0.08, deskH + 0.032, cz - 0.34, -Math.PI / 2, 0, 0), 0.3, 0.19, [1, 1, 1], [0, 0, 1, 1]);
+    for (let i = 0; i < 3; i++) {
+      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.05, cz + 0.52 - i * 0.01, 0, Math.PI / 2, 0),
+        0.2, 0.12, 0.05, [0.3 + i * 0.04, 0.2 + i * 0.05, 0.3 + i * 0.06]);
+    }
+    P.book(bookB, m4(cx + 0.1, deskH + 0.003, cz - 0.1, 0, 0.12, 0), 0.28, 0.04, 0.2, [0.2, 0.16, 0.24]);
+    Gbox(metalDark, cx + 0.1, deskH + 0.05, cz - 0.02, 0.02, 0.02, 0.18, [0.8, 0.85, 0.9]);
+    const vase = st.pen("vase", T.plasterPale(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
+    vase.cyl.call(vase, m4(cx + 0.16, deskH + 0.001, cz + 0.38), 0.055, 0.14, 0.13, 12, [1, 1, 1], true);
+    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.0, 0.85, 0.65] });
+    const stemB = st.pen("stem", null, { tint: [0.2, 0.4, 0.22] });
+    P.chrysanthemum(petalB, stemB, m4(cx + 0.16, deskH + 0.12, cz + 0.38), 0.7, [1.1, 0.9, 0.7], 4);
+    const boardTex = A3DTex.dynamic("monitorWb", 512, 320, drawBoard);
+    Gbox(paint, RW / 2 - 0.02, 1.55, cz, 0.04, 0.8, 1.16, [1, 1, 1]);
+    const bq = st.pen("boardFace", boardTex, { unlit: true, tint: [0.95, 0.98, 1.0] });
+    bq.quad.call(bq, m4(RW / 2 - 0.045, 1.55, cz, 0, -Math.PI / 2, 0), 1.08, 0.72, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---------- 墙饰：软木板 / 挂钟 / 海报 ---------- */
+    const pinBoard = st.pen("pinBoard", T.linen(), { tint: [0.55, 0.65, 0.8], spec: 0.02 });
+    A3DDecor.corkboard(paint, pinBoard, m4(-2.55, 1.42, zBack + 0.02), 0.9, 0.7);
+    const noteCols = [[1, 0.95, 0.55], [1, 0.8, 0.72], [0.8, 0.9, 1], [0.85, 1, 0.82]];
+    for (let i = 0; i < 4; i++) {
+      const np = st.pen("corkNote" + i, T.paper(), { unlit: true, tint: noteCols[i] });
+      np.quad.call(np, m4(-2.83 + (i % 2) * 0.34, 1.54 - Math.floor(i / 2) * 0.24, zBack + 0.065, 0, 0, (i % 2 ? 1 : -1) * 0.06),
+        0.15, 0.14, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    const CLK = { x: -2.55, y: 2.25, z: zBack + 0.03 };
+    const clockRim = st.pen("clockRim", T.metal(), { tint: [0.9, 0.95, 1.0], spec: 0.45 });
+    const clockFace = st.pen("clockFace", T.paper(), { unlit: true, tint: [1.06, 1.0, 0.9] });
+    clockRim.cyl.call(clockRim, m4(CLK.x, CLK.y, CLK.z - 0.025, Math.PI / 2, 0, 0), 0.2, 0.2, 0.025, 22, [1, 1, 1], true);
+    clockRim.torus.call(clockRim, m4(CLK.x, CLK.y, CLK.z, Math.PI / 2, 0, 0), 0.18, 0.02, 22, 6, [1, 1, 1]);
+    clockFace.cyl.call(clockFace, m4(CLK.x, CLK.y, CLK.z + 0.001, Math.PI / 2, 0, 0), 0.165, 0.165, 0.006, 22, [1, 1, 1], true);
+    const tickB = st.pen("clockTick", null, { unlit: true, tint: [0.25, 0.2, 0.15] });
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * TAU, major = i % 3 === 0;
+      const rr = major ? 0.13 : 0.142, len = major ? 0.03 : 0.015;
+      tickB.box.call(tickB, M.mul(M.trs(CLK.x + Math.sin(ang) * rr, CLK.y + Math.cos(ang) * rr, CLK.z + 0.008, 0, 0, -ang),
+        M.trs(0, 0, 0)), major ? 0.012 : 0.007, len, 0.003, [1, 1, 1], 1);
+    }
+    const handB = st.pen("clockHand", null, { tint: [0.12, 0.1, 0.09] });
+    handB.box.call(handB, M.mul(M.trs(CLK.x, CLK.y, CLK.z + 0.012, 0, 0, -(10 + 10 / 60) / 12 * TAU), M.trs(0, 0.04, 0)),
+      0.014, 0.08, 0.005, [1, 1, 1], 1);
+    handB.box.call(handB, M.mul(M.trs(CLK.x, CLK.y, CLK.z + 0.014, 0, 0, -(10 / 60) * TAU), M.trs(0, 0.055, 0)),
+      0.01, 0.11, 0.004, [1, 1, 1], 1);
+    clockRim.sphere.call(clockRim, m4(CLK.x, CLK.y, CLK.z + 0.018, 0, 0, 0, 1, 1, 0.5), 0.016, 8, 5, [1, 1, 1]);
+    const posterB = st.pen("poster", A3DTex.poster(5, { title: "", bg: "#b9cbe0", seed: 9, mark: "#7aa7d9" }),
+      { unlit: true, tint: [0.9, 0.95, 1.0] });
+    posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.34, 0.44, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---------- 窗帘 ---------- */
+    const curtainB = st.pen("curtain", T.linen(), { tint: night ? [0.55, 0.62, 0.78] : [0.68, 0.8, 1.0] });
+    A3DDecor.curtain(curtainB, m4(-1.72, 2.45, zBack + 0.08), 0.36, 1.7);
+    A3DDecor.curtain(curtainB, m4(1.72, 2.45, zBack + 0.08), 0.36, 1.7);
+    for (const sx of [-1, 1]) {
+      P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.01, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
+      for (let i = 0; i < 4; i++) {
+        P.leafBlade(plantB, m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, i * 1.3, 0.8), 0.14, 0.025, [0.7, 1, 0.7]);
+      }
+    }
+
+    /* ---------- 窗外的海 ---------- */
+    const seaQuad = new A3D.Builder();
+    const seaMesh = A3D.meshFrom(seaQuad.quad.call(seaQuad, m4(0, 1.2, -9.5), 24, 16, [1, 1, 1], [0, 0, 1, 1]));
+    st.sea.push({
+      mesh: seaMesh, tex: T.caustic(),
+      deep: night ? [0.006, 0.025, 0.05] : [0.015, 0.06, 0.1],
+      shallow: night ? [0.04, 0.13, 0.2] : [0.14, 0.44, 0.52],
+      rayCol: night ? [0.3, 0.6, 0.72] : [0.78, 0.94, 1.0],
+      fogCol: night ? [0.01, 0.045, 0.07] : [0.05, 0.16, 0.2],
+      causticAmt: night ? 0.45 : 1.15, density: 0.3, yBase: -1.6, ySpan: 5.6
+    });
+    const rockB = st.pen("seaRock", null, { tint: [0.03, 0.09, 0.12], spec: 0 });
+    rocks(rockB, m4(0, -1.1, -8.2), 8, 12, 5, [0.05, 0.12, 0.14]);
+    const kelp = st.pen("seaKelp", T.leaf(), { cutout: true, tint: [0.16, 0.42, 0.32], sway: 1, rim: 0.2 });
+    for (let i = 0; i < 12; i++) {
+      const x = -4.5 + r() * 9, z = -7.2 - r() * 1.6;
+      for (let k = 0; k < 3; k++) {
+        P.leafBlade(kelp, m4(x + (r() - 0.5) * 0.5, -1.5, z, 0, r() * TAU, 1.1 + r() * 0.3, 1, 1, 1),
+          1.2 + r() * 1.2, 0.09, [0.7, 1, 0.9]);
+      }
+    }
+    const flock = A3DFlock.create({
+      count: 40, seed: 7,
+      bounds: { min: [-1.5, 1.0, -6.8], max: [1.5, 2.35, -5.2] },
+      size: 0.18, neighborCount: 7
+    });
+    const fishMeshRef = fishMesh();
+    const fr = rng(91);
+    for (let i = 0; i < flock.state.count; i++) {
+      const col = P.mix([0.5, 0.78, 0.88], [0.92, 0.98, 1.0], fr() * 0.7);
+      st.dyn.push({
+        batch: { mesh: fishMeshRef, tint: col, spec: 0.35, rim: 0.45 },
+        matrix: () => flock.state.mats[i]
+      });
+    }
+
+    /* ---------- 玻璃 / 光斑 / 光柱 ---------- */
+    const glassB = st.pen("glass", T.glass(), { tint: [0.55, 0.75, 0.9], opacity: 0.24, blend: "alpha", spec: 0.9 });
+    glassB.quad.call(glassB, m4(fcx, fcy, zBack + 0.015), fw, fh, [1, 1, 1], [0, 0, 1.6, 1]);
+    const causticFloor = st.pen("causticFloor", T.caustic(), {
+      unlit: true, blend: "add", opacity: 0.08, tint: [0.5, 0.78, 1.0],
+      uvAnim: t => [Math.sin(t * 0.11) * 0.15 + t * 0.01, t * 0.016]
+    });
+    causticFloor.quad.call(causticFloor, m4(0.05, 0.02, -2.0, -Math.PI / 2, 0, 0), 3.4, 2.6, [1, 1, 1], [0, 0, 1.6, 1.3]);
+    const sunPatch = st.pen("sunPatch", T.glow(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.15, tint: [1.0, 0.76, 0.42] });
+    sunPatch.quad.call(sunPatch, m4(0.0, 0.016, -1.7, -Math.PI / 2, 0, 0), 3.0, 2.2, [1, 1, 1], [0, 0, 1, 1]);
+    const rayB = st.pen("shafts", T.shaft(), { unlit: true, blend: "add", opacity: night ? 0.06 : 0.14, tint: [0.62, 0.86, 1.0] });
+    for (let i = 0; i < 3; i++) {
+      rayB.quad.call(rayB, m4(-0.8 + i * 0.8, 1.75, zBack + 0.9 + i * 0.4, 0.42, 0.04 * i, -0.12, 1, 1, 1),
+        1.4 + i * 0.2, 4.2, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    /* ---------- 接触阴影 ---------- */
+    const shadowB = st.pen("contactShadow", T.glow(), { unlit: true, blend: "alpha", tint: [0.02, 0.03, 0.05], opacity: 0.5 });
+    const sh = (x, z, w, d, rot) => {
+      shadowB.quad.call(shadowB, m4(x, 0.014, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
+    };
+    sh(-2.2, -2.4, 1.1, 2.0, 0);
+    sh(-1.35, -1.0, 0.55, 0.5, 0);
+    sh(deskX, deskZ, 2.5, 0.9, 0);
+    sh(0.3, -2.15, 0.6, 0.6, 0.25);
+    sh(cx, cz, 0.95, 2.1, 0);
+    sh(1.48, -1.6, 0.6, 0.6, 0.2);
+    sh(-1.3, -2.0, 0.4, 0.4, 0);
+
+    /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
+    const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
+    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.95, 0.8], emissive: [0.3, 0.2, 0.08] });
+    Gbox(lampMetal, 0, RH - 0.02, -1.4, 0.4, 0.02, 0.4, [1, 1, 1]);
+    P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.88, 0.66]);
+    const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
+    cordB.cyl.call(cordB, m4(0, 2.42, -1.4), 0.006, 0.006, 0.38, 4, [1, 1, 1], false);
+    const lampHalo = st.pen("lampHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.78, 0.42], opacity: night ? 0.45 : 0.26 });
+    lampHalo.quad.call(lampHalo, m4(0, RH - 0.52, -1.38), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
+    const monHalo = st.pen("monHalo", T.glow(), { unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.26 });
+    monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08), 1.1, 0.78, [1, 1, 1], [0, 0, 1, 1]);
+    const sconce = st.pen("sconce", T.metal(), { tint: [1.0, 0.95, 0.85], spec: 0.5 });
+    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.96, 0.78], emissive: [0.35, 0.22, 0.08] });
+    sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, -0.9), 0.16, 0.025, 0.025, [1, 1, 1], 1);
+    sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, -0.9), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
+    sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, -0.9), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
+    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.7, 0.38], opacity: 0.38 });
+    sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.3, 2.18, -0.9, 0, -Math.PI / 2, 0), 0.85, 0.85, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---------- 粒子 ---------- */
+    const pts = [];
+    for (let i = 0; i < 90; i++) {
+      pts.push({
+        x: (r() - 0.5) * (RW - 0.4), y: 0.4 + r() * 2.4, z: zBack + 0.3 + r() * (zFront - zBack - 0.6),
+        r: 0.8, g: 0.9, b: 1, a: 0.08 + r() * 0.22,
+        size: 0.004 + r() * 0.01, kind: 2, speed: 0.05 + r() * 0.08, phase: r() * TAU, wob: 0.06 + r() * 0.1
+      });
+    }
+    for (let i = 0; i < 40; i++) {
+      pts.push({
+        x: -3 + r() * 6, y: 0 + r() * 3.2, z: -7 + r() * 2.2,
+        r: 0.6, g: 0.85, b: 1, a: 0.1 + r() * 0.22,
+        size: 0.01 + r() * 0.03, kind: 1, speed: 0.4 + r() * 0.5, phase: r() * TAU, wob: 0.05 + r() * 0.1
+      });
+    }
+    st.points.push({ mesh: A3D.pointMesh(pts), blend: "alpha", yMin: -0.3, yMax: 4.2, fogNear: 4, fogFar: 18 });
+
+    st.finish();
+    st.finishGlows();
+
+    return {
+      cam: { eye: [-0.95, 1.5, 1.55], target: [0.1, 1.15, -3.5], fov: 50 },
+      sky: {
+        mode: 1, top: night ? [0.03, 0.1, 0.17] : [0.1, 0.3, 0.38],
+        bot: night ? [0.008, 0.03, 0.05] : [0.04, 0.11, 0.14],
+        glow: night ? [0.14, 0.3, 0.38] : [0.34, 0.58, 0.62], sun: [0.42, 0.9], horizon: 0.12
+      },
+      lights: {
+        sun: A3D.norm3([-0.35, 0.85, -0.45]),
+        sunCol: night ? [0.2, 0.19, 0.2] : [0.62, 0.54, 0.42],
+        skyCol: night ? [0.18, 0.2, 0.26] : [0.32, 0.37, 0.44],
+        groundCol: night ? [0.14, 0.12, 0.12] : [0.26, 0.24, 0.24],
+        fog: { col: night ? [0.04, 0.04, 0.05] : [0.08, 0.09, 0.1], near: 5, far: 22 },
+        fogAmt: 0.3,
+        points: [
+          { pos: [0, 2.4, -1.4], col: [1.0, 0.76, 0.48], range: 6.0, inten: night ? 1.3 : 1.0 },
+          { pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.72, 0.42], range: 5.0, inten: 0.6 },
+          { pos: [-1.0, 1.3, -2.9], col: [1.0, 0.7, 0.4], range: 3.4, inten: night ? 1.2 : 0.9 },
+          { pos: [monX, monY, monZ + 0.45], col: [0.5, 0.72, 1.0], range: 2.8, inten: night ? 1.0 : 0.65 },
+          { pos: [0, 1.9, zBack + 0.2], col: [0.45, 0.62, 0.85], range: 7.0, inten: night ? 0.3 : 0.55 },
+          { pos: [-1.35, 0.8, -1.0], col: [1.0, 0.73, 0.42], range: 4.2, inten: 0.55 }
+        ]
+      },
+      batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows, sea: st.sea,
+      flock: flock,
+      tone: night ? [0.94, 0.92, 0.94] : [0.97, 0.98, 1.0],
+      swayAmp: 0.5,
+      update(t, sc) {
+        sc.cam.eye = [-0.95 + Math.sin(t * 0.21) * 0.03, 1.5 + Math.sin(t * 0.33) * 0.01, 1.55 + Math.cos(t * 0.18) * 0.025];
+        sc.cam.target = [0.1 + Math.sin(t * 0.17) * 0.03, 1.15 + Math.sin(t * 0.27) * 0.008, -3.5];
+        const dt = Math.min(0.05, Math.max(0, t - lastT));
+        lastT = t;
+        flock.update(dt, t);
+        flock.matrices();
+        if (t - MON.lastDraw > 0.09) {
+          MON.lastDraw = t;
+          A3DTex.redraw("monitor", drawMonitor);
+        }
+        if (t - lastBoard > 0.25) {
+          lastBoard = t;
+          A3DTex.redraw("monitorWb", drawBoard);
+        }
+      },
+      whiteboard: !night
+    };
+  }
+
   /* ---------------- 注册 ---------------- */
   function registerAll() {
     A3D.register("sea", buildSea);
-    A3D.register("ds_room", () => buildRoom({ night: false }));
-    A3D.register("ds_room_night", () => buildRoom({ night: true }));
-    A3D.register("ds_room_dawn", () => buildRoom({ night: false }));
+    A3D.register("ds_room", () => buildRoomCompact({ night: false }));
+    A3D.register("ds_room_night", () => buildRoomCompact({ night: true }));
+    A3D.register("ds_room_dawn", () => buildRoomCompact({ night: false }));
     A3D.register("claude_door", () => buildDoor({ blocked: false }));
     A3D.register("claude_door_403", () => buildDoor({ blocked: true }));
     A3D.register("claude_lib", buildLib);
@@ -1749,6 +1505,6 @@ const A3DWorlds = (() => {
 
   if (typeof window !== "undefined") registerAll();
 
-  return { registerAll, buildSea, buildRoom, buildDoor, buildLib, buildCamp };
+  return { registerAll, buildSea, buildRoomCompact, buildDoor, buildLib, buildCamp };
 })();
 
