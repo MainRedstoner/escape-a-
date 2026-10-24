@@ -94,7 +94,7 @@ const A3DTex = (() => {
     const c = cv(size, h || size);
     draw(ctxOf(c), c.width, c.height);
     canvases[name] = c;
-    cache[name] = A3D.texFromCanvas(c, { clamp: /glow|shaft|sprite|sign|panel|monitor|leaf|petal|glass|ray/.test(name) });
+    cache[name] = A3D.texFromCanvas(c, { clamp: /glow|shaft|sprite|sign|panel|monitor|leaf|petal|glass|ray|bubbles/.test(name) });
     return cache[name];
   }
   function canvasOf(name) { return canvases[name]; }
@@ -352,6 +352,26 @@ const A3DTex = (() => {
         grain(x, w, w, { freq: 5, oct: 3, strength: 0.18, seed: 66 });
       });
     },
+    /** 浅色亚麻：底色接近白，tint 才能真正染出蓝 / 粉 / 米色 */
+    linen() {
+      return get("linen", 256, 256, (x, w, h) => {
+        x.fillStyle = "#c9c9c4"; x.fillRect(0, 0, w, h);
+        for (let i = 0; i < w; i += 3) {
+          x.fillStyle = "rgba(255,255,255,.05)"; x.fillRect(i, 0, 1, h);
+          x.fillStyle = "rgba(0,0,0,.04)"; x.fillRect(0, i, w, 1);
+        }
+        const r = rnd(177);
+        for (let i = 0; i < 16; i++) {
+          const px = r() * w;
+          const g = x.createLinearGradient(px - 18, 0, px + 18, 0);
+          g.addColorStop(0, "rgba(0,0,0,0)");
+          g.addColorStop(0.5, "rgba(0,0,0,.06)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          x.fillStyle = g; x.fillRect(px - 18, 0, 36, h);
+        }
+        grain(x, w, w, { freq: 5, oct: 2, strength: 0.07, seed: 177 });
+      });
+    },
     canvasTex() {
       return get("canvasTex", 256, 256, (x, w, h) => {
         x.fillStyle = "#8a7b63"; x.fillRect(0, 0, w, h);
@@ -570,6 +590,30 @@ const A3DTex = (() => {
           g.addColorStop(0, "rgba(220,245,255,.30)");
           g.addColorStop(1, "rgba(220,245,255,0)");
           x.fillStyle = g; x.beginPath(); x.arc(px, py, rr, 0, 7); x.fill();
+        }
+      });
+    },
+
+    /** 墙面气泡贴花：透明底，白色 / 淡蓝小气泡，用来单独贴在纯色墙上 */
+    bubbles() {
+      return get("bubbles", 512, 512, (x, w, h) => {
+        x.clearRect(0, 0, w, h);
+        const r = rnd(211);
+        for (let i = 0; i < 36; i++) {
+          const bx = r() * w, by = r() * h, br = 6 + r() * 24;
+          const g = x.createRadialGradient(bx - br * 0.32, by - br * 0.32, br * 0.06, bx, by, br);
+          g.addColorStop(0, "rgba(255,255,255,.95)");
+          g.addColorStop(0.4, "rgba(232,246,255,.55)");
+          g.addColorStop(0.85, "rgba(200,228,255,.12)");
+          g.addColorStop(1, "rgba(200,228,255,0)");
+          x.fillStyle = g;
+          x.beginPath(); x.arc(bx, by, br, 0, Math.PI * 2); x.fill();
+          // 泡泡边 + 高光
+          x.strokeStyle = "rgba(255,255,255,.42)";
+          x.lineWidth = 1.4;
+          x.beginPath(); x.arc(bx, by, br * 0.92, 0, Math.PI * 2); x.stroke();
+          x.fillStyle = "rgba(255,255,255,.85)";
+          x.beginPath(); x.arc(bx - br * 0.36, by - br * 0.36, Math.max(1.4, br * 0.13), 0, Math.PI * 2); x.fill();
         }
       });
     },

@@ -536,8 +536,47 @@ const A3DDecor = (() => {
     bFabric.cyl.call(bFabric, at(m, 0, 0.021, 0), r * 0.22, r * 0.22, 0.004, 24, C.fabricLit, true);
   }
 
+  /** 床：m 原点在落地中心，床头朝 -Z、床尾朝 +Z（默认 1.05 × 2.0m） */
+  function bed(bWood, bFabric, bSheet, m, w = 1.05, len = 2.0) {
+    const legH = 0.14, frameT = 0.08;
+    const frameTop = legH + frameT;      // 0.22
+    const matTop = frameTop + 0.20;      // 0.42
+    const topY = 0.66;
+
+    /* 四条木腿 */
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.09), 0, sz * (len / 2 - 0.12)),
+        0.035, 0.028, legH, 8, C.woodDark, true);
+    }
+    /* 床架 */
+    G.box.call(bWood, at(m, 0, legH + frameT / 2, 0), w, frameT, len - 0.06, C.wood, 1.4);
+    /* 床垫 */
+    G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
+    /* 蓝色被子：盖住靠床尾的 3/4，圆润一点 */
+    plush(bFabric, m, 0, matTop - 0.02, topY, len * 0.18, w / 2 - 0.005, len * 0.28, C.fabric, 20, 8);
+    /* 被头翻边 */
+    plush(bSheet, m, 0, matTop + 0.03, topY - 0.04, -len * 0.16, w / 2 - 0.03, 0.085, C.fabricLit, 16, 6);
+    /* 两个枕头 */
+    for (const sx of [-1, 1]) {
+      plush(bSheet, m, sx * w * 0.23, matTop + 0.04, matTop + 0.26, -len / 2 + 0.27,
+        0.20, 0.15, C.fabricLit, 14, 7);
+    }
+    /* 床头软包 */
+    plush(bFabric, m, 0, 0.18, 1.02, -len / 2 - 0.035, w / 2 - 0.02, 0.065, C.fabric, 18, 9);
+    /* 床头两根木柱 */
+    for (const sx of [-1, 1]) {
+      bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.025), 0, -len / 2 - 0.03), 0.038, 0.032, 1.02, 8, C.woodDark, true);
+      bWood.sphere.call(bWood, at(m, sx * (w / 2 - 0.025), 1.04, -len / 2 - 0.03), 0.045, 8, 5, C.woodLit);
+    }
+    /* 床尾的浅色搭毯：和蓝被子拉开层次 */
+    G.box.call(bSheet, at(m, 0, topY + 0.006, len / 2 - 0.30), w - 0.06, 0.028, 0.18, C.fabricLit, 2.0);
+    /* 床尾板 */
+    G.box.call(bWood, at(m, 0, 0.36, len / 2 + 0.025), w, 0.30, 0.05, C.wood, 1.5);
+    G.box.call(bFabric, at(m, 0, topY - 0.02, len / 2 - 0.16), w - 0.04, 0.03, 0.16, C.fabricDark, 2.0);
+  }
+
   return {
     sofa, armchair, ottoman, coffeeTable, floorLamp, wallShelf,
-    pictureFrame, corkboard, catBed, curtain, roundRug, wallClock
+    pictureFrame, corkboard, catBed, curtain, roundRug, wallClock, bed
   };
 })();
