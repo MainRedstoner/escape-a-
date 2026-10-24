@@ -1391,18 +1391,65 @@ const A3DWorlds = (() => {
         1.4 + i * 0.2, 4.2, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    /* ---------- 接触阴影 ---------- */
-    const shadowB = st.pen("contactShadow", T.glow(), { unlit: true, blend: "alpha", tint: [0.02, 0.03, 0.05], opacity: 0.5 });
+    /* ---------- 接触阴影 + 窗光方向的软投影 + 墙脚 AO ---------- */
+    const shadowCol = [0.008, 0.012, 0.024];
+    const shadowB = st.pen("contactShadow", T.glow(), { unlit: true, blend: "alpha", tint: shadowCol, opacity: 0.62 });
     const sh = (x, z, w, d, rot) => {
       shadowB.quad.call(shadowB, m4(x, 0.014, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
     };
-    sh(-2.2, -2.4, 1.1, 2.0, 0);
+    sh(-2.2, -2.4, 1.15, 2.05, 0);
     sh(-1.4, -3.15, 0.55, 0.5, 0);
     sh(deskX, deskZ, 2.5, 0.9, 0);
     sh(0.3, -2.15, 0.6, 0.6, 0.25);
     sh(cx, cz, 0.95, 2.1, 0);
     sh(1.48, -1.6, 0.6, 0.6, 0.2);
     sh(-1.3, -2.0, 0.4, 0.4, 0);
+
+    // 窗光从左后方来，家具的影子往右前拉；叠在接触阴影上
+    const castB = st.pen("castShadow", T.glow(), { unlit: true, blend: "alpha", tint: [0.008, 0.012, 0.022], opacity: 0.38 });
+    const cast = (x, z, w, d, rot) => {
+      castB.quad.call(castB, m4(x, 0.0155, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
+    };
+    cast(-1.95, -2.1, 1.6, 2.4, -0.08);
+    cast(0.35, -2.55, 2.4, 1.25, 0.03);
+    cast(0.55, -1.9, 0.8, 0.95, 0.2);
+    cast(-1.15, -2.9, 0.65, 0.75, 0.05);
+    cast(2.45, -1.45, 1.0, 2.3, 0);
+    cast(1.7, -1.35, 0.8, 0.9, 0.2);
+    cast(-1.1, -1.75, 0.6, 0.7, 0);
+
+    // 墙脚 AO：让地板和墙的交界沉下去
+    const aoB = st.pen("floorAO", T.glow(), { unlit: true, blend: "alpha", tint: [0.008, 0.012, 0.022], opacity: 0.32 });
+    const ao = (x, z, w, d) => {
+      aoB.quad.call(aoB, m4(x, 0.0125, z, -Math.PI / 2, 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
+    };
+    ao(0, zBack + 0.32, RW - 0.3, 0.55);
+    ao(-RW / 2 + 0.3, -0.75, 0.55, 5.2);
+    ao(RW / 2 - 0.3, -0.75, 0.55, 5.2);
+
+    // 桌面物件也要有接触阴影，不然在亮桌面上是飘的
+    const deskShadowB = st.pen("deskContact", T.glow(), { unlit: true, blend: "alpha", tint: [0.008, 0.012, 0.022], opacity: 0.3 });
+    const dsh = (x, y, z, w, d, rot) => {
+      deskShadowB.quad.call(deskShadowB, m4(x, y, z, -Math.PI / 2, rot || 0, 0), w, d, [1, 1, 1], [0, 0, 1, 1]);
+    };
+    const dtop = deskH + 0.0015;
+    dsh(-0.35, dtop, deskZ - 0.1, 0.55, 0.3, 0);
+    dsh(-1.0, dtop, deskZ - 0.08, 0.24, 0.24, 0);
+    dsh(-0.92, dtop, deskZ + 0.26, 0.22, 0.22, 0);
+    dsh(-0.5, dtop, deskZ + 0.24, 0.18, 0.18, 0);
+    dsh(0.66, dtop, deskZ + 0.3, 0.12, 0.12, 0);
+    dsh(-0.7, dtop, deskZ + 0.28, 0.3, 0.22, 0.15);
+    dsh(0.28, dtop, deskZ + 0.33, 0.2, 0.2, 0.35);
+    dsh(0.98, dtop, deskZ + 0.35, 0.3, 0.25, 0.1);
+    dsh(-0.78, dtop, deskZ + 0.22, 0.15, 0.15, 0);
+    dsh(1.02, dtop, deskZ + 0.05, 0.14, 0.16, 0);
+    dsh(-1.4, 0.4965, -3.15, 0.22, 0.22, 0);
+    dsh(-1.47, 0.4965, -3.23, 0.16, 0.14, 0.3);
+    dsh(-1.25, 0.4965, -3.09, 0.1, 0.1, 0);
+    dsh(cx - 0.08, dtop, cz - 0.48, 0.4, 0.3, 0.05);
+    dsh(cx - 0.34, dtop, cz + 0.52, 0.24, 0.24, 0);
+    dsh(cx + 0.1, dtop, cz - 0.1, 0.24, 0.2, 0.12);
+    dsh(cx + 0.16, dtop, cz + 0.38, 0.18, 0.18, 0);
 
     /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
     const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5 });
