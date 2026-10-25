@@ -414,7 +414,7 @@ const A3DProps = (() => {
       shadeCol || [0.95, 0.82, 0.6], false);
   }
   function paperLantern(bPaper, bMetal, m, r, col) {
-    bPaper.sphere.call(bPaper, M.mul(m, M.trs(0, 0, 0, 0, 0, 0, 1, 1.15, 1)), r, 14, 10, col || [0.9, 0.55, 0.25]);
+    bPaper.sphere.call(bPaper, M.mul(m, M.trs(0, 0, 0, 0, 0, 0, 1, 1.15, 1)), r, 28, 18, col || [0.9, 0.55, 0.25]);
     bMetal.cyl.call(bMetal, M.mul(m, M.trs(0, r * 1.1, 0)), r * 0.36, r * 0.36, 0.03, 10, [0.2, 0.15, 0.1], true);
     bMetal.cyl.call(bMetal, M.mul(m, M.trs(0, -r * 1.15, 0)), r * 0.3, r * 0.3, 0.02, 10, [0.2, 0.15, 0.1], true);
   }
