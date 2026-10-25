@@ -1485,7 +1485,7 @@ const A3DWorlds = (() => {
     P.mouse(metalDark, m4(0.5, deskH + 0.003, deskZ + 0.17));
     P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
     ceramic.cyl.call(ceramic, m4(-0.35, deskH + 0.005, deskZ + 0.0), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
-    const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
+    const riceP = st.pen("rice", T.plasterPale(), { unlit: true, tint: [1.0, 1.0, 0.98] });
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
     riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
     // 桌面马克杯：白色陶瓷杯，放在盆栽左边，杯身正面印小鲸鱼
