@@ -318,9 +318,10 @@ const A3DProps = (() => {
     const nm = A3D.M.normalMat(m);
     const q = [[0, 0, wid], [len, 0, wid], [len, 0, -wid], [0, 0, -wid]];
     const uv = [[0, 0], [0, 1], [1, 1], [1, 0]];
+    const sway = [0, 1, 1, 0];
     for (let k = 0; k < 4; k++) {
       b._v(b.d, m, nm, q[k][0], q[k][1], q[k][2], 0, 1, 0,
-        uv[k][0], uv[k][1], col, 0);
+        uv[k][0], uv[k][1], col, sway[k]);
     }
     b._pushQuad(b.count - 4);
   }
@@ -375,16 +376,20 @@ const A3DProps = (() => {
       const nm = A3D.M.normalMat(mm);
       const vs = [[0, 0, 0], [ll * 0.45, 0.012, -ww], [ll, 0.02, 0], [ll * 0.45, 0.012, ww]];
       const uvs = [[0.5, 0], [0, 0.5], [0.5, 1], [1, 0.5]];
+      const sway = [0, 0.5, 1, 0.5];
       for (let k = 0; k < 4; k++) {
         bStem._v(bStem.d, mm, nm, vs[k][0], vs[k][1], vs[k][2], 0, 1, 0,
-          uvs[k][0], uvs[k][1], [0.3, 0.55, 0.22], 0);
+          uvs[k][0], uvs[k][1], [0.3, 0.55, 0.22], sway[k]);
       }
       bStem._pushQuad(bStem.count - 4);
     };
     for (let i = 0; i < 4; i++) {
-      const t = 0.28 + i * 0.16;
-      const mm = M.mul(m, M.trs(lean * t, headY * t, 0, 0, i * 1.7, 0.9));
-      leafQuad(mm, 0.105 * s, 0.034 * s);
+      const t = 0.26 + i * 0.17;
+      const ang = i * 1.6 + 0.4;
+      const rad = 0.038 + i * 0.012;
+      const mm = M.mul(m, M.trs(lean * t + Math.cos(ang) * rad, headY * t - 0.02,
+        Math.sin(ang) * rad, 0.38, ang, 0.9));
+      leafQuad(mm, 0.135 * s, 0.042 * s);
     }
     // 3D 重瓣花：每层花瓣从不同半径/高度长出，沿半径向外，面朝默认视角
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
