@@ -255,7 +255,7 @@ const A3DWorlds = (() => {
    * ============================================================ */
   const MON = {
     lines: [
-      "$ python train.py --config ds_v3.yaml",
+      "$ python train.py --config v410-flash.yaml",
       "[12:04:02] gpu 0  mem 61.2G / 80G  util 97%",
       "[12:04:05] step 18320  loss 0.4217  lr 2.4e-5",
       "[12:04:09] grad_norm 0.83  tokens/s 42.1k",
@@ -268,21 +268,53 @@ const A3DWorlds = (() => {
       "[12:04:44] step 18323  loss 0.4181  lr 2.4e-5",
       "[12:04:49] loss 会收敛的。"
     ],
-    x: 0, t0: 0, lastDraw: 0, loss: []
+    x: 0, t0: 0, lastDraw: 0, loss: [], log: [], lastTick: -1, lastStage: -1
   };
+  function drawTerm(x, w, h) {
+    const now = performance.now() / 1000;
+    // 暗棕底 + 暖橙 Claude Code 欢迎屏
+    const g = x.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#21120b"); g.addColorStop(0.55, "#1a0e09"); g.addColorStop(1, "#120a07");
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.fillStyle = "rgba(255,190,130,.035)";
+    x.beginPath(); x.moveTo(w * 0.15, 0); x.lineTo(w * 0.55, 0); x.lineTo(w * 0.2, h); x.lineTo(0, h); x.fill();
+    x.fillStyle = "#D97757"; x.font = "bold 16px ui-monospace,Consolas,monospace";
+    x.fillText("✻ Welcome to Claude Code", 18, 38);
+    const lines = [
+      ["> cat notes.md", "#E8D5C0"],
+      ["", ""],
+      ["- 小鲸说：先想，再答", "#E8D5C0"],
+      ["- 想错了就回头", "#E8D5C0"],
+      ["", ""],
+      ["$", "#D97757"]
+    ];
+    x.font = "14px ui-monospace,Consolas,monospace";
+    lines.forEach((ln, i) => {
+      if (!ln[0]) return;
+      x.fillStyle = ln[1];
+      x.fillText(ln[0], 18, 76 + i * 26);
+    });
+    // 动态块光标
+    if ((now % 1.1) < 0.55) {
+      x.fillStyle = "#F0C9A8"; x.fillRect(40, 76 + 5 * 26 - 12, 8, 15);
+    }
+    x.fillStyle = "rgba(0,0,0,.18)";
+    for (let i = 0; i < 5; i++) x.fillRect(0, h - 40 + i * 8, w, 1);
+  }
+
   function drawMonitor(x, w, h) {
-    const now = (MON.t0 ? (performance.now() - MON.t0) / 1000 : 0);
+    const now = performance.now() / 1000;
     x.fillStyle = "#070d12"; x.fillRect(0, 0, w, h);
     // 顶栏
     x.fillStyle = "#0d1a22"; x.fillRect(0, 0, w, 30);
     x.fillStyle = "#4fa3c7"; x.font = "bold 15px Consolas,monospace";
-    x.fillText("train.py  ·  ds_v3  ·  8×H800", 12, 20);
+    x.fillText("train.py  ·  v410-flash  ·  B666", 12, 20);
     x.fillStyle = "#2f6f88"; x.fillText("exp/2026-10-24", w - 168, 20);
     // 分割线
     x.strokeStyle = "#12303d"; x.lineWidth = 1;
     x.beginPath(); x.moveTo(0, 30); x.lineTo(w, 30); x.stroke();
     // 左边：loss 曲线
-    const gx = 16, gy = 46, gw = w * 0.56, gh = h - 150;
+    const gx = 16, gy = 46, gw = w * 0.56, gh = h - 220;
     x.strokeStyle = "#0f2833"; x.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       x.beginPath(); x.moveTo(gx, gy + (gh / 4) * i); x.lineTo(gx + gw, gy + (gh / 4) * i); x.stroke();
@@ -324,19 +356,49 @@ const A3DWorlds = (() => {
       x.fillStyle = "#0c222b"; x.fillRect(bx, y + 6, bw, 8);
       x.fillStyle = b[2]; x.fillRect(bx, y + 6, bw * Math.min(1, b[1]), 8);
     });
-    // 日志
-    const ly = h - 92;
-    x.strokeStyle = "#12303d"; x.beginPath(); x.moveTo(0, ly - 12); x.lineTo(w, ly - 12); x.stroke();
-    x.font = "12px Consolas,monospace";
-    const off = Math.floor(now * 1.6) % (MON.lines.length * 18);
-    for (let i = 0; i < 6; i++) {
-      const idx = Math.floor(off / 18) + i;
-      const line = MON.lines[idx % MON.lines.length];
-      const yy = ly + i * 15 - (off % 18);
-      if (yy < ly - 4 || yy > h - 4) continue;
-      x.fillStyle = line.indexOf("loss") >= 0 || line.indexOf("eval") >= 0 ? "#8fe3b8" : "#6f9fb0";
-      x.fillText(line.slice(0, 92), 10, yy);
+    // 终端日志：整行滚动，不再做像素级平滑滚动
+    const ly = h - 158;
+    x.strokeStyle = "#12303d"; x.beginPath(); x.moveTo(0, ly - 10); x.lineTo(w, ly - 10); x.stroke();
+    const total = 1500, cycle = 45;
+    const stage = Math.floor(now / cycle);
+    const prog = (now % cycle) / cycle;
+    const step = Math.min(total, Math.round(prog * total));
+    const pct = Math.floor(prog * 100);
+    const tick = Math.floor(now / 2.4);
+    if (MON.lastTick < 0) {
+      MON.lastTick = tick;
+      MON.log.push("$ python train.py --config v410-flash.yaml");
+      MON.log.push("loading dataset ...");
     }
+    while (MON.lastTick < tick) {
+      MON.lastTick++;
+      MON.log.push(MON.lines[MON.lastTick % MON.lines.length]);
+    }
+    if (MON.lastStage < 0) MON.lastStage = stage;
+    if (stage !== MON.lastStage) {
+      MON.log.push("[##########################100%] 1500 / 1500");
+      MON.log.push("saving weights ...");
+      MON.log.push("checkpoint saved -> ckpt/stage_" + String(stage).padStart(3, "0"));
+      MON.log.push("optimizer state saved");
+      MON.lastStage = stage;
+    }
+    if (MON.log.length > 12) MON.log.splice(0, MON.log.length - 12);
+    const hist = MON.log.slice(-8);
+    x.font = "12px Consolas,monospace";
+    hist.forEach((line, i) => {
+      let col = "#6f9fb0";
+      if (line.indexOf("saving") >= 0 || line.indexOf("checkpoint") >= 0 || line.indexOf("optimizer") >= 0) col = "#8fe3b8";
+      else if (line.indexOf("loss") >= 0 || line.indexOf("eval") >= 0) col = "#b8e6c8";
+      x.fillStyle = col;
+      x.fillText(line.slice(0, 92), 10, ly + i * 16);
+    });
+    // ASCII 进度条：填满就换行，并追加保存权重日志
+    const barW = 26;
+    const fill = Math.min(barW, Math.round(prog * barW));
+    const bar = "[" + "-".repeat(fill) + String(pct).padStart(3, " ") + "%" + "-".repeat(barW - fill) + "] " +
+      String(step).padStart(4, " ") + " / " + total;
+    x.fillStyle = "#63E6A5";
+    x.fillText(bar, 10, h - 16);
     // 扫光
     const sy = ((now * 60) % (h + 60)) - 30;
     const g = x.createLinearGradient(0, sy - 20, 0, sy + 20);
@@ -548,7 +610,7 @@ const A3DWorlds = (() => {
 
     // 花坛：橙色菊花
     const stemB = st.pen("stem", null, { tint: [0.28, 0.45, 0.22] });
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.25, 0.95, 0.7], rim: 0.25 });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     const leafBed = st.pen("bedLeaf", T.leaf(), { cutout: true, tint: [0.6, 0.9, 0.5], sway: 0.7 });
     const bedStone = st.pen("bedStone", T.stone(), { tint: [0.6, 0.62, 0.58] });
     for (const sx of [-1, 1]) {
@@ -783,14 +845,14 @@ const A3DWorlds = (() => {
     const vase = st.pen("vase", T.plasterPale(), { tint: [1.0, 0.95, 0.95], spec: 0.4 });
     vase.cyl.call(vase, m4(0.95, 0.78, -1.25), 0.07, 0.05, 0.22, 12, [1, 1, 1], true);
     const stemB = st.pen("stem", null, { tint: [0.25, 0.42, 0.2] });
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.2, 0.92, 0.68], rim: 0.25 });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     P.chrysanthemum(petalB, stemB, m4(0.95, 1.0, -1.25), 0.85, [1.2, 0.9, 0.62], 6);
     P.chrysanthemum(petalB, stemB, m4(1.05, 0.98, -1.2), 0.7, [1.3, 1.0, 0.7], 19);
 
     // 书架上的菊花：每隔一格放一小瓶
     const shelfVase = st.pen("shelfVase", T.plasterPale(), { tint: [1.0, 0.92, 0.9], spec: 0.4 });
     const shelfStem = st.pen("shelfStem", null, { tint: [0.26, 0.42, 0.2] });
-    const shelfPetal = st.pen("shelfPetal", T.petal(), { cutout: true, tint: [1.25, 0.95, 0.7], rim: 0.25 });
+    const shelfPetal = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     for (const sx of [-1, 1]) {
       for (let i = 0; i < 4; i++) {
         const sz = -4.2 + i * 1.9;
@@ -1083,11 +1145,143 @@ const A3DWorlds = (() => {
    *  DeepSeek 家里 · 紧凑卧室版
    *  5.6 × 5.5m，床 + 两张桌子；木器全部换成白漆 / 金属 / 亚麻
    * ============================================================ */
+  /** 墙面贴纸：小鲸鱼 + Clawd + 爱心 */
+  function drawWallArt(x, w, h) {
+    x.clearRect(0, 0, w, h);
+    const whaleBlue = "#7ec8e8", whaleDark = "#205468", whaleBelly = "#d8f3fc";
+    // 尾巴、胸鳍先画，根部伸进身体
+    x.strokeStyle = whaleDark; x.lineWidth = 6; x.fillStyle = whaleBlue;
+    // 胸鳍先画，根部埋进身体
+    x.beginPath(); x.ellipse(160, 266, 28, 12, 0.45, 0, TAU); x.fill(); x.stroke();
+    // 身体填充（先不描边）
+    const whalePath = () => {
+      x.beginPath();
+      x.moveTo(170, 160);
+      x.bezierCurveTo(235, 158, 288, 183, 288, 216);
+      x.bezierCurveTo(288, 249, 235, 274, 170, 272);
+      x.bezierCurveTo(128, 271, 104, 262, 82, 238);
+      x.quadraticCurveTo(62, 234, 44, 228);
+      x.quadraticCurveTo(28, 242, 10, 242);
+      x.quadraticCurveTo(2, 236, 10, 228);
+      x.quadraticCurveTo(20, 222, 28, 216);
+      x.quadraticCurveTo(20, 210, 10, 204);
+      x.quadraticCurveTo(2, 196, 10, 190);
+      x.quadraticCurveTo(28, 190, 44, 204);
+      x.quadraticCurveTo(62, 198, 82, 194);
+      x.bezierCurveTo(104, 170, 128, 161, 170, 160);
+      x.closePath();
+    };
+    whalePath(); x.fill();
+    // 白肚皮裁剪在身体内部，避免和蓝色轮廓相交
+    x.save();
+    whalePath(); x.clip();
+    x.fillStyle = whaleBelly;
+    x.beginPath(); x.ellipse(190, 238, 74, 30, -0.02, 0, TAU); x.fill();
+    x.restore();
+    // 连续轮廓一次描边，避免接缝
+    x.strokeStyle = whaleDark; x.lineWidth = 6;
+    whalePath(); x.stroke();
+    // 眼睛、微笑
+    x.fillStyle = "#173b4c";
+    x.beginPath(); x.arc(255, 198, 8, 0, TAU); x.fill();
+    x.strokeStyle = "#173b4c"; x.lineWidth = 4;
+    x.beginPath(); x.arc(268, 216, 16, 0.2, 1.2); x.stroke();
+    // 三股喷水 + 水滴
+    x.strokeStyle = "#a9e4f6"; x.lineWidth = 6; x.lineCap = "round";
+    x.beginPath();
+    x.moveTo(175, 160); x.quadraticCurveTo(160, 132, 144, 114);
+    x.moveTo(175, 160); x.quadraticCurveTo(190, 132, 206, 114);
+    x.stroke();
+    x.fillStyle = "#d8f7ff";
+    [[142, 109, 5], [208, 109, 5]].forEach(d => {
+      x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
+    });
+    // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
+    x.fillStyle = "#E08A5F"; x.strokeStyle = "#7a3520"; x.lineWidth = 4;
+    // 侧手：根部伸进身体
+    x.fillRect(306, 226, 28, 20); x.strokeRect(306, 226, 28, 20);
+    x.fillRect(456, 226, 28, 20); x.strokeRect(456, 226, 28, 20);
+    // 四条短腿：左右对称，全部在身体宽度内
+    x.fillRect(334, 264, 14, 30); x.strokeRect(334, 264, 14, 30);
+    x.fillRect(360, 264, 14, 30); x.strokeRect(360, 264, 14, 30);
+    x.fillRect(416, 264, 14, 30); x.strokeRect(416, 264, 14, 30);
+    x.fillRect(442, 264, 14, 30); x.strokeRect(442, 264, 14, 30);
+    // 更宽的橙色身体（带描边）
+    x.beginPath(); x.roundRect(320, 190, 150, 80, 8); x.fill(); x.stroke();
+    // ^ 形眼睛
+    x.strokeStyle = "#2a120b"; x.lineWidth = 6; x.lineCap = "round"; x.lineJoin = "round";
+    x.beginPath(); x.moveTo(352, 222); x.lineTo(362, 210); x.lineTo(372, 222); x.stroke();
+    x.beginPath(); x.moveTo(418, 222); x.lineTo(428, 210); x.lineTo(438, 222); x.stroke();
+    // 爱心
+    const heart = (cx, cy, sc, col) => {
+      x.save(); x.translate(cx, cy); x.scale(sc, sc);
+      x.fillStyle = col; x.beginPath();
+      x.moveTo(0, 8);
+      x.bezierCurveTo(-22, -12, -12, -30, 0, -16);
+      x.bezierCurveTo(12, -30, 22, -12, 0, 8);
+      x.fill(); x.restore();
+    };
+    heart(300, 110, 1.0, "#ff8fa3");
+    heart(390, 92, 0.8, "#ffb3c1");
+    heart(476, 150, 0.65, "#ff6b85");
+    heart(92, 100, 0.75, "#ffa1b5");
+    heart(220, 92, 0.55, "#ffc2cf");
+  }
+
+  /** 手绘菊花贴图：重瓣、外圈深、内圈亮，花心小 */
+  function drawMum(x, w, h) {
+    x.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2;
+    const rings = [
+      { n: 22, r0: 34, r1: 116, wd: 18, c0: "#7d2f0b", c1: "#c75a17", c2: "#ef9a3d" },
+      { n: 24, r0: 28, r1: 102, wd: 17, c0: "#8f3710", c1: "#d96d1e", c2: "#f7ac52" },
+      { n: 26, r0: 22, r1: 86, wd: 16, c0: "#a34313", c1: "#e88128", c2: "#ffbe66" },
+      { n: 28, r0: 16, r1: 70, wd: 15, c0: "#b85116", c1: "#f49333", c2: "#ffd07a" },
+      { n: 30, r0: 10, r1: 54, wd: 14, c0: "#cb601b", c1: "#ffa544", c2: "#ffe2a0" }
+    ];
+    for (let ri = 0; ri < rings.length; ri++) {
+      const R = rings[ri];
+      for (let i = 0; i < R.n; i++) {
+        const a = (i / R.n) * TAU + ri * 0.21;
+        x.save(); x.translate(cx, cy); x.rotate(a);
+        const g = x.createLinearGradient(0, -R.r0, 0, -R.r1);
+        g.addColorStop(0, R.c0); g.addColorStop(0.55, R.c1); g.addColorStop(1, R.c2);
+        x.fillStyle = g;
+        x.beginPath();
+        x.moveTo(-R.wd * 0.35, -R.r0);
+        x.bezierCurveTo(-R.wd * 0.8, -R.r0 - (R.r1 - R.r0) * 0.32,
+          -R.wd * 0.55, -R.r1 + 8, -R.wd * 0.16, -R.r1 + 2);
+        x.quadraticCurveTo(0, -R.r1 - 3, R.wd * 0.16, -R.r1 + 2);
+        x.bezierCurveTo(R.wd * 0.55, -R.r1 + 8,
+          R.wd * 0.8, -R.r0 - (R.r1 - R.r0) * 0.32, R.wd * 0.35, -R.r0);
+        x.closePath(); x.fill();
+        x.strokeStyle = "rgba(90,35,8,.3)"; x.lineWidth = 1.1; x.stroke();
+        x.strokeStyle = "rgba(255,220,150,.22)"; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(0, -R.r0);
+        x.quadraticCurveTo(R.wd * 0.08, -(R.r0 + R.r1) / 2, 0, -R.r1 + 6); x.stroke();
+        x.restore();
+      }
+    }
+    const cg = x.createRadialGradient(cx, cy, 0, cx, cy, 18);
+    cg.addColorStop(0, "#6f6222"); cg.addColorStop(0.55, "#3f4a18"); cg.addColorStop(1, "#28320f");
+    x.fillStyle = cg; x.beginPath(); x.arc(cx, cy, 18, 0, TAU); x.fill();
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * TAU, rr = 4 + (i % 3) * 4;
+      x.fillStyle = i % 2 ? "#c8a23a" : "#8f7a2a";
+      x.beginPath(); x.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1.6, 0, TAU); x.fill();
+    }
+  }
+  let mumTex = null;
+  function getMumTex() {
+    if (!mumTex) mumTex = A3DTex.dynamic("mum", 256, 256, drawMum);
+    return mumTex;
+  }
+
   function buildRoomCompact(opts) {
     const night = !!opts.night;
     const st = P.stage();
     const r = rng(11);
-    let lastT = 0, lastBoard = 0;
+    let lastT = 0, lastBoard = 0, lastTerm = 0;
 
     const RW = 5.6, RH = 2.85;
     const zBack = -3.5, zFront = 2.0;
@@ -1100,14 +1294,14 @@ const A3DWorlds = (() => {
     /* ---------- 材质：没有木头 ---------- */
     const paint = st.pen("paint", T.paint(), { tint: night ? [0.6, 0.67, 0.8] : [0.85, 0.89, 0.95], spec: 0.08 });
     const deskTop = st.pen("deskTop", T.paint(), { tint: night ? [0.5, 0.57, 0.7] : [0.66, 0.74, 0.88], spec: 0.1 });
-    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 1.0, 0.72], emissive: [0.4, 0.3, 0.06] });
+    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 1.0, 0.72], emissive: [0.72, 0.52, 0.18], emisBoost: 1.55 });
     const metal = st.pen("metal", T.metal(), { tint: night ? [0.55, 0.6, 0.7] : [0.72, 0.78, 0.9], spec: 0.45 });
     const metalDark = st.pen("metalDark", T.darkMetal(), { tint: [0.75, 0.82, 0.95], spec: 0.32 });
     const ceramic = st.pen("ceramic", T.plasterPale(), { tint: [1.02, 1.04, 1.08], spec: 0.45 });
     const paperB = st.pen("paper", T.paper(), { tint: [1, 1, 1] });
     const bookB = st.pen("book", T.paper(), { tint: [1, 1, 1] });
     const potB = st.pen("pot", T.stone(), { tint: [0.8, 0.84, 0.9] });
-    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2 });
+    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2, noShadow: true });
     const mugB = st.pen("mug", T.metal(), { tint: [0.75, 0.82, 0.95], spec: 0.5 });
     const screenDark = st.pen("screenDark", null, { unlit: true, tint: [0.03, 0.05, 0.08] });
 
@@ -1188,9 +1382,10 @@ const A3DWorlds = (() => {
     for (const bx of [2.06, 2.28, 2.5, 2.72]) {
       Gbox(batten, bx, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
     }
-    const bubbleB = st.pen("wallBubbles", T.bubbles(), { opacity: 0.55, blend: "alpha", tint: [0.9, 0.95, 1.0] });
-    bubbleB.quad.call(bubbleB, m4(-RW / 2 + 0.02, 2.2, -2.4, 0, Math.PI / 2, 0), 1.1, 0.7, [1, 1, 1], [0, 0, 1, 1]);
-    bubbleB.quad.call(bubbleB, m4(2.3, 2.5, zBack + 0.02, 0, 0, 0), 0.9, 0.5, [1, 1, 1], [0, 0, 1, 1]);
+    // 墙面贴纸：小鲸鱼 + Clawd + 爱心（替代原来的泡泡贴图）
+    const wallArtTex = A3DTex.dynamic("wallStickers", 512, 384, drawWallArt);
+    const wallArt = st.pen("wallStickers", wallArtTex, { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    wallArt.quad.call(wallArt, m4(-RW / 2 + 0.015, 2.06, -2.95, 0, Math.PI / 2, 0), 1.05, 0.79, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 床前小地毯 ---------- */
     const rugB = st.pen("rug", T.rug(), { tint: night ? [0.3, 0.4, 0.6] : [0.5, 0.66, 0.92], spec: 0.02 });
@@ -1208,88 +1403,114 @@ const A3DWorlds = (() => {
       Gbox(metalDark, -1.4 + sx * 0.17, 0.045, -3.15 + sz * 0.13, 0.035, 0.09, 0.035, [1, 1, 1]);
     }
     P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.9, 0.58]);
-    const bedHalo = st.pen("bedHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.28 });
-    bedHalo.quad.call(bedHalo, m4(-1.4, 0.74, -3.05), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
+    const bedGlow = st.pen("bedGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.3 });
+    bedGlow.quad.call(bedGlow, m4(-1.4, 0.74, -3.06), 0.28, 0.28, [1, 1, 1], [0, 0, 1, 1]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
     P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
-    metalDark.cyl.call(metalDark, m4(-1.3, 0.01, -2.0), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
-    metalDark.torus.call(metalDark, m4(-1.3, 0.35, -2.0), 0.18, 0.012, 14, 5, [1, 1, 1]);
+    // 垃圾桶：挪到中间桌下面、靠床头柜的左侧
+    metalDark.cyl.call(metalDark, m4(-0.9, 0.01, -2.82), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
+    metalDark.torus.call(metalDark, m4(-0.9, 0.35, -2.82), 0.18, 0.012, 14, 5, [1, 1, 1]);
 
     /* ---------- DeepSeek 的书桌 ---------- */
     A3DDecor.desk(deskTop, metalDark, m4(deskX, 0, deskZ), deskW, deskD, deskH);
     P.drawer(deskTop, m4(0.72, 0.34, deskZ + 0.02), 0.6, 0.64, 0.5, [1, 1, 1]);
-    P.chair(metal, m4(0.3, 0, -2.15, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
-    const monW = 0.76, monH = 0.44, monX = deskX - 0.35, monY = deskH + 0.31, monZ = deskZ - 0.1;
+    P.chair(metal, m4(0.3, 0, -1.95, 0, Math.PI + 0.25, 0), [0.34, 0.48, 0.72], [0.55, 0.6, 0.7]);
+    const monW = 0.76, monH = 0.44, monX = deskX + 0.15, monY = deskH + 0.52, monZ = deskZ - 0.1;
     const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
     const screenP = st.pen("monScreen", monTex, { unlit: true, tint: [0.84, 0.91, 0.97] });
-    P.monitorBody(metalDark, m4(monX, monY, monZ, 0, 0.05, 0));
-    screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.05, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
+    const monM = m4(monX, monY, monZ, 0, 0.05, 0);
+    P.monitorBody(metalDark, monM);
+    screenP.quad.call(screenP, M.mul(monM, M.trs(0, 0, 0.026)), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
+    // 与显示器同中心、同旋转的浅色金属支架：底座 + 立柱 + 屏幕下挂板
+    const standP = st.pen("monStand", T.metal(), { tint: [1.0, 1.08, 1.18], spec: 0.45 });
+    // cyl 的 m 是底面：底座从桌面起，立柱从底座顶面顶到屏幕下沿
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.52, 0)), 0.10, 0.11, 0.018, 20, [1, 1, 1], true);
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.502, 0)), 0.016, 0.014, 0.282, 8, [1, 1, 1], true);
+    standP.box.call(standP, M.mul(monM, M.trs(0, -0.225, 0)), 0.16, 0.02, 0.06, [1, 1, 1], 1);
     const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
-    deskMat.quad.call(deskMat, m4(0.28, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
-    P.keyboard(metalDark, m4(0.08, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
-    P.mouse(metalDark, m4(0.56, deskH + 0.034, deskZ + 0.17));
+    deskMat.quad.call(deskMat, m4(0.15, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
+    P.keyboard(metalDark, m4(0.15, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
+    P.mouse(metalDark, m4(0.5, deskH + 0.003, deskZ + 0.17));
     P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
-    const deskHalo = st.pen("deskHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.3 });
-    deskHalo.quad.call(deskHalo, m4(deskX - 1.0, deskH + 0.26, deskZ - 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
-    ceramic.cyl.call(ceramic, m4(-0.5, deskH + 0.005, deskZ + 0.24), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
+    const deskGlow = st.pen("deskGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.32 });
+    deskGlow.quad.call(deskGlow, m4(deskX - 1.0, deskH + 0.27, deskZ - 0.02), 0.32, 0.32, [1, 1, 1], [0, 0, 1, 1]);
+    ceramic.cyl.call(ceramic, m4(-0.35, deskH + 0.005, deskZ + 0.0), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
-    riceP.cyl.call(riceP, m4(-0.5, deskH + 0.04, deskZ + 0.24), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
-    riceP.sphere.call(riceP, m4(-0.5, deskH + 0.062, deskZ + 0.24, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
+    riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
+    riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
     P.mug(mugB, m4(0.66, deskH + 0.001, deskZ + 0.3), 0.045, [0.85, 0.86, 0.92]);
-    P.papers(paperB, m4(-0.7, deskH + 0.001, deskZ + 0.28), 6, 12);
-    P.book(bookB, m4(0.28, deskH + 0.002, deskZ + 0.33, 0, 0.35, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
-    metalDark.cyl.call(metalDark, m4(0.98, deskH + 0.001, deskZ - 0.02), 0.045, 0.04, 0.11, 10, [0.35, 0.4, 0.5], true);
+    P.papers(paperB, m4(-0.55, deskH + 0.001, deskZ + 0.14), 6, 12);
+    P.book(bookB, m4(-0.3, deskH + 0.002, deskZ + 0.18, 0, 0.15, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
+    metalDark.cyl.call(metalDark, m4(1.02, deskH + 0.001, deskZ + 0.23), 0.045, 0.04, 0.11, 12, [0.35, 0.4, 0.5], true);
+    const penCols = [[0.8, 0.3, 0.22], [0.2, 0.4, 0.8], [0.4, 0.65, 0.3]];
+    const penB = st.pen("penPlastic", null, { tint: [1, 1, 1], spec: 0.25 });
     for (let i = 0; i < 3; i++) {
-      Gbox(metalDark, 0.96 + (i - 1) * 0.02, deskH + 0.08 + i * 0.006, deskZ - 0.02 + (i - 1) * 0.012,
-        0.012, 0.16, 0.012, [0.5 + i * 0.1, 0.4 + i * 0.1, 0.3]);
+      const px = 1.02 + (i - 1) * 0.016, pz = deskZ + 0.23 + (i - 1) * 0.01;
+      // 整支笔共用同一个倾斜矩阵，笔尖沿笔杆轴线放到顶端，避免和笔杆错位
+      const pm = m4(px, deskH + 0.06, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1));
+      penB.cyl.call(penB, pm, 0.005, 0.005, 0.16, 6, penCols[i], true);
+      penB.cyl.call(penB, M.mul(pm, M.trs(0, 0.16, 0)), 0.002, 0.005, 0.012, 6, [0.15, 0.15, 0.15], true);
     }
     for (let i = 0; i < 4; i++) {
-      P.book(bookB, m4(0.98, deskH + 0.003 + i * 0.05, deskZ + 0.35 - i * 0.012, 0, 0.9 - i * 0.2, 0),
+      P.book(bookB, m4(0.85, deskH + 0.003 + i * 0.05, deskZ + 0.0 - i * 0.012, 0, 0.9 - i * 0.2, 0),
         0.26, 0.045, 0.19, [0.35 - i * 0.04, 0.22 + i * 0.05, 0.3 + i * 0.05]);
     }
     const hp = st.pen("headphone", T.darkMetal(), { tint: [0.8, 0.84, 0.9], spec: 0.4 });
-    // 耳机支架：底座 + 立杆 + 横钩
-    hp.cyl.call(hp, m4(-0.92, deskH, deskZ + 0.26), 0.07, 0.06, 0.018, 14, [1, 1, 1], true);
-    hp.cyl.call(hp, m4(-0.92, deskH + 0.018, deskZ + 0.26), 0.012, 0.012, 0.34, 8, [1, 1, 1], true);
-    hp.torus.call(hp, m4(-0.92, deskH + 0.36, deskZ + 0.26, Math.PI / 2, 0, 0), 0.085, 0.012, 14, 5, [1, 1, 1]);
+    // 耳机支架：底座 + 立杆 + 头梁弧 + 两端耳罩
+    const hx = -0.60, hy = deskH + 0.36, hz = deskZ - 0.02;
+    hp.cyl.call(hp, m4(hx, deskH, hz), 0.07, 0.06, 0.018, 14, [1, 1, 1], true);
+    hp.cyl.call(hp, m4(hx, deskH + 0.018, hz), 0.012, 0.012, 0.45, 8, [1, 1, 1], true);
+    hp.tube.call(hp, M.ident(), [
+      [hx - 0.10, hy, hz], [hx - 0.075, hy + 0.07, hz], [hx, hy + 0.105, hz],
+      [hx + 0.075, hy + 0.07, hz], [hx + 0.10, hy, hz]
+    ], 0.012, 6, [1, 1, 1]);
     for (const sx of [-1, 1]) {
-      hp.cyl.call(hp, m4(-0.92 + sx * 0.085, deskH + 0.315, deskZ + 0.26, 0, 0, Math.PI / 2), 0.045, 0.045, 0.04, 10, [1, 1, 1], true);
+      // 左右镜像：左侧向 -X 伸，右侧向 +X 伸，耳罩中心对称
+      const rz = sx * Math.PI / 2;
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.045, 0.045, 0.04, 12, [1, 1, 1], true);
+      hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
-    for (let i = 0; i < 5; i++) {
-      P.leafBlade(plantB, m4(-0.78, deskH + 0.07, deskZ + 0.22, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05 + 0.35;
+      const lm = M.mul(m4(-0.78, deskH + 0.077, deskZ + 0.22, 0, a, 0),
+        M.trs(0, 0, 0, 0, 0, Math.PI / 2));
+      P.leafBlade(plantB, lm, 0.14 + (i % 3) * 0.01, 0.045, [0.55, 0.9, 0.5]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
-    photoB.quad.call(photoB, m4(0.86, deskH + 0.13, deskZ + 0.12, 0, -0.2, 0), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
+    photoB.quad.call(photoB, m4(1.9, 1.15, zBack + 0.012), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
     screenDark.box.call(screenDark, m4(0.38, deskH + 0.005, deskZ + 0.25, 0, 0.3, 0), 0.07, 0.012, 0.14, [1, 1, 1], 1);
-    // 桌角小音箱 + 蓝光条
-    Gbox(metalDark, 1.02, deskH + 0.05, deskZ + 0.05, 0.1, 0.1, 0.12, [0.2, 0.24, 0.32]);
-    const spk = st.pen("speaker", null, { unlit: true, tint: [0.2, 0.55, 0.9] });
-    spk.quad.call(spk, m4(1.02, deskH + 0.05, deskZ + 0.112), 0.06, 0.012, [1, 1, 1], [0, 0, 1, 1]);
-    const stickyCols = [[1, 0.94, 0.56], [1, 0.78, 0.72], [0.78, 0.9, 1]];
-    for (let i = 0; i < 3; i++) {
-      const sp = st.pen("deskNote" + i, T.paper(), { unlit: true, tint: stickyCols[i] });
-      sp.quad.call(sp, m4(-0.25 + i * 0.14, deskH + 0.002, deskZ + 0.33, 0, 0, (i - 1) * 0.08), 0.1, 0.1, [1, 1, 1], [0, 0, 1, 1]);
-    }
+    // 小音箱：黑色箱体 + 圆形单元 + 蓝色指示灯
+    Gbox(metalDark, 0.9, deskH + 0.06, deskZ + 0.23, 0.1, 0.12, 0.1, [0.2, 0.24, 0.32]);
+    const spk = st.pen("speaker", null, { unlit: true, tint: [0.16, 0.4, 0.8] });
+    spk.quad.call(spk, m4(0.9, deskH + 0.07, deskZ + 0.282), 0.03, 0.008, [1, 1, 1], [0, 0, 1, 1]);
+    metalDark.cyl.call(metalDark, m4(0.9, deskH + 0.06, deskZ + 0.284, Math.PI / 2, 0, 0), 0.032, 0.032, 0.006, 16, [0.05, 0.06, 0.08], true);
 
     /* ---------- 给小克留的书桌 + 白板 ---------- */
-    A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, Math.PI / 2, 0), 1.9, 0.75, deskH);
+    A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, -Math.PI / 2, 0), 1.9, 0.75, deskH);
     P.chair(metal, m4(1.48, 0, -1.6, 0, Math.PI / 2 + 0.2, 0), [0.38, 0.5, 0.74], [0.55, 0.6, 0.7]);
     const term = st.pen("termBody", T.metal(), { tint: [0.85, 0.9, 1.0], spec: 0.4 });
-    Gbox(term, cx - 0.08, deskH + 0.015, cz - 0.48, 0.34, 0.03, 0.26, [1, 1, 1]);
-    const termScreen = st.pen("termScreen", null, { unlit: true, tint: [0.1, 0.55, 0.4] });
-    termScreen.quad.call(termScreen, m4(cx - 0.08, deskH + 0.032, cz - 0.34, -Math.PI / 2, 0, 0), 0.3, 0.19, [1, 1, 1], [0, 0, 1, 1]);
+    // 桌面终端：朝椅子方向（屏幕面向 -X），底座 + 立屏
+    const lapM = m4(cx - 0.08, deskH, cz - 0.46, 0, -Math.PI / 2, 0);
+    term.box.call(term, M.mul(lapM, M.trs(0, 0.012, 0)), 0.34, 0.024, 0.24, [1, 1, 1], 1);
+    screenDark.box.call(screenDark, M.mul(lapM, M.trs(0, 0.027, 0.08)), 0.28, 0.004, 0.1, [0.1, 0.11, 0.13], 1);
+    const termTex = A3DTex.dynamic("term", 480, 270, drawTerm);
+    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [1.0, 0.97, 0.92] });
+    const termM = M.mul(lapM, M.trs(0, 0.135, -0.115, -0.22, 0, 0));
+    term.box.call(term, termM, 0.34, 0.2, 0.022, [1, 1, 1], 1);
+    termScreen.quad.call(termScreen, M.mul(termM, M.trs(0, 0, 0.012)), 0.32, 0.18, [1, 1, 1], [0, 0, 1, 1]);
     for (let i = 0; i < 3; i++) {
-      P.book(bookB, m4(cx - 0.34, deskH + 0.003 + i * 0.044, cz + 0.52 - i * 0.012,
+      P.book(bookB, m4(cx - 0.18, deskH + 0.003 + i * 0.044, cz + 0.45 - i * 0.012,
         0, Math.PI / 2 + (i - 1) * 0.05, 0),
         0.2, 0.042, 0.16, [0.3 + i * 0.06, 0.2 + i * 0.06, 0.28 + i * 0.04]);
     }
     P.book(bookB, m4(cx + 0.1, deskH + 0.003, cz - 0.1, 0, 0.12, 0), 0.28, 0.04, 0.2, [0.2, 0.16, 0.24]);
-    Gbox(metalDark, cx + 0.1, deskH + 0.05, cz - 0.02, 0.02, 0.02, 0.18, [0.8, 0.85, 0.9]);
+    metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.1, Math.PI / 2, 0, 0), 0.008, 0.008, 0.16, 8, [0.8, 0.84, 0.9], true);
+    metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.02, Math.PI / 2, 0, 0), 0.004, 0.008, 0.02, 8, [0.4, 0.45, 0.5], true);
     const vase = st.pen("vase", T.plasterPale(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
     vase.cyl.call(vase, m4(cx + 0.16, deskH + 0.001, cz + 0.38), 0.055, 0.14, 0.13, 12, [1, 1, 1], true);
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.0, 0.85, 0.65] });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     const stemB = st.pen("stem", null, { tint: [0.2, 0.4, 0.22] });
     P.chrysanthemum(petalB, stemB, m4(cx + 0.16, deskH + 0.12, cz + 0.38), 0.7, [1.1, 0.9, 0.7], 4);
     const boardTex = A3DTex.dynamic("monitorWb", 512, 320, drawBoard);
@@ -1328,15 +1549,23 @@ const A3DWorlds = (() => {
     const posterB = st.pen("poster", A3DTex.poster(5, { title: "", bg: "#b9cbe0", seed: 9, mark: "#7aa7d9" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
     posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.34, 0.44, [1, 1, 1], [0, 0, 1, 1]);
+    const tapeB = st.pen("tape", T.paper(), { unlit: true, opacity: 0.55, blend: "alpha", tint: [0.92, 0.9, 0.8] });
+    tapeB.quad.call(tapeB, m4(2.02, 2.22, zBack + 0.014, 0, 0, 0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(2.28, 2.22, zBack + 0.014, 0, 0, -0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(1.84, 1.23, zBack + 0.014, 0, 0, 0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(1.96, 1.23, zBack + 0.014, 0, 0, -0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 窗帘 ---------- */
     const curtainB = st.pen("curtain", T.linen(), { tint: night ? [0.55, 0.62, 0.78] : [0.68, 0.8, 1.0] });
     A3DDecor.curtain(curtainB, m4(-1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     A3DDecor.curtain(curtainB, m4(1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     for (const sx of [-1, 1]) {
-      P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.01, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
+      P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.015, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
       for (let i = 0; i < 4; i++) {
-        P.leafBlade(plantB, m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, i * 1.3, 0.8), 0.14, 0.025, [0.7, 1, 0.7]);
+        const a = i * 1.3 + 0.4;
+        const lm = M.mul(m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, a, 0),
+          M.trs(0, 0, 0, 0, 0, Math.PI / 2));
+        P.leafBlade(plantB, lm, 0.09 + (i % 2) * 0.01, 0.035, [0.55, 0.9, 0.5]);
       }
     }
 
@@ -1442,22 +1671,22 @@ const A3DWorlds = (() => {
 
     /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
     const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5, noShadow: true });
-    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.36, 0.28, 0.06], noShadow: true });
+    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.7, 0.52, 0.2], emisBoost: 1.55, noShadow: true });
     Gbox(lampMetal, 0, RH - 0.02, -1.4, 0.4, 0.02, 0.4, [1, 1, 1]);
     P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.9, 0.56]);
     const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
     cordB.cyl.call(cordB, m4(0, 2.42, -1.4), 0.006, 0.006, 0.38, 4, [1, 1, 1], false);
-    const lampHalo = st.pen("lampHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.38], opacity: night ? 0.45 : 0.26 });
-    lampHalo.quad.call(lampHalo, m4(0, RH - 0.52, -1.38), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
+    const lampGlow = st.pen("lampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.86, 0.5], opacity: 0.34 });
+    lampGlow.quad.call(lampGlow, m4(0, 2.35, -1.27), 0.34, 0.34, [1, 1, 1], [0, 0, 1, 1]);
     const monHalo = st.pen("monHalo", T.glow(), { unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.26 });
     monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08), 1.1, 0.78, [1, 1, 1], [0, 0, 1, 1]);
     const sconce = st.pen("sconce", T.metal(), { tint: [1.0, 0.95, 0.85], spec: 0.5 });
-    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.99, 0.7], emissive: [0.4, 0.3, 0.06] });
-    sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, -0.9), 0.16, 0.025, 0.025, [1, 1, 1], 1);
-    sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, -0.9), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
-    sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, -0.9), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
-    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.83, 0.36], opacity: 0.38 });
-    sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.3, 2.18, -0.9, 0, -Math.PI / 2, 0), 0.85, 0.85, [1, 1, 1], [0, 0, 1, 1]);
+    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.99, 0.7], emissive: [0.7, 0.52, 0.2], emisBoost: 1.55 });
+    sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, cz), 0.16, 0.025, 0.025, [1, 1, 1], 1);
+    sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, cz), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
+    sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, cz), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
+    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.3 });
+    sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.24, 2.18, cz, 0, -Math.PI / 2, 0), 0.28, 0.28, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 粒子 ---------- */
     const pts = [];
@@ -1496,7 +1725,7 @@ const A3DWorlds = (() => {
         fogAmt: 0.3,
         points: [
           { name: "吊灯", pos: [0, 2.4, -1.4], col: [1.0, 0.671, 0.361], range: 6.0, inten: night ? 1.3 : 1.0 },
-          { name: "壁灯", pos: [RW / 2 - 0.35, 2.15, -0.9], col: [1.0, 0.639, 0.302], range: 5.0, inten: 1.04 },
+          { name: "壁灯", pos: [RW / 2 - 0.35, 2.15, cz], col: [1.0, 0.639, 0.302], range: 5.0, inten: 1.04 },
           { name: "台灯", pos: [-1.0, 1.3, -2.9], col: [0.996, 0.847, 0.365], range: 3.4, inten: night ? 1.2 : 0 },
           { name: "显示器", pos: [monX, monY, monZ + 0.45], col: [0, 0.102, 0.341], range: 2.8, inten: night ? 1.0 : 1.33 },
           { name: "窗光", pos: [0, 1.9, zBack + 0.2], col: [0, 0.416, 1.0], range: 7.0, inten: night ? 0.3 : 0.1 },
@@ -1519,6 +1748,10 @@ const A3DWorlds = (() => {
         if (t - MON.lastDraw > 0.09) {
           MON.lastDraw = t;
           A3DTex.redraw("monitor", drawMonitor);
+        }
+        if (t - lastTerm > 0.12) {
+          lastTerm = t;
+          A3DTex.redraw("term", drawTerm);
         }
         if (t - lastBoard > 0.25) {
           lastBoard = t;

@@ -129,9 +129,7 @@ const A3DProps = (() => {
     G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.012, 0)), w + 0.02, 0.025, d + 0.012, frame, 1);
     G.box.call(b, M.mul(m, M.trs(-w / 2 - 0.01, 0, 0)), 0.022, h + 0.05, d + 0.012, frame, 1);
     G.box.call(b, M.mul(m, M.trs(w / 2 + 0.01, 0, 0)), 0.022, h + 0.05, d + 0.012, frame, 1);
-    // 支架
-    G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.16, -0.02)), 0.05, 0.3, 0.05, frame, 1);
-    G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.30, 0.02)), 0.26, 0.02, 0.2, frame, 1);
+    // 支架由场景单独绘制，避免机身自带支架和场景支架重复/错位
   }
   function monitorScreen(b, m, w, h, tex) {
     void tex;
@@ -153,8 +151,14 @@ const A3DProps = (() => {
     }
   }
   function mouse(b, m) {
-    G.sphere.call(b, M.mul(m, M.trs(0, 0.012, 0)), 0.045, 12, 8, [0.14, 0.15, 0.17]);
-    G.box.call(b, M.mul(m, M.trs(0, 0.005, 0)), 0.01, 0.004, 0.04, [0.3, 0.3, 0.32], 1);
+    // 扁平鼠标：压扁的椭球 + 滚轮 + 分缝 + 线
+    G.sphere.call(b, M.mul(m, M.trs(0, 0.018, 0, 0, 0, 0, 1, 0.45, 1.35)), 0.04, 14, 8, [0.14, 0.15, 0.17]);
+    G.box.call(b, M.mul(m, M.trs(0, 0.034, -0.012)), 0.008, 0.006, 0.022, [0.3, 0.3, 0.32], 1);
+    G.box.call(b, M.mul(m, M.trs(0, 0.033, 0.022)), 0.002, 0.003, 0.026, [0.08, 0.08, 0.09], 1);
+    b.tube.call(b, M.mul(m, M.trs(0, 0.012, -0.04)), [
+      [0, 0, 0], [0, 0.003, -0.08], [0, 0.003, -0.14],
+      [-0.10, 0.003, -0.18], [-0.25, 0.003, -0.20], [-0.35, 0.003, -0.20]
+    ], 0.004, 6, [0.08, 0.08, 0.09]);
   }
   function mug(b, m, col, r) {
     r = r || 0.045;
@@ -174,14 +178,32 @@ const A3DProps = (() => {
    *  书架与书
    * ============================================================ */
   function book(b, m, w, h, d, col) {
-    G.box.call(b, M.mul(m, M.trs(0, h / 2, 0)), w, h, d, col, 2.2);
-    // 前口露出书页：比封面略窄，往外 1mm 防止 z-fighting
-    G.box.call(b, M.mul(m, M.trs(0, h / 2, -d / 2 - 0.001)),
-      w - 0.012, h - 0.012, 0.003, [0.93, 0.9, 0.8], 1);
-    // 书脊上的两道烫金
+    const t = 0.006;                    // 封面/书脊板厚
+    const paper = [0.92, 0.89, 0.78];   // 书页
+    const cy = h / 2;
+    // 书页块：收在封面里，四周露出纸色
+    G.box.call(b, M.mul(m, M.trs(0, cy, 0)), w - t * 2, h - t * 2, d - t * 2, paper, 1);
+    if (h >= w) {
+      // 立着的书：左右大面是前后封面
+      for (const sx of [-1, 1]) {
+        G.box.call(b, M.mul(m, M.trs(sx * (w / 2 - t / 2), cy, 0)), t, h, d, col, 2.2);
+      }
+    } else {
+      // 平放的书：上下大面是封面/封底
+      for (const sy of [-1, 1]) {
+        G.box.call(b, M.mul(m, M.trs(0, cy + sy * (h / 2 - t / 2), 0)), w, t, d, col, 2.2);
+      }
+    }
+    // 书脊：只在 +Z 窄面用封面色
+    G.box.call(b, M.mul(m, M.trs(0, cy, d / 2 - t / 2)), w, h, t, col, 2.2);
+    // 书脊烫金：立着的两道，平放的一道
     const gold = [col[0] * 0.55 + 0.35, col[1] * 0.48 + 0.28, col[2] * 0.3 + 0.1];
-    G.box.call(b, M.mul(m, M.trs(0, h * 0.72, d / 2 + 0.002)), w * 0.82, h * 0.028, 0.004, gold, 1);
-    G.box.call(b, M.mul(m, M.trs(0, h * 0.28, d / 2 + 0.002)), w * 0.82, h * 0.018, 0.004, gold, 1);
+    if (h >= w) {
+      G.box.call(b, M.mul(m, M.trs(0, cy + h * 0.22, d / 2 + 0.001)), w * 0.82, h * 0.028, 0.004, gold, 1);
+      G.box.call(b, M.mul(m, M.trs(0, cy - h * 0.22, d / 2 + 0.001)), w * 0.82, h * 0.018, 0.004, gold, 1);
+    } else {
+      G.box.call(b, M.mul(m, M.trs(0, cy, d / 2 + 0.001)), w * 0.82, 0.003, 0.004, gold, 1);
+    }
   }
 
   /** 一排书（沿 X 轴排开），返回占用的宽度；gap 表示留空 */
@@ -284,7 +306,7 @@ const A3DProps = (() => {
       const nx = -ty / l, ny = tx / l;
       for (let k = 0; k < 4; k++) {
         const p = q[k];
-        b._v(b.d, m, nm, p[0], p[1], p[2], nx, ny, 0, uv[k][0], uv[k][1], col, 0.25 + a[2] * 0.75);
+        b._v(b.d, m, nm, p[0], p[1], p[2], nx, ny, 0, uv[k][0], uv[k][1], col, a[2]);
       }
       b._pushQuad(b.count - 4);
     }
@@ -327,35 +349,34 @@ const A3DProps = (() => {
     }
   }
   /** 菊花：茎 + 叶片 + 花瓣（petal builder） */
-  function chrysanthemum(bPetal, bStem, m, scale, colTint, seed) {
+  function chrysanthemum(bFlower, bStem, m, scale, colTint, seed) {
     const r = rng(seed || 2);
     const s = scale || 1;
     const headY = 0.36 * s;
-    const lean = (r() - 0.5) * 0.25;
-    const stemM = M.mul(m, M.trs(0, 0, 0, lean, 0, lean * 0.6, 1, 1, 1));
-    const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY, 0]];
-    bStem.tube.call(bStem, stemM, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
-    for (let i = 0; i < 3; i++) {
-      const mm = M.mul(stemM, M.trs(0, headY * (0.35 + i * 0.2), 0, 0, i * 2.1, 0.9));
-      leafBlade(bStem, mm, 0.1 * s, 0.03 * s, [0.3, 0.55, 0.22]);
-    }
-    const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.1, 0, 0, 1, 1, 1));
-    // 三层花瓣，越外圈越长、越往下垂
-    const tint = colTint || [1, 1, 1];
-    for (let ring = 0; ring < 3; ring++) {
-      const n = 9 + ring * 4;
-      const len = (0.075 - ring * 0.016) * s;
-      const tilt = 0.35 + ring * 0.55;
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * TAU + ring * 0.35;
-        const mm = M.mul(M.mul(head, M.trs(0, 0.012 * ring, 0, 0, a, 0)),
-          M.trs(0, 0, 0, Math.PI / 2 - tilt, 0, 0));
-        bPetal.quad.call(bPetal, M.mul(mm, M.trs(0, len / 2, 0)), len * 0.42, len,
-          [tint[0] * (0.9 + ring * 0.06), tint[1] * (0.9 + ring * 0.06), tint[2]], [0, 0, 1, 1]);
+    const lean = (r() - 0.5) * 0.03;
+    const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY - 0.12 * s, 0]];
+    bStem.tube.call(bStem, m, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
+    // 叶片用实心菱形，避免无贴图的长条像被切断
+    const leafQuad = (mm, ll, ww) => {
+      const nm = A3D.M.normalMat(mm);
+      const vs = [[0, 0, 0], [ll * 0.45, 0.012, -ww], [ll, 0.02, 0], [ll * 0.45, 0.012, ww]];
+      const uvs = [[0.5, 0], [0, 0.5], [0.5, 1], [1, 0.5]];
+      for (let k = 0; k < 4; k++) {
+        bStem._v(bStem.d, mm, nm, vs[k][0], vs[k][1], vs[k][2], 0, 1, 0,
+          uvs[k][0], uvs[k][1], [0.3, 0.55, 0.22], 0);
       }
+      bStem._pushQuad(bStem.count - 4);
+    };
+    for (let i = 0; i < 4; i++) {
+      const t = 0.28 + i * 0.16;
+      const mm = M.mul(m, M.trs(lean * t, headY * t, 0, 0, i * 1.7, 0.9));
+      leafQuad(mm, 0.105 * s, 0.034 * s);
     }
-    // 花心
-    bPetal.sphere.call(bPetal, M.mul(head, M.trs(0, 0.02 * s, 0)), 0.02 * s, 8, 5, [0.75, 0.42, 0.08]);
+    // 花头用画好的菊花贴图 + 两片交叉面片，花瓣形状不再靠 3D 四边形拼
+    const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
+    const size = 0.24 * s;
+    const tint = colTint || [1, 1, 1];
+    bFlower.quad.call(bFlower, head, size, size, tint, [0, 0, 1, 1]);
   }
 
   /* ============================================================
