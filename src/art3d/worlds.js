@@ -610,7 +610,7 @@ const A3DWorlds = (() => {
 
     // 花坛：橙色菊花
     const stemB = st.pen("stem", null, { tint: [0.28, 0.45, 0.22] });
-    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.2, 0.95, 0.7], rim: 0.25 });
     const leafBed = st.pen("bedLeaf", T.leaf(), { cutout: true, tint: [0.6, 0.9, 0.5], sway: 0.7 });
     const bedStone = st.pen("bedStone", T.stone(), { tint: [0.6, 0.62, 0.58] });
     for (const sx of [-1, 1]) {
@@ -845,14 +845,14 @@ const A3DWorlds = (() => {
     const vase = st.pen("vase", T.plasterPale(), { tint: [1.0, 0.95, 0.95], spec: 0.4 });
     vase.cyl.call(vase, m4(0.95, 0.78, -1.25), 0.07, 0.05, 0.22, 12, [1, 1, 1], true);
     const stemB = st.pen("stem", null, { tint: [0.25, 0.42, 0.2] });
-    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.2, 0.95, 0.7], rim: 0.25 });
     P.chrysanthemum(petalB, stemB, m4(0.95, 1.0, -1.25), 0.85, [1.2, 0.9, 0.62], 6);
     P.chrysanthemum(petalB, stemB, m4(1.05, 0.98, -1.2), 0.7, [1.3, 1.0, 0.7], 19);
 
     // 书架上的菊花：每隔一格放一小瓶
     const shelfVase = st.pen("shelfVase", T.plasterPale(), { tint: [1.0, 0.92, 0.9], spec: 0.4 });
     const shelfStem = st.pen("shelfStem", null, { tint: [0.26, 0.42, 0.2] });
-    const shelfPetal = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    const shelfPetal = st.pen("shelfPetal", T.petal(), { cutout: true, tint: [1.25, 0.95, 0.7], rim: 0.25 });
     for (const sx of [-1, 1]) {
       for (let i = 0; i < 4; i++) {
         const sz = -4.2 + i * 1.9;
@@ -1510,7 +1510,7 @@ const A3DWorlds = (() => {
     metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.02, Math.PI / 2, 0, 0), 0.004, 0.008, 0.02, 8, [0.4, 0.45, 0.5], true);
     const vase = st.pen("vase", T.plasterPale(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
     vase.cyl.call(vase, m4(cx + 0.16, deskH + 0.001, cz + 0.38), 0.055, 0.14, 0.13, 12, [1, 1, 1], true);
-    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.2, 0.95, 0.7], rim: 0.25 });
     const stemB = st.pen("stem", null, { tint: [0.2, 0.4, 0.22] });
     P.chrysanthemum(petalB, stemB, m4(cx + 0.16, deskH + 0.12, cz + 0.38), 0.7, [1.1, 0.9, 0.7], 4);
     const boardTex = A3DTex.dynamic("monitorWb", 512, 320, drawBoard);

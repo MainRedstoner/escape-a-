@@ -372,11 +372,32 @@ const A3DProps = (() => {
       const mm = M.mul(m, M.trs(lean * t, headY * t, 0, 0, i * 1.7, 0.9));
       leafQuad(mm, 0.105 * s, 0.034 * s);
     }
-    // 花头用画好的菊花贴图 + 两片交叉面片，花瓣形状不再靠 3D 四边形拼
+    // 3D 重瓣花：每层花瓣从不同半径/高度长出，沿半径向外，面朝默认视角
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
-    const size = 0.24 * s;
     const tint = colTint || [1, 1, 1];
-    bFlower.quad.call(bFlower, head, size, size, tint, [0, 0, 1, 1]);
+    const rings = [
+      { n: 18, rad: 0.058, len: 0.075, wid: 0.045, z: -0.028, tilt: 0.18, phase: 0.00 },
+      { n: 21, rad: 0.048, len: 0.066, wid: 0.042, z: -0.014, tilt: 0.10, phase: 0.16 },
+      { n: 24, rad: 0.038, len: 0.057, wid: 0.039, z: 0.000, tilt: 0.02, phase: 0.32 },
+      { n: 27, rad: 0.028, len: 0.048, wid: 0.036, z: 0.012, tilt: -0.06, phase: 0.48 },
+      { n: 30, rad: 0.018, len: 0.039, wid: 0.033, z: 0.022, tilt: -0.14, phase: 0.64 }
+    ];
+    for (let ring = 0; ring < rings.length; ring++) {
+      const R = rings[ring];
+      for (let i = 0; i < R.n; i++) {
+        const a = (i / R.n) * TAU + R.phase;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const bx = R.rad * s * ca, by = R.rad * s * sa;
+        const len = R.len * s, wid = R.wid * s;
+        // 花瓣中心放在“半径 + 半长”的位置，长度方向沿半径向外，宽度沿切线
+        const pm = M.mul(head, M.trs(bx + ca * len / 2, by + sa * len / 2, R.z * s,
+          0, 0, a - Math.PI / 2));
+        // 绕切线微微上/下翻，给每层不同俯仰，形成立体圆头
+        bFlower.quad.call(bFlower, M.mul(pm, M.trs(0, 0, 0, R.tilt, 0, 0)), wid, len,
+          [tint[0] * (0.88 + ring * 0.04), tint[1] * (0.88 + ring * 0.04), tint[2]], [0, 0, 1, 1]);
+      }
+    }
+    bFlower.sphere.call(bFlower, M.mul(head, M.trs(0, 0, 0.03 * s)), 0.011 * s, 8, 5, [0.92, 0.72, 0.24]);
   }
 
   /* ============================================================
