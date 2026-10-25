@@ -1277,6 +1277,37 @@ const A3DWorlds = (() => {
     return mumTex;
   }
 
+  /** 马克杯上的小鲸鱼印花（透明底，白杯壁由杯体材质提供） */
+  function drawMugWhale(x, w, h) {
+    x.clearRect(0, 0, w, h);
+    const s = w / 256;
+    x.strokeStyle = "#1d4d66"; x.lineWidth = 5 * s; x.fillStyle = "#63b7df";
+    // 身体
+    x.beginPath(); x.ellipse(140 * s, 148 * s, 56 * s, 34 * s, -0.08, 0, TAU); x.fill(); x.stroke();
+    // 尾巴
+    x.beginPath();
+    x.moveTo(88 * s, 145 * s);
+    x.quadraticCurveTo(68 * s, 130 * s, 46 * s, 132 * s);
+    x.quadraticCurveTo(58 * s, 147 * s, 52 * s, 160 * s);
+    x.quadraticCurveTo(70 * s, 157 * s, 88 * s, 156 * s);
+    x.closePath(); x.fill(); x.stroke();
+    // 肚皮
+    x.fillStyle = "#e8f8ff"; x.beginPath();
+    x.ellipse(148 * s, 160 * s, 38 * s, 18 * s, 0, 0, TAU); x.fill();
+    // 眼睛、微笑、喷水
+    x.fillStyle = "#153b4c"; x.beginPath(); x.arc(184 * s, 140 * s, 4 * s, 0, TAU); x.fill();
+    x.strokeStyle = "#153b4c"; x.lineWidth = 3 * s;
+    x.beginPath(); x.arc(192 * s, 152 * s, 8 * s, 0.2, 1.2); x.stroke();
+    x.strokeStyle = "#8fd3ea"; x.lineWidth = 4 * s;
+    x.beginPath(); x.moveTo(130 * s, 116 * s); x.quadraticCurveTo(124 * s, 96 * s, 112 * s, 88 * s); x.stroke();
+    x.beginPath(); x.moveTo(130 * s, 116 * s); x.quadraticCurveTo(140 * s, 96 * s, 150 * s, 88 * s); x.stroke();
+  }
+  let mugWhaleTex = null;
+  function getMugWhaleTex() {
+    if (!mugWhaleTex) mugWhaleTex = A3DTex.dynamic("mugWhale", 256, 256, drawMugWhale);
+    return mugWhaleTex;
+  }
+
   function buildRoomCompact(opts) {
     const night = !!opts.night;
     const st = P.stage();
@@ -1303,7 +1334,7 @@ const A3DWorlds = (() => {
     const potB = st.pen("pot", T.stone(), { tint: [0.8, 0.84, 0.9] });
     const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2, noShadow: true });
     const mugB = st.pen("mug", T.metal(), { tint: [0.75, 0.82, 0.95], spec: 0.5 });
-    const mugCeramic = st.pen("mugCeramic", T.plasterPale(), { tint: [1.0, 0.97, 0.9], spec: 0.35 });
+    const mugCeramic = st.pen("mugCeramic", T.plasterPale(), { unlit: true, tint: [1.22, 1.18, 1.1] });
     const screenDark = st.pen("screenDark", null, { unlit: true, tint: [0.03, 0.05, 0.08] });
 
     /* ---------- 地面：蓝色地毯 ---------- */
@@ -1435,8 +1466,10 @@ const A3DWorlds = (() => {
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
     riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
-    // 桌面马克杯：键盘右侧桌垫前，显眼的深蓝陶瓷杯，杯口有深色咖啡
-    P.mug(mugCeramic, m4(0.55, deskH + 0.001, deskZ + 0.24), [0.22, 0.4, 0.58], 0.065);
+    // 桌面马克杯：白色陶瓷杯，放在盆栽左边，杯身正面印小鲸鱼
+    P.mug(mugCeramic, m4(-0.98, deskH + 0.001, deskZ + 0.22), [1.0, 0.99, 0.96], 0.065);
+    const mugPrint = st.pen("mugPrint", getMugWhaleTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    mugPrint.quad.call(mugPrint, m4(-0.98, deskH + 0.055, deskZ + 0.22 + 0.066), 0.095, 0.068, [1, 1, 1], [0, 0, 1, 1]);
     P.papers(paperB, m4(-0.55, deskH + 0.001, deskZ + 0.14), 6, 12);
     P.book(bookB, m4(-0.3, deskH + 0.002, deskZ + 0.18, 0, 0.15, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
     metalDark.cyl.call(metalDark, m4(1.02, deskH + 0.001, deskZ + 0.23), 0.045, 0.04, 0.11, 12, [0.35, 0.4, 0.5], true);
