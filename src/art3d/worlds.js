@@ -1178,11 +1178,11 @@ const A3DWorlds = (() => {
     // 三股喷水 + 水滴
     x.strokeStyle = "#a9e4f6"; x.lineWidth = 6; x.lineCap = "round";
     x.beginPath();
-    x.moveTo(165, 150); x.quadraticCurveTo(157, 126, 142, 108);
-    x.moveTo(165, 150); x.quadraticCurveTo(173, 126, 188, 108);
+    x.moveTo(165, 150); x.bezierCurveTo(154, 136, 140, 122, 130, 100);
+    x.moveTo(165, 150); x.bezierCurveTo(176, 136, 190, 122, 200, 100);
     x.stroke();
     x.fillStyle = "#d8f7ff";
-    [[140, 103, 5], [190, 103, 5]].forEach(d => {
+    [[128, 95, 5], [202, 95, 5]].forEach(d => {
       x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
     });
     // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
@@ -1190,17 +1190,17 @@ const A3DWorlds = (() => {
     // 侧手：根部伸进身体
     x.fillRect(306, 226, 28, 20);
     x.fillRect(456, 226, 28, 20);
-    // 四条腿：左右两组对称，全部在身体宽度内
-    x.fillRect(342, 266, 14, 48);
-    x.fillRect(368, 266, 14, 48);
-    x.fillRect(408, 266, 14, 48);
-    x.fillRect(434, 266, 14, 48);
-    // 加宽的橙色身体
-    x.beginPath(); x.roundRect(330, 190, 130, 80, 8); x.fill();
-    // 两只竖眼
-    x.fillStyle = "#2a120b";
-    x.fillRect(364, 206, 8, 24);
-    x.fillRect(418, 206, 8, 24);
+    // 四条短腿：左右对称，全部在身体宽度内
+    x.fillRect(334, 264, 14, 30);
+    x.fillRect(360, 264, 14, 30);
+    x.fillRect(416, 264, 14, 30);
+    x.fillRect(442, 264, 14, 30);
+    // 更宽的橙色身体
+    x.beginPath(); x.roundRect(320, 190, 150, 80, 8); x.fill();
+    // ^ 形眼睛
+    x.strokeStyle = "#2a120b"; x.lineWidth = 6; x.lineCap = "round"; x.lineJoin = "round";
+    x.beginPath(); x.moveTo(352, 222); x.lineTo(362, 210); x.lineTo(372, 222); x.stroke();
+    x.beginPath(); x.moveTo(418, 222); x.lineTo(428, 210); x.lineTo(438, 222); x.stroke();
     // 爱心
     const heart = (cx, cy, sc, col) => {
       x.save(); x.translate(cx, cy); x.scale(sc, sc);
