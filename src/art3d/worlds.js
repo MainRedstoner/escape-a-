@@ -1320,13 +1320,11 @@ const A3DWorlds = (() => {
       hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
-    const plantStem = st.pen("deskPlantStem", null, { tint: [0.28, 0.5, 0.24], spec: 0.15 });
-    plantStem.cyl.call(plantStem, m4(-0.78, deskH + 0.071, deskZ + 0.22), 0.005, 0.007, 0.12, 6, [1, 1, 1], true);
     for (let i = 0; i < 6; i++) {
-      const ly = deskH + 0.078 + i * 0.012;
-      const la = Math.sin(i * 1.9) * 0.75;
-      P.leafBlade(plantB, m4(-0.78, ly, deskZ + 0.22, 0, la, 0.38 + (i % 2) * 0.2),
-        0.11 + (i % 3) * 0.01, 0.072, [0.7, 1, 0.7]);
+      const a = i * 1.05 + 0.35;
+      const lm = M.mul(m4(-0.78, deskH + 0.077, deskZ + 0.22, 0, a, 0),
+        M.trs(0, 0, 0, 0, 0, Math.PI / 2));
+      P.leafBlade(plantB, lm, 0.14 + (i % 3) * 0.01, 0.045, [0.55, 0.9, 0.5]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
@@ -1412,12 +1410,11 @@ const A3DWorlds = (() => {
     A3DDecor.curtain(curtainB, m4(1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     for (const sx of [-1, 1]) {
       P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.015, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
-      const winStem = st.pen("winPlantStem" + sx, null, { tint: [0.28, 0.5, 0.24], spec: 0.15 });
-      winStem.cyl.call(winStem, m4(sx * 1.18, WIN.y0 + 0.065, zBack + 0.12), 0.004, 0.006, 0.09, 6, [1, 1, 1], true);
       for (let i = 0; i < 4; i++) {
-        const ly = WIN.y0 + 0.075 + i * 0.012;
-        P.leafBlade(plantB, m4(sx * 1.18, ly, zBack + 0.12, 0, Math.sin(i * 1.8) * 0.7, 0.4 + (i % 2) * 0.18),
-          0.10 + (i % 2) * 0.01, 0.06, [0.7, 1, 0.7]);
+        const a = i * 1.3 + 0.4;
+        const lm = M.mul(m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, a, 0),
+          M.trs(0, 0, 0, 0, 0, Math.PI / 2));
+        P.leafBlade(plantB, lm, 0.09 + (i % 2) * 0.01, 0.035, [0.55, 0.9, 0.5]);
       }
     }
 
