@@ -1162,31 +1162,31 @@ const A3DWorlds = (() => {
     x.quadraticCurveTo(30, 242, 44, 224);
     x.quadraticCurveTo(60, 224, 84, 222);
     x.closePath(); x.fill(); x.stroke();
-    x.beginPath(); x.ellipse(146, 278, 30, 13, 0.45, 0, TAU); x.fill(); x.stroke();
+    x.beginPath(); x.ellipse(160, 266, 28, 12, 0.45, 0, TAU); x.fill(); x.stroke();
     // 身体填充（先不描边）
-    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.fill();
+    x.beginPath(); x.ellipse(180, 216, 108, 56, -0.08, 0, TAU); x.fill();
     // 白肚皮裁剪在身体内部，避免和蓝色轮廓相交
     x.save();
-    x.beginPath(); x.ellipse(160, 218, 118, 66, -0.08, 0, TAU); x.clip();
+    x.beginPath(); x.ellipse(180, 216, 106, 54, -0.08, 0, TAU); x.clip();
     x.fillStyle = whaleBelly;
-    x.beginPath(); x.ellipse(170, 250, 80, 34, -0.02, 0, TAU); x.fill();
+    x.beginPath(); x.ellipse(190, 238, 74, 30, -0.02, 0, TAU); x.fill();
     x.restore();
     // 最后描身体轮廓，保证蓝边完整
     x.strokeStyle = whaleDark; x.lineWidth = 6;
-    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.stroke();
+    x.beginPath(); x.ellipse(180, 216, 108, 56, -0.08, 0, TAU); x.stroke();
     // 眼睛、微笑
     x.fillStyle = "#173b4c";
-    x.beginPath(); x.arc(245, 202, 8, 0, TAU); x.fill();
+    x.beginPath(); x.arc(255, 198, 8, 0, TAU); x.fill();
     x.strokeStyle = "#173b4c"; x.lineWidth = 4;
-    x.beginPath(); x.arc(258, 220, 16, 0.2, 1.2); x.stroke();
+    x.beginPath(); x.arc(268, 216, 16, 0.2, 1.2); x.stroke();
     // 三股喷水 + 水滴
     x.strokeStyle = "#a9e4f6"; x.lineWidth = 6; x.lineCap = "round";
     x.beginPath();
-    x.moveTo(165, 150); x.quadraticCurveTo(150, 122, 134, 104);
-    x.moveTo(165, 150); x.quadraticCurveTo(180, 122, 196, 104);
+    x.moveTo(175, 160); x.quadraticCurveTo(160, 132, 144, 114);
+    x.moveTo(175, 160); x.quadraticCurveTo(190, 132, 206, 114);
     x.stroke();
     x.fillStyle = "#d8f7ff";
-    [[132, 99, 5], [198, 99, 5]].forEach(d => {
+    [[142, 109, 5], [208, 109, 5]].forEach(d => {
       x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
     });
     // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
