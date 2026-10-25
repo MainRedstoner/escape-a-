@@ -376,32 +376,32 @@ const A3DProps = (() => {
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
     const tint = colTint || [1, 1, 1];
     const rings = [
-      { n: 18, len: 0.105, wid: 0.80, z: -0.018, tilt: -0.45, phase: 0.00 },
-      { n: 21, len: 0.095, wid: 0.78, z: -0.010, tilt: -0.30, phase: 0.17 },
-      { n: 24, len: 0.083, wid: 0.76, z: -0.002, tilt: -0.12, phase: 0.34 },
-      { n: 27, len: 0.071, wid: 0.74, z: 0.006, tilt: 0.08, phase: 0.51 },
-      { n: 30, len: 0.058, wid: 0.72, z: 0.014, tilt: 0.28, phase: 0.68 },
-      { n: 33, len: 0.046, wid: 0.70, z: 0.020, tilt: 0.48, phase: 0.85 }
+      { n: 20, len: 0.100, wid: 0.46, z: -0.022, tilt: -1.05, phase: 0.00 },
+      { n: 24, len: 0.090, wid: 0.45, z: -0.014, tilt: -0.75, phase: 0.15 },
+      { n: 28, len: 0.080, wid: 0.44, z: -0.006, tilt: -0.40, phase: 0.30 },
+      { n: 32, len: 0.068, wid: 0.43, z: 0.002, tilt: -0.05, phase: 0.45 },
+      { n: 36, len: 0.056, wid: 0.42, z: 0.010, tilt: 0.35, phase: 0.60 },
+      { n: 40, len: 0.045, wid: 0.41, z: 0.018, tilt: 0.75, phase: 0.75 }
     ];
     for (let ring = 0; ring < rings.length; ring++) {
       const R = rings[ring];
       const len = R.len * s;
       const wid = len * R.wid;
       for (let i = 0; i < R.n; i++) {
-        const a = (i / R.n) * TAU + R.phase + (r() - 0.5) * 0.12;
+        const a = (i / R.n) * TAU + R.phase + (r() - 0.5) * 0.14;
         const mm = M.mul(head, M.trs(0, 0, R.z * s, 0, 0, a));
-        // 花瓣从花心向外，内外圈分别向后/向前倾，形成圆头而不是平面齿轮
+        // 外圈向后翻、内圈向前收，形成重瓣圆头
         const pm = M.mul(mm, M.trs(0, 0, 0, R.tilt, 0, 0));
         bPetal.quad.call(bPetal, M.mul(pm, M.trs(0, len / 2, 0)), wid, len,
-          [tint[0] * (0.9 + ring * 0.035), tint[1] * (0.9 + ring * 0.035), tint[2]], [0, 0, 1, 1]);
+          [tint[0] * (0.88 + ring * 0.04), tint[1] * (0.88 + ring * 0.04), tint[2]], [0, 0, 1, 1]);
       }
     }
-    // 花心：小圆盘提亮，不再像飞轮轴
-    bPetal.cyl.call(bPetal, M.mul(head, M.trs(0, 0, 0.018 * s, Math.PI / 2, 0, 0)),
-      0.018 * s, 0.022 * s, 0.012 * s, 12, [1.0, 0.8, 0.3], true);
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * TAU;
-      bPetal.sphere.call(bPetal, M.mul(head, M.trs(Math.cos(a) * 0.014 * s, Math.sin(a) * 0.014 * s, 0.026 * s)),
+    // 花心：只留小球，花瓣把中心收住，不再有飞轮轴
+    bPetal.sphere.call(bPetal, M.mul(head, M.trs(0, 0, 0.026 * s)),
+      0.018 * s, 8, 5, [1.0, 0.82, 0.3]);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU;
+      bPetal.sphere.call(bPetal, M.mul(head, M.trs(Math.cos(a) * 0.012 * s, Math.sin(a) * 0.012 * s, 0.032 * s)),
         0.004 * s, 5, 3, [1.0, 0.78, 0.25]);
     }
   }
