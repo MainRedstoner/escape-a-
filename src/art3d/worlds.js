@@ -1145,6 +1145,55 @@ const A3DWorlds = (() => {
    *  DeepSeek 家里 · 紧凑卧室版
    *  5.6 × 5.5m，床 + 两张桌子；木器全部换成白漆 / 金属 / 亚麻
    * ============================================================ */
+  /** 墙面贴纸：小鲸鱼 + Clawd + 爱心 */
+  function drawWallArt(x, w, h) {
+    x.clearRect(0, 0, w, h);
+    const whaleBlue = "#7ec8e8", whaleDark = "#205468", whaleBelly = "#d8f3fc";
+    // 小鲸鱼
+    x.lineWidth = 6; x.strokeStyle = whaleDark; x.fillStyle = whaleBlue;
+    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.fill(); x.stroke();
+    x.beginPath(); x.moveTo(48, 200); x.quadraticCurveTo(-20, 150, -28, 222);
+    x.quadraticCurveTo(-18, 258, 48, 240); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = whaleBelly;
+    x.beginPath(); x.ellipse(186, 242, 92, 38, -0.05, 0, TAU); x.fill();
+    x.fillStyle = "#6ab6d6";
+    x.beginPath(); x.ellipse(164, 272, 34, 18, 0.5, 0, TAU); x.fill(); x.stroke();
+    x.fillStyle = "#173b4c";
+    x.beginPath(); x.arc(245, 202, 8, 0, TAU); x.fill();
+    x.strokeStyle = "#173b4c"; x.lineWidth = 4;
+    x.beginPath(); x.arc(258, 220, 16, 0.2, 1.2); x.stroke();
+    x.strokeStyle = "#a9e4f6"; x.lineWidth = 7;
+    x.beginPath(); x.moveTo(170, 150); x.bezierCurveTo(158, 110, 192, 100, 185, 74); x.stroke();
+    x.beginPath(); x.moveTo(185, 74); x.quadraticCurveTo(205, 95, 222, 80); x.stroke();
+    // Clawd：橙色像素小桌宠
+    x.fillStyle = "#E08A5F"; x.strokeStyle = "#8a3f26"; x.lineWidth = 5;
+    x.beginPath(); x.roundRect(335, 190, 110, 90, 20); x.fill(); x.stroke();
+    x.fillRect(352, 280, 24, 42); x.strokeRect(352, 280, 24, 42);
+    x.fillRect(404, 280, 24, 42); x.strokeRect(404, 280, 24, 42);
+    x.fillRect(325, 220, 18, 42); x.strokeRect(325, 220, 18, 42);
+    x.fillRect(438, 220, 18, 42); x.strokeRect(438, 220, 18, 42);
+    x.beginPath(); x.moveTo(445, 235); x.quadraticCurveTo(492, 200, 480, 257);
+    x.quadraticCurveTo(462, 272, 445, 255); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = "#3a1a10";
+    x.fillRect(365, 214, 9, 14); x.fillRect(400, 214, 9, 14);
+    x.strokeStyle = "#3a1a10"; x.lineWidth = 3;
+    x.beginPath(); x.arc(388, 240, 12, 0.2, 1.2); x.stroke();
+    // 爱心
+    const heart = (cx, cy, s, col) => {
+      x.save(); x.translate(cx, cy); x.scale(s, s);
+      x.fillStyle = col; x.beginPath();
+      x.moveTo(0, 8);
+      x.bezierCurveTo(-22, -12, -12, -30, 0, -16);
+      x.bezierCurveTo(12, -30, 22, -12, 0, 8);
+      x.fill(); x.restore();
+    };
+    heart(300, 110, 1.0, "#ff8fa3");
+    heart(390, 92, 0.8, "#ffb3c1");
+    heart(476, 150, 0.65, "#ff6b85");
+    heart(92, 100, 0.75, "#ffa1b5");
+    heart(220, 92, 0.55, "#ffc2cf");
+  }
+
   function buildRoomCompact(opts) {
     const night = !!opts.night;
     const st = P.stage();
@@ -1250,9 +1299,10 @@ const A3DWorlds = (() => {
     for (const bx of [2.06, 2.28, 2.5, 2.72]) {
       Gbox(batten, bx, (wtop + wbot) / 2, zBack + 0.045, 0.04, wtop - wbot - 0.05, 0.06, [1, 1, 1]);
     }
-    const bubbleB = st.pen("wallBubbles", T.bubbles(), { opacity: 0.55, blend: "alpha", tint: [0.9, 0.95, 1.0] });
-    bubbleB.quad.call(bubbleB, m4(-RW / 2 + 0.02, 2.2, -2.4, 0, Math.PI / 2, 0), 1.1, 0.7, [1, 1, 1], [0, 0, 1, 1]);
-    bubbleB.quad.call(bubbleB, m4(2.3, 2.5, zBack + 0.02, 0, 0, 0), 0.9, 0.5, [1, 1, 1], [0, 0, 1, 1]);
+    // 墙面贴纸：小鲸鱼 + Clawd + 爱心（替代原来的泡泡贴图）
+    const wallArtTex = A3DTex.dynamic("wallStickers", 512, 384, drawWallArt);
+    const wallArt = st.pen("wallStickers", wallArtTex, { unlit: true, blend: "alpha", tint: [1, 1, 1] });
+    wallArt.quad.call(wallArt, m4(-RW / 2 + 0.015, 2.02, -2.25, 0, Math.PI / 2, 0), 1.05, 0.79, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 床前小地毯 ---------- */
     const rugB = st.pen("rug", T.rug(), { tint: night ? [0.3, 0.4, 0.6] : [0.5, 0.66, 0.92], spec: 0.02 });
