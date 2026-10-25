@@ -349,12 +349,12 @@ const A3DProps = (() => {
     }
   }
   /** 菊花：茎 + 叶片 + 花瓣（petal builder） */
-  function chrysanthemum(bPetal, bStem, m, scale, colTint, seed) {
+  function chrysanthemum(bFlower, bStem, m, scale, colTint, seed) {
     const r = rng(seed || 2);
     const s = scale || 1;
     const headY = 0.36 * s;
     const lean = (r() - 0.5) * 0.03;
-    const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY, 0]];
+    const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY - 0.12 * s, 0]];
     bStem.tube.call(bStem, m, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
     // 叶片用实心菱形，避免无贴图的长条像被切断
     const leafQuad = (mm, ll, ww) => {
@@ -372,38 +372,11 @@ const A3DProps = (() => {
       const mm = M.mul(m, M.trs(lean * t, headY * t, 0, 0, i * 1.7, 0.9));
       leafQuad(mm, 0.105 * s, 0.034 * s);
     }
-    // 花头朝默认视角（右前），花瓣在花头平面内成层，不再是一颗刺球
+    // 花头用画好的菊花贴图 + 两片交叉面片，花瓣形状不再靠 3D 四边形拼
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
+    const size = 0.24 * s;
     const tint = colTint || [1, 1, 1];
-    const rings = [
-      { n: 20, len: 0.100, wid: 0.46, z: -0.022, tilt: -1.05, phase: 0.00 },
-      { n: 24, len: 0.090, wid: 0.45, z: -0.014, tilt: -0.75, phase: 0.15 },
-      { n: 28, len: 0.080, wid: 0.44, z: -0.006, tilt: -0.40, phase: 0.30 },
-      { n: 32, len: 0.068, wid: 0.43, z: 0.002, tilt: -0.05, phase: 0.45 },
-      { n: 36, len: 0.056, wid: 0.42, z: 0.010, tilt: 0.35, phase: 0.60 },
-      { n: 40, len: 0.045, wid: 0.41, z: 0.018, tilt: 0.75, phase: 0.75 }
-    ];
-    for (let ring = 0; ring < rings.length; ring++) {
-      const R = rings[ring];
-      const len = R.len * s;
-      const wid = len * R.wid;
-      for (let i = 0; i < R.n; i++) {
-        const a = (i / R.n) * TAU + R.phase + (r() - 0.5) * 0.14;
-        const mm = M.mul(head, M.trs(0, 0, R.z * s, 0, 0, a));
-        // 外圈向后翻、内圈向前收，形成重瓣圆头
-        const pm = M.mul(mm, M.trs(0, 0, 0, R.tilt, 0, 0));
-        bPetal.quad.call(bPetal, M.mul(pm, M.trs(0, len / 2, 0)), wid, len,
-          [tint[0] * (0.88 + ring * 0.04), tint[1] * (0.88 + ring * 0.04), tint[2]], [0, 0, 1, 1]);
-      }
-    }
-    // 花心：只留小球，花瓣把中心收住，不再有飞轮轴
-    bPetal.sphere.call(bPetal, M.mul(head, M.trs(0, 0, 0.026 * s)),
-      0.018 * s, 8, 5, [1.0, 0.82, 0.3]);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU;
-      bPetal.sphere.call(bPetal, M.mul(head, M.trs(Math.cos(a) * 0.012 * s, Math.sin(a) * 0.012 * s, 0.032 * s)),
-        0.004 * s, 5, 3, [1.0, 0.78, 0.25]);
-    }
+    bFlower.quad.call(bFlower, head, size, size, tint, [0, 0, 1, 1]);
   }
 
   /* ============================================================

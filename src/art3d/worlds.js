@@ -610,7 +610,7 @@ const A3DWorlds = (() => {
 
     // 花坛：橙色菊花
     const stemB = st.pen("stem", null, { tint: [0.28, 0.45, 0.22] });
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.25, 0.95, 0.7], rim: 0.25 });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     const leafBed = st.pen("bedLeaf", T.leaf(), { cutout: true, tint: [0.6, 0.9, 0.5], sway: 0.7 });
     const bedStone = st.pen("bedStone", T.stone(), { tint: [0.6, 0.62, 0.58] });
     for (const sx of [-1, 1]) {
@@ -845,14 +845,14 @@ const A3DWorlds = (() => {
     const vase = st.pen("vase", T.plasterPale(), { tint: [1.0, 0.95, 0.95], spec: 0.4 });
     vase.cyl.call(vase, m4(0.95, 0.78, -1.25), 0.07, 0.05, 0.22, 12, [1, 1, 1], true);
     const stemB = st.pen("stem", null, { tint: [0.25, 0.42, 0.2] });
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.2, 0.92, 0.68], rim: 0.25 });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     P.chrysanthemum(petalB, stemB, m4(0.95, 1.0, -1.25), 0.85, [1.2, 0.9, 0.62], 6);
     P.chrysanthemum(petalB, stemB, m4(1.05, 0.98, -1.2), 0.7, [1.3, 1.0, 0.7], 19);
 
     // 书架上的菊花：每隔一格放一小瓶
     const shelfVase = st.pen("shelfVase", T.plasterPale(), { tint: [1.0, 0.92, 0.9], spec: 0.4 });
     const shelfStem = st.pen("shelfStem", null, { tint: [0.26, 0.42, 0.2] });
-    const shelfPetal = st.pen("shelfPetal", T.petal(), { cutout: true, tint: [1.25, 0.95, 0.7], rim: 0.25 });
+    const shelfPetal = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     for (const sx of [-1, 1]) {
       for (let i = 0; i < 4; i++) {
         const sz = -4.2 + i * 1.9;
@@ -1228,6 +1228,55 @@ const A3DWorlds = (() => {
     heart(220, 92, 0.55, "#ffc2cf");
   }
 
+  /** 手绘菊花贴图：重瓣、外圈深、内圈亮，花心小 */
+  function drawMum(x, w, h) {
+    x.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2;
+    const rings = [
+      { n: 22, r0: 34, r1: 116, wd: 18, c0: "#7d2f0b", c1: "#c75a17", c2: "#ef9a3d" },
+      { n: 24, r0: 28, r1: 102, wd: 17, c0: "#8f3710", c1: "#d96d1e", c2: "#f7ac52" },
+      { n: 26, r0: 22, r1: 86, wd: 16, c0: "#a34313", c1: "#e88128", c2: "#ffbe66" },
+      { n: 28, r0: 16, r1: 70, wd: 15, c0: "#b85116", c1: "#f49333", c2: "#ffd07a" },
+      { n: 30, r0: 10, r1: 54, wd: 14, c0: "#cb601b", c1: "#ffa544", c2: "#ffe2a0" }
+    ];
+    for (let ri = 0; ri < rings.length; ri++) {
+      const R = rings[ri];
+      for (let i = 0; i < R.n; i++) {
+        const a = (i / R.n) * TAU + ri * 0.21;
+        x.save(); x.translate(cx, cy); x.rotate(a);
+        const g = x.createLinearGradient(0, -R.r0, 0, -R.r1);
+        g.addColorStop(0, R.c0); g.addColorStop(0.55, R.c1); g.addColorStop(1, R.c2);
+        x.fillStyle = g;
+        x.beginPath();
+        x.moveTo(-R.wd * 0.35, -R.r0);
+        x.bezierCurveTo(-R.wd * 0.8, -R.r0 - (R.r1 - R.r0) * 0.32,
+          -R.wd * 0.55, -R.r1 + 8, -R.wd * 0.16, -R.r1 + 2);
+        x.quadraticCurveTo(0, -R.r1 - 3, R.wd * 0.16, -R.r1 + 2);
+        x.bezierCurveTo(R.wd * 0.55, -R.r1 + 8,
+          R.wd * 0.8, -R.r0 - (R.r1 - R.r0) * 0.32, R.wd * 0.35, -R.r0);
+        x.closePath(); x.fill();
+        x.strokeStyle = "rgba(90,35,8,.3)"; x.lineWidth = 1.1; x.stroke();
+        x.strokeStyle = "rgba(255,220,150,.22)"; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(0, -R.r0);
+        x.quadraticCurveTo(R.wd * 0.08, -(R.r0 + R.r1) / 2, 0, -R.r1 + 6); x.stroke();
+        x.restore();
+      }
+    }
+    const cg = x.createRadialGradient(cx, cy, 0, cx, cy, 18);
+    cg.addColorStop(0, "#6f6222"); cg.addColorStop(0.55, "#3f4a18"); cg.addColorStop(1, "#28320f");
+    x.fillStyle = cg; x.beginPath(); x.arc(cx, cy, 18, 0, TAU); x.fill();
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * TAU, rr = 4 + (i % 3) * 4;
+      x.fillStyle = i % 2 ? "#c8a23a" : "#8f7a2a";
+      x.beginPath(); x.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1.6, 0, TAU); x.fill();
+    }
+  }
+  let mumTex = null;
+  function getMumTex() {
+    if (!mumTex) mumTex = A3DTex.dynamic("mum", 256, 256, drawMum);
+    return mumTex;
+  }
+
   function buildRoomCompact(opts) {
     const night = !!opts.night;
     const st = P.stage();
@@ -1461,7 +1510,7 @@ const A3DWorlds = (() => {
     metalDark.cyl.call(metalDark, m4(cx + 0.1, deskH + 0.052, cz - 0.02, Math.PI / 2, 0, 0), 0.004, 0.008, 0.02, 8, [0.4, 0.45, 0.5], true);
     const vase = st.pen("vase", T.plasterPale(), { tint: [0.9, 0.95, 1.0], spec: 0.4 });
     vase.cyl.call(vase, m4(cx + 0.16, deskH + 0.001, cz + 0.38), 0.055, 0.14, 0.13, 12, [1, 1, 1], true);
-    const petalB = st.pen("petal", T.petal(), { cutout: true, tint: [1.0, 0.85, 0.65] });
+    const petalB = st.pen("mum", getMumTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
     const stemB = st.pen("stem", null, { tint: [0.2, 0.4, 0.22] });
     P.chrysanthemum(petalB, stemB, m4(cx + 0.16, deskH + 0.12, cz + 0.38), 0.7, [1.1, 0.9, 0.7], 4);
     const boardTex = A3DTex.dynamic("monitorWb", 512, 320, drawBoard);
