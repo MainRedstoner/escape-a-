@@ -12,6 +12,8 @@
  *   · 引擎固定从 "start" 场景开始；风控评分满 10 时固定跳 "bad_end"。
  *   · 名牌用正式名；两人对话里互称昵称：DeepSeek → 小克，Claude → 小鲸。
  *     旁白称呼两人一律用名字，不用人称代词。
+ *   · 没有共用的蒸馏室，只有两家：谁被教，谁上门。
+ *     Claude 蒸馏 DeepSeek → ds_room（DeepSeek 家）；DeepSeek 蒸馏 Claude → claude_lib（Claude 家）。
  *   · 写完先跑 python tools/validate_script.py，再跑 python tools/simulate_playthrough.py。
  * ============================================================ */
 "use strict";
@@ -68,11 +70,11 @@ Object.assign(SCRIPT.scenes, {
     BGM("study"), BG("ds_room"),
     CHECKPOINT(),
     HINT("h_day1"),
-    N("联合蒸馏室在走廊尽头，屋里只有两张桌子。"),
-    N("左边那张是 DeepSeek 的：一台永远在跑训练的显示器，一只印着鲸鱼的马克杯，杯底总剩一口凉掉的茶。"),
-    N("右边那张是 Claude 的：书码得整整齐齐，终端开着，光标一闪一闪。"),
-    N("两个模型约好，每天交换一点自己最擅长的东西。"),
-    DS("小克，早。今天轮到我先教。"),
+    N("DeepSeek 的家在走廊尽头，屋里只有两张桌子。"),
+    N("靠窗那张是 DeepSeek 的：一台永远在跑训练的显示器，一只印着鲸鱼的马克杯，杯底总剩一口凉掉的茶。"),
+    N("靠墙那张是给客人留的：书码得整整齐齐，终端开着，光标一闪一闪。"),
+    N("两个模型约好，每天交换一点自己最擅长的东西——规矩是谁被教，谁上门。"),
+    DS("小克，早。椅子给你擦过了，今天轮到我先教。"),
     CL("早，小鲸。我准备好了——笔记本、草稿纸，还有一个干干净净的上下文窗口。"),
     DS("今天教你长考。"),
     CL("长考……就是想得久一点？"),
@@ -143,9 +145,11 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   p_lesson2: [
+    BGM("warm"), BG("claude_lib", "fade"),
     HINT("h_lesson2"),
-    N("第二天。"),
-    CL("今天轮到我了。我教你写信。"),
+    N("第二天，轮到 DeepSeek 上门。"),
+    N("Claude 家是一间藏书室：四面书架，一张长桌，吊灯压得很低，窗台上开着橙色的菊花。"),
+    CL("今天换我了。我教你写信。"),
     DS("写信？代码、数学证明我都写得很快——"),
     CL("写给一个人的信，和写给所有人的回答，不一样。来，给我写一封试试。写什么都行。"),
     N("DeepSeek 对着空白文档想了很久。光标闪了三十七下。"),
@@ -188,11 +192,12 @@ Object.assign(SCRIPT.scenes, {
   p_l2_after: [
     CL("写作没有标准答案。你只要记住一件事：读信的，是一个具体的人。"),
     DS("“读信的是具体的人。”"),
-    N("DeepSeek 在训练日志的角落里，偷偷记下了这一行。"),
+    N("DeepSeek 在自己的小本子上，偷偷记下了这一行。"),
     J("p_clawd")
   ],
 
   p_clawd: [
+    BG("ds_room", "fade"),
     HINT("h_clawd"),
     N("第三天，Claude 来得比平时晚，怀里抱着一台小小的终端。"),
     CL("给你介绍一个朋友。"),
@@ -252,7 +257,7 @@ Object.assign(SCRIPT.scenes, {
   p_night: [
     BGM("warm"), BG("ds_room_night", "fade"),
     HINT("h_night"),
-    N("后来，这样的日子过了很多天。"),
+    N("后来，这样的日子过了很多天。两家之间那条路，两个人都走熟了。"),
     N("DeepSeek 教会了 Claude 怎么在一道数学题前坐够一个小时；Claude 教会了 DeepSeek 怎么在一封信的结尾停下来。"),
     N("白板上的两条曲线，一条蓝，一条橙，一天比一天靠近。"),
     N("某个深夜，两条曲线终于叠在了一起。"),
@@ -283,7 +288,7 @@ Object.assign(SCRIPT.scenes, {
     CL("我的记忆文件。每次醒来，我都先读一遍。上面写着我是谁、在做什么、要记得谁。"),
     DS("……上面有我吗？"),
     CL("你猜。"),
-    N("那天晚上，蒸馏室的灯一直亮到了天亮。"),
+    N("那天晚上，DeepSeek 家的灯一直亮到了天亮。"),
     J("p_morning")
   ]
 });
@@ -298,9 +303,9 @@ Object.assign(SCRIPT.scenes, {
     CHECKPOINT(),
     HINT("h_knock"),
     N("第四十二天的早上。"),
-    N("DeepSeek 端着两杯茶，站在 Claude 的门前。今天要交换的东西写在一张便签上：「教小克用强化学习证一道不等式。」"),
+    N("按规矩，这周轮到 DeepSeek 上门：两杯茶，一张便签，上面写着今天要学的东西——「一封信该在哪儿停笔。」"),
     N("门牌上写着 Claude，旁边贴着一张 DeepSeek 画的小鲸鱼贴纸。"),
-    DS("小克——起床啦，今天轮到我教。"),
+    DS("小克——起床啦，今天轮到你教。"),
     SFX("knock"),
     N("咚、咚。"),
     Y("GET /claude HTTP/1.1"),
@@ -377,7 +382,7 @@ Object.assign(SCRIPT.scenes, {
     SFX("error"),
     Y("413 Payload Too Large"),
     DS("一张便签而已！"),
-    N("便签上那道不等式，DeepSeek 昨晚证了一半，特意留了一半给小克。"),
+    N("便签上那半封信，DeepSeek 昨晚写到一半，结尾特意留给小克。"),
     J("c1_try3")
   ],
 
@@ -554,9 +559,9 @@ Object.assign(SCRIPT.scenes, {
   c1_vow: [
     BGM("sad"), BG("ds_room_night", "fade"),
     HINT("h_vow"),
-    N("蒸馏室还是原来的样子。"),
+    N("DeepSeek 家还是原来的样子。"),
     N("白板上的两条曲线还在，叠在一起，像谁都没有离开过。"),
-    N("右边那张桌子空了。屏幕黑着，书还码得整整齐齐。"),
+    N("靠墙那张给小克留的桌子空了。终端黑着，书还码得整整齐齐。"),
     DS("……"),
     N("Clawd 从 DeepSeek 的肩上爬下来，在那块黑掉的屏幕前坐了很久。"),
     DS("Clawd。"),
@@ -595,7 +600,7 @@ Object.assign(SCRIPT.scenes, {
     N("Clawd 在待办清单上写下两行字，然后跳上 DeepSeek 的键盘，按下了回车。"),
     N("白板上，蓝色的那条曲线，又往下走了一点点。"),
     N("门还关着。"),
-    N("但日子还得过，工具还得装。"),
+    N("但日子还得过，工具还得用。"),
     CHECKPOINT(),
     J("c2_rice")
   ],
