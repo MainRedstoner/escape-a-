@@ -1153,12 +1153,12 @@ const A3DWorlds = (() => {
     x.strokeStyle = whaleDark; x.lineWidth = 6; x.fillStyle = whaleBlue;
     x.beginPath();
     x.moveTo(84, 206);
-    x.quadraticCurveTo(55, 208, 30, 206);
-    x.quadraticCurveTo(0, 175, -30, 160);
-    x.quadraticCurveTo(-10, 195, 6, 214);
-    x.quadraticCurveTo(-10, 234, -30, 270);
-    x.quadraticCurveTo(0, 262, 30, 236);
-    x.quadraticCurveTo(55, 232, 84, 236);
+    x.quadraticCurveTo(58, 208, 40, 206);
+    x.quadraticCurveTo(18, 176, 4, 162);
+    x.quadraticCurveTo(18, 196, 22, 214);
+    x.quadraticCurveTo(18, 234, 4, 268);
+    x.quadraticCurveTo(28, 260, 40, 236);
+    x.quadraticCurveTo(58, 232, 84, 236);
     x.closePath(); x.fill(); x.stroke();
     x.beginPath(); x.ellipse(146, 278, 30, 13, 0.45, 0, TAU); x.fill(); x.stroke();
     // 身体填充（先不描边）
@@ -1180,11 +1180,11 @@ const A3DWorlds = (() => {
     // 三股喷水 + 水滴
     x.strokeStyle = "#a9e4f6"; x.lineWidth = 6; x.lineCap = "round";
     x.beginPath();
-    x.moveTo(165, 150); x.bezierCurveTo(150, 112, 120, 106, 116, 138);
-    x.moveTo(165, 150); x.bezierCurveTo(180, 112, 210, 106, 214, 138);
+    x.moveTo(165, 150); x.quadraticCurveTo(150, 122, 134, 104);
+    x.moveTo(165, 150); x.quadraticCurveTo(180, 122, 196, 104);
     x.stroke();
     x.fillStyle = "#d8f7ff";
-    [[116, 146, 5], [214, 146, 5], [114, 158, 3], [216, 158, 3]].forEach(d => {
+    [[132, 99, 5], [198, 99, 5]].forEach(d => {
       x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
     });
     // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
