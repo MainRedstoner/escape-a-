@@ -1354,8 +1354,6 @@ const A3DWorlds = (() => {
       Gbox(metalDark, -1.4 + sx * 0.17, 0.045, -3.15 + sz * 0.13, 0.035, 0.09, 0.035, [1, 1, 1]);
     }
     P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.9, 0.58]);
-    const bedHalo = st.pen("bedHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.28 });
-    bedHalo.quad.call(bedHalo, m4(-1.4, 0.74, -3.05), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
     P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
     // 垃圾桶：挪到中间桌下面、靠床头柜的左侧
@@ -1383,8 +1381,6 @@ const A3DWorlds = (() => {
     P.keyboard(metalDark, m4(0.15, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
     P.mouse(metalDark, m4(0.5, deskH + 0.003, deskZ + 0.17));
     P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
-    const deskHalo = st.pen("deskHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.3 });
-    deskHalo.quad.call(deskHalo, m4(deskX - 1.0, deskH + 0.26, deskZ - 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
     ceramic.cyl.call(ceramic, m4(-0.35, deskH + 0.005, deskZ + 0.0), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
@@ -1625,8 +1621,6 @@ const A3DWorlds = (() => {
     P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.9, 0.56]);
     const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
     cordB.cyl.call(cordB, m4(0, 2.42, -1.4), 0.006, 0.006, 0.38, 4, [1, 1, 1], false);
-    const lampHalo = st.pen("lampHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.38], opacity: night ? 0.45 : 0.26 });
-    lampHalo.quad.call(lampHalo, m4(0, RH - 0.52, -1.38), 0.95, 0.95, [1, 1, 1], [0, 0, 1, 1]);
     const monHalo = st.pen("monHalo", T.glow(), { unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.26 });
     monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08), 1.1, 0.78, [1, 1, 1], [0, 0, 1, 1]);
     const sconce = st.pen("sconce", T.metal(), { tint: [1.0, 0.95, 0.85], spec: 0.5 });
