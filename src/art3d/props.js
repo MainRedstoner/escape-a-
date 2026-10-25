@@ -297,8 +297,10 @@ const A3DProps = (() => {
     }
     for (let i = 0; i < seg; i++) {
       const a = pts[i], c = pts[i + 1];
-      const w = wid * (0.75 + 0.25 * Math.sin(a[2] * Math.PI));
-      const q = [[a[0], a[1], w], [c[0], c[1], w], [c[0], c[1], -w], [a[0], a[1], -w]];
+      // 两端宽度分别计算，相邻段共享边使用同一宽度，避免横向裂缝
+      const wa = wid * (0.75 + 0.25 * Math.sin(a[2] * Math.PI));
+      const wc = wid * (0.75 + 0.25 * Math.sin(c[2] * Math.PI));
+      const q = [[a[0], a[1], wa], [c[0], c[1], wc], [c[0], c[1], -wc], [a[0], a[1], -wa]];
       const uv = [[0, a[2]], [0, c[2]], [1, c[2]], [1, a[2]]];
       // 法线：叶片切向 × 横向
       let tx = c[0] - a[0], ty = c[1] - a[1];
