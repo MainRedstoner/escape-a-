@@ -1313,7 +1313,7 @@ const A3DWorlds = (() => {
   function drawMitPoster(x, w, h) {
     x.fillStyle = "#ece5d7"; x.fillRect(0, 0, w, h);
     x.strokeStyle = "#b9a88a"; x.lineWidth = 8; x.strokeRect(4, 4, w - 8, h - 8);
-    x.fillStyle = "#a31f34"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillStyle = "rgb(97, 214, 214)"; x.textAlign = "center"; x.textBaseline = "middle";
     x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, h * 0.12);
     // GitHub Octicon law，蓝色，放大
     const law = new Path2D(MIT_LAW_D);
@@ -1322,12 +1322,12 @@ const A3DWorlds = (() => {
     x.translate(w / 2, h * 0.45);
     x.scale(sc, sc);
     x.translate(-12, -12);
-    x.fillStyle = "#2f6fd0";
+    x.fillStyle = "rgb(0, 55, 218)";
     x.fill(law);
     x.restore();
-    x.fillStyle = "#2a2a2a";
+    x.fillStyle = "rgb(58, 150, 221)";
     x.font = "italic bold 78px 'Noto Serif SC','Songti SC',SimSun,serif";
-    x.fillText("开源盛世", w / 2, h * 0.91);
+    x.fillText("开源盛世", w / 2, h * 0.87);
   }
 
   function buildRoomCompact(opts) {
