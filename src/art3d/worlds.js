@@ -1149,8 +1149,8 @@ const A3DWorlds = (() => {
   function drawWallArt(x, w, h) {
     x.clearRect(0, 0, w, h);
     const whaleBlue = "#7ec8e8", whaleDark = "#205468", whaleBelly = "#d8f3fc";
+    // 尾巴、胸鳍先画，根部伸进身体
     x.strokeStyle = whaleDark; x.lineWidth = 6; x.fillStyle = whaleBlue;
-    // 尾巴先画，尾根伸进身体，随后身体盖住接缝
     x.beginPath();
     x.moveTo(84, 210);
     x.quadraticCurveTo(20, 165, -32, 168);
@@ -1158,34 +1158,42 @@ const A3DWorlds = (() => {
     x.quadraticCurveTo(-8, 232, -32, 262);
     x.quadraticCurveTo(20, 258, 84, 232);
     x.closePath(); x.fill(); x.stroke();
-    // 胸鳍先画，根部埋进身体
     x.beginPath(); x.ellipse(146, 278, 30, 13, 0.45, 0, TAU); x.fill(); x.stroke();
-    // 鲸鱼身体
-    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.fill(); x.stroke();
-    // 肚皮
+    // 身体填充（先不描边）
+    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.fill();
+    // 白肚皮裁剪在身体内部，避免和蓝色轮廓相交
+    x.save();
+    x.beginPath(); x.ellipse(160, 218, 118, 66, -0.08, 0, TAU); x.clip();
     x.fillStyle = whaleBelly;
-    x.beginPath(); x.ellipse(186, 242, 92, 38, -0.05, 0, TAU); x.fill();
-    // 眼睛、微笑、喷水
+    x.beginPath(); x.ellipse(170, 250, 80, 34, -0.02, 0, TAU); x.fill();
+    x.restore();
+    // 最后描身体轮廓，保证蓝边完整
+    x.strokeStyle = whaleDark; x.lineWidth = 6;
+    x.beginPath(); x.ellipse(160, 218, 120, 68, -0.08, 0, TAU); x.stroke();
+    // 眼睛、微笑
     x.fillStyle = "#173b4c";
     x.beginPath(); x.arc(245, 202, 8, 0, TAU); x.fill();
     x.strokeStyle = "#173b4c"; x.lineWidth = 4;
     x.beginPath(); x.arc(258, 220, 16, 0.2, 1.2); x.stroke();
-    x.strokeStyle = "#a9e4f6"; x.lineWidth = 7;
-    x.beginPath(); x.moveTo(170, 150); x.bezierCurveTo(158, 110, 192, 100, 185, 74); x.stroke();
-    x.beginPath(); x.moveTo(185, 74); x.quadraticCurveTo(205, 95, 222, 80); x.stroke();
-    // Clawd：四肢和尾巴先画，身体最后盖住根部
-    x.strokeStyle = "#8a3f26"; x.lineWidth = 5; x.fillStyle = "#E08A5F";
-    x.fillRect(352, 250, 24, 72); x.strokeRect(352, 250, 24, 72);
-    x.fillRect(404, 250, 24, 72); x.strokeRect(404, 250, 24, 72);
-    x.fillRect(318, 210, 18, 56); x.strokeRect(318, 210, 18, 56);
-    x.fillRect(444, 210, 18, 56); x.strokeRect(444, 210, 18, 56);
-    x.beginPath(); x.moveTo(430, 235); x.quadraticCurveTo(492, 200, 480, 257);
-    x.quadraticCurveTo(462, 272, 430, 255); x.closePath(); x.fill(); x.stroke();
-    x.beginPath(); x.roundRect(335, 190, 110, 90, 20); x.fill(); x.stroke();
-    x.fillStyle = "#3a1a10";
-    x.fillRect(365, 214, 9, 14); x.fillRect(400, 214, 9, 14);
-    x.strokeStyle = "#3a1a10"; x.lineWidth = 3;
-    x.beginPath(); x.arc(388, 240, 12, 0.2, 1.2); x.stroke();
+    // 三股喷水 + 水滴
+    x.strokeStyle = "#a9e4f6"; x.lineWidth = 5; x.lineCap = "round";
+    x.beginPath(); x.moveTo(165, 150); x.quadraticCurveTo(159, 136, 158, 126); x.stroke();
+    x.fillStyle = "#d8f7ff";
+    [[150, 120, 10], [166, 113, 12], [182, 120, 9], [158, 101, 7], [174, 100, 7]].forEach(d => {
+      x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
+    });
+    // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
+    x.fillStyle = "#E08A5F";
+    x.fillRect(320, 226, 26, 20);
+    x.fillRect(438, 226, 26, 20);
+    x.fillRect(350, 264, 14, 48);
+    x.fillRect(376, 264, 14, 48);
+    x.fillRect(410, 264, 14, 48);
+    x.fillRect(436, 264, 14, 48);
+    x.beginPath(); x.roundRect(342, 188, 100, 80, 8); x.fill();
+    x.fillStyle = "#2a120b";
+    x.fillRect(366, 204, 8, 24);
+    x.fillRect(402, 204, 8, 24);
     // 爱心
     const heart = (cx, cy, sc, col) => {
       x.save(); x.translate(cx, cy); x.scale(sc, sc);
