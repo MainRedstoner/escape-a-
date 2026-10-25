@@ -32,7 +32,8 @@
 | 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `SCRIPT_FILES` 按同一顺序登记，两处一致 |
 | 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.py` `SPEAKERS` + 立绘文件 |
 | 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.py` 白名单 |
-| 新程序化背景 | `src/backdrops.js` 的 `LIST` + `engine.js` 的 `audioForBg`（校验器自动认） |
+| 新 3D 背景场景 | `src/art3d/worlds*.js` 里 `A3D.register(id, …)` + `tools/validate_script.py` `PROCEDURAL_BG` + `DESIGN.md` 背景表 |
+| 新环境音（跟背景绑定） | `src/audio.js` `ambience()` 的 switch（不在剧本里，所以不用进白名单） |
 | 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.py` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.py` 同语义分支 + `tools/validate_script.py` 检查 + STORY_GUIDE.md 节点表 |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
@@ -55,6 +56,9 @@ python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 /
 ```bash
 python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
+
+3D 背景改完后，先在浏览器里用 `index.html?bg=<场景id>` 单独看一遍（光、构图、帧率），
+再走一遍正常流程；WebGL2 不可用时会自动回落到占位卡，所以**不要只测一次就假定没问题**。
 
 改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测（具体手段见 [DEBUGGING.md](DEBUGGING.md)）：
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。

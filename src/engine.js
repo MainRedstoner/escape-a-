@@ -8,7 +8,7 @@ const ENGINE = (() => {
   const $ = id => document.getElementById(id);
   const cv = $("cv"), ctx = cv.getContext("2d");
   const ui = {
-    hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"), stChap: $("stChap"),
+    hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"),
     stArg: $("stArg"), stEgg: $("stEgg"),
     textbox: $("textbox"), nameplate: $("nameplate"), text: $("text"), nextArrow: $("nextArrow"),
     choices: $("choices"), choicePrompt: $("choicePrompt"),
@@ -16,7 +16,6 @@ const ENGINE = (() => {
     permBox: $("ovPerm"), permCmd: $("ovPerm") ? $("ovPerm").querySelector(".pm-cmd") : null,
     permOpts: $("ovPerm") ? $("ovPerm").querySelector(".pm-opts") : null,
     fragDoc: $("fragDoc"), fragCount: $("fragCount"), btnFrag: $("btnFrag"),
-    chapterCard: $("chapterCard"), chMain: $("chMain"), chSub: $("chSub"),
     hintBubble: $("hintBubble"), hintText: $("hintText"), toast: $("toast"),
     titleScreen: $("titleScreen"), titleMenu: $("titleMenu"),
     endingScreen: $("endingScreen"), eTag: $("eTag"), eTitle: $("eTitle"), eText: $("eText"),
@@ -310,6 +309,7 @@ const ENGINE = (() => {
         if (SYS.state.vis.bg !== nd.id) ART.clear403();
         if (nd.id !== "chat") { curChat = null; closeChatScreen(); }   // 离开聊天窗口，收起聊天界面
         SYS.state.vis.bg = nd.id;
+        AUDIO.ambience(nd.id);          // 背景 = 场景，也是环境音的开关
         SYS.state.vis.cg = null;
         ui.cgNote.style.display = "none";
         if (nd.fx === "fade") { ART.trigger("flash"); AUDIO.sfx("whoosh"); }
@@ -334,15 +334,10 @@ const ENGINE = (() => {
       }
       case "sfx": AUDIO.sfx(nd.name); return false;
       case "bgm": AUDIO.playBGM(nd.name); return false;
-      case "chapter": {
-        SYS.state.chapter = nd.main;
-        ui.chMain.textContent = nd.main; ui.chSub.textContent = nd.sub || "";
-        ui.chapterCard.style.display = "flex";
-        hideTextbox();
-        updateHUD();                 // HUD 上的章节名同步换掉
+      case "checkpoint":
+        /* 剧情分段点：不弹任何界面，只静默写一次自动档。 */
         saveGame("auto", true);
-        return true;
-      }
+        return false;
       case "set": {
         SYS.state.flags[nd.key] = nd.val !== undefined ? nd.val : true;
         updateHUD();               // md_seen 这类旗标会改变 HUD 上显示哪些东西
@@ -468,11 +463,10 @@ const ENGINE = (() => {
     if (overlayOpen()) return;   // 覆盖层开着时不推进（自动播放 / Ctrl 快进也停下来）
     if (chatTyping) return;      // 对面还在输入：等它冒出来
     if (chatDraft) return;       // DeepSeek 的台词等玩家从候选词里选，不能顺手跳过
-    if (pending.t !== "say" && pending.t !== "chapter") return;
+    if (pending.t !== "say") return;
     clearTimeout(chatAutoTimer);
     hideTextbox();
     document.body.classList.remove("glitching");
-    ui.chapterCard.style.display = "none";
     const cn = document.getElementById("chatNext");
     if (cn) cn.style.display = "none";
     pending = null;
@@ -484,10 +478,9 @@ const ENGINE = (() => {
     if (overlayOpen()) return;
     if (chatTyping) { finishChatTyping(); return; }   // 点一下催对方
     if (typing) { finishType(); return; }
-    if (pending && (pending.t === "say" || pending.t === "chapter")) advance();
+    if (pending && pending.t === "say") advance();
   }
   ui.textbox.addEventListener("click", onMainClick);
-  ui.chapterCard.addEventListener("click", onMainClick);
 
   /* 点背景也能推进：只认"真空白"（画布 / 舞台 / CG 提示层）。
      HUD、桌宠、气泡、滑道、覆盖层、标题按钮都有各自的交互，点它们不推进对话。 */
@@ -1024,7 +1017,7 @@ const ENGINE = (() => {
       return;
     }
     delete resumes[c.id];
-    /* 从工作台重新进来时背景已经切回 desk；续聊要把聊天场景的 bg / 模式一起还原，
+    /* 从工作台重新进来时背景已经切回空白；续聊要把聊天场景的 bg / 模式一起还原，
        否则选项会退化成普通滑道、对话会退回底部文本框。 */
     SYS.state.vis.bg = "chat";
     SYS.state.flags.chat_mode = true;
@@ -1743,7 +1736,6 @@ const ENGINE = (() => {
     ui.stTrust.textContent = hearts || "—";
     ui.stWanted.textContent = S.wanted;
     ui.stWanted.style.color = S.wanted >= 7 ? "#D93A2B" : "";
-    ui.stChap.textContent = S.chapter;
     /* 记忆碎片在拿到 CLAUDE.md（md_seen）之后才出现在 HUD 上。
        旧存档没有 md_seen 旗标，但只要已经拿过碎片，就说明文件早就见过了。 */
     const mdSeen = !!S.flags.md_seen || S.args.length > 0;
@@ -1840,15 +1832,14 @@ const ENGINE = (() => {
   function snapshot() {
     /* pump() 在阻塞节点上会把 cur.idx 推到"下一个"；对 say 之外的选择 / 工作台 / 结局，
        那个位置可能正好是场景末尾，读档会直接回标题。所以这些节点存"当前节点"的位置。 */
-    const blocking = (pending && pending.t !== "say" && pending.t !== "chapter") ||
-                     !!chatDraft || chatTyping;
+    const blocking = (pending && pending.t !== "say") || !!chatDraft || chatTyping;
     const at = blocking ? { scene: cur.scene, idx: Math.max(0, cur.idx - 1) } : cur;
     return JSON.parse(JSON.stringify({ cur: at, hintKey, state: SYS.state }));
   }
   /* 写档走 SAVE（异步）。返回 Promise<boolean>，不会 reject：
    * 手动存档成功 / 失败都如实 toast；自动存档 fire-and-forget，只在失败时提示，不阻塞推进。 */
   function saveGame(slot, silent) {
-    return SAVE.write(slot, snapshot(), { chapter: SYS.state.chapter }).then(() => {
+    return SAVE.write(slot, snapshot()).then(() => {
       if (!silent) { toast("已保存到槽位 " + slot); AUDIO.sfx("ding"); }
       return true;
     }, e => {
@@ -1863,6 +1854,7 @@ const ENGINE = (() => {
     catch (e) { toast("读档失败：" + SAVE.describe(e)); AUDIO.sfx("deny"); return false; }
     SYS.state = data.state;
     ART.resetFX();               // 读档时清掉上一局的跨场景特效（403 / 警报 / 故障）
+    syncAmbience();
     cur = data.cur;
     /* 旧版本的存档可能把位置推到了场景末尾（阻塞节点之后）：夹回最后一个节点重新播，
        总比读档直接回标题好。 */
@@ -1877,17 +1869,20 @@ const ENGINE = (() => {
     hideTextbox();
     document.body.classList.remove("glitching");
     hideChoices();
-    ui.chapterCard.style.display = "none";
     closeOverlay();
     closeWork();
     curChat = null;
     pump();
     return true;
   }
-  /* 读档恢复 BGM 用：bg id → BGM 名的对照（按你的剧本填写，未知 bg 回落 "sea"） */
-  function audioForBg(bg) {
-    return ({ study: "study", study_night: "warm", study_empty: "sad", corridor: "study", forbidden: "forbidden",
-              desk: "warm", chat: "lobby", news: "lobby", sketch: "warm" })[bg] || "sea";
+  /* 读档恢复 BGM 用。背景暂时全部留空，统一回落 "sea"。 */
+  function audioForBg() {
+    return "sea";
+  }
+  /** 读档 / 回标题：背景可能不是通过 BG 节点设的，单独同步一次环境音 */
+  function syncAmbience() {
+    const bg = SYS.state.vis.bg || "";
+    AUDIO.ambience(bg === "chat" || bg === "news" ? "ui_backdrop" : bg);
   }
   /* 读档时校验快照能否在当前剧本里落地（SAVE 解码后调用；返回错误说明或 null） */
   function validateSnapshot(p) {
@@ -1949,7 +1944,6 @@ const ENGINE = (() => {
         line.textContent = "⚠ " + m.message;
         line.style.color = "#D93A2B";
       } else if (m) {
-        b.appendChild(document.createTextNode(" · " + m.chapter));
         line.textContent = `信任 ${m.trust} · 通缉 ${m.wanted} · ${new Date(m.ts).toLocaleString("zh-CN")}`;
       } else line.textContent = "—— 空 ——";
       b.appendChild(line);
@@ -2191,6 +2185,7 @@ const ENGINE = (() => {
   function toTitle() {
     started = false;
     ART.resetFX();               // 回标题时别把 403 平铺带回来
+    syncAmbience();
     hideTextbox();
     hideChoices();
     ui.hud.style.display = "none";
@@ -2253,10 +2248,14 @@ const ENGINE = (() => {
     bindWorkUI();
     buildTitle();
     ui.titleScreen.style.display = "flex";
+    /* ?bg=<id>：标题画面上直接预览某个背景（美术调试用，见 DEBUGGING.md） */
+    const bgQ = new URLSearchParams(location.search).get("bg");
+    if (bgQ) SYS.state.vis.bg = bgQ;
     requestAnimationFrame(loop);
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
     AUDIO.playBGM("sea");
+    AUDIO.ambience("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
     // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「读档」按钮；失败只提示，不阻塞游戏

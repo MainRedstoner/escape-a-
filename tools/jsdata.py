@@ -601,19 +601,6 @@ def load_systems(rel="src/systems.js"):
     return data
 
 
-def load_backdrop_ids(rel="src/backdrops.js"):
-    """只取 LIST 的 key（值里是 makeStudy(...) 之类的调用，不需要执行）。"""
-    src = _read(rel)
-    m = re.search(r"\bconst\s+LIST\s*=", src)
-    if not m:
-        raise JsError(f"{rel}: 找不到 const LIST")
-    block, _, _ = _extract_block(src, m)
-    node = parse_expression(block, f"{rel}:LIST")
-    if node[0] != "object":
-        raise JsError(f"{rel}: LIST 不是对象字面量")
-    return [k for k, _ in node[1]]
-
-
 def load_manifest(rel="assets/manifest.js"):
     """manifest.js 由 make_manifest.py 生成：`window.EA_ASSETS = {...json...};`"""
     src = _read(rel)
@@ -632,10 +619,9 @@ def load_manifest(rel="assets/manifest.js"):
 
 
 def load_story():
-    """工具的统一入口：剧本 + 元数据 + 背景 + 素材清单。"""
+    """工具的统一入口：剧本 + 元数据 + 素材清单。"""
     return {
         "scenes": load_script(),
         "sys": load_systems(),
-        "backdrops": set(load_backdrop_ids()),
         "assets": load_manifest(),
     }

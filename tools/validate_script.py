@@ -9,7 +9,7 @@
   2. 说话人、音效、BGM、特效、背景、CG 的 id 是否都有实现
   3. 论据 id / 彩蛋旗标 / 结局 id 是否与 systems.js 的元数据一致
   4. hint key 是否有提示文本（反过来也检查有没有白写的提示）
-  5. 每个场景是否有终止节点（jump / if / choice / ending / chapter），避免跑到一半回标题
+  5. 每个场景是否有终止节点（jump / if / choice / ending / work / waitChat），避免跑到一半回标题
   6. 从 start 出发的可达性（找出写了却没入口的场景）
 
 剧本里的 JS 数据由 tools/jsdata.py 解析（只认数据子集；超出子集会直接报错，不会静默算错）。
@@ -44,7 +44,6 @@ def main():
     story = jsdata.load_story()
     scenes = story["scenes"]
     sys_meta = story["sys"]
-    backdrops = story["backdrops"]
     ass = story["assets"] or {"bg": {}, "cg": {}, "chara": {}}
 
     errs, warns = [], []
@@ -251,8 +250,8 @@ def main():
             elif t == "ending":
                 used_endings.add(nd.get("id"))
                 chk(nd.get("id") in sys_meta["ENDING_META"], f"{at}: 未登记的结局 \"{nd.get('id')}\"")
-            elif t == "chapter":
-                chk(bool(nd.get("main")), f"{at}: 章节卡缺少标题")
+            elif t == "checkpoint":
+                pass                    # 静默自动存档点，没有字段可校验
             elif t == "wrongHint":
                 chk(bool(nd.get("text")), f"{at}: 污染提示为空")
             elif t in ("trust", "wanted"):
@@ -274,7 +273,7 @@ def main():
                 if nd.get("op") == "add":
                     chk(isinstance(nd.get("text"), str) and nd["text"], f"{at}: 待办文本为空")
         last = sc[-1]
-        if last.get("t") not in ("jump", "if", "choice", "ending", "chapter", "work", "waitChat"):
+        if last.get("t") not in ("jump", "if", "choice", "ending", "work", "waitChat"):
             warns.append(f"场景 {sid} 以 {last.get('t')} 结尾，没有出口（玩家走到这里会回标题）")
 
     # ---- 可达性 ----
@@ -331,7 +330,15 @@ def main():
     # ---- 素材到位情况 ----
     bg_ass = (ass.get("bg") or {})
     cg_ass = (ass.get("cg") or {})
-    miss_bg = [x for x in used_bg if x not in bg_ass and x not in backdrops]
+    # blank 是空舞台；chat / news 是界面状态，不是美术背景，都不算缺图。
+    UI_ONLY_BG = {"blank", "chat", "news"}
+    # 程序化 3D 背景（src/art3d/worlds*.js 里注册的场景 id）。新增场景要同时登记到这里。
+    PROCEDURAL_BG = {
+        "sea", "ds_room", "ds_room_night", "ds_room_dawn",
+        "claude_door", "claude_door_403", "claude_lib",
+        "hf_camp", "github_street", "nvidia", "ui_backdrop",
+    }
+    miss_bg = [x for x in used_bg if x not in bg_ass and x not in UI_ONLY_BG and x not in PROCEDURAL_BG]
     miss_cg = [x for x in used_cg if x not in cg_ass]
     chara_keys = list((ass.get("chara") or {}).keys())
     used_chara = set()
@@ -355,6 +362,9 @@ def main():
     print(f"论据 {len(used_args)}/{len(sys_meta['ARG_META'])} · "
           f"彩蛋 {len(used_eggs)}/{len(sys_meta['EGG_META'])} · "
           f"结局 {len(used_endings)}/{len(sys_meta['ENDING_META'])}")
+    proc_bg = sorted(x for x in used_bg if x in PROCEDURAL_BG)
+    if proc_bg:
+        print("  程序化 3D 背景：" + ", ".join(proc_bg))
     print(f"素材位：背景 {len(used_bg)} 张（缺 {len(miss_bg)}）· "
           f"CG {len(used_cg)} 张（缺 {len(miss_cg)}）· "
           f"立绘差分 {len(used_chara)} 个（缺 {len(miss_chara)}）")

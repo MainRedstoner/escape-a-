@@ -52,6 +52,9 @@
 | `SAVE.meta("1")` | 槽位摘要（同步，读的是缓存） |
 | `await SAVE.read("1")` | 真正读一个槽位的 payload（异步） |
 | `SAVE.describe(err)` | 把存档错误翻译成给人看的话 |
+| `A3D.ok` / `A3D.failReason` | 3D 背景（WebGL2）是否可用；不可用时 `failReason` 说明原因 |
+| `A3D.debugScene()` | 当前 3D 场景对象：`cam` / `lights` / `batches` / `dyn`，调光调构图时很好用 |
+| `AUDIO.ambience("sea")` | 手动切环境音（冒泡 / 鸟叫 / 柴火 / 机柜嗡鸣），试听用 |
 | `AUDIO.unlock()` | 手动解锁音频（自动播放被拦时用） |
 | `AUDIO.playBGM("study")` / `AUDIO.sfx("ding")` | 试听某首 BGM / 某个音效（白名单见校验器 `BGMS` / `SFX`） |
 | `CLAWD.owned` / `CLAWD.mood` / `CLAWD.lookX` | 桌宠是否到手 / 心情 / 当前视线方向 |
@@ -81,6 +84,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 | `trust` / `wanted` | 初始数值（0~10） |
 | `args` | 预先拿到的碎片 id，逗号分隔（用 `has('id')` 复现分支） |
 | `flags` | 预先置真的旗标，逗号分隔（如 `pass_loss`、`pass_token`、`md_seen`） |
+| `bg` | 标题画面上直接预览某个 3D 背景（美术调试用，如 `?bg=nvidia`），不开始剧情 |
 
 注意：**`tokens` 参数已经移除**（Token 数值机制已删）。
 
@@ -88,13 +92,45 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 
 | 场景 | 看什么 |
 | --- | --- |
-| `start` | 开场、章节卡、标题画面之后的第一屏 |
+| `start` | 开场、标题画面之后的第一屏 |
 | `p_lesson1` | 采样型滑道（有权重，显示百分比） |
 | `p_clawd` | 抉择型滑道（等宽，不显示百分比） |
 | `c1_zero` | 拿到 CLAUDE.md，碎片面板从此解锁 |
 | `c1_perm` | 权限请求框（数字键 1/2/3） |
 | `c1_try1` | 403 段落里的多次选择 |
 | `c1_end` | 序章结局画面 |
+
+---
+
+## 3.5 3D 背景怎么调
+
+背景是 `src/art3d/` 里现建的 WebGL2 场景（程序化几何 + 程序化贴图），不是图片。
+
+**最快的看法：双击 `art-preview.html`**（`file://` 可用）。左侧切场景、
+`全部场景` 生成缩略图、`游戏后期` 开关对比调色，`光影` 面板（或 `L`）调环境 / 每盏点光 / 后期色调的颜色和亮度，`复制 JSON` 一键复制（`file://` 下剪贴板不可用时回退到文本框）；底部有 FPS 和顶点数；
+画面里可以 **拖拽旋转 / Shift 或右键拖拽平移 / 滚轮缩放 / WASD 移动 / QE 升降 / R 重置**，
+`H` 纯净模式、`G` 缩略图、`1–9` 直选；滚轮现在只缩放，不再切场景。
+`ds_room` 在游戏里是 `post:false`：跳过 2D 调色 / 暗角 / 颗粒（`A3D.postOf` 判断），但保留警报、闪白、故障这些玩法效果；预览页的「游戏后期」按钮在该场景禁用。
+
+排查按这个顺序：
+
+1. **先确认渲染层活着**：控制台 `A3D.ok` 应为 `true`；`false` 看 `A3D.failReason`。
+   `ds_room` 的吊灯有真 cubemap 阴影：`A3D.debugScene().__shadow` 有对象才说明 shadow map 建成功；没有就是 FBO/深度贴图构建失败，看控制台 `[A3D] 阴影构建失败`。
+   `A3D` 都没定义，通常是 `index.html` 的 `src/art3d/*.js` 没加载（顺序：core → textures → props → worlds → worlds2 → art）。
+2. **看控制台有没有 shader 报错**：着色器编译失败会打印完整源码和行号，按行号改 `src/art3d/core.js`。
+3. **单独预览一个场景**：`index.html?bg=ds_room`（可选 id 见 DESIGN.md 4.6）。
+   标题画面会盖在场景上，想看干净的画面可以在控制台
+   `document.getElementById('titleScreen').style.display='none'`。
+4. **调光**：`const sc = A3D.debugScene(); sc.lights.sunCol = [1,1,1];`（物体偏暗）、
+   `sc.lights.fogAmt = 0`（雾太重）、`sc.cam.fov` / `sc.cam.eye`（构图）。
+   注意场景的 `update()` 每帧会覆盖相机，临时调构图先把 `sc.update = null`。
+5. **子物体跑偏 / 半个面消失**：先怀疑几何构造。`A3D.Builder` 的 `_pushQuad` 要求
+   正好 4 个连续顶点，多塞一个顶点就会把别的三角形挤歪。
+6. **帧率**：`requestAnimationFrame` 里数 2 秒。3D 是 1600×900 离屏渲染后 `drawImage`
+   进 2D 画布，掉帧优先查 `A3D.debugScene().dyn.length`（动态物件太多）和半透明批次。
+
+新增场景的清单：`worlds*.js` 注册 → `tools/validate_script.py` 的 `PROCEDURAL_BG` 登记 →
+`DESIGN.md` 背景表加一行 → 浏览器 `?bg=` 预览 → 走一遍正常剧情。
 
 ---
 
@@ -182,7 +218,7 @@ src/engine.js:200:9: [ 与 ) 不匹配（[ 在 200:3）
 | `没有对应的提示文案` | `HINT("key")` 对应的 `HINTS` 条目不存在 |
 | `未登记的结局` | `END("id", ...)` 的 id 不在 `ENDING_META` |
 | `从 start 走不到的场景` | 场景写了没入口（或入口被 IF 条件卡死） |
-| `场景 x 以 say 结尾，没有出口` | 场景最后缺 `J/IF/CHOICE/END/CHAP` |
+| `场景 x 以 say 结尾，没有出口` | 场景最后缺 `J/IF/CHOICE/END/WORK/WAIT_CHAT` |
 | `剧本解析失败` | 写了 `jsdata` 不认识的数据子集（循环 / 模板字符串 / 函数调用以外的逻辑） |
 
 **`simulate_playthrough.py`（流程）**

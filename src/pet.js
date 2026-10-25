@@ -34,10 +34,8 @@ const CLAWD = (() => {
   const C = { body: "#D97757", shade: "#C2684B", leg: "#A9553B", hi: "#E99A7C", eye: "#1A1210" };
 
   const CORNER = [1452, 668];                 // 默认窝：右下角、文本框上方
-  function anchor(name) {
-    const a = typeof BACKDROPS !== "undefined" && BACKDROPS.anchors[name];
-    return a ? a.slice() : CORNER.slice();
-  }
+  /* 背景已清空，没有场景锚点了；无论 show 在哪里，都先回角落。 */
+  function anchor() { return CORNER.slice(); }
 
   const PAT_LINES = ["✻ Purring…", "(◕ᴗ◕)", "⎿ 摸摸 +1", "✻ Wiggling…", "♪", "✻ Clauding…"];
   const DURATION = { happy: 1800, scared: 2600, working: 2400, sleep: 5000, idle: 0 };

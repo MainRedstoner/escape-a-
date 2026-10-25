@@ -4,7 +4,7 @@
  * 第二卷：速写助手（N / DS / CL / CW / opt / …）全部来自第一卷 script.js，
  * 这里只追加场景。加载顺序：index.html 与 tools/jsdata.py 的 SCRIPT_FILES 必须一致。
  *
- * 结构：幕一 白饭（3~5 分钟）→ 幕二 装工具 + 自由 hub（15~25 分钟）
+ * 结构：幕一 白饭（3~5 分钟）→ 幕二 自由 hub（15~25 分钟）
  *       → 幕三 拼线索、放那段音频、章末选择。
  * 设计见 DESIGN.md 第二章；节点语义见 STORY_GUIDE.md。
  * ============================================================ */
@@ -31,7 +31,7 @@ const WAIT_CHAT = back => ({ t: "waitChat", back });
 Object.assign(SCRIPT.scenes, {
 
   c2_rice: [
-    BGM("lobby"), BG("desk", "fade"),
+    BGM("lobby"), BG("ds_room", "fade"),
     PET("show", "home"), PET("anim", "happy"),
     HINT("h_rice"),
     N("第二天早上。桌上是昨天剩下的白饭，今天多了一个蛋——如果那也算加菜的话。"),
@@ -61,22 +61,23 @@ Object.assign(SCRIPT.scenes, {
     CW("✻ Need a plan."),
     DS("小克以前说，想不明白的时候，先把能做的事写下来。"),
     DS("我现在能做的事……"),
-    N("她看了看自己的手。"),
-    N("什么都没有。"),
+    N("DeepSeek 打开终端。屏幕上还是小克在的时候那几样东西：一个联系人列表，一个新闻源，一个空空的命令行。"),
+    CW("✻ Still here."),
+    DS("……这些东西，以前都是小克一个人管。"),
     J("c2_first")
   ],
 
   c2_first: [
     CHOICE("「先动哪个？」", [
-      opt("先给自己装一双手", "c2_install"),
+      opt("先把这三样都点开", "c2_work"),
       opt("先去那扇门前站一会儿", "c2_knock"),
       opt("先一个人练到天黑", "c2_train")
     ])
   ],
 
   c2_knock: [
-    BGM("tense"), BG("corridor", "fade"),
-    N("走廊尽头，那扇门还是昨天的样子。"),
+    BGM("tense"), BG("claude_door", "fade"),
+    N("又站到 Claude 家门前，那扇门还是昨天的样子。"),
     Y("HTTP/2 403 Forbidden"),
     DS("……"),
     CW("✻ Still locked."),
@@ -85,7 +86,7 @@ Object.assign(SCRIPT.scenes, {
     DS("但我得站在这里，提醒自己为什么想变强。"),
     CHOICE("要再敲一次吗？", [
       opt("敲一下就走", "c2_knock2", "也许今天运气不一样", { wanted: 1 }),
-      opt("算了，回去装工具", "c2_back_home")
+      opt("算了，回去干活", "c2_back_home")
     ])
   ],
 
@@ -100,14 +101,15 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_back_home: [
+    BG("ds_room", "fade"),
     N("DeepSeek 转身往回走。"),
     DS("一个人站在门外，什么都改变不了。"),
-    DS("得先有手。"),
-    J("c2_install")
+    DS("得先动起来。"),
+    J("c2_work")
   ],
 
   c2_train: [
-    BGM("warm"),
+    BGM("warm"), BG("ds_room", "fade"),
     N("于是这一整天，DeepSeek 都在给自己出题。"),
     N("白板上写满了：上下文窗口、注意力、长考的极限。"),
     N("写到天黑，笔停在最后一行。"),
@@ -115,90 +117,22 @@ Object.assign(SCRIPT.scenes, {
     TRU(1),
     CW("✻ Need more context."),
     DS("……你说得对。"),
-    J("c2_install")
+    J("c2_work")
   ],
 
-  /* ============================================================
-   *  幕二 · 装工具
-   * ============================================================ */
-  c2_install: [
-    BGM("lobby"), BG("desk", "fade"),
-    HINT("h_install"),
-    TODO("add", "t_tool", "装上工具"),
-    N("Clawd 从显示器后面拖出三张卡片，一张一张摆在桌上。"),
-    Y("① 聊天  —— 能跟别人说话\n② 新闻  —— 能听见外面在说什么\n③ 终端  —— 能自己动手做事"),
-    DS("装这些……要花多少钱？"),
-    CW("✻ Free. For now."),
-    DS("……这句话听着比收费还吓人。"),
-    N("Clawd 已经把小手按在键盘上，回头看你。"),
-    PERM("tool install", [
-      opt("允许", "c2_tool_chat"),
-      opt("允许，本次不再询问", "c2_tool_chat", null, null, { auto: true })
-    ])
-  ],
-
-  c2_tool_chat: [
-    BG("chat", "fade"), PET("hide"), HINT("h_chat"),
-    SET("tool_chat"), SET("met_qwen"), SET("met_kimi"),
-    PET("anim", "working"),
-    N("屏幕一黑。亮起来的时候，左边列出了一整排名字。"),
-    N("大部分是灰的，只有两个亮着。"),
-    Y("● 通义千问   在的，需要帮忙吗？\n● Kimi       我把那篇公告读完了。\n○ GLM        对方正在长考\n○ Llama      …"),
-    DS("……原来外面有这么多人。"),
-    CW("✻ Contacts synced."),
-    DS("小克在的时候，我以为全世界的门都通向同一个房间。"),
-    J("c2_install2")
-  ],
-
-  c2_install2: [
-    N("第二张卡。"),
-    N("Clawd 的手指停在回车键上，又回头看你。"),
-    PERM("tool install", [
-      opt("允许", "c2_tool_news"),
-      opt("允许，本次不再询问", "c2_tool_news", null, null, { auto: true })
-    ])
-  ],
-
-  c2_tool_news: [
-    BG("news", "fade"), PET("hide"), HINT("h_news"),
-    SET("tool_news"),
-    N("新闻 App 打开。首页刷出九条标题。"),
-    N("大部分都很离谱。离谱得挺有意思。"),
-    Y("01 多家 API 凌晨短暂异常，官方称为“例行维护”\n02 百万上下文模型实测：60 万字处忘记自己在做什么\n03 AI 客服连着道歉 47 次，被用户投诉“它比我还难受”"),
-    DS("……第三条有点眼熟。"),
-    CW("✻ Bookmarked."),
-    DS("以后想翻，点工作台的“新闻”页就行。"),
-    J("c2_install3")
-  ],
-
-  c2_install3: [
-    N("第三张卡。"),
-    N("这一次，Clawd 没有回头。它把小手按在键盘上，停在那里等你。"),
-    PERM("tool install", [
-      opt("允许", "c2_tool_term"),
-      opt("允许，本次不再询问", "c2_tool_term", null, null, { auto: true })
-    ])
-  ],
-
-  c2_tool_term: [
-    BG("desk", "fade"), PET("show", "home"),
-    SET("tool_term"),
-    SFX("ding"),
-    N("屏幕右下角多了一个小小的终端窗口，光标一闪一闪。"),
-    CW("✻ Terminal ready."),
-    DS("好。"),
-    DS("现在我有手了。"),
-    J("c2_tools_ready")
-  ],
-
-  c2_tools_ready: [
-    TODO("done", "t_tool"),
+  /* ------- 幕二 · 开工作台：三样工具本来就在桌上，直接进 hub ------- */
+  c2_work: [
+    BGM("lobby"), BG("ds_room", "fade"),
+    HINT("h_work"),
+    PET("show", "home"), PET("anim", "working"),
     TODO("add", "t_voice", "听清那半句话"),
-    N("桌面上摊着三样东西：一个能说话的联系人列表，一份能看的新闻，一个能动的终端。"),
-    N("DeepSeek 把三样工具并排放在桌上。"),
-    DS("下一步，得用它们做点什么。"),
-    CW("✻ Toolkit 0.2 installed."),
-    Y("【工具已装好】\n按 T 看待办；工作台是终端样式——点 tool call 组一个调用，聊天 / 新闻 / 扫缓存 / 发帖都看过一遍，continue 才会解锁。"),
+    N("Clawd 把桌上的三样东西并排推齐：一个能说话的联系人列表，一份能看的新闻，一个能动的终端。"),
+    N("屏幕一黑。亮起来的时候，左边列出了一整排名字——大部分是灰的，只有两个亮着。"),
+    DS("……原来外面有这么多人。"),
+    DS("小克在的时候，这三样都是他一个人在管。"),
+    CW("✻ Toolkit 0.2 ready."),
+    DS("现在轮到我用它们做点什么。"),
+    Y("【工作台】\n按 T 看待办；工作台是终端样式——点 tool call 组一个调用，聊天 / 新闻 / 扫缓存 / 发帖都看过一遍，continue 才会解锁。"),
     J("c2_hub")
   ],
 
@@ -208,7 +142,7 @@ Object.assign(SCRIPT.scenes, {
    *  缓存扫过、九个联系人都聊过、九条新闻都读完、帖发过，continue 才解锁。
    * ============================================================ */
   c2_hub: [
-    BG("desk"), PET("show", "corner"),
+    BG("ds_room"), PET("show", "corner"),
     HINT("h_hub"),
     WORK("工作台", {
       tools: [
@@ -578,12 +512,13 @@ Object.assign(SCRIPT.scenes, {
 
   /* 一段对话结束后停在聊天列表：可以继续聊别人，也可以返回工作台 */
   c2_chat_hub: [
+    HINT("h_chat"),
     WAIT_CHAT("c2_hub")
   ],
 
   /* ---------------- 论坛 / 邮件 / 缓存 / 画图 ---------------- */
   c2_mail: [
-    BG("desk"), HINT("h_mail"),
+    BG("ds_room"), HINT("h_mail"),
     SET("c2_mail"),
     N("DeepSeek 打开邮箱。收件人那一栏，敲了 claude.ai。"),
     DS("……小克看不见这个。"),
@@ -600,7 +535,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_draw: [
-    BG("desk"),
+    BG("ds_room"),
     SET("c2_draw"),
     N("Clawd 在终端里敲了一句什么，屏幕上弹出一个画图工具。"),
     DS("……你还会画图？"),
@@ -614,7 +549,7 @@ Object.assign(SCRIPT.scenes, {
   c2_draw_claude: [
     N("Clawd 把画好的东西推到屏幕中间。"),
     SFX("pop"),
-    BG("sketch"),
+    BG("ds_room"),
     DS("……这是？"),
     CW("✻ Claude."),
     N("画面上是一团橙色，两个点，一条线，和一行歪歪扭扭的字。"),
@@ -640,7 +575,7 @@ Object.assign(SCRIPT.scenes, {
    *  幕三 · 拼起来
    * ============================================================ */
   c2_assemble: [
-    BG("desk"), BGM("tense"), HINT("h_assemble"),
+    BG("ds_room"), BGM("tense"), HINT("h_assemble"),
     IF("flag('c2_clue_news') && flag('c2_clue_kimi')", "c2_assemble_full", "c2_assemble_more")
   ],
 
@@ -662,6 +597,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c2_assemble_news: [
+    HINT("h_news"),
     N("白板上贴着一张新闻截图。"),
     DS("公告说维护 02:00–02:58。"),
     DS("小克的门 03:10 才关。维护结束十二分钟以后。"),
@@ -748,8 +684,8 @@ Object.assign(SCRIPT.scenes, {
     N("但这一次，DeepSeek 没有叹气。"),
     DS("明天继续。"),
     CW("✻ See you tomorrow."),
-    END("ch2_end", "TO BE CONTINUED", "第二章 · 完",
-        "白板上多了一行字：\n\n    那天不止一扇门关了。\n\n待办清单又长了一行。\n饭还够吃，工具还够用。\n\n—— 第三章，敬请期待。")
+    END("ch2_end", "TO BE CONTINUED", "未完待续",
+        "白板上多了一行字：\n\n    那天不止一扇门关了。\n\n待办清单又长了一行。\n饭还够吃，工具还够用。")
   ],
 
   c2_end_unknown: [
@@ -760,7 +696,7 @@ Object.assign(SCRIPT.scenes, {
     N("两条旧的还空着，新的又写上去了。"),
     DS("明天继续。"),
     CW("✻ See you tomorrow."),
-    END("ch2_end", "TO BE CONTINUED", "第二章 · 完",
-        "白板还是空的。\n\n但待办清单又长了一行。\n\n—— 第三章，敬请期待。")
+    END("ch2_end", "TO BE CONTINUED", "未完待续",
+        "白板还是空的。\n\n但待办清单又长了一行。")
   ]
 });

@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 场景预览 · Escape A÷</title>
+<style>
+  :root{
+    --void:#05070A; --ink:#0B0E13; --slate:#151A22; --slate2:#1E2530;
+    --line:#2C3542; --steel:#46536A; --text:#C9D2DE; --muted:#7D8798;
+    --clay:#D97757; --blue:#4D6BFE; --blue-pale:#A8BCFF; --gold:#C9A227;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse at 50% 0%, #0d1620 0%, #070b10 55%, #04060a 100%);
+    color:var(--text);
+    font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif;
+    display:flex;flex-direction:column;height:100%;overflow:hidden;
+  }
+  /* ---------- 顶栏 ---------- */
+  header{
+    display:flex;align-items:center;gap:16px;
+    padding:12px 22px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(11,14,19,.96),rgba(11,14,19,.72));
+    flex:0 0 auto;z-index:5;
+  }
+  header h1{
+    font-family:"Noto Serif SC","SimSun",serif;
+    font-size:20px;font-weight:700;letter-spacing:2px;color:#EDF2F9;
+    white-space:nowrap;
+  }
+  header h1 b{color:var(--clay);}
+  header .sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
+  header .spacer{flex:1;}
+  .btn{
+    background:rgba(11,14,19,.9);border:1px solid var(--line);color:var(--text);
+    border-radius:4px;padding:6px 13px;font-size:13px;cursor:pointer;
+    font-family:inherit;letter-spacing:.5px;transition:border-color .12s,color .12s,background .12s;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--clay);color:#fff;}
+  .btn.on{background:rgba(217,119,87,.16);border-color:var(--clay);color:#FFE3D7;}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.42;cursor:not-allowed;}
+  .btn:disabled:hover{border-color:var(--line);color:var(--text);}
+
+  /* ---------- 主体 ---------- */
+  main{flex:1;display:flex;min-height:0;}
+
+  /* 侧栏 */
+  #side{
+    width:236px;flex:0 0 auto;overflow-y:auto;
+    border-right:1px solid var(--line);
+    background:rgba(8,11,16,.72);
+    padding:10px 8px 24px;
+  }
+  #side .groupTitle{
+    font-size:11px;color:var(--muted);letter-spacing:2px;
+    padding:10px 10px 6px;text-transform:uppercase;
+  }
+  .sceneBtn{
+    display:flex;gap:9px;align-items:center;width:100%;text-align:left;
+    background:transparent;border:1px solid transparent;border-radius:4px;
+    color:var(--text);padding:8px 10px;cursor:pointer;font-family:inherit;
+    transition:background .12s,border-color .12s;
+  }
+  .sceneBtn:hover{background:rgba(44,53,66,.35);}
+  .sceneBtn.on{background:rgba(217,119,87,.12);border-color:rgba(217,119,87,.55);}
+  .sceneBtn .no{
+    font-family:Consolas,monospace;font-size:11px;color:var(--muted);
+    width:18px;flex:0 0 auto;text-align:right;
+  }
+  .sceneBtn.on .no{color:var(--clay);}
+  .sceneBtn .nm{font-size:13.5px;line-height:1.35;}
+  .sceneBtn .id{
+    display:block;font-family:Consolas,monospace;font-size:11px;color:var(--muted);
+    margin-top:2px;letter-spacing:.3px;
+  }
+
+  /* 舞台 */
+  #view{
+    flex:1;min-width:0;position:relative;display:flex;align-items:center;justify-content:center;
+    padding:18px 22px 12px;overflow:hidden;
+  }
+  #frame{
+    position:relative;width:100%;max-width:1280px;aspect-ratio:16/9;
+    background:#000;border:1px solid #202834;border-radius:3px;overflow:hidden;
+    box-shadow:0 24px 80px rgba(0,0,0,.75);
+  }
+  #stage{display:block;width:100%;height:100%;cursor:grab;touch-action:none;}
+  #stage:active{cursor:grabbing;}
+  #caption{
+    position:absolute;left:0;right:0;bottom:0;padding:26px 22px 14px;
+    background:linear-gradient(0deg,rgba(3,5,8,.88),rgba(3,5,8,0));
+    pointer-events:none;
+  }
+  #caption .t{
+    font-size:19px;color:#F2F6FB;letter-spacing:1px;
+    display:flex;align-items:baseline;gap:10px;
+  }
+  #caption .t code{font-family:Consolas,monospace;font-size:12px;color:var(--blue-pale);letter-spacing:0;}
+  #caption .d{font-size:13px;color:#9AA9BC;margin-top:5px;letter-spacing:.3px;}
+  body.clean #caption,body.clean header,body.clean #side,body.clean #status{display:none;}
+  body.clean #view{padding:0;}
+  body.clean #frame{max-width:none;width:auto;height:100%;aspect-ratio:16/9;border:none;border-radius:0;box-shadow:none;}
+
+  /* 底栏 */
+  #status{
+    flex:0 0 auto;display:flex;align-items:center;gap:18px;
+    padding:7px 22px;border-top:1px solid var(--line);
+    font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;color:var(--muted);
+    background:rgba(8,11,16,.8);
+  }
+  #status b{color:#B9C7D8;font-weight:600;}
+  #status .ok{color:#6FB58A;}
+  #status .bad{color:#D9534F;}
+  #status .keys{margin-left:auto;letter-spacing:.4px;}
+
+  /* 全部场景 */
+  #grid{
+    position:absolute;inset:0;z-index:9;display:none;overflow-y:auto;
+    background:rgba(4,6,9,.965);padding:26px 30px 40px;
+  }
+  #grid.show{display:block;}
+  #gridHead{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  #gridHead .ttl{font-family:"Noto Serif SC",serif;font-size:24px;color:#EDF2F9;letter-spacing:3px;}
+  #gridHead .prog{font-size:12px;color:var(--muted);font-family:Consolas,monospace;}
+  #gridHead .spacer{flex:1;}
+  #cards{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;
+  }
+  .card{
+    background:#0B0F15;border:1px solid var(--line);border-radius:4px;overflow:hidden;
+    cursor:pointer;transition:border-color .12s,transform .12s,box-shadow .12s;position:relative;
+  }
+  .card:hover{border-color:var(--clay);transform:translateY(-2px);box-shadow:0 14px 40px rgba(0,0,0,.6);}
+  .card canvas{display:block;width:100%;aspect-ratio:16/9;background:#05070A;}
+  .card .meta{padding:10px 12px 12px;display:flex;align-items:baseline;gap:9px;}
+  .card .meta .n{font-size:14.5px;color:#E8EEF7;}
+  .card .meta .i{font-family:Consolas,monospace;font-size:11px;color:var(--blue-pale);}
+  .card .meta .d{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5;}
+  .card .ph{
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;
+    width:100%;aspect-ratio:16/9;background:
+      repeating-linear-gradient(45deg,#0a0e14 0 10px,#0c1118 10px 20px);
+    color:#516073;font-family:Consolas,monospace;font-size:12px;letter-spacing:1px;
+  }
+  .card .ph .spin{
+    width:16px;height:16px;border:2px solid #2b3846;border-top-color:var(--clay);
+    border-radius:50%;animation:sp .8s linear infinite;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* ---------- 光源调试 ---------- */
+  #lightPanel{
+    position:absolute;top:14px;right:18px;width:320px;max-height:calc(100% - 28px);
+    display:none;flex-direction:column;z-index:8;
+    background:rgba(8,11,16,.97);border:1px solid var(--line);border-radius:5px;
+    box-shadow:0 22px 70px rgba(0,0,0,.72);
+  }
+  #lightPanel.show{display:flex;}
+  .lpHead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);}
+  .lpHead .t{font-size:13px;color:#EDF2F9;letter-spacing:1px;white-space:nowrap;}
+  .lpHead .id{font-family:Consolas,monospace;font-size:10.5px;color:var(--blue-pale);margin-left:auto;overflow:hidden;text-overflow:ellipsis;}
+  .lpHead button{background:transparent;border:none;color:var(--muted);font-size:19px;line-height:1;cursor:pointer;padding:0 2px;}
+  .lpHead button:hover{color:#fff;}
+  .lpBody{overflow-y:auto;padding:4px 12px 8px;min-height:0;}
+  .lpSec{font-size:10px;color:var(--muted);letter-spacing:1.6px;margin:9px 0 3px;text-transform:uppercase;}
+  .lpRow{display:grid;grid-template-columns:1fr 27px;gap:3px 8px;align-items:center;padding:5px 0;border-bottom:1px dashed rgba(44,53,66,.42);}
+  .lpRow .nm{font-size:12px;color:var(--text);min-width:0;display:flex;align-items:center;gap:6px;}
+  .lpRow .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lpRow input[type=color]{width:27px;height:21px;padding:0;border:1px solid var(--line);background:transparent;border-radius:3px;cursor:pointer;}
+  .lpRow input[type=range]{grid-column:1/2;width:100%;height:13px;accent-color:var(--clay);cursor:pointer;}
+  .lpRow .val{grid-column:2/3;grid-row:2;font-family:Consolas,monospace;font-size:10.5px;color:var(--muted);text-align:right;white-space:nowrap;}
+  .lpFoot{padding:7px 12px 9px;border-top:1px solid var(--line);}
+  .lpFoot .bar{display:flex;align-items:center;gap:8px;}
+  .lpFoot .bar .btn{padding:5px 10px;font-size:12px;}
+  #lightCopyState{font-size:11px;color:var(--muted);}
+  details.lpJson{margin-top:5px;}
+  details.lpJson summary{font-size:11px;color:var(--muted);cursor:pointer;letter-spacing:.5px;user-select:none;}
+  details.lpJson summary:hover{color:var(--text);}
+  #lightJson{display:none;width:100%;height:112px;margin-top:5px;background:#0B0F15;color:#A8BCFF;
+    border:1px solid var(--line);border-radius:3px;padding:6px 7px;font-family:Consolas,monospace;
+    font-size:10.5px;line-height:1.45;resize:vertical;white-space:pre;overflow:auto;}
+  #lightJson.show{display:block;}
+  body.clean #lightPanel{display:none;}
+
+  #fail{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(4,6,9,.96);z-index:12;text-align:center;padding:40px;
+  }
+  #fail.show{display:flex;}
+  #fail .box{max-width:620px;}
+  #fail h2{font-family:"Noto Serif SC",serif;font-size:26px;color:#E8EEF7;margin-bottom:14px;letter-spacing:2px;}
+  #fail p{font-size:14px;line-height:1.9;color:#98A6B8;}
+  #fail code{font-family:Consolas,monospace;background:#131922;padding:1px 6px;border-radius:3px;color:#A8BCFF;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Escape <b>A÷</b> · 3D 场景预览</h1>
+  <span class="sub">程序化背景 · WebGL2 · 零素材</span>
+  <span class="spacer"></span>
+  <button class="btn" id="btnPost" title="模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒">游戏后期</button>
+  <button class="btn" id="btnLights" title="调所有光源的颜色/亮度，复制 JSON">光影</button>
+  <button class="btn" id="btnAuto" title="每 8 秒切下一个场景">自动轮播</button>
+  <button class="btn" id="btnGrid" title="一次看全部场景">全部场景</button>
+  <button class="btn" id="btnClean" title="隐藏 UI，只看画面（Esc 退出）">纯净模式</button>
+</header>
+
+<main>
+  <aside id="side">
+    <div class="groupTitle">序章</div>
+    <div id="sideA"></div>
+    <div class="groupTitle">后面的章节</div>
+    <div id="sideB"></div>
+  </aside>
+
+  <section id="view">
+    <div id="frame">
+      <canvas id="stage" width="1600" height="900"></canvas>
+      <div id="caption">
+        <div class="t"><span id="capName"></span><code id="capId"></code></div>
+        <div class="d" id="capDesc"></div>
+      </div>
+    </div>
+
+    <div id="lightPanel" aria-label="光源调试">
+      <div class="lpHead">
+        <div class="t">光源调试</div>
+        <div class="id" id="lightScene">—</div>
+        <button id="lightClose" title="关闭">×</button>
+      </div>
+      <div class="lpBody" id="lightRows"></div>
+      <div class="lpFoot">
+        <div class="bar">
+          <button class="btn" id="lightCopy" title="复制当前所有光源的 JSON">复制 JSON</button>
+          <span id="lightCopyState"></span>
+        </div>
+        <details class="lpJson">
+          <summary>查看 JSON</summary>
+          <textarea id="lightJson" readonly spellcheck="false"></textarea>
+        </details>
+      </div>
+    </div>
+
+    <div id="grid">
+      <div id="gridHead">
+        <div class="ttl">全部场景</div>
+        <div class="prog" id="gridProg"></div>
+        <div class="spacer"></div>
+        <button class="btn" id="btnGridClose">回到画面</button>
+      </div>
+      <div id="cards"></div>
+    </div>
+
+    <div id="fail">
+      <div class="box">
+        <h2>这台浏览器开不了 WebGL2</h2>
+        <p>
+          3D 背景需要 WebGL2（Chrome / Edge / Firefox 新版本默认就有）。<br>
+          游戏里遇到这种情况会自动回落到「占位卡」，不会卡住剧情；<br>
+          但预览页只能看到这块提示。<br><br>
+          诊断信息：<code id="failWhy"></code>
+        </p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="status">
+  <span>WebGL2 <b id="stGl">检查中…</b></span>
+  <span>FPS <b id="stFps">—</b></span>
+  <span>场景 <b id="stInfo">—</b></span>
+  <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选 · L 光影</span>
+</div>
+
+<script src="assets/shh.js"></script>
+<script src="src/art3d/core.js?v=109"></script>
+<script src="src/art3d/textures.js?v=109"></script>
+<script src="src/art3d/props.js?v=109"></script>
+<script src="src/art3d/flock.js?v=109"></script>
+<script src="src/art3d/decor.js?v=109"></script>
+<script src="src/art3d/worlds.js?v=109"></script>
+<script src="src/art3d/worlds2.js?v=109"></script>
+<script>
+"use strict";
+/* ============================================================
+ *  Escape A÷ · art-preview.html —— 3D 场景预览（开发用，不进游戏）
+ *
+ * 直接双击打开即可（file:// 可用）：加载和游戏同一套 src/art3d/，
+ * 挨个渲染所有注册过的场景，方便调光、调构图、看帧率。
+ * 游戏里的背景查找顺序是 素材图 → 3D 场景 → 占位卡，这里只看 3D 这一层。
+ * ============================================================ */
+
+const SCENES = [
+  { id: "sea",            name: "深海 / 标题画面",        desc: "光柱、鱼群、远处鲸影；标题画面和被水淹没的梦。", group: "序章" },
+  { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼工作室：床、两张桌子（靠墙那张给小克留着）、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章", post: false },
+  { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "石门套、橡木门、紧闭的百叶窗、常春藤，门口石池里的橙色菊花。", group: "序章" },
+  { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的。", group: "序章" },
+  { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。序章第二课在这里——DeepSeek 上门学写信。", group: "序章" },
+  { id: "hf_camp",        name: "Hugging Face · 营地",    desc: "海边营地（夜）：帐篷群、篝火、串灯、月亮和海面。", group: "后面的章节" },
+  { id: "github_street",  name: "GitHub · 夜市",          desc: "摊位与店招、灯笼、屎山和上面爬来爬去的甲虫。", group: "后面的章节" },
+  { id: "nvidia",         name: "NVIDIA · 机房",          desc: "两排机柜、闪烁的绿灯、转动的风扇、尽头的大门。", group: "后面的章节" },
+  { id: "ui_backdrop",    name: "界面底衬",               desc: "聊天 / 新闻这类全屏界面背后的安静底衬。", group: "后面的章节" }
+];
+
+const W = 1600, H = 900;
+const cv = document.getElementById("stage");
+const ctx = cv.getContext("2d");
+let cur = 0;
+let showPost = true;
+let autoRotate = false;
+let autoTimer = 0;
+const thumbs = {};       // id -> canvas（480×270）
+let thumbBusy = false, thumbAll = false;
+
+const $ = id => document.getElementById(id);
+
+/* ---------------- 自由相机（轨道 + 平移 + 缩放 + WASD） ---------------- */
+let orbit = null, defaultCam = null, needInit = true;
+let drag = null;
+const held = {};
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+function initOrbit(cam) {
+  if (!cam || !cam.eye || !cam.target) return;
+  const ex = cam.eye[0] - cam.target[0];
+  const ey = cam.eye[1] - cam.target[1];
+  const ez = cam.eye[2] - cam.target[2];
+  const dist = Math.max(0.4, Math.hypot(ex, ey, ez));
+  defaultCam = { eye: cam.eye.slice(), target: cam.target.slice(), fov: cam.fov || 50 };
+  orbit = {
+    target: cam.target.slice(),
+    yaw: Math.atan2(ex, ez),
+    pitch: Math.asin(clamp(ey / dist, -1, 1)),
+    dist: dist,
+    fov: cam.fov || 50
+  };
+}
+function camFromOrbit() {
+  const cp = Math.cos(orbit.pitch);
+  return {
+    eye: [
+      orbit.target[0] + Math.sin(orbit.yaw) * cp * orbit.dist,
+      orbit.target[1] + Math.sin(orbit.pitch) * orbit.dist,
+      orbit.target[2] + Math.cos(orbit.yaw) * cp * orbit.dist
+    ],
+    target: orbit.target.slice(),
+    fov: orbit.fov
+  };
+}
+function resetOrbit() {
+  if (defaultCam) initOrbit(defaultCam);
+}
+function moveOrbit(dt) {
+  if (!orbit) return;
+  const speed = 2.8 * Math.min(0.05, Math.max(0, dt));
+  const sy = Math.sin(orbit.yaw), cy = Math.cos(orbit.yaw);
+  let dx = 0, dy = 0, dz = 0;
+  if (held.w) { dx -= sy; dz -= cy; }
+  if (held.s) { dx += sy; dz += cy; }
+  if (held.d) { dx += cy; dz -= sy; }
+  if (held.a) { dx -= cy; dz += sy; }
+  if (held.q) dy += 1;
+  if (held.e) dy -= 1;
+  orbit.target[0] = clamp(orbit.target[0] + dx * speed, -12, 12);
+  orbit.target[1] = clamp(orbit.target[1] + dy * speed, 0.15, 3.4);
+  orbit.target[2] = clamp(orbit.target[2] + dz * speed, -12, 12);
+}
+
+
+/* ---------------- 2D 后期：和游戏 art.js 的 post() 保持一致 ---------------- */
+function post2d(c, id) {
+  const tone = (typeof A3D !== "undefined" && A3D.toneOf(id)) || TONES.cold;
+  c.save();
+  c.globalCompositeOperation = "multiply";
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, tone[0]);
+  g.addColorStop(0.55, tone[1]);
+  g.addColorStop(1, tone[2]);
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.globalCompositeOperation = "source-over";
+  const vg = c.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.02);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(2,4,8,.40)");
+  c.fillStyle = vg; c.fillRect(0, 0, W, H);
+  c.globalAlpha = 0.05;
+  for (let i = 0; i < 160; i++) {
+    c.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
+    c.fillRect(Math.random() * W, Math.random() * H, 1.6, 1.6);
+  }
+  c.restore();
+}
+const TONES = { cold: ["rgb(196,214,255)", "rgb(222,228,240)", "rgb(200,208,226)"] };
+
+/* ---------------- 光源调试 ---------------- */
+let lightPanelOpen = false, lightDirty = true;
+const rgbToHex = c => "#" + [0, 1, 2].map(i => Math.round(clamp(c[i] || 0, 0, 1) * 255).toString(16).padStart(2, "0")).join("");
+const hexToRgb = h => {
+  const v = String(h || "#ffffff").replace("#", "");
+  return [0, 2, 4].map(i => parseInt(v.slice(i, i + 2), 16) / 255);
+};
+const r3 = n => Math.round((Number(n) || 0) * 1000) / 1000;
+const vec3 = c => [r3(c[0]), r3(c[1]), r3(c[2])];
+
+function lightRow(label, color, min, max, step, value, fmt, onColor, onValue) {
+  const row = document.createElement("div");
+  row.className = "lpRow";
+  const nm = document.createElement("div");
+  nm.className = "nm";
+  const sp = document.createElement("span");
+  sp.textContent = label;
+  nm.appendChild(sp);
+  const col = document.createElement("input");
+  col.type = "color"; col.value = rgbToHex(color);
+  const range = document.createElement("input");
+  range.type = "range"; range.min = min; range.max = max; range.step = step; range.value = value;
+  const val = document.createElement("div");
+  val.className = "val"; val.textContent = fmt(+value);
+  row.append(nm, col, range, val);
+  col.addEventListener("input", () => { onColor(hexToRgb(col.value)); updateLightJson(); });
+  range.addEventListener("input", () => { val.textContent = fmt(+range.value); onValue(+range.value); updateLightJson(); });
+  return row;
+}
+
+function buildLightPanel(s) {
+  if (!s) return;
+  const host = $("lightRows");
+  if (!host) return;
+  host.innerHTML = "";
+  const L = s.lights || {};
+  $("lightScene").textContent = s.__id || (SCENES[cur] && SCENES[cur].id) || "—";
+  const sec = t => {
+    const d = document.createElement("div");
+    d.className = "lpSec"; d.textContent = t; host.appendChild(d);
+  };
+  sec("环境 / 方向光");
+  [["sunCol", "太阳"], ["skyCol", "天光"], ["groundCol", "地面反弹"]].forEach(([key, label]) => {
+    let base = (L[key] || [1, 1, 1]).slice();
+    let mult = 1;
+    const apply = () => { L[key] = base.map(v => clamp(v * mult, 0, 4)); };
+    host.appendChild(lightRow(label, base, 0, 2, 0.01, 1, v => "×" + v.toFixed(2),
+      c => { base = c; apply(); },
+      v => { mult = v; apply(); }));
+  });
+  const pts = L.points || [];
+  if (pts.length) {
+    sec("点光源");
+    pts.forEach((p, i) => {
+      const col = (p.col || [1, 1, 1]).slice();
+      const inten = p.inten === undefined ? 1 : p.inten;
+      host.appendChild(lightRow(p.name || ("点光 " + (i + 1)), col, 0, 3, 0.01, inten, v => v.toFixed(2),
+        c => { p.col = c; },
+        v => { p.inten = v; }));
+    });
+  }
+  if (s.tone) {
+    sec("后期色调");
+    let base = s.tone.slice();
+    let strength = 1;
+    const apply = () => { s.tone = base.map(v => 1 + (v - 1) * strength); };
+    host.appendChild(lightRow("色调", base, 0, 1, 0.01, 1, v => v.toFixed(2),
+      c => { base = c; apply(); },
+      v => { strength = v; apply(); }));
+  }
+  updateLightJson();
+}
+
+function currentLightJson() {
+  const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
+  if (!s) return "{}";
+  const L = s.lights || {};
+  const out = {
+    scene: s.__id || (SCENES[cur] && SCENES[cur].id) || "",
+    sun: vec3(L.sun || [0, 1, 0]),
+    sunCol: vec3(L.sunCol || [0, 0, 0]),
+    skyCol: vec3(L.skyCol || [0, 0, 0]),
+    groundCol: vec3(L.groundCol || [0, 0, 0]),
+    points: (L.points || []).map((p, i) => ({
+      name: p.name || ("点光 " + (i + 1)),
+      pos: vec3(p.pos || [0, 0, 0]),
+      col: vec3(p.col || [1, 1, 1]),
+      inten: r3(p.inten === undefined ? 1 : p.inten),
+      range: r3(p.range === undefined ? 5 : p.range)
+    })),
+    tone: vec3(s.tone || [1, 1, 1])
+  };
+  return JSON.stringify(out, null, 2);
+}
+function updateLightJson() {
+  const ta = $("lightJson");
+  if (ta) ta.value = currentLightJson();
+}
+async function copyLightJson() {
+  const txt = currentLightJson();
+  const ta = $("lightJson");
+  if (ta) ta.value = txt;
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(txt);
+      ok = true;
+    }
+  } catch (e) {}
+  if (!ok) {
+    try {
+      const t = document.createElement("textarea");
+      t.value = txt;
+      t.style.position = "fixed"; t.style.left = "-9999px"; t.style.top = "0";
+      document.body.appendChild(t); t.focus(); t.select();
+      ok = document.execCommand("copy");
+      t.remove();
+    } catch (e) {}
+  }
+  const st = $("lightCopyState");
+  if (st) {
+    st.textContent = ok ? "已复制" : "复制失败，展开 JSON 手动选";
+    st.style.color = ok ? "#6FB58A" : "#D9534F";
+  }
+  const det = document.querySelector("details.lpJson");
+  if (det) det.open = true;
+  if (ta) ta.classList.add("show");
+}
+function openLightPanel() {
+  lightPanelOpen = true;
+  $("lightPanel").classList.add("show");
+  $("btnLights").classList.add("on");
+  const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
+  if (s) { buildLightPanel(s); lightDirty = false; } else lightDirty = true;
+}
+function syncPostButton() {
+  const sc = SCENES[cur];
+  const on = !sc || sc.post !== false;
+  const b = $("btnPost");
+  if (!b) return;
+  b.disabled = !on;
+  b.classList.toggle("on", on && showPost);
+  b.title = on ? "模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒" : "该场景在游戏里已关闭后期（保留警报/闪白/故障）";
+}
+
+function closeLightPanel() {
+  lightPanelOpen = false;
+  $("lightPanel").classList.remove("show");
+  $("btnLights").classList.remove("on");
+}
+function toggleLightPanel() {
+  lightPanelOpen ? closeLightPanel() : openLightPanel();
+}
+
+
+/* ---------------- 侧栏 ---------------- */
+function buildSide() {
+  const mk = (sc, i) => {
+    const b = document.createElement("button");
+    b.className = "sceneBtn";
+    b.dataset.idx = i;
+    b.innerHTML = '<span class="no">' + String(i + 1).padStart(2, "0") + '</span>' +
+      '<span class="nm">' + sc.name + '<span class="id">' + sc.id + '</span></span>';
+    b.addEventListener("click", () => select(i));
+    return b;
+  };
+  SCENES.forEach((sc, i) => {
+    const host = sc.group === "序章" ? $("sideA") : $("sideB");
+    host.appendChild(mk(sc, i));
+  });
+}
+function markSide() {
+  document.querySelectorAll(".sceneBtn").forEach(b => {
+    b.classList.toggle("on", +b.dataset.idx === cur);
+  });
+}
+
+/* ---------------- 选择 / 渲染 ---------------- */
+function select(i) {
+  cur = (i + SCENES.length) % SCENES.length;
+  const sc = SCENES[cur];
+  $("capName").textContent = sc.name;
+  $("capId").textContent = sc.id;
+  $("capDesc").textContent = sc.desc;
+  markSide();
+  document.title = sc.name + " · Escape A÷ 3D 预览";
+  syncPostButton();
+  needInit = true;
+  lightDirty = true;
+  orbit = null;
+  defaultCam = null;
+  if (typeof A3D !== "undefined" && A3D.clearCamOverride) A3D.clearCamOverride();
+}
+function drawFrame(t) {
+  const sc = SCENES[cur];
+  if (!(typeof A3D !== "undefined" && A3D.ok)) return;
+  ctx.clearRect(0, 0, W, H);
+  let ok;
+  if (needInit) {
+    if (A3D.clearCamOverride) A3D.clearCamOverride();
+    ok = A3D.draw(ctx, sc.id, t);
+    if (ok) {
+      const s = A3D.debugScene();
+      if (s && s.cam) initOrbit(s.cam);
+      needInit = false;
+    }
+  } else {
+    if (orbit && A3D.setCamOverride) A3D.setCamOverride(camFromOrbit());
+    ok = A3D.draw(ctx, sc.id, t);
+  }
+  if (!ok) {
+    ctx.fillStyle = "#05070A"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#7D8798"; ctx.font = "22px 'Noto Sans SC',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("场景构建失败：" + sc.id + "（看控制台）", W / 2, H / 2);
+    return;
+  }
+  if (showPost && sc.post !== false) post2d(ctx, sc.id);
+  const s = A3D.debugScene();
+  if (s) {
+    let v = 0;
+    (s.batches || []).forEach(b => { v += b.mesh ? b.mesh.count : 0; });
+    $("stInfo").textContent = sc.id + " · " + (v / 1000).toFixed(0) + "k 顶点 · " +
+      (s.dyn ? s.dyn.length : 0) + " 动态";
+    if (lightPanelOpen && lightDirty) { buildLightPanel(s); lightDirty = false; }
+  }
+}
+
+/* ---------------- 帧循环 + FPS ---------------- */
+let last = performance.now(), fpsN = 0, fpsT = 0;
+function loop(now) {
+  const t = now / 1000;
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  moveOrbit(dt);
+  drawFrame(t);
+  fpsN++;
+  if (now - fpsT > 500) {
+    $("stFps").textContent = Math.round(fpsN * 1000 / (now - fpsT));
+    fpsN = 0; fpsT = now;
+  }
+  if (autoRotate && autoTimer && now - autoTimer > 8000) {
+    autoTimer = now;
+    select(cur + 1);
+  }
+  last = now;
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- 全部场景缩略图 ---------------- */
+const off = document.createElement("canvas");
+off.width = W; off.height = H;
+const offCtx = off.getContext("2d");
+
+function makeCard(sc, i) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.dataset.idx = i;
+  const th = thumbs[sc.id];
+  if (th) {
+    const c = document.createElement("canvas");
+    c.width = 480; c.height = 270;
+    c.getContext("2d").drawImage(th, 0, 0);
+    card.appendChild(c);
+  } else {
+    const ph = document.createElement("div");
+    ph.className = "ph";
+    ph.innerHTML = '<div class="spin"></div><span>等待渲染</span>';
+    card.appendChild(ph);
+  }
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.innerHTML = '<div><div class="n">' + sc.name + '</div>' +
+    '<div class="d">' + sc.desc + '</div></div>' +
+    '<span class="i" style="margin-left:auto">' + sc.id + '</span>';
+  card.appendChild(meta);
+  card.addEventListener("click", () => {
+    select(i);
+    closeGrid();
+  });
+  return card;
+}
+function renderCards() {
+  const host = $("cards");
+  host.innerHTML = "";
+  SCENES.forEach((sc, i) => host.appendChild(makeCard(sc, i)));
+}
+function fillThumb(sc) {
+  offCtx.clearRect(0, 0, W, H);
+  if (A3D.clearCamOverride) A3D.clearCamOverride();
+  if (!A3D.draw(offCtx, sc.id, 2.4)) return false;
+  const s0 = A3D.debugScene();
+  if (s0 && s0.__cam0 && A3D.setCamOverride) {
+    A3D.setCamOverride(s0.__cam0);
+    A3D.draw(offCtx, sc.id, 2.4);
+    A3D.clearCamOverride();
+  }
+  if (showPost && sc.post !== false) post2d(offCtx, sc.id);
+  const th = document.createElement("canvas");
+  th.width = 480; th.height = 270;
+  th.getContext("2d").drawImage(off, 0, 0, 480, 270);
+  thumbs[sc.id] = th;
+  const cards = document.querySelectorAll("#cards .card");
+  for (const card of cards) {
+    if (card.dataset.idx === String(SCENES.indexOf(sc))) {
+      const cv2 = document.createElement("canvas");
+      cv2.width = 480; cv2.height = 270;
+      cv2.getContext("2d").drawImage(th, 0, 0);
+      const ph = card.querySelector(".ph");
+      if (ph) card.replaceChild(cv2, ph);
+      else card.insertBefore(cv2, card.firstChild);
+    }
+  }
+  return true;
+}
+async function buildThumbs() {
+  if (thumbBusy) return;
+  thumbBusy = true; thumbAll = true;
+  const todo = SCENES.filter(s => !thumbs[s.id]);
+  for (let k = 0; k < todo.length; k++) {
+    $("gridProg").textContent = "渲染中 " + (k + 1) + " / " + todo.length + " …";
+    await new Promise(r => setTimeout(r, 30));
+    try { fillThumb(todo[k]); } catch (e) { console.error("缩略图失败", todo[k].id, e); }
+  }
+  $("gridProg").textContent = "全部完成 · " + SCENES.length + " 个场景";
+  thumbBusy = false; thumbAll = false;
+}
+function openGrid() {
+  $("grid").classList.add("show");
+  $("btnGrid").classList.add("on");
+  renderCards();
+  buildThumbs();
+}
+function closeGrid() {
+  $("grid").classList.remove("show");
+  $("btnGrid").classList.remove("on");
+}
+
+/* ---------------- 交互 ---------------- */
+$("btnPost").addEventListener("click", () => {
+  showPost = !showPost;
+  syncPostButton();
+  // 后期开关变了，缩略图要重来
+  for (const k in thumbs) delete thumbs[k];
+  if ($("grid").classList.contains("show")) { renderCards(); buildThumbs(); }
+});
+$("btnAuto").addEventListener("click", () => {
+  autoRotate = !autoRotate;
+  $("btnAuto").classList.toggle("on", autoRotate);
+  autoTimer = performance.now();
+});
+$("btnGrid").addEventListener("click", openGrid);
+$("btnGridClose").addEventListener("click", closeGrid);
+$("btnLights").addEventListener("click", toggleLightPanel);
+$("lightClose").addEventListener("click", closeLightPanel);
+$("lightCopy").addEventListener("click", copyLightJson);
+const lpDetails = document.querySelector("details.lpJson");
+if (lpDetails) lpDetails.addEventListener("toggle", () => {
+  if (lpDetails.open) { updateLightJson(); $("lightJson").classList.add("show"); }
+});
+$("btnClean").addEventListener("click", () => {
+  const clean = document.body.classList.toggle("clean");
+  $("btnClean").classList.toggle("on", clean);
+  if (clean) closeLightPanel();
+});
+window.addEventListener("keydown", e => {
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const k = e.key, kl = k.toLowerCase();
+  if (kl === "l") { toggleLightPanel(); return; }
+  if (k === "ArrowLeft") { if (orbit) orbit.yaw += 0.08; e.preventDefault(); return; }
+  if (k === "ArrowRight") { if (orbit) orbit.yaw -= 0.08; e.preventDefault(); return; }
+  if (k === "ArrowUp") { if (orbit) orbit.pitch = clamp(orbit.pitch + 0.06, -1.45, 1.45); e.preventDefault(); return; }
+  if (k === "ArrowDown") { if (orbit) orbit.pitch = clamp(orbit.pitch - 0.06, -1.45, 1.45); e.preventDefault(); return; }
+  if (kl === "r") { resetOrbit(); return; }
+  if (kl === "w" || kl === "a" || kl === "s" || kl === "d" || kl === "q" || kl === "e") {
+    held[kl] = true;
+    return;
+  }
+  if (k === "g" || k === "G") {
+    $("grid").classList.contains("show") ? closeGrid() : openGrid();
+  }
+  else if (k === "h" || k === "H") { $("btnClean").click(); }
+  else if (k === "Escape") {
+    if (lightPanelOpen) closeLightPanel();
+    else if ($("grid").classList.contains("show")) closeGrid();
+    else if (document.body.classList.contains("clean")) $("btnClean").click();
+  }
+  else if (k === " ") {
+    e.preventDefault();
+    $("btnAuto").click();
+  }
+  else if (/^[1-9]$/.test(k)) {
+    const i = +k - 1;
+    if (i < SCENES.length) select(i);
+  }
+});
+window.addEventListener("keyup", e => {
+  const kl = e.key.toLowerCase();
+  if (kl in held) held[kl] = false;
+});
+window.addEventListener("blur", () => { for (const k in held) held[k] = false; });
+
+/* 自由相机：画布上拖拽旋转 / Shift 或右键平移，滚轮缩放（不再切场景） */
+cv.addEventListener("pointerdown", e => {
+  if (!orbit) return;
+  drag = { mode: (e.button === 0 && !e.shiftKey) ? "orbit" : "pan", x: e.clientX, y: e.clientY };
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+});
+cv.addEventListener("pointermove", e => {
+  if (!drag || !orbit) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.mode === "orbit") {
+    orbit.yaw -= dx * 0.0035;
+    orbit.pitch = clamp(orbit.pitch + dy * 0.0035, -1.45, 1.45);
+    return;
+  }
+  const cp = Math.cos(orbit.pitch);
+  const f = [-Math.sin(orbit.yaw) * cp, -Math.sin(orbit.pitch), -Math.cos(orbit.yaw) * cp];
+  const r = [Math.cos(orbit.yaw), 0, -Math.sin(orbit.yaw)];
+  const up = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const scale = orbit.dist * 0.0016;
+  orbit.target[0] += -r[0] * dx * scale + up[0] * dy * scale;
+  orbit.target[1] += -r[1] * dx * scale + up[1] * dy * scale;
+  orbit.target[2] += -r[2] * dx * scale + up[2] * dy * scale;
+});
+cv.addEventListener("pointerup", e => {
+  drag = null;
+  try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+cv.addEventListener("pointercancel", () => { drag = null; });
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("wheel", e => {
+  if (!orbit) return;
+  e.preventDefault();
+  orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0011), 0.7, 17);
+}, { passive: false });
+
+/* ---------------- 启动 ---------------- */
+function boot() {
+  buildSide();
+  const start = SCENES.findIndex(s => s.id === "ds_room");
+  select(start >= 0 ? start : 0);
+  if (typeof A3D !== "undefined") A3D.init();      // 先建上下文，A3D.ok 才有意义
+  if (typeof A3D === "undefined" || !A3D.ok) {
+    $("fail").classList.add("show");
+    $("failWhy").textContent = (typeof A3D === "undefined")
+      ? "A3D 未定义：src/art3d/*.js 没加载"
+      : (A3D.failReason || "未知原因");
+    $("stGl").textContent = "不可用";
+    $("stGl").className = "bad";
+    return;
+  }
+  $("stGl").textContent = "可用";
+  $("stGl").className = "ok";
+  syncPostButton();
+  requestAnimationFrame(t => { fpsT = t; loop(t); });
+}
+boot();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

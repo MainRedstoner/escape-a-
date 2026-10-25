@@ -255,6 +255,8 @@ const ART = (() => {
     const lg = ctx.createRadialGradient(800, 420, 60, 800, 420, 720);
     lg.addColorStop(0, "rgba(90,120,170,.10)"); lg.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H);
+    /* blank 是真正的空舞台：只有底色和网格，不放占位卡文字。 */
+    if (id === "blank") return;
     plate(ctx, 430, 250, 740, 330,
       "背景素材位 · " + id,
       ["规范：1920 × 1080 · 不限格式（jpg/png）",
@@ -287,35 +289,11 @@ const ART = (() => {
   }
 
   /* ============================================================
-   *  程序化背景（src/backdrops.js）：静态层画进离屏缓存，动态层每帧叠加
+   *  气氛层（不是美术，只是别让占位卡太空）
    * ============================================================ */
-  const BD = typeof BACKDROPS !== "undefined" ? BACKDROPS : null;
-  const bdCache = {};
-  function drawBackdrop(ctx, id, t, speaking) {
-    const bd = BD && BD.get(id);
-    if (!bd) return false;
-    let off = bdCache[id];
-    if (!off) {
-      off = document.createElement("canvas");
-      off.width = W; off.height = H;
-      bd.draw(off.getContext("2d"));
-      bdCache[id] = off;
-    }
-    ctx.drawImage(off, 0, 0);
-    if (bd.anim) bd.anim(ctx, t, speaking);
-    return true;
-  }
-  function toneOf(id) {
-    const bd = BD && BD.get(id);
-    return bd ? bd.tone : "cold";
-  }
-
-  /* ============================================================
-   *  程序化"气氛层"（不是美术，只是别让画面空着）
-   * ============================================================ */
-  function atmosphere(ctx, t, bgId) {
-    // 暖光背景 id 列表（由剧本/素材决定）；不在列表里的一律走冷光
-    const cold = toneOf(bgId) === "warm" ? 0 : 1;
+  function atmosphere(ctx, t) {
+    // 背景暂时全部留空，统一走冷光
+    const cold = 1;
     // 浮尘
     for (const d of FX.dust) {
       ctx.fillStyle = `rgba(180,200,230,${d.a})`;
@@ -371,7 +349,6 @@ const ART = (() => {
   /* ============================================================
    *  主绘制
    * ============================================================ */
-  let lastBgId = "sea";
   function paint(ctx, vis, t, speaking) {
     const nowMs = t * 1000;
     const shakeAge = nowMs - FX.shakeT;
@@ -383,24 +360,27 @@ const ART = (() => {
       ctx.translate((Math.random() - 0.5) * 16 * k, (Math.random() - 0.5) * 16 * k);
     }
 
-    /* --- 背景 --- */
+    /* --- 背景：素材图 → 3D 场景 → 占位卡，挨个试 --- */
     const bgId = vis.bg || "sea";
-    lastBgId = bgId;
     const bgRec = imgOf("bg", bgId);
+    let bg3d = false;
     if (bgRec) {
       cover(ctx, bgRec.img, W, H);
       ctx.fillStyle = "rgba(4,7,12,.18)"; ctx.fillRect(0, 0, W, H);  // 统一压暗
-    } else if (!drawBackdrop(ctx, bgId, t, speaking)) {
+    } else if (typeof A3D !== "undefined" && A3D.draw(ctx, bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId, t)) {
+      bg3d = true;          // 3D 场景整幅画好，气氛粒子由场景自己负责
+    } else {
       placeholderBG(ctx, bgId, t, "（当前为占位卡：正式美术替换后自动生效）");
     }
-    atmosphere(ctx, t, bgId);
+    /* 空舞台连气氛粒子也不要，保持真正留空。 */
+    if (!bg3d && bgId !== "blank") atmosphere(ctx, t);
 
     /* --- CG --- */
     if (vis.cg) {
       const cgRec = imgOf("cg", vis.cg);
       if (cgRec) { cover(ctx, cgRec.img, W, H); }
       else placeholderCG(ctx, vis.cg);
-      post(ctx, t, vis);
+      post(ctx, t, vis, bgId, bg3d);
       draw403(ctx, nowMs);
       ctx.restore();
       return;
@@ -409,45 +389,50 @@ const ART = (() => {
     /* --- 立绘 --- */
     for (const sp of vis.sprites) drawSprite(ctx, sp, t, speaking);
 
-    post(ctx, t, vis);
+    post(ctx, t, vis, bgId, bg3d);
     draw403(ctx, nowMs);
     ctx.restore();
   }
 
   /* --- 后期：暗角 / 冷调 / 颗粒 / 故障 --- */
-  /* 调色：程序化背景自带 tone，素材图 / 占位卡一律走 cold */
+  /* 调色：素材图 / 占位卡一律走 cold */
   const TONES = {
     cold:  ["rgb(196,214,255)", "rgb(222,228,240)", "rgb(200,208,226)"],
     warm:  ["rgb(255,236,214)", "rgb(255,242,228)", "rgb(232,218,204)"],
     night: ["rgb(176,192,240)", "rgb(206,214,238)", "rgb(170,178,206)"],
     red:   ["rgb(255,206,200)", "rgb(240,214,212)", "rgb(206,176,176)"]
   };
-  function post(ctx, t, vis) {
+  function post(ctx, t, vis, bgId, bg3d) {
     const W2 = W, H2 = H;
-    const tone = TONES[vis.cg ? "cold" : toneOf(vis.bg)] || TONES.cold;
-    // 整体压色
-    ctx.globalCompositeOperation = "multiply";
-    const cg = ctx.createLinearGradient(0, 0, 0, H2);
-    cg.addColorStop(0, tone[0]);
-    cg.addColorStop(0.55, tone[1]);
-    cg.addColorStop(1, tone[2]);
-    ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
-    ctx.globalCompositeOperation = "source-over";
+    const realBg = bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId;
+    const gradeOn = !(bg3d && typeof A3D !== "undefined" &&
+      A3D.postOf && A3D.postOf(realBg) === false);
+    if (gradeOn) {
+      const tone = (bg3d && typeof A3D !== "undefined" && A3D.toneOf(realBg)) || TONES.cold;
+      // 整体压色
+      ctx.globalCompositeOperation = "multiply";
+      const cg = ctx.createLinearGradient(0, 0, 0, H2);
+      cg.addColorStop(0, tone[0]);
+      cg.addColorStop(0.55, tone[1]);
+      cg.addColorStop(1, tone[2]);
+      ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
+      ctx.globalCompositeOperation = "source-over";
 
-    // 暗角（比常规更重，但别把立绘吃掉）
-    const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(2,4,8,0.52)");
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
+      // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
+      const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
+      vg.addColorStop(0, "rgba(0,0,0,0)");
+      vg.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
 
-    // 胶片颗粒
-    ctx.save();
-    ctx.globalAlpha = 0.05;
-    for (let i = 0; i < 160; i++) {
-      ctx.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
-      ctx.fillRect(Math.random() * W2, Math.random() * H2, 1.6, 1.6);
+      // 胶片颗粒
+      ctx.save();
+      ctx.globalAlpha = 0.05;
+      for (let i = 0; i < 160; i++) {
+        ctx.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
+        ctx.fillRect(Math.random() * W2, Math.random() * H2, 1.6, 1.6);
+      }
+      ctx.restore();
     }
-    ctx.restore();
 
     // 警报红光
     if (FX.alarm > 0) {
