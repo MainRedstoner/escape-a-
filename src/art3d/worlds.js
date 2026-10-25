@@ -1176,24 +1176,31 @@ const A3DWorlds = (() => {
     x.strokeStyle = "#173b4c"; x.lineWidth = 4;
     x.beginPath(); x.arc(258, 220, 16, 0.2, 1.2); x.stroke();
     // 三股喷水 + 水滴
-    x.strokeStyle = "#a9e4f6"; x.lineWidth = 5; x.lineCap = "round";
-    x.beginPath(); x.moveTo(165, 150); x.quadraticCurveTo(159, 136, 158, 126); x.stroke();
+    x.strokeStyle = "#a9e4f6"; x.lineWidth = 6; x.lineCap = "round";
+    x.beginPath();
+    x.moveTo(165, 150); x.quadraticCurveTo(157, 126, 142, 108);
+    x.moveTo(165, 150); x.quadraticCurveTo(173, 126, 188, 108);
+    x.stroke();
     x.fillStyle = "#d8f7ff";
-    [[150, 120, 10], [166, 113, 12], [182, 120, 9], [158, 101, 7], [174, 100, 7]].forEach(d => {
+    [[140, 103, 5], [190, 103, 5]].forEach(d => {
       x.beginPath(); x.arc(d[0], d[1], d[2], 0, TAU); x.fill();
     });
     // Clawd：按参考图，宽橙矩形身体 + 2 只侧手 + 4 条腿 + 2 只竖眼，无嘴无尾无描边
     x.fillStyle = "#E08A5F";
-    x.fillRect(320, 226, 26, 20);
-    x.fillRect(438, 226, 26, 20);
-    x.fillRect(350, 264, 14, 48);
-    x.fillRect(376, 264, 14, 48);
-    x.fillRect(410, 264, 14, 48);
-    x.fillRect(436, 264, 14, 48);
-    x.beginPath(); x.roundRect(342, 188, 100, 80, 8); x.fill();
+    // 侧手：根部伸进身体
+    x.fillRect(306, 226, 28, 20);
+    x.fillRect(456, 226, 28, 20);
+    // 四条腿：左右两组对称，全部在身体宽度内
+    x.fillRect(342, 266, 14, 48);
+    x.fillRect(368, 266, 14, 48);
+    x.fillRect(408, 266, 14, 48);
+    x.fillRect(434, 266, 14, 48);
+    // 加宽的橙色身体
+    x.beginPath(); x.roundRect(330, 190, 130, 80, 8); x.fill();
+    // 两只竖眼
     x.fillStyle = "#2a120b";
-    x.fillRect(366, 204, 8, 24);
-    x.fillRect(402, 204, 8, 24);
+    x.fillRect(364, 206, 8, 24);
+    x.fillRect(418, 206, 8, 24);
     // 爱心
     const heart = (cx, cy, sc, col) => {
       x.save(); x.translate(cx, cy); x.scale(sc, sc);
