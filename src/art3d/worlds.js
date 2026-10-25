@@ -1252,7 +1252,7 @@ const A3DWorlds = (() => {
     const paperB = st.pen("paper", T.paper(), { tint: [1, 1, 1] });
     const bookB = st.pen("book", T.paper(), { tint: [1, 1, 1] });
     const potB = st.pen("pot", T.stone(), { tint: [0.8, 0.84, 0.9] });
-    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2 });
+    const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2, noShadow: true });
     const mugB = st.pen("mug", T.metal(), { tint: [0.75, 0.82, 0.95], spec: 0.5 });
     const screenDark = st.pen("screenDark", null, { unlit: true, tint: [0.03, 0.05, 0.08] });
 
@@ -1397,8 +1397,10 @@ const A3DWorlds = (() => {
     const penB = st.pen("penPlastic", null, { tint: [1, 1, 1], spec: 0.25 });
     for (let i = 0; i < 3; i++) {
       const px = 1.02 + (i - 1) * 0.016, pz = deskZ + 0.23 + (i - 1) * 0.01;
-      penB.cyl.call(penB, m4(px, deskH + 0.06, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1)), 0.005, 0.005, 0.16, 6, penCols[i], true);
-      penB.cyl.call(penB, m4(px, deskH + 0.22, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1)), 0.002, 0.005, 0.012, 6, [0.15, 0.15, 0.15], true);
+      // 整支笔共用同一个倾斜矩阵，笔尖沿笔杆轴线放到顶端，避免和笔杆错位
+      const pm = m4(px, deskH + 0.06, pz, 0.12 * (i - 1), 0, 0.14 * (i - 1));
+      penB.cyl.call(penB, pm, 0.005, 0.005, 0.16, 6, penCols[i], true);
+      penB.cyl.call(penB, M.mul(pm, M.trs(0, 0.16, 0)), 0.002, 0.005, 0.012, 6, [0.15, 0.15, 0.15], true);
     }
     for (let i = 0; i < 4; i++) {
       P.book(bookB, m4(0.85, deskH + 0.003 + i * 0.05, deskZ + 0.0 - i * 0.012, 0, 0.9 - i * 0.2, 0),
