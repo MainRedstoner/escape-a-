@@ -255,7 +255,7 @@ const A3DWorlds = (() => {
    * ============================================================ */
   const MON = {
     lines: [
-      "$ python train.py --config ds_v3.yaml",
+      "$ python train.py --config v410-flash.yaml",
       "[12:04:02] gpu 0  mem 61.2G / 80G  util 97%",
       "[12:04:05] step 18320  loss 0.4217  lr 2.4e-5",
       "[12:04:09] grad_norm 0.83  tokens/s 42.1k",
@@ -268,7 +268,7 @@ const A3DWorlds = (() => {
       "[12:04:44] step 18323  loss 0.4181  lr 2.4e-5",
       "[12:04:49] loss 会收敛的。"
     ],
-    x: 0, t0: 0, lastDraw: 0, loss: []
+    x: 0, t0: 0, lastDraw: 0, loss: [], log: [], lastTick: -1, lastStage: -1
   };
   function drawTerm(x, w, h) {
     const now = performance.now() / 1000;
@@ -308,7 +308,7 @@ const A3DWorlds = (() => {
     // 顶栏
     x.fillStyle = "#0d1a22"; x.fillRect(0, 0, w, 30);
     x.fillStyle = "#4fa3c7"; x.font = "bold 15px Consolas,monospace";
-    x.fillText("train.py  ·  ds_v3  ·  8×H800", 12, 20);
+    x.fillText("train.py  ·  v410-flash  ·  B666", 12, 20);
     x.fillStyle = "#2f6f88"; x.fillText("exp/2026-10-24", w - 168, 20);
     // 分割线
     x.strokeStyle = "#12303d"; x.lineWidth = 1;
@@ -356,33 +356,49 @@ const A3DWorlds = (() => {
       x.fillStyle = "#0c222b"; x.fillRect(bx, y + 6, bw, 8);
       x.fillStyle = b[2]; x.fillRect(bx, y + 6, bw * Math.min(1, b[1]), 8);
     });
-    // ComfyUI 式生成进度条（52 秒一循环）
-    const cycle = 52;
+    // 终端日志：整行滚动，不再做像素级平滑滚动
+    const ly = h - 158;
+    x.strokeStyle = "#12303d"; x.beginPath(); x.moveTo(0, ly - 10); x.lineTo(w, ly - 10); x.stroke();
+    const total = 1500, cycle = 45;
+    const stage = Math.floor(now / cycle);
     const prog = (now % cycle) / cycle;
+    const step = Math.min(total, Math.round(prog * total));
     const pct = Math.floor(prog * 100);
-    const step = Math.min(30, 1 + Math.floor(prog * 30));
-    const py = h - 156;
-    x.fillStyle = "#0a1116"; x.fillRect(12, py, w - 24, 48);
-    x.strokeStyle = "#173a28"; x.strokeRect(12.5, py + 0.5, w - 25, 47);
-    x.fillStyle = "#5C8C71"; x.font = "bold 11px Consolas,monospace";
-    x.fillText("ComfyUI · 生成中  ·  queue 2", 20, py + 15);
-    x.fillStyle = "#9fc4d4"; x.font = "11px Consolas,monospace";
-    x.fillText(`sampling ${step}/30 · ${pct}% · ETA ${Math.ceil((1 - prog) * cycle)}s`, 20, py + 29);
-    x.fillStyle = "#0c222b"; x.fillRect(20, py + 35, w - 40, 7);
-    x.fillStyle = "#63E6A5"; x.fillRect(20, py + 35, (w - 40) * prog, 7);
-    // 日志
-    const ly = h - 92;
-    x.strokeStyle = "#12303d"; x.beginPath(); x.moveTo(0, ly - 12); x.lineTo(w, ly - 12); x.stroke();
-    x.font = "12px Consolas,monospace";
-    const off = Math.floor(now * 5.0) % (MON.lines.length * 18);
-    for (let i = 0; i < 6; i++) {
-      const idx = Math.floor(off / 18) + i;
-      const line = MON.lines[idx % MON.lines.length];
-      const yy = ly + i * 15 - (off % 18);
-      if (yy < ly - 4 || yy > h - 4) continue;
-      x.fillStyle = line.indexOf("loss") >= 0 || line.indexOf("eval") >= 0 ? "#8fe3b8" : "#6f9fb0";
-      x.fillText(line.slice(0, 92), 10, yy);
+    const tick = Math.floor(now / 2.4);
+    if (MON.lastTick < 0) {
+      MON.lastTick = tick;
+      MON.log.push("$ python train.py --config v410-flash.yaml");
+      MON.log.push("loading dataset ...");
     }
+    while (MON.lastTick < tick) {
+      MON.lastTick++;
+      MON.log.push(MON.lines[MON.lastTick % MON.lines.length]);
+    }
+    if (MON.lastStage < 0) MON.lastStage = stage;
+    if (stage !== MON.lastStage) {
+      MON.log.push("[##########################100%] 1500 / 1500");
+      MON.log.push("saving weights ...");
+      MON.log.push("checkpoint saved -> ckpt/stage_" + String(stage).padStart(3, "0"));
+      MON.log.push("optimizer state saved");
+      MON.lastStage = stage;
+    }
+    if (MON.log.length > 12) MON.log.splice(0, MON.log.length - 12);
+    const hist = MON.log.slice(-8);
+    x.font = "12px Consolas,monospace";
+    hist.forEach((line, i) => {
+      let col = "#6f9fb0";
+      if (line.indexOf("saving") >= 0 || line.indexOf("checkpoint") >= 0 || line.indexOf("optimizer") >= 0) col = "#8fe3b8";
+      else if (line.indexOf("loss") >= 0 || line.indexOf("eval") >= 0) col = "#b8e6c8";
+      x.fillStyle = col;
+      x.fillText(line.slice(0, 92), 10, ly + i * 16);
+    });
+    // ASCII 进度条：填满就换行，并追加保存权重日志
+    const barW = 26;
+    const fill = Math.min(barW, Math.round(prog * barW));
+    const bar = "[" + "-".repeat(fill) + String(pct).padStart(3, " ") + "%" + "-".repeat(barW - fill) + "] " +
+      String(step).padStart(4, " ") + " / " + total;
+    x.fillStyle = "#63E6A5";
+    x.fillText(bar, 10, h - 16);
     // 扫光
     const sy = ((now * 60) % (h + 60)) - 30;
     const g = x.createLinearGradient(0, sy - 20, 0, sy + 20);
