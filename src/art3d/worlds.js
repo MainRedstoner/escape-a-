@@ -1308,6 +1308,26 @@ const A3DWorlds = (() => {
     return mugWhaleTex;
   }
 
+  /** MIT + 天平海报 */
+  function drawMitPoster(x, w, h) {
+    x.fillStyle = "#ece5d7"; x.fillRect(0, 0, w, h);
+    x.strokeStyle = "#b9a88a"; x.lineWidth = 8; x.strokeRect(4, 4, w - 8, h - 8);
+    x.fillStyle = "#a31f34"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, 58);
+    // 天平
+    x.strokeStyle = "#3a3a3a"; x.lineWidth = 5; x.lineCap = "round";
+    x.beginPath(); x.moveTo(w * 0.28, h * 0.60); x.lineTo(w * 0.72, h * 0.60); x.stroke();
+    x.beginPath(); x.moveTo(w * 0.50, h * 0.40); x.lineTo(w * 0.50, h * 0.73); x.stroke();
+    x.beginPath(); x.moveTo(w * 0.40, h * 0.74); x.lineTo(w * 0.60, h * 0.74); x.stroke();
+    for (const sx of [-1, 1]) {
+      const px = w * (0.5 + sx * 0.22);
+      x.beginPath(); x.moveTo(px, h * 0.60); x.lineTo(px, h * 0.655); x.stroke();
+      x.beginPath(); x.arc(px, h * 0.66, w * 0.085, 0, Math.PI); x.stroke();
+    }
+    x.fillStyle = "#2a2a2a"; x.font = "bold 26px 'Noto Sans SC',sans-serif";
+    x.fillText("开源盛世", w / 2, h - 26);
+  }
+
   function buildRoomCompact(opts) {
     const night = !!opts.night;
     const st = P.stage();
@@ -1552,6 +1572,10 @@ const A3DWorlds = (() => {
     Gbox(paint, RW / 2 - 0.02, 1.55, cz, 0.04, 0.8, 1.16, [1, 1, 1]);
     const bq = st.pen("boardFace", boardTex, { unlit: true, tint: [0.84, 0.88, 0.95] });
     bq.quad.call(bq, m4(RW / 2 - 0.045, 1.55, cz, 0, -Math.PI / 2, 0), 1.08, 0.72, [1, 1, 1], [0, 0, 1, 1]);
+    // 白板左边的 MIT + 天平海报
+    const mitTex = A3DTex.dynamic("mitPoster", 256, 320, drawMitPoster);
+    const mitB = st.pen("mitPoster", mitTex, { unlit: true, tint: [1, 1, 1] });
+    mitB.quad.call(mitB, m4(RW / 2 - 0.02, 1.78, -2.62, 0, -Math.PI / 2, 0), 0.42, 0.54, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 墙饰：软木板 / 挂钟 / 海报 ---------- */
     const pinBoard = st.pen("pinBoard", T.linen(), { tint: [0.55, 0.65, 0.8], spec: 0.02 });
@@ -1581,9 +1605,23 @@ const A3DWorlds = (() => {
     handB.box.call(handB, M.mul(M.trs(CLK.x, CLK.y, CLK.z + 0.014, 0, 0, -(10 / 60) * TAU), M.trs(0, 0.055, 0)),
       0.01, 0.11, 0.004, [1, 1, 1], 1);
     clockRim.sphere.call(clockRim, m4(CLK.x, CLK.y, CLK.z + 0.018, 0, 0, 0, 1, 1, 0.5), 0.016, 8, 5, [1, 1, 1]);
-    const posterB = st.pen("poster", A3DTex.poster(5, { title: "", bg: "#b9cbe0", seed: 9, mark: "#7aa7d9" }),
-      { unlit: true, tint: [0.9, 0.95, 1.0] });
+    // 窗右侧大纸：换成指定的 shh 图片（data URL，file:// 可用）
+    const shhTex = A3DTex.dynamic("shhPoster", 512, 596, (x, w, h) => {
+      x.fillStyle = "#171717"; x.fillRect(0, 0, w, h);
+    });
+    const posterB = st.pen("shhPoster", shhTex, { unlit: true, tint: [1, 1, 1] });
     posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.34, 0.44, [1, 1, 1], [0, 0, 1, 1]);
+    const shhImg = new Image();
+    shhImg.onload = () => {
+      A3DTex.redraw("shhPoster", (x, w, h) => {
+        x.fillStyle = "#171717"; x.fillRect(0, 0, w, h);
+        const sc = Math.min((w - 16) / shhImg.width, (h - 16) / shhImg.height);
+        const dw = shhImg.width * sc, dh = shhImg.height * sc;
+        x.drawImage(shhImg, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        x.strokeStyle = "#e8e1d0"; x.lineWidth = 6; x.strokeRect(3, 3, w - 6, h - 6);
+      });
+    };
+    shhImg.src = window.ASSET_SHH || "";
     const tapeB = st.pen("tape", T.paper(), { unlit: true, opacity: 0.55, blend: "alpha", tint: [0.92, 0.9, 0.8] });
     tapeB.quad.call(tapeB, m4(2.02, 2.22, zBack + 0.014, 0, 0, 0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
     tapeB.quad.call(tapeB, m4(2.28, 2.22, zBack + 0.014, 0, 0, -0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
