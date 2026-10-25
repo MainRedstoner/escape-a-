@@ -375,12 +375,13 @@ const A3DProps = (() => {
     // 3D 重瓣花：每层花瓣从不同半径/高度长出，沿半径向外，面朝默认视角
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
     const tint = colTint || [1, 1, 1];
+    // α 平面 = 花头局部 z=0 平面；五层花瓣根部全部落在 α 上
     const rings = [
-      { n: 18, rad: 0.058, len: 0.075, wid: 0.045, z: -0.028, tilt: 0.18, phase: 0.00 },
-      { n: 21, rad: 0.048, len: 0.066, wid: 0.042, z: -0.014, tilt: 0.10, phase: 0.16 },
-      { n: 24, rad: 0.038, len: 0.057, wid: 0.039, z: 0.000, tilt: 0.02, phase: 0.32 },
-      { n: 27, rad: 0.028, len: 0.048, wid: 0.036, z: 0.012, tilt: -0.06, phase: 0.48 },
-      { n: 30, rad: 0.018, len: 0.039, wid: 0.033, z: 0.022, tilt: -0.14, phase: 0.64 }
+      { n: 18, rad: 0.058, len: 0.075, wid: 0.045, tilt: 0.10, phase: 0.00 },
+      { n: 21, rad: 0.048, len: 0.066, wid: 0.042, tilt: 0.22, phase: 0.16 },
+      { n: 24, rad: 0.038, len: 0.057, wid: 0.039, tilt: 0.38, phase: 0.32 },
+      { n: 27, rad: 0.028, len: 0.048, wid: 0.036, tilt: 0.58, phase: 0.48 },
+      { n: 30, rad: 0.018, len: 0.039, wid: 0.033, tilt: 0.82, phase: 0.64 }
     ];
     for (let ring = 0; ring < rings.length; ring++) {
       const R = rings[ring];
@@ -389,15 +390,15 @@ const A3DProps = (() => {
         const ca = Math.cos(a), sa = Math.sin(a);
         const bx = R.rad * s * ca, by = R.rad * s * sa;
         const len = R.len * s, wid = R.wid * s;
-        // 花瓣中心放在“半径 + 半长”的位置，长度方向沿半径向外，宽度沿切线
-        const pm = M.mul(head, M.trs(bx + ca * len / 2, by + sa * len / 2, R.z * s,
-          0, 0, a - Math.PI / 2));
-        // 绕切线微微上/下翻，给每层不同俯仰，形成立体圆头
-        bFlower.quad.call(bFlower, M.mul(pm, M.trs(0, 0, 0, R.tilt, 0, 0)), wid, len,
+        // 1) 把花瓣根部放在 α 平面；2) 以根部为轴倾斜；3) 沿倾斜后的长度方向走到花瓣中心
+        const baseM = M.mul(head, M.trs(bx, by, 0, 0, 0, a - Math.PI / 2));
+        const tiltM = M.mul(baseM, M.trs(0, 0, 0, R.tilt, 0, 0));
+        const pm = M.mul(tiltM, M.trs(0, len / 2, 0));
+        bFlower.quad.call(bFlower, pm, wid, len,
           [tint[0] * (0.88 + ring * 0.04), tint[1] * (0.88 + ring * 0.04), tint[2]], [0, 0, 1, 1]);
       }
     }
-    bFlower.sphere.call(bFlower, M.mul(head, M.trs(0, 0, 0.03 * s)), 0.011 * s, 8, 5, [0.92, 0.72, 0.24]);
+    bFlower.sphere.call(bFlower, M.mul(head, M.trs(0, 0, 0.012 * s, 0, 0, 0, 1, 1, 0.6)), 0.022 * s, 10, 6, [0.78, 0.6, 0.16]);
   }
 
   /* ============================================================
