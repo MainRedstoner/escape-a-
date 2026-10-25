@@ -1273,8 +1273,9 @@ const A3DWorlds = (() => {
     screenP.quad.call(screenP, M.mul(monM, M.trs(0, 0, 0.026)), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
     // 与显示器同中心、同旋转的浅色金属支架：底座 + 立柱 + 屏幕下挂板
     const standP = st.pen("monStand", T.metal(), { tint: [1.0, 1.08, 1.18], spec: 0.45 });
-    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.511, 0)), 0.10, 0.11, 0.018, 20, [1, 1, 1], true);
-    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.37, 0)), 0.016, 0.014, 0.30, 8, [1, 1, 1], true);
+    // cyl 的 m 是底面：底座从桌面起，立柱从底座顶面顶到屏幕下沿
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.52, 0)), 0.10, 0.11, 0.018, 20, [1, 1, 1], true);
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.502, 0)), 0.016, 0.014, 0.282, 8, [1, 1, 1], true);
     standP.box.call(standP, M.mul(monM, M.trs(0, -0.225, 0)), 0.16, 0.02, 0.06, [1, 1, 1], 1);
     const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
     deskMat.quad.call(deskMat, m4(0.15, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
