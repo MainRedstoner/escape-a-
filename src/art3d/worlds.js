@@ -1588,7 +1588,7 @@ const A3DWorlds = (() => {
       np.quad.call(np, m4(-2.38 + (i % 2) * 0.28, 1.76 - Math.floor(i / 2) * 0.22, zBack + 0.06, 0, 0, (i % 2 ? 1 : -1) * 0.05),
         0.13, 0.12, [1, 1, 1], [0, 0, 1, 1]);
     }
-    const CLK = { x: -2.55, y: 2.25, z: zBack + 0.03 };
+    const CLK = { x: -2.2, y: 2.25, z: zBack + 0.03 };
     const clockRim = st.pen("clockRim", T.metal(), { tint: [0.9, 0.95, 1.0], spec: 0.45 });
     const clockFace = st.pen("clockFace", T.paper(), { unlit: true, tint: [1.06, 1.0, 0.9] });
     clockRim.cyl.call(clockRim, m4(CLK.x, CLK.y, CLK.z - 0.025, Math.PI / 2, 0, 0), 0.2, 0.2, 0.025, 22, [1, 1, 1], true);
