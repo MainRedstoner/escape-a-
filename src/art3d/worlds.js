@@ -1151,39 +1151,36 @@ const A3DWorlds = (() => {
     const whaleBlue = "#7ec8e8", whaleDark = "#205468", whaleBelly = "#d8f3fc";
     // 尾巴、胸鳍先画，根部伸进身体
     x.strokeStyle = whaleDark; x.lineWidth = 6; x.fillStyle = whaleBlue;
-    x.beginPath();
-    x.moveTo(84, 202);
-    x.quadraticCurveTo(60, 202, 44, 204);
-    x.quadraticCurveTo(30, 196, 10, 196);
-    x.quadraticCurveTo(2, 202, 10, 212);
-    x.quadraticCurveTo(20, 216, 28, 216);
-    x.quadraticCurveTo(20, 220, 10, 228);
-    x.quadraticCurveTo(2, 238, 10, 242);
-    x.quadraticCurveTo(30, 242, 44, 226);
-    x.quadraticCurveTo(60, 230, 84, 230);
-    x.closePath(); x.fill(); x.stroke();
+    // 胸鳍先画，根部埋进身体
     x.beginPath(); x.ellipse(160, 266, 28, 12, 0.45, 0, TAU); x.fill(); x.stroke();
     // 身体填充（先不描边）
-    const bodyPath = () => {
+    const whalePath = () => {
       x.beginPath();
-      x.moveTo(84, 202);
-      x.bezierCurveTo(90, 180, 120, 162, 165, 160);
-      x.bezierCurveTo(230, 158, 288, 180, 288, 216);
-      x.bezierCurveTo(288, 252, 230, 274, 165, 272);
-      x.bezierCurveTo(120, 270, 90, 250, 84, 230);
-      x.bezierCurveTo(80, 224, 80, 214, 84, 202);
+      x.moveTo(170, 160);
+      x.bezierCurveTo(235, 158, 288, 183, 288, 216);
+      x.bezierCurveTo(288, 249, 235, 274, 170, 272);
+      x.bezierCurveTo(128, 271, 104, 262, 82, 238);
+      x.quadraticCurveTo(62, 234, 44, 228);
+      x.quadraticCurveTo(28, 242, 10, 242);
+      x.quadraticCurveTo(2, 236, 10, 228);
+      x.quadraticCurveTo(20, 222, 28, 216);
+      x.quadraticCurveTo(20, 210, 10, 204);
+      x.quadraticCurveTo(2, 196, 10, 190);
+      x.quadraticCurveTo(28, 190, 44, 204);
+      x.quadraticCurveTo(62, 198, 82, 194);
+      x.bezierCurveTo(104, 170, 128, 161, 170, 160);
       x.closePath();
     };
-    bodyPath(); x.fill();
+    whalePath(); x.fill();
     // 白肚皮裁剪在身体内部，避免和蓝色轮廓相交
     x.save();
-    bodyPath(); x.clip();
+    whalePath(); x.clip();
     x.fillStyle = whaleBelly;
     x.beginPath(); x.ellipse(190, 238, 74, 30, -0.02, 0, TAU); x.fill();
     x.restore();
-    // 最后描身体轮廓，保证蓝边完整
+    // 连续轮廓一次描边，避免接缝
     x.strokeStyle = whaleDark; x.lineWidth = 6;
-    bodyPath(); x.stroke();
+    whalePath(); x.stroke();
     // 眼睛、微笑
     x.fillStyle = "#173b4c";
     x.beginPath(); x.arc(255, 198, 8, 0, TAU); x.fill();
