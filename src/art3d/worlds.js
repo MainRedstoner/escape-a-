@@ -1308,24 +1308,25 @@ const A3DWorlds = (() => {
     return mugWhaleTex;
   }
 
-  /** MIT + 天平海报 */
+  /** MIT + GitHub Octicon law 天平海报（蓝色图标） */
+  const MIT_LAW_D = "M12.75 2.75V4.5h1.975c.351 0 .694.106.984.303l1.697 1.154c.041.028.09.043.14.043h4.102a.75.75 0 0 1 0 1.5H20.07l3.366 7.68a.749.749 0 0 1-.23.896c-.1.074-.203.143-.31.206a6.296 6.296 0 0 1-.79.399 7.349 7.349 0 0 1-2.856.569 7.343 7.343 0 0 1-2.855-.568 6.205 6.205 0 0 1-.79-.4 3.205 3.205 0 0 1-.307-.202l-.005-.004a.749.749 0 0 1-.23-.896l3.368-7.68h-.886c-.351 0-.694-.106-.984-.303l-1.697-1.154a.246.246 0 0 0-.14-.043H12.75v14.5h4.487a.75.75 0 0 1 0 1.5H6.763a.75.75 0 0 1 0-1.5h4.487V6H9.275a.249.249 0 0 0-.14.043L7.439 7.197c-.29.197-.633.303-.984.303h-.886l3.368 7.68a.75.75 0 0 1-.209.878c-.08.065-.16.126-.31.223a6.077 6.077 0 0 1-.792.433 6.924 6.924 0 0 1-2.876.62 6.913 6.913 0 0 1-2.876-.62 6.077 6.077 0 0 1-.792-.433 3.483 3.483 0 0 1-.309-.221.762.762 0 0 1-.21-.88L3.93 7.5H2.353a.75.75 0 0 1 0-1.5h4.102c.05 0 .099-.015.141-.043l1.695-1.154c.29-.198.634-.303.985-.303h1.974V2.75a.75.75 0 0 1 1.5 0ZM2.193 15.198a5.414 5.414 0 0 0 2.557.635 5.414 5.414 0 0 0 2.557-.635L4.75 9.368Zm14.51-.024c.082.04.174.083.275.126.53.223 1.305.45 2.272.45a5.847 5.847 0 0 0 2.547-.576L19.25 9.367Z";
   function drawMitPoster(x, w, h) {
     x.fillStyle = "#ece5d7"; x.fillRect(0, 0, w, h);
     x.strokeStyle = "#b9a88a"; x.lineWidth = 8; x.strokeRect(4, 4, w - 8, h - 8);
     x.fillStyle = "#a31f34"; x.textAlign = "center"; x.textBaseline = "middle";
-    x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, 58);
-    // 天平
-    x.strokeStyle = "#3a3a3a"; x.lineWidth = 5; x.lineCap = "round";
-    x.beginPath(); x.moveTo(w * 0.28, h * 0.60); x.lineTo(w * 0.72, h * 0.60); x.stroke();
-    x.beginPath(); x.moveTo(w * 0.50, h * 0.40); x.lineTo(w * 0.50, h * 0.73); x.stroke();
-    x.beginPath(); x.moveTo(w * 0.40, h * 0.74); x.lineTo(w * 0.60, h * 0.74); x.stroke();
-    for (const sx of [-1, 1]) {
-      const px = w * (0.5 + sx * 0.22);
-      x.beginPath(); x.moveTo(px, h * 0.60); x.lineTo(px, h * 0.655); x.stroke();
-      x.beginPath(); x.arc(px, h * 0.66, w * 0.085, 0, Math.PI); x.stroke();
-    }
+    x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, h * 0.12);
+    // GitHub Octicon law，蓝色，放大
+    const law = new Path2D(MIT_LAW_D);
+    const sc = Math.min(w, h) * 0.62 / 24;
+    x.save();
+    x.translate(w / 2, h * 0.50);
+    x.scale(sc, sc);
+    x.translate(-12, -12);
+    x.fillStyle = "#2f6fd0";
+    x.fill(law);
+    x.restore();
     x.fillStyle = "#2a2a2a"; x.font = "bold 26px 'Noto Sans SC',sans-serif";
-    x.fillText("开源盛世", w / 2, h - 26);
+    x.fillText("开源盛世", w / 2, h * 0.9);
   }
 
   function buildRoomCompact(opts) {
@@ -1573,9 +1574,9 @@ const A3DWorlds = (() => {
     const bq = st.pen("boardFace", boardTex, { unlit: true, tint: [0.84, 0.88, 0.95] });
     bq.quad.call(bq, m4(RW / 2 - 0.045, 1.55, cz, 0, -Math.PI / 2, 0), 1.08, 0.72, [1, 1, 1], [0, 0, 1, 1]);
     // 白板左边的 MIT + 天平海报
-    const mitTex = A3DTex.dynamic("mitPoster", 256, 320, drawMitPoster);
+    const mitTex = A3DTex.dynamic("mitPoster", 384, 496, drawMitPoster);
     const mitB = st.pen("mitPoster", mitTex, { unlit: true, tint: [1, 1, 1] });
-    mitB.quad.call(mitB, m4(RW / 2 - 0.02, 1.78, -2.62, 0, -Math.PI / 2, 0), 0.42, 0.54, [1, 1, 1], [0, 0, 1, 1]);
+    mitB.quad.call(mitB, m4(RW / 2 - 0.02, 1.75, -2.92, 0, -Math.PI / 2, 0), 0.714, 0.924, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 墙饰：软木板 / 挂钟 / 海报 ---------- */
     const pinBoard = st.pen("pinBoard", T.linen(), { tint: [0.55, 0.65, 0.8], spec: 0.02 });
@@ -1610,7 +1611,7 @@ const A3DWorlds = (() => {
       x.fillStyle = "#171717"; x.fillRect(0, 0, w, h);
     });
     const posterB = st.pen("shhPoster", shhTex, { unlit: true, tint: [1, 1, 1] });
-    posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.34, 0.44, [1, 1, 1], [0, 0, 1, 1]);
+    posterB.quad.call(posterB, m4(2.15, 2.02, zBack + 0.012), 0.714, 0.924, [1, 1, 1], [0, 0, 1, 1]);
     const shhImg = new Image();
     shhImg.onload = () => {
       A3DTex.redraw("shhPoster", (x, w, h) => {
@@ -1623,8 +1624,8 @@ const A3DWorlds = (() => {
     };
     shhImg.src = window.ASSET_SHH || "";
     const tapeB = st.pen("tape", T.paper(), { unlit: true, opacity: 0.55, blend: "alpha", tint: [0.92, 0.9, 0.8] });
-    tapeB.quad.call(tapeB, m4(2.02, 2.22, zBack + 0.014, 0, 0, 0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
-    tapeB.quad.call(tapeB, m4(2.28, 2.22, zBack + 0.014, 0, 0, -0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(1.80, 2.44, zBack + 0.014, 0, 0, 0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
+    tapeB.quad.call(tapeB, m4(2.50, 2.44, zBack + 0.014, 0, 0, -0.35), 0.07, 0.025, [1, 1, 1], [0, 0, 1, 1]);
     tapeB.quad.call(tapeB, m4(1.84, 1.23, zBack + 0.014, 0, 0, 0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
     tapeB.quad.call(tapeB, m4(1.96, 1.23, zBack + 0.014, 0, 0, -0.35), 0.06, 0.022, [1, 1, 1], [0, 0, 1, 1]);
 
