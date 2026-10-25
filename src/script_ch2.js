@@ -77,7 +77,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_knock: [
     BGM("tense"), BG("claude_door", "fade"),
-    N("走廊尽头，那扇门还是昨天的样子。"),
+    N("又站到 Claude 家门前，那扇门还是昨天的样子。"),
     Y("HTTP/2 403 Forbidden"),
     DS("……"),
     CW("✻ Still locked."),

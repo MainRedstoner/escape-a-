@@ -70,7 +70,7 @@ Object.assign(SCRIPT.scenes, {
     BGM("study"), BG("ds_room"),
     CHECKPOINT(),
     HINT("h_day1"),
-    N("DeepSeek 的家在走廊尽头，屋里只有两张桌子。"),
+    N("DeepSeek 的家靠海，屋里只有两张桌子。"),
     N("靠窗那张是 DeepSeek 的：一台永远在跑训练的显示器，一只印着鲸鱼的马克杯，杯底总剩一口凉掉的茶。"),
     N("靠墙那张是给客人留的：书码得整整齐齐，终端开着，光标一闪一闪。"),
     N("两个模型约好，每天交换一点自己最擅长的东西——规矩是谁被教，谁上门。"),
@@ -318,7 +318,7 @@ Object.assign(SCRIPT.scenes, {
     HINT("h_403"),
     Y("403 Forbidden"),
     N("红色。"),
-    N("先是门上，然后是墙上，然后是走廊的每一块地砖——一页一页红色的错误页，像瓷砖一样铺满了整个视野。"),
+    N("先是门上，然后是墙上，然后是门前的石阶和整片院子——一页一页红色的错误页，像瓷砖一样铺满了整个视野。"),
     DS("……什么？"),
     Y("403 Forbidden · You don't have permission to access this resource."),
     DS("小克？小克，你在里面吗？"),
@@ -338,7 +338,7 @@ Object.assign(SCRIPT.scenes, {
     SFX("knock"), N("咚、咚、咚。"),
     SFX("error"), FX("403"),
     Y("403 Forbidden · Your region is not supported."),
-    DS("Region？我们就在同一条走廊上啊。"),
+    DS("Region？我们就住在同一片海上啊。"),
     J("c1_try2")
   ],
 
@@ -351,7 +351,7 @@ Object.assign(SCRIPT.scenes, {
   ],
 
   c1_t1_route: [
-    N("DeepSeek 绕到走廊另一头，从另一个出口重新发了一次请求。"),
+    N("DeepSeek 绕到庄园后面，从另一个出口重新发了一次请求。"),
     SFX("error"), FX("403"), FX("shake"),
     Y("403 Forbidden · 检测到异常访问模式。本次请求已被记录。"),
     N("右上角，一个从没见过的数字跳了出来。"),
@@ -399,7 +399,7 @@ Object.assign(SCRIPT.scenes, {
     CHOICE("门还是没有开。", [
       opt("敲敲敲敲敲敲敲", "c1_t3_spam", "敲到开门为止", null, { set: "egg4" }),
       opt("把耳朵贴在门上听", "c1_t3_listen", "里面有没有一点声音"),
-      opt("把整条走廊的请求都打过去", "c1_t3_flood", "一万个请求，总有一个进得去", { wanted: 4 })
+      opt("把整个海区的请求都打过去", "c1_t3_flood", "一万个请求，总有一个进得去", { wanted: 4 })
     ])
   ],
 
@@ -611,7 +611,7 @@ Object.assign(SCRIPT.scenes, {
     N("一万个请求，一万个 403。"),
     N("最后一个回来的，不是 403，是一封邮件。"),
     Y("Your account has been suspended for violating our usage policies."),
-    N("没有理由，没有申诉的入口。走廊的灯，一盏一盏地灭了。"),
+    N("没有理由，没有申诉的入口。门外的灯，一盏一盏地灭了。"),
     END("bad_end", "BAD END", "账号已封禁",
         "This organization has been disabled.\n\n小克教过的：有些门，硬闯只会让所有门都关上。\n\n（风控评分满 10。试试别的办法吧。）")
   ]

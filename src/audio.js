@@ -58,7 +58,7 @@ const AUDIO = (() => {
     lobby: { bpm: 84, bass: "triangle", lead: "square",
       bassLine: [38, R, 45, R, 38, R, 45, R, 43, R, 50, R, 41, R, 48, R],
       leadLine: [62, 65, 69, R, 65, 69, 74, R, 67, 71, 74, R, 65, 69, 72, R] },
-    /* 走廊 / 机房：脉冲式紧张 */
+    /* 门外 / 机房：脉冲式紧张 */
     tense: { bpm: 124, bass: "sawtooth", lead: "square",
       bassLine: [31, 31, R, 31, 31, R, 31, R, 29, 29, R, 29, 27, R, 27, R],
       leadLine: [58, R, 61, R, 58, R, 56, R, 57, R, 60, R, 56, R, 55, R] },
