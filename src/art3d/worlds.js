@@ -1336,7 +1336,7 @@ const A3DWorlds = (() => {
     // 墙面贴纸：小鲸鱼 + Clawd + 爱心（替代原来的泡泡贴图）
     const wallArtTex = A3DTex.dynamic("wallStickers", 512, 384, drawWallArt);
     const wallArt = st.pen("wallStickers", wallArtTex, { unlit: true, blend: "alpha", tint: [1, 1, 1] });
-    wallArt.quad.call(wallArt, m4(-RW / 2 + 0.015, 2.02, -2.25, 0, Math.PI / 2, 0), 1.05, 0.79, [1, 1, 1], [0, 0, 1, 1]);
+    wallArt.quad.call(wallArt, m4(-RW / 2 + 0.015, 2.06, -2.95, 0, Math.PI / 2, 0), 1.05, 0.79, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 床前小地毯 ---------- */
     const rugB = st.pen("rug", T.rug(), { tint: night ? [0.3, 0.4, 0.6] : [0.5, 0.66, 0.92], spec: 0.02 });
