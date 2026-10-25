@@ -82,7 +82,7 @@ const AUDIO = (() => {
     boss: { bpm: 132, bass: "sawtooth", lead: "square",
       bassLine: [29, 29, 29, R, 29, R, 28, R, 27, 27, 27, R, 27, R, 26, R],
       leadLine: [65, R, 64, R, 65, R, 68, R, 64, R, 63, R, 59, R, 61, R] },
-    /* 联合蒸馏室的日常：轻快、松弛，像午后的键盘声 */
+    /* DeepSeek 家的日常：轻快、松弛，像午后的键盘声 */
     study: { bpm: 92, bass: "triangle", lead: "sine",
       bassLine: [36, R, 43, R, 40, R, 43, R, 41, R, 45, R, 43, R, 38, R],
       leadLine: [72, R, 76, 79, R, 76, R, 74, 72, R, 74, 76, R, 79, 77, R] },

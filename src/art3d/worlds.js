@@ -6,11 +6,11 @@
  *
  * 目前已经接上的地方：
  *   sea            标题画面 / 深海（小鲸的“家”外面）
- *   ds_room        联合蒸馏室 = DeepSeek 家里（窗外的深海、训练日志、白板曲线）
+ *   ds_room        DeepSeek 家里（窗外的深海、训练日志、白板曲线；靠墙那张桌子给小克留着）
  *   ds_room_night  同一间屋子，深夜
  *   claude_door    Claude 家庄园的门（紧闭）
  *   claude_door_403  被 403 封住的门（门上有一个巨大的、空心的 0）
- *   claude_lib     Claude 家里：四面书架、菊花、夕阳
+ *   claude_lib     Claude 家里的藏书室（DeepSeek 上门上课的那间）：四面书架、菊花、夕阳
  *   hf_camp        Hugging Face 海边营地（夜）
  *   github_street  GitHub 夜市（夜）
  *   nvidia         NVIDIA 机房
@@ -251,7 +251,7 @@ const A3DWorlds = (() => {
   }
 
   /* ============================================================
-   *  DeepSeek 家里 / 联合蒸馏室
+   *  DeepSeek 家里
    * ============================================================ */
   const MON = {
     lines: [
@@ -1273,7 +1273,7 @@ const A3DWorlds = (() => {
       sp.quad.call(sp, m4(-0.25 + i * 0.14, deskH + 0.002, deskZ + 0.33, 0, 0, (i - 1) * 0.08), 0.1, 0.1, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    /* ---------- Claude 的书桌 + 白板 ---------- */
+    /* ---------- 给小克留的书桌 + 白板 ---------- */
     A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, Math.PI / 2, 0), 1.9, 0.75, deskH);
     P.chair(metal, m4(1.48, 0, -1.6, 0, Math.PI / 2 + 0.2, 0), [0.38, 0.5, 0.74], [0.55, 0.6, 0.7]);
     const term = st.pen("termBody", T.metal(), { tint: [0.85, 0.9, 1.0], spec: 0.4 });
