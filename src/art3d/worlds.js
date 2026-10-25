@@ -1317,17 +1317,17 @@ const A3DWorlds = (() => {
     x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, h * 0.12);
     // GitHub Octicon law，蓝色，放大
     const law = new Path2D(MIT_LAW_D);
-    const sc = Math.min(w, h) * 0.60 / 24;
+    const sc = Math.min(w, h) * 0.58 / 24;
     x.save();
-    x.translate(w / 2, h * 0.48);
+    x.translate(w / 2, h * 0.46);
     x.scale(sc, sc);
     x.translate(-12, -12);
     x.fillStyle = "#2f6fd0";
     x.fill(law);
     x.restore();
     x.fillStyle = "#2a2a2a";
-    x.font = "bold 40px 'Noto Serif SC','Songti SC',SimSun,serif";
-    x.fillText("开源盛世", w / 2, h * 0.9);
+    x.font = "bold 52px 'Noto Serif SC','Songti SC',SimSun,serif";
+    x.fillText("开源盛世", w / 2, h * 0.91);
   }
 
   function buildRoomCompact(opts) {
