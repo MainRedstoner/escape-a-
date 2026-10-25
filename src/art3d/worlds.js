@@ -1245,7 +1245,7 @@ const A3DWorlds = (() => {
     /* ---------- 材质：没有木头 ---------- */
     const paint = st.pen("paint", T.paint(), { tint: night ? [0.6, 0.67, 0.8] : [0.85, 0.89, 0.95], spec: 0.08 });
     const deskTop = st.pen("deskTop", T.paint(), { tint: night ? [0.5, 0.57, 0.7] : [0.66, 0.74, 0.88], spec: 0.1 });
-    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 1.0, 0.72], emissive: [0.4, 0.3, 0.06] });
+    const shadeWarm = st.pen("shadeWarm", T.linen(), { tint: [1.1, 1.0, 0.72], emissive: [0.72, 0.52, 0.18], emisBoost: 1.55 });
     const metal = st.pen("metal", T.metal(), { tint: night ? [0.55, 0.6, 0.7] : [0.72, 0.78, 0.9], spec: 0.45 });
     const metalDark = st.pen("metalDark", T.darkMetal(), { tint: [0.75, 0.82, 0.95], spec: 0.32 });
     const ceramic = st.pen("ceramic", T.plasterPale(), { tint: [1.02, 1.04, 1.08], spec: 0.45 });
@@ -1354,6 +1354,8 @@ const A3DWorlds = (() => {
       Gbox(metalDark, -1.4 + sx * 0.17, 0.045, -3.15 + sz * 0.13, 0.035, 0.09, 0.035, [1, 1, 1]);
     }
     P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.9, 0.58]);
+    const bedGlow = st.pen("bedGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.3 });
+    bedGlow.quad.call(bedGlow, m4(-1.4, 0.74, -3.06), 0.28, 0.28, [1, 1, 1], [0, 0, 1, 1]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
     P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
     // 垃圾桶：挪到中间桌下面、靠床头柜的左侧
@@ -1381,6 +1383,8 @@ const A3DWorlds = (() => {
     P.keyboard(metalDark, m4(0.15, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
     P.mouse(metalDark, m4(0.5, deskH + 0.003, deskZ + 0.17));
     P.tableLamp(metal, shadeWarm, m4(deskX - 1.0, deskH + 0.001, deskZ - 0.08), 0.38, [1.0, 0.9, 0.58]);
+    const deskGlow = st.pen("deskGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.32 });
+    deskGlow.quad.call(deskGlow, m4(deskX - 1.0, deskH + 0.27, deskZ - 0.02), 0.32, 0.32, [1, 1, 1], [0, 0, 1, 1]);
     ceramic.cyl.call(ceramic, m4(-0.35, deskH + 0.005, deskZ + 0.0), 0.05, 0.075, 0.055, 14, [1, 1, 1], true);
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
@@ -1616,18 +1620,22 @@ const A3DWorlds = (() => {
 
     /* ---------- 吊灯 / 光晕 / 壁灯 ---------- */
     const lampMetal = st.pen("lampMetal", T.brass(), { tint: [1, 1, 1], spec: 0.5, noShadow: true });
-    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.36, 0.28, 0.06], noShadow: true });
+    const lampShade = st.pen("lampShade", T.linen(), { tint: [1.05, 0.98, 0.7], emissive: [0.7, 0.52, 0.2], emisBoost: 1.55, noShadow: true });
     Gbox(lampMetal, 0, RH - 0.02, -1.4, 0.4, 0.02, 0.4, [1, 1, 1]);
     P.paperLantern(lampShade, lampMetal, m4(0, RH - 0.5, -1.4), 0.14, [1.0, 0.9, 0.56]);
     const cordB = st.pen("cord", null, { tint: [0.14, 0.1, 0.08] });
     cordB.cyl.call(cordB, m4(0, 2.42, -1.4), 0.006, 0.006, 0.38, 4, [1, 1, 1], false);
+    const lampGlow = st.pen("lampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.86, 0.5], opacity: 0.34 });
+    lampGlow.quad.call(lampGlow, m4(0, 2.35, -1.27), 0.34, 0.34, [1, 1, 1], [0, 0, 1, 1]);
     const monHalo = st.pen("monHalo", T.glow(), { unlit: true, blend: "add", tint: [0.22, 0.5, 0.85], opacity: 0.26 });
     monHalo.quad.call(monHalo, m4(monX, monY, monZ + 0.08), 1.1, 0.78, [1, 1, 1], [0, 0, 1, 1]);
     const sconce = st.pen("sconce", T.metal(), { tint: [1.0, 0.95, 0.85], spec: 0.5 });
-    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.99, 0.7], emissive: [0.4, 0.3, 0.06] });
+    const sconceShade = st.pen("sconceShade", T.linen(), { tint: [1.1, 0.99, 0.7], emissive: [0.7, 0.52, 0.2], emisBoost: 1.55 });
     sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, cz), 0.16, 0.025, 0.025, [1, 1, 1], 1);
     sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, cz), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
     sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, cz), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
+    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.84, 0.48], opacity: 0.3 });
+    sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.24, 2.18, cz, 0, -Math.PI / 2, 0), 0.28, 0.28, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 粒子 ---------- */
     const pts = [];
