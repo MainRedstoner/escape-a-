@@ -1471,7 +1471,7 @@ const A3DWorlds = (() => {
       const a = i * 1.05 + 0.35;
       const lm = M.mul(m4(-0.78, deskH + 0.077, deskZ + 0.22, 0, a, 0),
         M.trs(0, 0, 0, 0, 0, Math.PI / 2));
-      P.leafBlade(plantB, lm, 0.14 + (i % 3) * 0.01, 0.045, [0.55, 0.9, 0.5]);
+      P.leafFlat(plantB, lm, 0.14 + (i % 3) * 0.01, 0.045, [0.55, 0.9, 0.5]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
@@ -1561,7 +1561,7 @@ const A3DWorlds = (() => {
         const a = i * 1.3 + 0.4;
         const lm = M.mul(m4(sx * 1.18, WIN.y0 + 0.07, zBack + 0.12, 0, a, 0),
           M.trs(0, 0, 0, 0, 0, Math.PI / 2));
-        P.leafBlade(plantB, lm, 0.09 + (i % 2) * 0.01, 0.035, [0.55, 0.9, 0.5]);
+        P.leafFlat(plantB, lm, 0.09 + (i % 2) * 0.01, 0.035, [0.55, 0.9, 0.5]);
       }
     }
 

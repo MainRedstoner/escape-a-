@@ -313,6 +313,18 @@ const A3DProps = (() => {
       b._pushQuad(b.count - 4);
     }
   }
+  /** 单面片叶子：整片一个 quad，没有内部分段缝 */
+  function leafFlat(b, m, len, wid, col) {
+    const nm = A3D.M.normalMat(m);
+    const q = [[0, 0, wid], [len, 0, wid], [len, 0, -wid], [0, 0, -wid]];
+    const uv = [[0, 0], [0, 1], [1, 1], [1, 0]];
+    for (let k = 0; k < 4; k++) {
+      b._v(b.d, m, nm, q[k][0], q[k][1], q[k][2], 0, 1, 0,
+        uv[k][0], uv[k][1], col, 0);
+    }
+    b._pushQuad(b.count - 4);
+  }
+
   /** 一盆观叶植物 */
   function plant(b, m, op) {
     op = op || {};
@@ -637,7 +649,7 @@ const A3DProps = (() => {
     rng, pick, mix, stage, quad4, figure,
     table, drawer, chair, monitorBody, monitorScreen, keyboard, mouse, mug, papers,
     book, bookRow, bookshelf, shelfBooks,
-    pot, leafBlade, plant, tallLeaves, grass, chrysanthemum,
+    pot, leafBlade, leafFlat, plant, tallLeaves, grass, chrysanthemum,
     tableLamp, paperLantern,
     tent, campfire, crate, barrel, rack, archWindowFrame, stall, garbagePile, birdWings
   };
