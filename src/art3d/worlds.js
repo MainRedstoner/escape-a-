@@ -1152,13 +1152,15 @@ const A3DWorlds = (() => {
     // 尾巴、胸鳍先画，根部伸进身体
     x.strokeStyle = whaleDark; x.lineWidth = 6; x.fillStyle = whaleBlue;
     x.beginPath();
-    x.moveTo(84, 206);
-    x.quadraticCurveTo(58, 208, 40, 206);
-    x.quadraticCurveTo(18, 176, 4, 162);
-    x.quadraticCurveTo(18, 196, 22, 214);
-    x.quadraticCurveTo(18, 234, 4, 268);
-    x.quadraticCurveTo(28, 260, 40, 236);
-    x.quadraticCurveTo(58, 232, 84, 236);
+    x.moveTo(84, 212);
+    x.quadraticCurveTo(60, 210, 44, 212);
+    x.quadraticCurveTo(30, 196, 10, 196);
+    x.quadraticCurveTo(4, 202, 10, 212);
+    x.quadraticCurveTo(18, 216, 26, 216);
+    x.quadraticCurveTo(18, 220, 10, 228);
+    x.quadraticCurveTo(4, 238, 10, 242);
+    x.quadraticCurveTo(30, 242, 44, 224);
+    x.quadraticCurveTo(60, 224, 84, 222);
     x.closePath(); x.fill(); x.stroke();
     x.beginPath(); x.ellipse(146, 278, 30, 13, 0.45, 0, TAU); x.fill(); x.stroke();
     // 身体填充（先不描边）
