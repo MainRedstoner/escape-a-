@@ -1538,7 +1538,7 @@ const A3DWorlds = (() => {
       { unlit: true, tint: [0.9, 0.95, 1.0] });
     photoB.quad.call(photoB, m4(1.9, 1.15, zBack + 0.012), 0.16, 0.2, [1, 1, 1], [0, 0, 1, 1]);
     // 手机：从键盘下方挪到鼠标垫左边
-    screenDark.box.call(screenDark, m4(-0.38, deskH + 0.005, deskZ + 0.24, 0, 0.3, 0), 0.07, 0.012, 0.14, [1, 1, 1], 1);
+    screenDark.box.call(screenDark, m4(-0.47, deskH + 0.005, deskZ + 0.24, 0, 0.3, 0), 0.07, 0.012, 0.14, [1, 1, 1], 1);
     // 小音箱：黑色箱体 + 圆形单元 + 蓝色指示灯
     Gbox(metalDark, 0.9, deskH + 0.06, deskZ + 0.23, 0.1, 0.12, 0.1, [0.2, 0.24, 0.32]);
     const spk = st.pen("speaker", null, { unlit: true, tint: [0.16, 0.4, 0.8] });
