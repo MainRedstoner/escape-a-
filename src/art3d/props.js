@@ -129,9 +129,7 @@ const A3DProps = (() => {
     G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.012, 0)), w + 0.02, 0.025, d + 0.012, frame, 1);
     G.box.call(b, M.mul(m, M.trs(-w / 2 - 0.01, 0, 0)), 0.022, h + 0.05, d + 0.012, frame, 1);
     G.box.call(b, M.mul(m, M.trs(w / 2 + 0.01, 0, 0)), 0.022, h + 0.05, d + 0.012, frame, 1);
-    // 支架：立柱从桌面底座顶到屏幕底边
-    G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.15, 0.055)), 0.05, 0.3, 0.05, frame, 1);
-    G.box.call(b, M.mul(m, M.trs(0, -h / 2 - 0.29, 0.07)), 0.26, 0.02, 0.2, frame, 1);
+    // 支架由场景单独绘制，避免机身自带支架和场景支架重复/错位
   }
   function monitorScreen(b, m, w, h, tex) {
     void tex;
@@ -344,7 +342,7 @@ const A3DProps = (() => {
     const r = rng(seed || 2);
     const s = scale || 1;
     const headY = 0.36 * s;
-    const lean = (r() - 0.5) * 0.25;
+    const lean = (r() - 0.5) * 0.03;
     const pts = [[0, 0, 0], [lean * 0.4, headY * 0.4, 0], [lean, headY * 0.75, 0], [lean * 1.6, headY, 0]];
     bStem.tube.call(bStem, m, pts, 0.012 * s, 5, [0.24, 0.42, 0.18]);
     for (let i = 0; i < 3; i++) {

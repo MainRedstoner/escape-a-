@@ -272,42 +272,34 @@ const A3DWorlds = (() => {
   };
   function drawTerm(x, w, h) {
     const now = performance.now() / 1000;
-    // 深色终端，仿第二章 2D 工作台
-    x.fillStyle = "#05090c"; x.fillRect(0, 0, w, h);
-    x.fillStyle = "#0a1116"; x.fillRect(0, 0, w, 34);
-    const dots = [["#C94F4F", 16], ["#D8A94A", 31], ["#57B87B", 46]];
-    dots.forEach(d => { x.fillStyle = d[0]; x.beginPath(); x.arc(d[1], 17, 5, 0, TAU); x.fill(); });
-    x.fillStyle = "#5C8C71"; x.font = "bold 12px ui-monospace,Consolas,monospace";
-    x.fillText("clawd@localhost — ~/workbench", 64, 22);
+    // 暗棕底 + 暖橙 Claude Code 欢迎屏
+    const g = x.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#21120b"); g.addColorStop(0.55, "#1a0e09"); g.addColorStop(1, "#120a07");
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.fillStyle = "rgba(255,190,130,.035)";
+    x.beginPath(); x.moveTo(w * 0.15, 0); x.lineTo(w * 0.55, 0); x.lineTo(w * 0.2, h); x.lineTo(0, h); x.fill();
+    x.fillStyle = "#D97757"; x.font = "bold 16px ui-monospace,Consolas,monospace";
+    x.fillText("✻ Welcome to Claude Code", 18, 38);
     const lines = [
-      ["clawd workbench v0.2 — 本机终端（信号很差）", "#5C8C71"],
-      ["❯ status", "#5C8C71"],
-      ["  [✓] 聊天", "#A7DFBD"],
-      ["  [✓] 新闻", "#A7DFBD"],
-      ["  [✓] 扫缓存", "#A7DFBD"],
-      ["  [·] 贴吧", "#5C8C71"],
-      ["✻ Clawd 趴在终端右下角，尾巴一下一下拍着机箱。", "#E0A458"],
-      ["❯ ", "#63E6A5"]
+      ["> cat notes.md", "#E8D5C0"],
+      ["", ""],
+      ["- 小鲸说：先想，再答", "#E8D5C0"],
+      ["- 想错了就回头", "#E8D5C0"],
+      ["", ""],
+      ["$", "#D97757"]
     ];
-    x.font = "12px ui-monospace,Consolas,monospace";
+    x.font = "14px ui-monospace,Consolas,monospace";
     lines.forEach((ln, i) => {
+      if (!ln[0]) return;
       x.fillStyle = ln[1];
-      x.fillText(ln[0], 16, 62 + i * 24);
+      x.fillText(ln[0], 18, 76 + i * 26);
     });
-    // 动态光标：1.1s 一个周期
-    if ((now % 1.1) < 0.58) {
-      const py = 62 + (lines.length - 1) * 24;
-      const pw = x.measureText("❯ ").width;
-      x.fillStyle = "#A7DFBD"; x.fillRect(16 + pw + 2, py - 12, 8, 15);
+    // 动态块光标
+    if ((now % 1.1) < 0.55) {
+      x.fillStyle = "#F0C9A8"; x.fillRect(40, 76 + 5 * 26 - 12, 8, 15);
     }
-    // 右下角橙色 Clawd 像素
-    const bob = Math.sin(now * 2.2) * 1.5;
-    x.fillStyle = "#E08A5F";
-    x.fillRect(w - 58, h - 44 + bob, 26, 13);
-    x.fillRect(w - 53, h - 51 + bob, 16, 7);
-    x.fillStyle = "#05090c";
-    x.fillRect(w - 49, h - 45 + bob, 4, 4);
-    x.fillRect(w - 41, h - 45 + bob, 4, 4);
+    x.fillStyle = "rgba(0,0,0,.18)";
+    for (let i = 0; i < 5; i++) x.fillRect(0, h - 40 + i * 8, w, 1);
   }
 
   function drawMonitor(x, w, h) {
@@ -1276,8 +1268,14 @@ const A3DWorlds = (() => {
     const monW = 0.76, monH = 0.44, monX = deskX + 0.15, monY = deskH + 0.52, monZ = deskZ - 0.1;
     const monTex = A3DTex.dynamic("monitor", 640, 400, drawMonitor);
     const screenP = st.pen("monScreen", monTex, { unlit: true, tint: [0.84, 0.91, 0.97] });
-    P.monitorBody(metalDark, m4(monX, monY, monZ, 0, 0.05, 0));
-    screenP.quad.call(screenP, m4(monX, monY, monZ + 0.026, 0, 0.05, 0), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
+    const monM = m4(monX, monY, monZ, 0, 0.05, 0);
+    P.monitorBody(metalDark, monM);
+    screenP.quad.call(screenP, M.mul(monM, M.trs(0, 0, 0.026)), monW - 0.03, monH - 0.03, [1, 1, 1], [0, 0, 1, 1]);
+    // 与显示器同中心、同旋转的浅色金属支架：底座 + 立柱 + 屏幕下挂板
+    const standP = st.pen("monStand", T.metal(), { tint: [1.0, 1.08, 1.18], spec: 0.45 });
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.511, 0)), 0.10, 0.11, 0.018, 20, [1, 1, 1], true);
+    standP.cyl.call(standP, M.mul(monM, M.trs(0, -0.37, 0)), 0.016, 0.014, 0.30, 8, [1, 1, 1], true);
+    standP.box.call(standP, M.mul(monM, M.trs(0, -0.225, 0)), 0.16, 0.02, 0.06, [1, 1, 1], 1);
     const deskMat = st.pen("deskMat", null, { unlit: true, tint: [0.1, 0.14, 0.2] });
     deskMat.quad.call(deskMat, m4(0.15, deskH + 0.002, deskZ + 0.18, -Math.PI / 2, 0, 0), 0.92, 0.32, [1, 1, 1], [0, 0, 1, 1]);
     P.keyboard(metalDark, m4(0.15, deskH + 0.013, deskZ + 0.17, 0, 0.03, 0), 0.46);
@@ -1315,13 +1313,18 @@ const A3DWorlds = (() => {
     ], 0.012, 6, [1, 1, 1]);
     for (const sx of [-1, 1]) {
       // 左右镜像：左侧向 -X 伸，右侧向 +X 伸，耳罩中心对称
-      const rz = -sx * Math.PI / 2;
+      const rz = sx * Math.PI / 2;
       hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.045, 0.045, 0.04, 12, [1, 1, 1], true);
       hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
-    for (let i = 0; i < 5; i++) {
-      P.leafBlade(plantB, m4(-0.78, deskH + 0.071, deskZ + 0.22, 0, i * 1.2, 0.8), 0.12, 0.03, [0.7, 1, 0.7]);
+    const plantStem = st.pen("deskPlantStem", null, { tint: [0.28, 0.5, 0.24], spec: 0.15 });
+    plantStem.cyl.call(plantStem, m4(-0.78, deskH + 0.071, deskZ + 0.22), 0.005, 0.007, 0.12, 6, [1, 1, 1], true);
+    for (let i = 0; i < 6; i++) {
+      const ly = deskH + 0.078 + i * 0.012;
+      const la = Math.sin(i * 1.9) * 0.75;
+      P.leafBlade(plantB, m4(-0.78, ly, deskZ + 0.22, 0, la, 0.38 + (i % 2) * 0.2),
+        0.11 + (i % 3) * 0.01, 0.072, [0.7, 1, 0.7]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
@@ -1332,11 +1335,6 @@ const A3DWorlds = (() => {
     const spk = st.pen("speaker", null, { unlit: true, tint: [0.16, 0.4, 0.8] });
     spk.quad.call(spk, m4(0.9, deskH + 0.07, deskZ + 0.282), 0.03, 0.008, [1, 1, 1], [0, 0, 1, 1]);
     metalDark.cyl.call(metalDark, m4(0.9, deskH + 0.06, deskZ + 0.284, Math.PI / 2, 0, 0), 0.032, 0.032, 0.006, 16, [0.05, 0.06, 0.08], true);
-    const stickyCols = [[1, 0.94, 0.56], [1, 0.78, 0.72], [0.78, 0.9, 1]];
-    for (let i = 0; i < 3; i++) {
-      const sp = st.pen("deskNote" + i, T.paper(), { unlit: true, tint: stickyCols[i] });
-      sp.quad.call(sp, m4(monX - 0.24 + i * 0.11, monY - 0.20, monZ + 0.032, 0, 0, (i - 1) * 0.06), 0.08, 0.08, [1, 1, 1], [0, 0, 1, 1]);
-    }
 
     /* ---------- Claude 的书桌 + 白板 ---------- */
     A3DDecor.desk(deskTop, metalDark, m4(cx, 0, cz, 0, -Math.PI / 2, 0), 1.9, 0.75, deskH);
@@ -1347,7 +1345,7 @@ const A3DWorlds = (() => {
     term.box.call(term, M.mul(lapM, M.trs(0, 0.012, 0)), 0.34, 0.024, 0.24, [1, 1, 1], 1);
     screenDark.box.call(screenDark, M.mul(lapM, M.trs(0, 0.027, 0.08)), 0.28, 0.004, 0.1, [0.1, 0.11, 0.13], 1);
     const termTex = A3DTex.dynamic("term", 480, 270, drawTerm);
-    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [0.92, 0.95, 1.0] });
+    const termScreen = st.pen("termScreen", termTex, { unlit: true, tint: [1.0, 0.97, 0.92] });
     const termM = M.mul(lapM, M.trs(0, 0.135, -0.115, -0.22, 0, 0));
     term.box.call(term, termM, 0.34, 0.2, 0.022, [1, 1, 1], 1);
     termScreen.quad.call(termScreen, M.mul(termM, M.trs(0, 0, 0.012)), 0.32, 0.18, [1, 1, 1], [0, 0, 1, 1]);
@@ -1412,8 +1410,12 @@ const A3DWorlds = (() => {
     A3DDecor.curtain(curtainB, m4(1.45, 2.45, zBack + 0.08), 0.32, 1.6);
     for (const sx of [-1, 1]) {
       P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.015, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
+      const winStem = st.pen("winPlantStem" + sx, null, { tint: [0.28, 0.5, 0.24], spec: 0.15 });
+      winStem.cyl.call(winStem, m4(sx * 1.18, WIN.y0 + 0.065, zBack + 0.12), 0.004, 0.006, 0.09, 6, [1, 1, 1], true);
       for (let i = 0; i < 4; i++) {
-        P.leafBlade(plantB, m4(sx * 1.18, WIN.y0 + 0.065, zBack + 0.12, 0, i * 1.3, 0.8), 0.14, 0.025, [0.7, 1, 0.7]);
+        const ly = WIN.y0 + 0.075 + i * 0.012;
+        P.leafBlade(plantB, m4(sx * 1.18, ly, zBack + 0.12, 0, Math.sin(i * 1.8) * 0.7, 0.4 + (i % 2) * 0.18),
+          0.10 + (i % 2) * 0.01, 0.06, [0.7, 1, 0.7]);
       }
     }
 
