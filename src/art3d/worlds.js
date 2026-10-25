@@ -1467,9 +1467,9 @@ const A3DWorlds = (() => {
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
     riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
     // 桌面马克杯：白色陶瓷杯，放在盆栽左边，杯身正面印小鲸鱼
-    P.mug(mugCeramic, m4(-0.98, deskH + 0.001, deskZ + 0.22), [1.0, 0.99, 0.96], 0.065);
+    P.mug(mugCeramic, m4(-0.98, deskH + 0.001, deskZ + 0.22), [1.0, 0.99, 0.96], 0.045);
     const mugPrint = st.pen("mugPrint", getMugWhaleTex(), { unlit: true, blend: "alpha", tint: [1, 1, 1] });
-    mugPrint.quad.call(mugPrint, m4(-0.98, deskH + 0.055, deskZ + 0.22 + 0.066), 0.095, 0.068, [1, 1, 1], [0, 0, 1, 1]);
+    mugPrint.quad.call(mugPrint, m4(-0.98, deskH + 0.048, deskZ + 0.22 + 0.046), 0.07, 0.05, [1, 1, 1], [0, 0, 1, 1]);
     P.papers(paperB, m4(-0.55, deskH + 0.001, deskZ + 0.14), 6, 12);
     P.book(bookB, m4(-0.3, deskH + 0.002, deskZ + 0.18, 0, 0.15, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
     metalDark.cyl.call(metalDark, m4(1.02, deskH + 0.001, deskZ + 0.23), 0.045, 0.04, 0.11, 12, [0.35, 0.4, 0.5], true);
