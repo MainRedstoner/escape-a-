@@ -1634,8 +1634,6 @@ const A3DWorlds = (() => {
     sconce.box.call(sconce, m4(RW / 2 - 0.08, 2.38, cz), 0.16, 0.025, 0.025, [1, 1, 1], 1);
     sconce.cyl.call(sconce, m4(RW / 2 - 0.16, 2.32, cz), 0.05, 0.04, 0.06, 10, [1, 1, 1], true);
     sconceShade.cyl.call(sconceShade, m4(RW / 2 - 0.16, 2.18, cz), 0.12, 0.08, 0.15, 14, [1, 1, 1], false);
-    const sconceGlow = st.pen("sconceGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.83, 0.36], opacity: 0.38 });
-    sconceGlow.quad.call(sconceGlow, m4(RW / 2 - 0.3, 2.18, cz, 0, -Math.PI / 2, 0), 0.85, 0.85, [1, 1, 1], [0, 0, 1, 1]);
 
     /* ---------- 粒子 ---------- */
     const pts = [];
