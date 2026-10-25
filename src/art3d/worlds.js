@@ -1467,14 +1467,15 @@ const A3DWorlds = (() => {
       hp.cyl.call(hp, m4(hx + sx * 0.10, hy, hz, 0, 0, rz), 0.032, 0.032, 0.046, 12, [1, 1, 1], true);
     }
     P.pot(potB, m4(-0.78, deskH + 0.001, deskZ + 0.22), 0.055, 0.075, [0.5, 0.55, 0.65]);
-    for (let i = 0; i < 6; i++) {
-      const a = i * 1.05 + 0.35;
-      const rad = 0.026 + (i % 2) * 0.006;
-      const lean = 0.24 + (i % 3) * 0.10;
-      const lm = M.mul(m4(-0.78 + Math.cos(a) * rad, deskH + 0.077,
-        deskZ + 0.22 + Math.sin(a) * rad, 0, a, 0),
+    for (let i = 0; i < 5; i++) {
+      const a = i * 2.399 + 0.35;
+      const dx = Math.cos(a), dz = -Math.sin(a);
+      const rad = 0.045 + (i % 2) * 0.006;
+      const lean = 0.32 + (i % 3) * 0.07;
+      const lm = M.mul(m4(-0.78 + dx * rad, deskH + 0.077 + (i % 3) * 0.004,
+        deskZ + 0.22 + dz * rad, 0, a, 0),
         M.trs(0, 0, 0, 0, 0, Math.PI / 2 - lean));
-      P.leafFlat(plantB, lm, 0.14 + (i % 3) * 0.01, 0.045, [0.55, 0.9, 0.5]);
+      P.leafFlat(plantB, lm, 0.13 + (i % 3) * 0.012, 0.026, [0.55, 0.9, 0.5]);
     }
     const photoB = st.pen("photo", A3DTex.poster(4, { title: "", bg: "#b8c8dc", seed: 8, mark: "#6f9fd0" }),
       { unlit: true, tint: [0.9, 0.95, 1.0] });
@@ -1561,13 +1562,14 @@ const A3DWorlds = (() => {
     for (const sx of [-1, 1]) {
       P.pot(potB, m4(sx * 1.18, WIN.y0 - 0.015, zBack + 0.12), 0.055, 0.085, [0.5, 0.58, 0.68]);
       for (let i = 0; i < 4; i++) {
-        const a = i * 1.3 + 0.4;
-        const rad = 0.020 + (i % 2) * 0.006;
-        const lean = 0.26 + (i % 2) * 0.12;
-        const lm = M.mul(m4(sx * 1.18 + Math.cos(a) * rad, WIN.y0 + 0.07,
-          zBack + 0.12 + Math.sin(a) * rad, 0, a, 0),
+        const a = (i / 4) * TAU + 0.4;
+        const dx = Math.cos(a), dz = -Math.sin(a);
+        const rad = 0.036;
+        const lean = 0.32 + (i % 2) * 0.08;
+        const lm = M.mul(m4(sx * 1.18 + dx * rad, WIN.y0 + 0.07 + (i % 2) * 0.004,
+          zBack + 0.12 + dz * rad, 0, a, 0),
           M.trs(0, 0, 0, 0, 0, Math.PI / 2 - lean));
-        P.leafFlat(plantB, lm, 0.09 + (i % 2) * 0.01, 0.035, [0.55, 0.9, 0.5]);
+        P.leafFlat(plantB, lm, 0.085 + (i % 2) * 0.01, 0.022, [0.55, 0.9, 0.5]);
       }
     }
 

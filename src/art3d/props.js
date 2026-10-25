@@ -383,13 +383,14 @@ const A3DProps = (() => {
       }
       bStem._pushQuad(bStem.count - 4);
     };
-    for (let i = 0; i < 4; i++) {
-      const t = 0.26 + i * 0.17;
-      const ang = i * 1.6 + 0.4;
-      const rad = 0.038 + i * 0.012;
-      const mm = M.mul(m, M.trs(lean * t + Math.cos(ang) * rad, headY * t - 0.02,
-        Math.sin(ang) * rad, 0.38, ang, 0.9));
-      leafQuad(mm, 0.135 * s, 0.042 * s);
+    // 三片叶子只长在茎中下段，根部按茎的折线插值，绝不离开茎
+    for (let i = 0; i < 3; i++) {
+      const u = 0.12 + i * 0.30;               // 0.12 / 0.42 / 0.72
+      const p0 = pts[i === 0 ? 0 : 1], p1 = pts[i === 0 ? 1 : 2];
+      const p = [p0[0] + (p1[0] - p0[0]) * u, p0[1] + (p1[1] - p0[1]) * u, 0];
+      const ang = i * 2.1 + 0.4;
+      const mm = M.mul(m, M.trs(p[0], p[1], p[2], 0.22, ang, 0.45));
+      leafQuad(mm, 0.10 * s, 0.032 * s);
     }
     // 3D 重瓣花：每层花瓣从不同半径/高度长出，沿半径向外，面朝默认视角
     const head = M.mul(m, M.trs(lean * 1.6, headY, 0, 0.06, -0.78, 0.08, 1, 1, 1));
