@@ -1258,8 +1258,9 @@ const A3DWorlds = (() => {
     bedHalo.quad.call(bedHalo, m4(-1.4, 0.74, -3.05), 0.7, 0.7, [1, 1, 1], [0, 0, 1, 1]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
     P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
-    metalDark.cyl.call(metalDark, m4(-1.3, 0.01, -2.0), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
-    metalDark.torus.call(metalDark, m4(-1.3, 0.35, -2.0), 0.18, 0.012, 14, 5, [1, 1, 1]);
+    // 垃圾桶：挪到中间桌下面、靠床头柜的左侧
+    metalDark.cyl.call(metalDark, m4(-0.9, 0.01, -2.82), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
+    metalDark.torus.call(metalDark, m4(-0.9, 0.35, -2.82), 0.18, 0.012, 14, 5, [1, 1, 1]);
 
     /* ---------- DeepSeek 的书桌 ---------- */
     A3DDecor.desk(deskTop, metalDark, m4(deskX, 0, deskZ), deskW, deskD, deskH);
