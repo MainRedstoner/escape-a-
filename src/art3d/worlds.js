@@ -1313,7 +1313,7 @@ const A3DWorlds = (() => {
   function drawMitPoster(x, w, h) {
     x.fillStyle = "#ece5d7"; x.fillRect(0, 0, w, h);
     x.strokeStyle = "#b9a88a"; x.lineWidth = 8; x.strokeRect(4, 4, w - 8, h - 8);
-    x.fillStyle = "rgb(97, 214, 214)"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillStyle = "rgb(11, 15, 25)"; x.textAlign = "center"; x.textBaseline = "middle";
     x.font = "bold 54px Georgia,serif"; x.fillText("MIT", w / 2, h * 0.12);
     // GitHub Octicon law，蓝色，放大
     const law = new Path2D(MIT_LAW_D);
