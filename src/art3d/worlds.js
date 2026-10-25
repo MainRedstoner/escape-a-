@@ -1303,6 +1303,7 @@ const A3DWorlds = (() => {
     const potB = st.pen("pot", T.stone(), { tint: [0.8, 0.84, 0.9] });
     const plantB = st.pen("leaf", T.leaf(), { cutout: true, tint: [0.9, 1.0, 0.9], sway: 0.6, rim: 0.2, noShadow: true });
     const mugB = st.pen("mug", T.metal(), { tint: [0.75, 0.82, 0.95], spec: 0.5 });
+    const mugCeramic = st.pen("mugCeramic", T.plasterPale(), { tint: [1.0, 0.97, 0.9], spec: 0.35 });
     const screenDark = st.pen("screenDark", null, { unlit: true, tint: [0.03, 0.05, 0.08] });
 
     /* ---------- 地面：蓝色地毯 ---------- */
@@ -1404,7 +1405,7 @@ const A3DWorlds = (() => {
     }
     P.tableLamp(metal, shadeWarm, m4(-1.4, 0.5, -3.15), 0.34, [1.0, 0.9, 0.58]);
     P.book(bookB, m4(-1.47, 0.5, -3.23, 0, 0.3, 0), 0.16, 0.03, 0.12, [0.3, 0.2, 0.26]);
-    P.mug(mugB, m4(-1.25, 0.5, -3.09), 0.04, [0.85, 0.8, 0.75]);
+    P.mug(mugB, m4(-1.25, 0.5, -3.09), [0.85, 0.8, 0.75], 0.04);
     // 垃圾桶：挪到中间桌下面、靠床头柜的左侧
     metalDark.cyl.call(metalDark, m4(-0.9, 0.01, -2.82), 0.16, 0.18, 0.34, 12, [1, 1, 1], false);
     metalDark.torus.call(metalDark, m4(-0.9, 0.35, -2.82), 0.18, 0.012, 14, 5, [1, 1, 1]);
@@ -1434,7 +1435,8 @@ const A3DWorlds = (() => {
     const riceP = st.pen("rice", T.plasterPale(), { tint: [1.2, 1.18, 1.08], spec: 0.1 });
     riceP.cyl.call(riceP, m4(-0.35, deskH + 0.04, deskZ + 0.0), 0.068, 0.045, 0.03, 14, [1, 1, 1], true);
     riceP.sphere.call(riceP, m4(-0.35, deskH + 0.062, deskZ + 0.0, 0, 0, 0, 1, 0.55, 1), 0.062, 12, 6, [1, 1, 1]);
-    P.mug(mugB, m4(0.66, deskH + 0.001, deskZ + 0.3), 0.045, [0.85, 0.86, 0.92]);
+    // 桌面马克杯：键盘右侧桌垫前，显眼的深蓝陶瓷杯，杯口有深色咖啡
+    P.mug(mugCeramic, m4(0.55, deskH + 0.001, deskZ + 0.24), [0.22, 0.4, 0.58], 0.065);
     P.papers(paperB, m4(-0.55, deskH + 0.001, deskZ + 0.14), 6, 12);
     P.book(bookB, m4(-0.3, deskH + 0.002, deskZ + 0.18, 0, 0.15, 0), 0.18, 0.02, 0.24, [0.16, 0.2, 0.3]);
     metalDark.cyl.call(metalDark, m4(1.02, deskH + 0.001, deskZ + 0.23), 0.045, 0.04, 0.11, 12, [0.35, 0.4, 0.5], true);
