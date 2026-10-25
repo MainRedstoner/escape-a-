@@ -164,7 +164,7 @@ const A3DProps = (() => {
     r = r || 0.045;
     b.cyl.call(b, m, r, r, 0.1, 14, col, false);
     b.cyl.call(b, M.mul(m, M.trs(0, 0.098, 0)), r * 0.86, r * 0.86, 0.004, 14, [0.16, 0.13, 0.10], true);
-    b.torus.call(b, M.mul(m, M.trs(r + 0.014, 0.055, 0)), r * 0.52, r * 0.11, 12, 6, col);
+    b.torus.call(b, M.mul(m, M.trs(r + 0.014, 0.055, 0, 0, 0, Math.PI / 2)), r * 0.52, r * 0.11, 12, 6, col);
   }
   function papers(b, m, n, seed) {
     const r = rng(seed || 13);
