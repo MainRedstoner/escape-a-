@@ -401,14 +401,43 @@ const A3DWorlds2 = (() => {
       sp.quad.call(sp, m4(x, y, z + 0.01), 1.4, 0.35, [1, 1, 1], [0, 0, 1, 1]);
     });
 
-    // 山顶大招牌：屎山
-    const peakTex = A3DTex.sign({
-      text: "屎山", w: 512, h: 256, bg: "#141a08", fg: "#c8e858", size: 130,
-      border: "#3a4a16", borderW: 8, glow: "rgba(180,230,70,.5)", glowBlur: 26
+    // 佛祖：结跏趺坐在山旁，鎏金青铜，背后一轮背光
+    const gold = st.pen("buddha", T.brass(), { tint: [1.15, 0.95, 0.55], spec: 0.55 });
+    const haloG = st.pen("halo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.85, 0.4], opacity: 0.35 });
+    const BX = -7.6, BZ = -3.6;
+    // 莲台（两层圆座）
+    gold.cyl.call(gold, m4(BX, 0.25, BZ), 1.5, 1.7, 0.5, 12, [0.85, 0.8, 0.75], true);
+    gold.cyl.call(gold, m4(BX, 0.62, BZ), 1.2, 1.4, 0.35, 12, [1, 1, 1], true);
+    // 结跏趺坐的双腿
+    Gbox(gold, BX, 1.05, BZ + 0.12, 1.7, 0.45, 0.95, [1.05, 0.9, 0.6]);
+    Gbox(gold, BX - 0.55, 1.2, BZ + 0.3, 0.72, 0.34, 0.55, [0.95, 0.82, 0.55]);
+    Gbox(gold, BX + 0.55, 1.2, BZ + 0.3, 0.72, 0.34, 0.55, [0.95, 0.82, 0.55]);
+    // 身、肩
+    Gbox(gold, BX, 1.88, BZ, 1.05, 1.15, 0.65, [1.1, 0.95, 0.6]);
+    Gbox(gold, BX, 2.52, BZ, 1.35, 0.35, 0.62, [1.05, 0.9, 0.58]);
+    // 双臂垂到膝上，手在腿前结印
+    Gbox(gold, BX - 0.64, 1.95, BZ + 0.08, 0.28, 0.95, 0.3, [0.98, 0.84, 0.55]);
+    Gbox(gold, BX + 0.64, 1.95, BZ + 0.08, 0.28, 0.95, 0.3, [0.98, 0.84, 0.55]);
+    gold.sphere.call(gold, m4(BX, 1.34, BZ + 0.44), 0.2, 8, 6, [1.1, 0.95, 0.62]);
+    // 头、肉髻、长耳垂
+    gold.sphere.call(gold, m4(BX, 3.0, BZ), 0.42, 10, 8, [1.08, 0.92, 0.6]);
+    gold.sphere.call(gold, m4(BX, 3.4, BZ), 0.14, 6, 5, [1.1, 0.95, 0.62]);
+    Gbox(gold, BX - 0.42, 2.82, BZ, 0.1, 0.32, 0.12, [1.0, 0.86, 0.56]);
+    Gbox(gold, BX + 0.42, 2.82, BZ, 0.1, 0.32, 0.12, [1.0, 0.86, 0.56]);
+    // 背光圆盘
+    haloG.quad.call(haloG, m4(BX, 2.95, BZ - 0.6), 2.8, 2.8, [1, 1, 1], [0, 0, 1, 1]);
+
+    // 山脚的醒目警告牌：禁止重构
+    const warnTex = A3DTex.sign({
+      text: "⚠ 警告：屎山高危 ⚠\n禁止重构 · 后果自负", w: 768, h: 256, bg: "#8a0f0f", fg: "#ffe9c9",
+      size: 62, lineH: 96, border: "#ffd23e", borderW: 10, glow: "rgba(255,60,30,.6)", glowBlur: 24
     });
-    Gbox(junkRust, CX, H + 0.5, CZ, 3.4, 1.6, 0.3, [0.2, 0.16, 0.1]);
-    const peak = st.pen("peak", peakTex, { unlit: true, tint: [1, 1, 1] });
-    peak.quad.call(peak, m4(CX, H + 0.5, CZ + 0.17), 3.1, 1.35, [1, 1, 1], [0, 0, 1, 1]);
+    Gbox(junk, -2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
+    Gbox(junk, 2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
+    const warn = st.pen("warn", warnTex, { unlit: true, tint: [1, 1, 1] });
+    warn.quad.call(warn, m4(0, 2.15, -2.9), 4.6, 1.55, [1, 1, 1], [0, 0, 1, 1]);
+    const warnGlow = st.pen("warnGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.25, 0.1], opacity: 0.3 });
+    warnGlow.quad.call(warnGlow, m4(0, 2.15, -2.75), 5.6, 2.3, [1, 1, 1], [0, 0, 1, 1]);
 
     // 意大利面条电缆：从山顶一路拖到山脚
     const cable = st.pen("cable", null, { tint: [0.16, 0.15, 0.12] });
@@ -428,13 +457,16 @@ const A3DWorlds2 = (() => {
       cable.tube.call(cable, M.ident(), pts, 0.05 + r() * 0.04, 5, [1, 1, 1]);
     }
 
-    // 甲虫：绕着山坡爬的 bug（字面意义）
-    for (let i = 0; i < 18; i++) {
-      const bx = CX + (r() - 0.5) * BASE_R * 1.6, bz = CZ + (r() - 0.5) * BASE_R;
+    // 甲虫：山脚平地 + 山坡两拨，绕着爬的 bug（字面意义）
+    for (let i = 0; i < 36; i++) {
+      const onSlope = i >= 22;
+      const bx = CX + (r() - 0.5) * BASE_R * (onSlope ? 1.1 : 1.6);
+      const bz = CZ + (r() - 0.5) * BASE_R * (onSlope ? 0.85 : 1.0);
+      const baseY = onSlope ? 1.2 + r() * 3.6 : 0.25;
       const rad = 0.4 + r() * 1.1, spd = 0.25 + r() * 0.6, ph = r() * TAU;
       const bd = st.dyno(null, { tint: [0.06, 0.07, 0.04] }, t => {
         const a = t * spd + ph;
-        return M.trs(bx + Math.cos(a) * rad, 0.25 + Math.abs(Math.sin(a * 3)) * 0.7, bz + Math.sin(a) * rad,
+        return M.trs(bx + Math.cos(a) * rad, baseY + Math.abs(Math.sin(a * 3)) * 0.6, bz + Math.sin(a) * rad,
           0, a, 0, 1, 1, 1);
       });
       bd.sphere.call(bd, m4(0, 0, 0, 0, 0, 0, 1.6, 0.7, 1), 0.05, 6, 4, [1, 1, 1]);
@@ -462,10 +494,6 @@ const A3DWorlds2 = (() => {
       fire.quad.call(fire, m4(bx, 1.05, -4.5), 0.9, 1.2, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    // 山脚下两个运维剪影，仰望屎山
-    P.figure(st.pen("ops1", T.fabric(), { tint: [0.15, 0.16, 0.13] }), m4(-1.2, 0, -2.2, 0, 0.3, 0), [1, 1, 1], { h: 1.7 });
-    P.figure(st.pen("ops2", T.fabric(), { tint: [0.13, 0.14, 0.12] }), m4(1.0, 0, -2.6, 0, -0.4, 0), [1, 1, 1], { h: 1.6 });
-
     // 苍蝇：绕山乱窜的黑点
     const flies = [];
     for (let i = 0; i < 120; i++) {
@@ -490,6 +518,7 @@ const A3DWorlds2 = (() => {
           { pos: [-5.5, 1.2, -4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
           { pos: [6.0, 1.2, -4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
           { pos: [0, H + 1.5, CZ + 1], col: [0.7, 0.9, 0.3], range: 14, inten: 1.4 },
+          { pos: [-7.6, 3.0, -2.6], col: [1.0, 0.85, 0.5], range: 9, inten: 1.6 },
           { pos: [0, 2.0, -6], col: [0.5, 0.6, 0.3], range: 12, inten: 0.8 }
         ]
       },
