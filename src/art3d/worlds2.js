@@ -457,20 +457,20 @@ const A3DWorlds2 = (() => {
       cable.tube.call(cable, M.ident(), pts, 0.05 + r() * 0.04, 5, [1, 1, 1]);
     }
 
-    // 甲虫：山脚平地 + 山坡两拨，绕着爬的 bug（字面意义）
+    // 甲虫：拉到镜头前，绕着爬的 bug（字面意义）
     for (let i = 0; i < 36; i++) {
       const onSlope = i >= 22;
-      const bx = CX + (r() - 0.5) * BASE_R * (onSlope ? 1.1 : 1.6);
-      const bz = CZ + (r() - 0.5) * BASE_R * (onSlope ? 0.85 : 1.0);
-      const baseY = onSlope ? 1.2 + r() * 3.6 : 0.25;
+      const bx = (r() - 0.5) * 11;
+      const bz = onSlope ? -3.5 - r() * 3.5 : -2.5 + r() * 5.5;
+      const baseY = onSlope ? 1.0 + r() * 3.0 : 0.25;
       const rad = 0.4 + r() * 1.1, spd = 0.25 + r() * 0.6, ph = r() * TAU;
       const bd = st.dyno(null, { tint: [0.06, 0.07, 0.04] }, t => {
         const a = t * spd + ph;
         return M.trs(bx + Math.cos(a) * rad, baseY + Math.abs(Math.sin(a * 3)) * 0.6, bz + Math.sin(a) * rad,
           0, a, 0, 1, 1, 1);
       });
-      bd.sphere.call(bd, m4(0, 0, 0, 0, 0, 0, 1.6, 0.7, 1), 0.05, 6, 4, [1, 1, 1]);
-      bd.sphere.call(bd, m4(0, 0, 0.06, 0, 0, 0, 0.8, 0.6, 1), 0.03, 5, 3, [0.4, 0.34, 0.2]);
+      bd.sphere.call(bd, m4(0, 0, 0, 0, 0, 0, 1.6, 0.7, 1), 0.095, 6, 4, [1, 1, 1]);
+      bd.sphere.call(bd, m4(0, 0, 0.11, 0, 0, 0, 0.8, 0.6, 1), 0.055, 5, 3, [0.4, 0.34, 0.2]);
     }
 
     // 臭气团：绿幽幽的半透明雾块慢慢飘
@@ -494,13 +494,13 @@ const A3DWorlds2 = (() => {
       fire.quad.call(fire, m4(bx, 1.05, -4.5), 0.9, 1.2, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    // 苍蝇：绕山乱窜的黑点
+    // 苍蝇：绕镜头前乱窜的黑点，个头放大
     const flies = [];
     for (let i = 0; i < 120; i++) {
       flies.push({
-        x: CX + (r() - 0.5) * 16, y: 0.5 + r() * 8, z: CZ + (r() - 0.5) * 12,
-        r: 0.1, g: 0.09, b: 0.06, a: 0.4 + r() * 0.4,
-        size: 0.012 + r() * 0.02, kind: 1, speed: 0.6 + r() * 0.9, phase: r() * TAU, wob: 0.3 + r() * 0.4
+        x: (r() - 0.5) * 13, y: 0.5 + r() * 6.5, z: -5 + r() * 8,
+        r: 0.1, g: 0.09, b: 0.06, a: 0.5 + r() * 0.4,
+        size: 0.022 + r() * 0.035, kind: 1, speed: 0.6 + r() * 0.9, phase: r() * TAU, wob: 0.3 + r() * 0.4
       });
     }
     st.points.push({ mesh: A3D.pointMesh(flies), blend: "alpha", yMin: 0, yMax: 10, fogNear: 10, fogFar: 34 });
