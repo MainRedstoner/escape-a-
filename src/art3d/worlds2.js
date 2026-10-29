@@ -385,17 +385,19 @@ const A3DWorlds2 = (() => {
     P.garbagePile(junk, bagB, m4(-4.5, 0, -3.0), 1.1, 33);
     P.garbagePile(junk, bagB, m4(4.8, 0, -2.6), 1.0, 45);
 
-    // 挂满山坡的旧屏幕：全是祖传注释
-    const screenNotes = ["TODO", "FIXME", "HACK", "DO NOT TOUCH", "tmp_final_v2.js", "works on my machine", "谁写的？我写的。"];
+    // 挂满正面山坡的旧屏幕：全是祖传注释（全部朝向镜头）
+    const screenNotes = ["TODO", "FIXME", "HACK", "DO NOT TOUCH", "tmp_final_v2.js", "works on my machine",
+      "谁写的？我写的。", "deprecated", "别动，动了就崩", "其实是 feature", "2016 年的坑", "稍后再处理"];
     screenNotes.forEach((txt, i) => {
       const tex = A3DTex.sign({
         text: txt, w: 512, h: 128, bg: "#0c0f0a", fg: i % 2 ? "#9fd44a" : "#d8c25a",
         size: 46, border: "#232b18", borderW: 4, glow: "rgba(160,220,80,.35)", glowBlur: 12
       });
-      const a = -0.9 + i * 0.3; // 只挂朝镜头这面的山坡
-      const rr = BASE_R * (0.45 + r() * 0.35);
-      const x = CX + Math.sin(a) * rr, z = CZ + Math.cos(a) * rr * 0.8;
-      const y = 1.2 + r() * (H * 0.55);
+      // 沿正面山坡面分布：高度越高退得越深，并贴着坡面微微外移
+      const y = 0.9 + r() * 4.8;
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - y / H)) * 0.8;
+      const x = CX + (r() - 0.5) * rad * 1.3;
+      const z = CZ + rad + 0.3;
       Gbox(junk, x, y, z - 0.06, 1.5, 0.9, 0.1, [0.08, 0.09, 0.08]);
       const sp = st.pen("note" + i, tex, { unlit: true, tint: [1, 1, 1] });
       sp.quad.call(sp, m4(x, y, z + 0.01), 1.4, 0.35, [1, 1, 1], [0, 0, 1, 1]);
