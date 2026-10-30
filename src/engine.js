@@ -177,7 +177,9 @@ const ENGINE = (() => {
   }, 200);
   // 回前台立刻重画一帧，别等 rAF 自然跟上（切回来时画面还停在旧状态会闪一下）
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) frame(performance.now());
+    if (document.hidden) return;
+    fit();                        // 后台期间窗口可能变过，resize 事件不一定补发
+    frame(performance.now());
   });
 
   const keys = { ctrl: false };

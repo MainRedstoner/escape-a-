@@ -725,11 +725,18 @@ function setSim(on) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(1);
     needInit = true;                   // 回原始路径时重新拿一次场景默认相机
+    lastStatus = ""; lastBadge = "";
   }
   $("btnSim").classList.toggle("on", simOn);
   $("btnPost").disabled = simOn;       // 合成模式的后期由 ART 自己决定
   syncPostButton();
   $("stGain").textContent = (simOn ? simGain : 1).toFixed(2) + "x";
+}
+
+/** 布局/视口一变就重新量画布。纯净模式切换、转屏、DPR 变化都走这里。 */
+function refit() {
+  if (simOn) simSizeCanvas();
+  else $("stGain").textContent = "1.00x";
 }
 
 function simSpritesFor() {
@@ -920,6 +927,10 @@ $("btnClean").addEventListener("click", () => {
   const clean = document.body.classList.toggle("clean");
   $("btnClean").classList.toggle("on", clean);
   if (clean) closeLightPanel();
+  /* 纯净模式改的是 CSS，#frame 会从「带边距的框」变成整屏铺满——
+   * 这不是 window.resize，光靠 resize 监听画布倍率会停在旧值。
+   * ResizeObserver 也会来一发，但那是异步的，这里先同步量一次。 */
+  refit();
 });
 window.addEventListener("keydown", e => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -1051,11 +1062,13 @@ function boot() {
   applyRawQuality();                 // 原始模式先按 ?q= 落一次
   syncPostButton();
   if (new URLSearchParams(location.search).has("sim")) setSim(true);
-  /* 画布倍率要在这些时机都重算：窗口缩放、转屏、手机地址栏收放、拖到别的显示器 */
-  const refit = () => { if (simOn) simSizeCanvas(); else $("stGain").textContent = "1.00x"; };
+  /* 画布倍率要在这些时机都重算：窗口缩放、转屏、手机地址栏收放、拖到别的显示器、
+   * 以及任何改变 #frame 尺寸的布局变化（纯净模式就是这一类）。
+   * ResizeObserver 兜住最后那一类；前面几个是它观测不到的。 */
   window.addEventListener("resize", refit);
   window.addEventListener("orientationchange", () => setTimeout(refit, 60));
   if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+  if (window.ResizeObserver) new ResizeObserver(refit).observe($("frame"));
   (function watchDpr() {
     if (!window.matchMedia) return;
     const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
