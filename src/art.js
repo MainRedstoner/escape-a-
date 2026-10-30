@@ -385,15 +385,20 @@ const ART = (() => {
   let LAYER = null;
   let hz3d = 0;          // 0 = 每帧都刷（高档）；30 / 24 = 节流
   let tier = 3;          // 当前生效档位 1 低 / 2 中 / 3 高
+  let frameScale = 1;    // 主画布后备存储倍率，engine 的 sizeCanvas 会通知过来
 
   function set3dHz(hz) { hz3d = hz > 0 ? hz : 0; }
 
   /* ---------------- 画质：一把梯子，优先保分辨率 ----------------
-   * 自动模式在这 7 级之间挪。顺序是有讲究的：先「保分辨率、把 3D 降到 30Hz」，
+   * 自动模式在这几级之间挪。顺序是有讲究的：先「保分辨率、把 3D 降到 30Hz」，
    * 再「降分辨率」——VN 里背景糊比背景跳更容易被看出来，所以宁可少画几帧。
    * 阴影 cubemap / 颗粒 / backdrop-filter 这种开关型的东西只在三档上切，
-   * 因为换 shadow 尺寸要重建一张 100MB 级的深度贴图，不能跟着 ±0.05 抖动。 */
-  const LADDER = [
+   * 因为换 shadow 尺寸要重建一张 100MB 级的深度贴图，不能跟着 ±0.05 抖动。
+   *
+   * 阶梯顶端是「原生」：主画布后备存储是 1600×900 的 frameScale 倍时，
+   * 3D 也画到那个尺寸才叫真 1:1（1080p 全屏下就是 1920×1080）。窗口不够大
+   * （frameScale === 1）时这一级没有意义，直接不插进梯子。 */
+  const BASE_STEPS = [
     [1.00, 0],    // 满分辨率、每帧
     [1.00, 30],   // 分辨率不动，3D 减半
     [0.85, 30],
@@ -402,10 +407,33 @@ const ART = (() => {
     [0.65, 24],
     [0.60, 24]
   ];
+  let LADDER = BASE_STEPS.slice();
   let scaleIdx = 0;      // LADDER 下标
   let shadowBand = 0;    // 上一次设过的阴影/辅助档（1 低 / 2 中 / 3 高）
 
   function bandOfScale(s) { return s >= 0.95 ? 3 : s >= 0.8 ? 2 : 1; }
+
+  /** 让主画布倍率变化时重建梯子（顶端换成新的原生倍率），并重新定位当前档 */
+  function setFrameScale(g) {
+    const v = Math.max(1, Math.min(1.5, g || 1));
+    if (Math.abs(v - frameScale) < 0.01) return;
+    frameScale = v;
+    buildLadder();
+    if (LAYER) { LAYER = null; }          // 尺寸变了，下一帧重建
+    applyScaleStep(scaleIdx);
+  }
+  function buildLadder() {
+    const top = Math.max(1, frameScale);
+    const cur = LADDER[scaleIdx] ? LADDER[scaleIdx][0] : 1;
+    LADDER = top > 1.02 ? [[top, 0]].concat(BASE_STEPS) : BASE_STEPS.slice();
+    // 下标会整体后移一位，按倍率重新找最近的一级，别让它跳档
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < LADDER.length; i++) {
+      const d = Math.abs(LADDER[i][0] - cur) + (LADDER[i][1] ? 0.001 : 0);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    scaleIdx = best;
+  }
 
   function applyScaleStep(i) {
     scaleIdx = Math.max(0, Math.min(LADDER.length - 1, i));
@@ -425,11 +453,31 @@ const ART = (() => {
     if (typeof document !== "undefined") document.body.classList.toggle("low-q", band <= 1);
   }
 
+  /** 按倍率找最接近的一级再应用（手动档位用，不关心它在下标几） */
+  function applyScaleValue(target) {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < LADDER.length; i++) {
+      const d = Math.abs(LADDER[i][0] - target);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    applyScaleStep(best);
+  }
+
+  /** 自动档的起步点：满分辨率 + 30Hz。先保清晰度，等实测确认有余量再往上爬；
+   *  起步就放到最低档会让快机器开局糊几秒，没必要。 */
+  function autoStart() {
+    let idx = 0;
+    for (let i = 0; i < LADDER.length; i++) {
+      if (LADDER[i][0] <= 1.0001 && LADDER[i][1] > 0) { idx = i; break; }
+    }
+    applyScaleStep(idx);
+  }
+
   /** 设置面板的档位：0 自动 / 1 低 / 2 中 / 3 高 */
   function setQuality(q) {
     auto = q < 1;
-    if (auto) { autoCool = 0; autoFail = -1; applyScaleStep(2); }   // 自动起步 0.85
-    else applyScaleStep(q === 1 ? 6 : q === 2 ? 2 : 0);
+    if (auto) { autoCool = 0; autoFail = -1; autoStart(); }
+    else applyScaleValue(q === 1 ? 0.60 : q === 2 ? 0.85 : Math.max(1, frameScale));
   }
   function getQuality() { return auto ? 0 : tier; }
   function getTier() { return tier; }
@@ -479,7 +527,7 @@ const ART = (() => {
       autoCool = 2;
     } else if (!slow && !dropping && avgCost < 0.006 && scaleIdx > 0 && (scaleIdx - 1) !== autoFail) {
       applyScaleStep(scaleIdx - 1);
-      autoCool = 5;
+      autoCool = 4;
     }
   }
 
@@ -487,8 +535,12 @@ const ART = (() => {
   function layer3d(ctx, id, t) {
     if (typeof A3D === "undefined" || !A3D.has(id)) return false;
     if (!LAYER) {
+      /* 离屏层按主画布的后备存储尺寸开（1600×900 × frameScale），
+       * 这样 3D 超采样到「原生」档时，多出来的细节不会在这一步被缩回去。
+       * 贴回主画布时仍然用 1600×900 的逻辑坐标，由 ctx 的 transform 落到设备像素。 */
       const cv = document.createElement("canvas");
-      cv.width = W; cv.height = H;
+      cv.width = Math.round(W * frameScale);
+      cv.height = Math.round(H * frameScale);
       LAYER = { cv, ctx: cv.getContext("2d"), at: -1e9, id: "", ok: false };
     }
     const gap = hz3d > 0 ? 1 / hz3d : 0;
@@ -689,7 +741,10 @@ const ART = (() => {
 
   return {
     W, H, C, FX, trigger, clear403, resetFX, stepFX, paint, draftBadge,
-    set3dHz, setQuality, getQuality, getTier, getScaleStep,
+    set3dHz, setQuality, getQuality, getTier, getScaleStep, setFrameScale,
+    get frameScale() { return frameScale; },
+    /** 3D 离屏层的实际尺寸（调试 / 排查「为什么还是糊」时看这个） */
+    get layerSize() { return LAYER ? [LAYER.cv.width, LAYER.cv.height] : null; },
     setPerf: on => { perfOn = !!on; autoLastT = -1; },
     /** 性能面板读数：上一帧 paint 耗时（毫秒） */
     get lastCostMs() { return lastCost * 1000; },

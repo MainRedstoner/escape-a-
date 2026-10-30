@@ -26,6 +26,10 @@ const ENGINE = (() => {
     cv.width = Math.round(BASE_W * gain);
     cv.height = Math.round(BASE_H * gain);
     ctx.setTransform(gain, 0, 0, gain, 0, 0);
+    /* 告诉绘制层：主画布后备存储现在是 1600×900 的多少倍。
+     * 它会据此把 3D 离屏层开到同样大小，并且允许 3D 渲染倍率超过 1——
+     * 1080p 全屏时 3D 也画 1920×1080，背景才和文字一样实。 */
+    if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(gain);
   }
   const ui = {
     hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"),

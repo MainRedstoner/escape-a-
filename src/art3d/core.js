@@ -402,8 +402,11 @@ const A3D = (() => {
   let renderScale = 1, rw = W, rh = H;
   let shadowSizeCap = 0, shadowTaps = 8;
 
+  /* 上限放到 2.0：3D 也可以超采样，让背景和主画布的后备存储 1:1。
+   * 1080p 全屏时主画布是 1920×1080（画布 1.20x），3D 还画 1600×900 的话
+   * 背景就会比文字软一档——想要一样实，就得允许 renderScale > 1。 */
   function applyScale(k) {
-    renderScale = clamp(k, 0.35, 1);
+    renderScale = clamp(k, 0.35, 2);
     rw = Math.max(1, Math.round(W * renderScale));
     rh = Math.max(1, Math.round(H * renderScale));
     if (!gl) return;
@@ -1233,7 +1236,11 @@ const A3D = (() => {
     if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
     const t0 = performance.now();
     render(sc, t);
-    ctx.drawImage(gcv, 0, 0, W, H);
+    /* 贴到目标画布的真实像素尺寸，而不是写死 1600×900：
+     * 游戏那边会传一块按「画布倍率」放大的离屏层（1080p 全屏时是 1920×1080），
+     * 3D 超采样到同样尺寸才能真正 1:1，否则多出来的细节会被这一步重新缩回去。
+     * 预览页传的是 1600×900 的画布，行为和以前完全一样。 */
+    ctx.drawImage(gcv, 0, 0, ctx.canvas.width, ctx.canvas.height);
     lastDrawMs = performance.now() - t0;   // 只是 CPU 提交耗时，GPU 是异步的
     return true;
   }
