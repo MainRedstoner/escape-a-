@@ -385,22 +385,136 @@ const A3DWorlds2 = (() => {
     P.garbagePile(junk, bagB, m4(-4.5, 0, -3.0), 1.1, 33);
     P.garbagePile(junk, bagB, m4(4.8, 0, -2.6), 1.0, 45);
 
-    // 挂满正面山坡的旧屏幕：全是祖传注释（全部朝向镜头）
-    const screenNotes = ["TODO", "FIXME", "HACK", "DO NOT TOUCH", "tmp_final_v2.js", "works on my machine",
-      "谁写的？我写的。", "deprecated", "别动，动了就崩", "其实是 feature", "2016 年的坑", "稍后再处理"];
-    screenNotes.forEach((txt, i) => {
+    // ---- 挂满正面山坡的旧屏幕：一面坡，三十年的注释 ----
+    // 每条都对应屎山的一种脾气：
+    //   能跑但偶尔抽风 / 看不懂 / 查不到原因 / 一改就炸一片 / 改完又被改回来 / 没人说得清。
+    const INK = {
+      term: { fg: "#a8dc50", glow: "rgba(160,220,80,.32)", tint: [1.14, 1.16, 1.08] },
+      warn: { fg: "#f0cc64", glow: "rgba(240,190,70,.36)", tint: [1.14, 1.16, 1.08] },
+      err: { fg: "#f05c40", glow: "rgba(255,70,40,.48)", tint: [1.16, 1.1, 1.06] },
+      dead: { fg: "#8a9668", glow: "rgba(110,140,80,.14)", tint: [0.62, 0.64, 0.55] }
+    };
+    const NOTES = [
+      // 看得懂的部分：其实也没人看得懂
+      ["term", "TODO", 56],
+      ["term", "FIXME 从这里开始", 34],
+      ["term", "// 临时方案，永久存在", 34],
+      ["term", "var a1, a2, a3, a4;", 40],
+      ["term", "能跑，别动", 52],
+      ["term", "works on my machine", 42],
+      ["term", "其实是 feature", 46],
+      ["term", "谁写的？我写的。", 42],
+      ["term", "缩进：随缘", 50],
+      ["term", "tmp_final_v2_OK.js", 40],
+      // 故障：修不好，也复现不出来
+      ["warn", "⚠ 小概率报错 0.3%", 38],
+      ["warn", "复现不了，先挂着", 38],
+      ["warn", "已修复（未验证）", 40],
+      ["err", "改 1 行 · 炸 47 处", 38],
+      ["err", "revert revert revert", 38],
+      ["err", "报错不在这，原因也不在这", 28],
+      ["err", "CI 红了，重跑一遍", 38],
+      // 人：前任、接手的人、和永远空着的交接
+      ["warn", "上一任没交接", 44],
+      ["warn", "2016 年的坑", 48],
+      ["warn", "git blame 全是我", 38],
+      ["warn", "改过的又改回去了", 36],
+      ["warn", "这里原来有注释", 40],
+      // 埋在下层的老屏幕：字都快看不清了
+      ["dead", "TODO (2019)", 46],
+      ["dead", "此处删除 400 行注释", 32],
+      ["dead", "为什么能跑？不知道", 34],
+      ["dead", "别问，问就是祖传", 38],
+      ["dead", "// 删了会崩", 44],
+      ["dead", "2013 · 初版还没删", 36],
+      ["term", "TODO: 清理 TODO", 32],
+      ["warn", "注释和代码对不上", 30],
+      ["warn", "别加新功能", 46]
+    ];
+
+    // 候选位置：沿坡面分层排，再打乱取用，免得挂得像排队
+    const slots = [];
+    for (let row = 0; row < 7; row++) {
+      const y0 = 1.0 + row * 0.78;
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - y0 / H)) * 0.84;
+      const n = Math.max(2, Math.round(rad * 0.9));
+      for (let k = 0; k < n; k++) {
+        const u = n === 1 ? 0 : (k / (n - 1)) * 2 - 1;
+        slots.push({
+          y: y0 + (r() - 0.5) * 0.2,
+          x: CX + u * rad * 1.0 + (r() - 0.5) * 0.3,
+          rad: rad + (r() - 0.5) * 0.12
+        });
+      }
+    }
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      const t = slots[i]; slots[i] = slots[j]; slots[j] = t;
+    }
+
+    let slotI = 0;
+    NOTES.forEach(([kind, txt, size], i) => {
+      const s = slots[slotI++];
+      if (!s) return;
+      const ink = INK[kind];
+      const wide = txt.length > 13 ? 1.18 : 1;
+      const w = 1.46 * wide, h = w / 4;
+      const z = CZ + s.rad + 0.28;
       const tex = A3DTex.sign({
-        text: txt, w: 512, h: 128, bg: "#0c0f0a", fg: i % 2 ? "#9fd44a" : "#d8c25a",
-        size: 46, border: "#232b18", borderW: 4, glow: "rgba(160,220,80,.35)", glowBlur: 12
+        text: txt, w: 512, h: 128, bg: "#0b0e09", fg: ink.fg, size: size,
+        border: "#222a18", borderW: 4, glow: ink.glow, glowBlur: 12
       });
-      // 沿正面山坡面分布：高度越高退得越深，并贴着坡面微微外移
-      const y = 0.9 + r() * 4.8;
-      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - y / H)) * 0.8;
-      const x = CX + (r() - 0.5) * rad * 1.3;
-      const z = CZ + rad + 0.3;
-      Gbox(junk, x, y, z - 0.06, 1.5, 0.9, 0.1, [0.08, 0.09, 0.08]);
-      const sp = st.pen("note" + i, tex, { unlit: true, tint: [1, 1, 1] });
-      sp.quad.call(sp, m4(x, y, z + 0.01), 1.4, 0.35, [1, 1, 1], [0, 0, 1, 1]);
+      // 屏幕外壳
+      Gbox(junk, s.x, s.y, z - 0.07, w + 0.1, h + 0.1, 0.1, [0.08, 0.09, 0.08]);
+      const p = st.pen("note" + i, tex, { unlit: true, tint: ink.tint });
+      p.quad.call(p, m4(s.x, s.y, z, 0, 0, (r() - 0.5) * 0.05), w, h, [1, 1, 1], [0, 0, 1, 1]);
+    });
+
+    // 胶带补丁：一片片窄条把裂缝贴起来，谁贴的、为什么贴，没人知道
+    const tape = st.pen("tape", null, { tint: [0.46, 0.43, 0.34] });
+    for (let i = 0; i < 11; i++) {
+      const y = 0.7 + r() * 4.6;
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - y / H)) * 0.84;
+      const x = CX + (r() - 0.5) * rad * 1.6;
+      tape.quad.call(tape, m4(x, y, CZ + rad + 0.33, 0, 0, (r() - 0.5) * 2.2),
+        0.45 + r() * 0.5, 0.07 + r() * 0.04, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    // 小概率 bug：两块屏幕平时安静，偶尔才亮出红色的真面目
+    [{ txt: "Uncaught TypeError", x: -2.9, y: 3.15 },
+      { txt: "null is not a function", x: 2.7, y: 4.25 }].forEach((f, i) => {
+      const tex = A3DTex.sign({
+        text: f.txt, w: 512, h: 128, bg: "#1a0705", fg: "#ff6a4a", size: 40,
+        border: "#5a140e", borderW: 5, glow: "rgba(255,80,50,.6)", glowBlur: 18
+      });
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - f.y / H)) * 1.02;
+      const z = CZ + rad + 0.4;
+      const d = st.dyno(tex, { unlit: true, tint: [1, 1, 1] }, t => {
+        const ph = (t * (0.17 + i * 0.06) + i * 0.43) % 1;
+        const k = ph < 0.04 ? 1 : 0.0001; // 96% 的时间看不见它
+        return m4(f.x, f.y, z, 0, 0, 0, k, k, 1);
+      });
+      d.quad.call(d, m4(0, 0, 0), 1.6, 0.4, [1, 1, 1], [0, 0, 1, 1]);
+    });
+
+    // 三块「大字报」屏幕：隔着半个场景也能看清，是这座山的招牌
+    const BIG_NOTES = [
+      ["err", "改 1 行 · 炸 47 处", 3.6, 1.8],
+      ["term", "能跑，别动", -3.9, 2.5],
+      ["warn", "上一任没交接", 4.6, 3.5]
+    ];
+    BIG_NOTES.forEach(([kind, txt, bx, by], i) => {
+      const ink = INK[kind];
+      const w = 2.9, h = 0.72;
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - by / H)) * 0.98;
+      const z = CZ + rad + 0.32;
+      const tex = A3DTex.sign({
+        text: txt, w: 768, h: 192, bg: "#0b0e09", fg: ink.fg, size: 62,
+        border: "#222a18", borderW: 5, glow: ink.glow, glowBlur: 16
+      });
+      Gbox(junk, bx, by, z - 0.09, w + 0.14, h + 0.14, 0.12, [0.08, 0.09, 0.08]);
+      const p = st.pen("big" + i, tex, { unlit: true, tint: ink.tint });
+      p.quad.call(p, m4(bx, by, z, 0, 0, 0), w, h, [1, 1, 1], [0, 0, 1, 1]);
     });
 
     // 佛祖：结跏趺坐在山旁，鎏金青铜，背后一轮背光
@@ -429,17 +543,27 @@ const A3DWorlds2 = (() => {
     // 背光圆盘
     haloG.quad.call(haloG, m4(BX, 2.95, BZ - 0.6), 2.8, 2.8, [1, 1, 1], [0, 0, 1, 1]);
 
-    // 山脚的醒目警告牌：禁止重构
+    // 山脚的醒目警告牌：禁止重构（别太大，挡住后面的注释就没法吐槽了）
     const warnTex = A3DTex.sign({
       text: "⚠ 警告：屎山高危 ⚠\n禁止重构 · 后果自负", w: 768, h: 256, bg: "#8a0f0f", fg: "#ffe9c9",
       size: 62, lineH: 96, border: "#ffd23e", borderW: 10, glow: "rgba(255,60,30,.6)", glowBlur: 24
     });
-    Gbox(junk, -2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
-    Gbox(junk, 2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
+    Gbox(junk, -1.75, 0.75, -2.9, 0.14, 1.5, 0.14, [0.6, 0.55, 0.5]);
+    Gbox(junk, 1.75, 0.75, -2.9, 0.14, 1.5, 0.14, [0.6, 0.55, 0.5]);
     const warn = st.pen("warn", warnTex, { unlit: true, tint: [1, 1, 1] });
-    warn.quad.call(warn, m4(0, 2.15, -2.9), 4.6, 1.55, [1, 1, 1], [0, 0, 1, 1]);
+    warn.quad.call(warn, m4(0, 1.92, -2.9), 3.8, 1.28, [1, 1, 1], [0, 0, 1, 1]);
     const warnGlow = st.pen("warnGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.25, 0.1], opacity: 0.3 });
-    warnGlow.quad.call(warnGlow, m4(0, 2.15, -2.75), 5.6, 2.3, [1, 1, 1], [0, 0, 1, 1]);
+    warnGlow.quad.call(warnGlow, m4(0, 1.92, -2.76), 4.7, 1.95, [1, 1, 1], [0, 0, 1, 1]);
+
+    // 左前方那块小牌子：负责人一栏永远是空的
+    const ownerTex = A3DTex.sign({
+      text: "负责人：已离职\n交接文档：无", w: 640, h: 320, bg: "#12160b", fg: "#c9b268",
+      size: 46, lineH: 74, border: "#3d4726", borderW: 7, glow: "rgba(190,170,80,.22)", glowBlur: 10
+    });
+    Gbox(junk, -4.75, 0.6, -2.35, 0.12, 1.2, 0.12, [0.55, 0.5, 0.45]);
+    Gbox(junk, -3.25, 0.6, -2.35, 0.12, 1.2, 0.12, [0.55, 0.5, 0.45]);
+    const owner = st.pen("owner", ownerTex, { unlit: true, tint: [1, 1, 1] });
+    owner.quad.call(owner, m4(-4.0, 1.42, -2.35), 1.78, 0.89, [1, 1, 1], [0, 0, 1, 1]);
 
     // 意大利面条电缆：从山顶一路拖到山脚
     const cable = st.pen("cable", null, { tint: [0.16, 0.15, 0.12] });
