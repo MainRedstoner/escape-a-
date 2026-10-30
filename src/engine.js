@@ -69,12 +69,15 @@ const ENGINE = (() => {
 
   /* ---------------- 主循环 ----------------
    * rAF 在后台标签页会被浏览器节流，加一个低频 interval 兜底：
-   * rAF 正常时全速渲染；rAF 停滞超过 400ms 才由 interval 补帧。 */
+   * rAF 正常时全速渲染；rAF 停滞超过 400ms 才由 interval 补帧。
+   * 标签页不可见时两边都别画——那个兜底 interval 本来是为了"rAF 被节流"
+   * 这种前台场景，躲在后台还每秒画 5 帧纯属白烧电。 */
   let lastFrameT = -1e9;
   function frame(now) {
     lastFrameT = now;
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
+    if (document.hidden) return;
     ART.stepFX(dt);
     syncChoiceBlock();
     ART.paint(ctx, SYS.state.vis, now / 1000, pending && pending.t === "say" ? pending.who : null);
@@ -92,6 +95,10 @@ const ENGINE = (() => {
     const n = performance.now();
     if (n - lastFrameT >= 400) frame(n);
   }, 200);
+  // 回前台立刻重画一帧，别等 rAF 自然跟上（切回来时画面还停在旧状态会闪一下）
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) frame(performance.now());
+  });
 
   const keys = { ctrl: false };
   window.addEventListener("keydown", e => {
