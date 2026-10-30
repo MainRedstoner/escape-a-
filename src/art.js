@@ -388,47 +388,99 @@ const ART = (() => {
 
   function set3dHz(hz) { hz3d = hz > 0 ? hz : 0; }
 
-  /* 档位把几个旋钮绑在一起。高档 = 改动前的老样子，一点没动；
-   * 低档才真的省：渲染分辨率 0.6（填充量 36%）、3D 24Hz、阴影 512 边长 + 4 采样、
-   * 关颗粒、关文本框 backdrop-filter。 */
-  function applyTier(q) {
-    tier = q < 1 ? 1 : q > 3 ? 3 : q | 0;
+  /* ---------------- 画质：一把梯子，优先保分辨率 ----------------
+   * 自动模式在这 7 级之间挪。顺序是有讲究的：先「保分辨率、把 3D 降到 30Hz」，
+   * 再「降分辨率」——VN 里背景糊比背景跳更容易被看出来，所以宁可少画几帧。
+   * 阴影 cubemap / 颗粒 / backdrop-filter 这种开关型的东西只在三档上切，
+   * 因为换 shadow 尺寸要重建一张 100MB 级的深度贴图，不能跟着 ±0.05 抖动。 */
+  const LADDER = [
+    [1.00, 0],    // 满分辨率、每帧
+    [1.00, 30],   // 分辨率不动，3D 减半
+    [0.85, 30],
+    [0.75, 30],
+    [0.75, 24],
+    [0.65, 24],
+    [0.60, 24]
+  ];
+  let scaleIdx = 0;      // LADDER 下标
+  let shadowBand = 0;    // 上一次设过的阴影/辅助档（1 低 / 2 中 / 3 高）
+
+  function bandOfScale(s) { return s >= 0.95 ? 3 : s >= 0.8 ? 2 : 1; }
+
+  function applyScaleStep(i) {
+    scaleIdx = Math.max(0, Math.min(LADDER.length - 1, i));
+    const scale = LADDER[scaleIdx][0], hz = LADDER[scaleIdx][1];
+    const band = bandOfScale(scale);
+    tier = band;
     if (typeof A3D !== "undefined" && A3D.setRenderScale) {
-      if (tier >= 3) { A3D.setRenderScale(1); A3D.setShadowQuality(0, 8); }
-      else if (tier === 2) { A3D.setRenderScale(0.8); A3D.setShadowQuality(1024, 8); }
-      else { A3D.setRenderScale(0.6); A3D.setShadowQuality(512, 4); }
+      A3D.setRenderScale(scale);
+      if (band !== shadowBand) {
+        shadowBand = band;
+        if (band >= 3) A3D.setShadowQuality(0, 8);
+        else if (band === 2) A3D.setShadowQuality(1024, 8);
+        else A3D.setShadowQuality(512, 4);
+      }
     }
-    set3dHz(tier >= 3 ? 0 : tier === 2 ? 30 : 24);
-    if (typeof document !== "undefined") document.body.classList.toggle("low-q", tier <= 1);
+    set3dHz(hz);
+    if (typeof document !== "undefined") document.body.classList.toggle("low-q", band <= 1);
   }
-  function setQuality(tierOrZero) {
-    auto = tierOrZero < 1;
-    applyTier(auto ? 2 : tierOrZero);
+
+  /** 设置面板的档位：0 自动 / 1 低 / 2 中 / 3 高 */
+  function setQuality(q) {
+    auto = q < 1;
+    if (auto) { autoCool = 0; autoFail = -1; applyScaleStep(2); }   // 自动起步 0.85
+    else applyScaleStep(q === 1 ? 6 : q === 2 ? 2 : 0);
   }
   function getQuality() { return auto ? 0 : tier; }
   function getTier() { return tier; }
+  /** 当前实际渲染倍率，性能面板用（自动档下跟档位名不是一一对应） */
+  function getScaleStep() { return LADDER[scaleIdx][0]; }
 
   /* ---------------- 自动降档 ----------------
-   * 用「帧间隔相对本机最好的间隔」判断掉没掉帧，不写死毫秒数——
-   * 120Hz 屏上好帧是 8ms、60Hz 上是 16.7ms，绝对值阈值会两边都判错。
-   * 连着两个窗口掉帧才降，四个窗口都富余才升，换完冷却一会儿，别来回抖。 */
+   * 两个信号一起看，缺一边都会判错：
+   *   · 绝对：帧间隔 > 22ms（低于约 45fps）——覆盖"一直慢"的机器。
+   *   · 相对：比本机最近见过的最好间隔慢 1.45 倍以上——覆盖"本来够快、这帧掉了"。
+   * 以前只有相对信号、而且"最好间隔"取的是开机以来的最小值，
+   * 一旦开头那几帧特别快（场景还没建好），后面每一帧都会被判成掉帧，
+   * 于是死锁在最低档——手机上"一直糊"就是这个问题。
+   * 现在改成滑动窗口里的最小值（最近 240 帧），会跟着机器状态走。
+   * 升档要求"几乎贴着最好的间隔 + CPU 也富余"，并且不许升回上次被踢下来的那一档。 */
   let auto = false;
   let perfOn = false;    // ?perf=1：额外计时给性能面板用
-  let autoBest = 0, autoGapAcc = 0, autoCostAcc = 0, autoN = 0, autoCool = 0;
-  let autoLastT = -1;
+  let autoGapAcc = 0, autoCostAcc = 0, autoN = 0, autoCool = 0;
+  let autoLastT = -1, autoFail = -1, autoFailAge = 0;
+  const gapWin = [];
+  function bestGap() {
+    let m = Infinity;
+    for (let i = 0; i < gapWin.length; i++) if (gapWin[i] < m) m = gapWin[i];
+    return m === Infinity ? 0 : m;
+  }
   function autoTick(t, cost) {
     if (autoLastT < 0) { autoLastT = t; return; }
     const gap = t - autoLastT;
     autoLastT = t;
     if (gap <= 0 || gap > 0.25) return;             // 后台 / 卡死的帧不算样本
-    if (!autoBest || gap < autoBest) autoBest = gap;
+    gapWin.push(gap);
+    if (gapWin.length > 240) gapWin.shift();
     autoGapAcc += gap; autoCostAcc += cost; autoN++;
     if (autoN < 45) return;
     const avgGap = autoGapAcc / autoN, avgCost = autoCostAcc / autoN;
     autoGapAcc = 0; autoCostAcc = 0; autoN = 0;
-    if (autoCool > 0) { autoCool--; return; }
-    if (avgGap > autoBest * 1.45 && tier > 1) { applyTier(tier - 1); autoCool = 2; }
-    else if (tier < 3 && avgGap < autoBest * 1.15 && avgCost < 0.006) { applyTier(tier + 1); autoCool = 4; }
+    const best = bestGap();
+    const slow = avgGap > 0.022;                                  // 一直慢
+    const dropping = best > 0 && avgGap > best * 1.45 && best < 0.020;
+    if (autoCool > 0) { autoCool--; }
+    if (autoFail >= 0) { autoFailAge += 45; if (autoFailAge > 1800) { autoFail = -1; autoFailAge = 0; } }
+    if (autoCool > 0) return;
+    if ((slow || dropping) && scaleIdx < LADDER.length - 1) {
+      autoFail = scaleIdx;          // 记住"刚才那一级待不住"，别马上又升回去
+      autoFailAge = 0;
+      applyScaleStep(scaleIdx + 1);
+      autoCool = 2;
+    } else if (!slow && !dropping && avgCost < 0.006 && scaleIdx > 0 && (scaleIdx - 1) !== autoFail) {
+      applyScaleStep(scaleIdx - 1);
+      autoCool = 5;
+    }
   }
 
   /** 返回这一帧该不该走 3D；true 时 LAYER 已贴进目标 ctx */
@@ -634,7 +686,7 @@ const ART = (() => {
 
   return {
     W, H, C, FX, trigger, clear403, resetFX, stepFX, paint, draftBadge,
-    set3dHz, setQuality, getQuality, getTier,
+    set3dHz, setQuality, getQuality, getTier, getScaleStep,
     setPerf: on => { perfOn = !!on; autoLastT = -1; },
     /** 性能面板读数：上一帧 paint 耗时（毫秒） */
     get lastCostMs() { return lastCost * 1000; },
