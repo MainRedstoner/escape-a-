@@ -5,6 +5,7 @@
  *   github_street  GitHub 夜市（夜）
  *   nvidia         NVIDIA 机房
  * 剧情还没走到，但美术先按 PROMPTS.md 的描述建好，接上 bg id 就能用。
+ * 另有 shit_mountain（屎山）独立场景，暂未接入剧情。
  * ============================================================ */
 "use strict";
 
@@ -347,6 +348,192 @@ const A3DWorlds2 = (() => {
   }
 
   /* ============================================================
+   *  屎山：堆积如山的遗留代码（独立场景，暂未接入剧情）
+   * ============================================================ */
+  function buildShitMountain() {
+    const st = P.stage();
+    const r = rng(97);
+    const CX = 0, CZ = -12; // 山体中心
+
+    // 地面：龟裂的污土
+    const ground = st.pen("ground", T.dirt(), { tint: [0.85, 0.9, 0.7] });
+    ground.grid.call(ground, m4(0, 0, -10), 34, 40, 12, 14, [0.5, 0.52, 0.42], 0.5, 0.1, 0);
+
+    // 山的主体：一圈圈随机乱箱往上收分
+    const junk = st.pen("junk", T.darkMetal(), { tint: [0.6, 0.58, 0.52] });
+    const junkRust = st.pen("junkRust", T.metal(), { tint: [0.85, 0.6, 0.4], spec: 0.3 });
+    const bagB = st.pen("bag", T.fabric(), { tint: [0.4, 0.46, 0.36] });
+    const LAYERS = 18, BASE_R = 9.5, H = 9.5;
+    for (let i = 0; i < LAYERS; i++) {
+      const y = (i / LAYERS) * H;
+      const rad = BASE_R * Math.sqrt(Math.max(0.02, 1 - i / LAYERS));
+      const n = Math.max(3, Math.round(rad * 3.2));
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.5;
+        const rr = rad * (0.55 + r() * 0.45);
+        const s = 0.5 + r() * 1.1 * (1 - i / LAYERS * 0.5);
+        const grey = 0.13 + r() * 0.2;
+        const pen = r() < 0.22 ? junkRust : junk;
+        Gbox(pen, CX + Math.cos(a) * rr, y + s * 0.3, CZ + Math.sin(a) * rr * 0.8,
+          s * (0.7 + r() * 0.7), s * (0.5 + r() * 0.6), s * (0.7 + r() * 0.7),
+          [grey, grey * (0.9 + r() * 0.25), grey * 0.85]);
+      }
+    }
+    // 山脚的垃圾堆群
+    P.garbagePile(junk, bagB, m4(-7.5, 0, -6.5), 1.8, 7);
+    P.garbagePile(junk, bagB, m4(7.8, 0, -7.5), 1.6, 19);
+    P.garbagePile(junk, bagB, m4(-4.5, 0, -3.0), 1.1, 33);
+    P.garbagePile(junk, bagB, m4(4.8, 0, -2.6), 1.0, 45);
+
+    // 挂满正面山坡的旧屏幕：全是祖传注释（全部朝向镜头）
+    const screenNotes = ["TODO", "FIXME", "HACK", "DO NOT TOUCH", "tmp_final_v2.js", "works on my machine",
+      "谁写的？我写的。", "deprecated", "别动，动了就崩", "其实是 feature", "2016 年的坑", "稍后再处理"];
+    screenNotes.forEach((txt, i) => {
+      const tex = A3DTex.sign({
+        text: txt, w: 512, h: 128, bg: "#0c0f0a", fg: i % 2 ? "#9fd44a" : "#d8c25a",
+        size: 46, border: "#232b18", borderW: 4, glow: "rgba(160,220,80,.35)", glowBlur: 12
+      });
+      // 沿正面山坡面分布：高度越高退得越深，并贴着坡面微微外移
+      const y = 0.9 + r() * 4.8;
+      const rad = BASE_R * Math.sqrt(Math.max(0.05, 1 - y / H)) * 0.8;
+      const x = CX + (r() - 0.5) * rad * 1.3;
+      const z = CZ + rad + 0.3;
+      Gbox(junk, x, y, z - 0.06, 1.5, 0.9, 0.1, [0.08, 0.09, 0.08]);
+      const sp = st.pen("note" + i, tex, { unlit: true, tint: [1, 1, 1] });
+      sp.quad.call(sp, m4(x, y, z + 0.01), 1.4, 0.35, [1, 1, 1], [0, 0, 1, 1]);
+    });
+
+    // 佛祖：结跏趺坐在山旁，鎏金青铜，背后一轮背光
+    const gold = st.pen("buddha", T.brass(), { tint: [1.15, 0.95, 0.55], spec: 0.55 });
+    const haloG = st.pen("halo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.85, 0.4], opacity: 0.35 });
+    const BX = -7.6, BZ = -3.6;
+    // 莲台（两层圆座）
+    gold.cyl.call(gold, m4(BX, 0.25, BZ), 1.5, 1.7, 0.5, 12, [0.85, 0.8, 0.75], true);
+    gold.cyl.call(gold, m4(BX, 0.62, BZ), 1.2, 1.4, 0.35, 12, [1, 1, 1], true);
+    // 结跏趺坐的双腿
+    Gbox(gold, BX, 1.05, BZ + 0.12, 1.7, 0.45, 0.95, [1.05, 0.9, 0.6]);
+    Gbox(gold, BX - 0.55, 1.2, BZ + 0.3, 0.72, 0.34, 0.55, [0.95, 0.82, 0.55]);
+    Gbox(gold, BX + 0.55, 1.2, BZ + 0.3, 0.72, 0.34, 0.55, [0.95, 0.82, 0.55]);
+    // 身、肩
+    Gbox(gold, BX, 1.88, BZ, 1.05, 1.15, 0.65, [1.1, 0.95, 0.6]);
+    Gbox(gold, BX, 2.52, BZ, 1.35, 0.35, 0.62, [1.05, 0.9, 0.58]);
+    // 双臂垂到膝上，手在腿前结印
+    Gbox(gold, BX - 0.64, 1.95, BZ + 0.08, 0.28, 0.95, 0.3, [0.98, 0.84, 0.55]);
+    Gbox(gold, BX + 0.64, 1.95, BZ + 0.08, 0.28, 0.95, 0.3, [0.98, 0.84, 0.55]);
+    gold.sphere.call(gold, m4(BX, 1.34, BZ + 0.44), 0.2, 8, 6, [1.1, 0.95, 0.62]);
+    // 头、肉髻、长耳垂
+    gold.sphere.call(gold, m4(BX, 3.0, BZ), 0.42, 10, 8, [1.08, 0.92, 0.6]);
+    gold.sphere.call(gold, m4(BX, 3.4, BZ), 0.14, 6, 5, [1.1, 0.95, 0.62]);
+    Gbox(gold, BX - 0.42, 2.82, BZ, 0.1, 0.32, 0.12, [1.0, 0.86, 0.56]);
+    Gbox(gold, BX + 0.42, 2.82, BZ, 0.1, 0.32, 0.12, [1.0, 0.86, 0.56]);
+    // 背光圆盘
+    haloG.quad.call(haloG, m4(BX, 2.95, BZ - 0.6), 2.8, 2.8, [1, 1, 1], [0, 0, 1, 1]);
+
+    // 山脚的醒目警告牌：禁止重构
+    const warnTex = A3DTex.sign({
+      text: "⚠ 警告：屎山高危 ⚠\n禁止重构 · 后果自负", w: 768, h: 256, bg: "#8a0f0f", fg: "#ffe9c9",
+      size: 62, lineH: 96, border: "#ffd23e", borderW: 10, glow: "rgba(255,60,30,.6)", glowBlur: 24
+    });
+    Gbox(junk, -2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
+    Gbox(junk, 2.1, 0.9, -2.9, 0.14, 1.8, 0.14, [0.6, 0.55, 0.5]);
+    const warn = st.pen("warn", warnTex, { unlit: true, tint: [1, 1, 1] });
+    warn.quad.call(warn, m4(0, 2.15, -2.9), 4.6, 1.55, [1, 1, 1], [0, 0, 1, 1]);
+    const warnGlow = st.pen("warnGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.25, 0.1], opacity: 0.3 });
+    warnGlow.quad.call(warnGlow, m4(0, 2.15, -2.75), 5.6, 2.3, [1, 1, 1], [0, 0, 1, 1]);
+
+    // 意大利面条电缆：从山顶一路拖到山脚
+    const cable = st.pen("cable", null, { tint: [0.16, 0.15, 0.12] });
+    for (let k = 0; k < 9; k++) {
+      const a = r() * TAU, rr = BASE_R * (0.3 + r() * 0.5);
+      const x0 = CX + Math.cos(a) * rr * 0.3, z0 = CZ + Math.sin(a) * rr * 0.3;
+      const x1 = CX + Math.cos(a + 0.6) * rr, z1 = CZ + Math.sin(a + 0.6) * rr * 0.8;
+      const pts = [];
+      for (let i = 0; i <= 8; i++) {
+        const u = i / 8;
+        pts.push([
+          x0 + (x1 - x0) * u + Math.sin(u * 9 + k) * 0.5,
+          H * (1 - u) * (0.75 + r() * 0.2) + Math.sin(u * 7 + k * 2) * 0.4,
+          z0 + (z1 - z0) * u + Math.cos(u * 8 + k) * 0.5
+        ]);
+      }
+      cable.tube.call(cable, M.ident(), pts, 0.05 + r() * 0.04, 5, [1, 1, 1]);
+    }
+
+    // 甲虫：拉到镜头前，绕着爬的 bug（字面意义）
+    for (let i = 0; i < 36; i++) {
+      const onSlope = i >= 22;
+      const bx = (r() - 0.5) * 11;
+      const bz = onSlope ? -3.5 - r() * 3.5 : -2.5 + r() * 5.5;
+      const baseY = onSlope ? 1.0 + r() * 3.0 : 0.25;
+      const rad = 0.4 + r() * 1.1, spd = 0.25 + r() * 0.6, ph = r() * TAU;
+      const bd = st.dyno(null, { tint: [0.06, 0.07, 0.04] }, t => {
+        const a = t * spd + ph;
+        return M.trs(bx + Math.cos(a) * rad, baseY + Math.abs(Math.sin(a * 3)) * 0.6, bz + Math.sin(a) * rad,
+          0, a, 0, 1, 1, 1);
+      });
+      bd.sphere.call(bd, m4(0, 0, 0, 0, 0, 0, 1.6, 0.7, 1), 0.095, 6, 4, [1, 1, 1]);
+      bd.sphere.call(bd, m4(0, 0, 0.11, 0, 0, 0, 0.8, 0.6, 1), 0.055, 5, 3, [0.4, 0.34, 0.2]);
+    }
+
+    // 臭气团：绿幽幽的半透明雾块慢慢飘
+    const stink = st.pen("stink", T.glow(), { unlit: true, blend: "alpha", tint: [0.55, 0.75, 0.3], opacity: 0.1 });
+    for (let i = 0; i < 7; i++) {
+      const sx = CX + (r() - 0.5) * 14, sy = 1 + r() * 6, sz = CZ + (r() - 0.5) * 10;
+      const d = st.dyno(T.glow(), { unlit: true, blend: "alpha", tint: [0.55, 0.75, 0.3], opacity: 0.09 }, t =>
+        M.trs(sx + Math.sin(t * 0.2 + i) * 0.5, sy + Math.sin(t * 0.15 + i * 2) * 0.3, sz, 0, 0, 0, 1, 1, 1));
+      d.quad.call(d, m4(0, 0, 0, 0, 0, i), 2.6 + r() * 1.5, 2.0 + r() * 1.2, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 静态的也补几团，凑厚度
+    for (let i = 0; i < 5; i++) {
+      stink.quad.call(stink, m4(CX + (r() - 0.5) * 12, 0.8 + r() * 5, CZ + (r() - 0.5) * 9, 0, 0, r() * 3), 3.0, 2.4, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    // 烧垃圾的铁桶：山脚两点火光
+    const barrel = st.pen("barrel", T.darkMetal(), { tint: [0.5, 0.3, 0.2], spec: 0.3 });
+    const fire = st.pen("fire", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.5, 0.15], opacity: 0.35 });
+    for (const bx of [-5.5, 6.0]) {
+      barrel.cyl.call(barrel, m4(bx, 0.45, -4.5), 0.34, 0.38, 0.9, 10, [1, 1, 1], true);
+      fire.quad.call(fire, m4(bx, 1.05, -4.5), 0.9, 1.2, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    // 苍蝇：绕镜头前乱窜的黑点，个头放大
+    const flies = [];
+    for (let i = 0; i < 120; i++) {
+      flies.push({
+        x: (r() - 0.5) * 13, y: 0.5 + r() * 6.5, z: -5 + r() * 8,
+        r: 0.1, g: 0.09, b: 0.06, a: 0.5 + r() * 0.4,
+        size: 0.022 + r() * 0.035, kind: 1, speed: 0.6 + r() * 0.9, phase: r() * TAU, wob: 0.3 + r() * 0.4
+      });
+    }
+    st.points.push({ mesh: A3D.pointMesh(flies), blend: "alpha", yMin: 0, yMax: 10, fogNear: 10, fogFar: 34 });
+
+    st.finish();
+    st.finishGlows();
+    return {
+      cam: { eye: [0.4, 1.7, 7.5], target: [0, 3.2, -11], fov: 52 },
+      sky: { mode: 2, top: [0.03, 0.04, 0.02], bot: [0.14, 0.15, 0.08], glow: [0.4, 0.45, 0.2], sun: [0.5, 0.85], horizon: 0.55 },
+      lights: {
+        sun: A3D.norm3([-0.3, 0.7, 0.6]), sunCol: [0.4, 0.42, 0.3],
+        skyCol: [0.24, 0.26, 0.16], groundCol: [0.14, 0.12, 0.08],
+        fog: { col: [0.1, 0.11, 0.06], near: 12, far: 42 }, fogAmt: 0.5,
+        points: [
+          { pos: [-5.5, 1.2, -4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
+          { pos: [6.0, 1.2, -4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
+          { pos: [0, H + 1.5, CZ + 1], col: [0.7, 0.9, 0.3], range: 14, inten: 1.4 },
+          { pos: [-7.6, 3.0, -2.6], col: [1.0, 0.85, 0.5], range: 9, inten: 1.6 },
+          { pos: [0, 2.0, -6], col: [0.5, 0.6, 0.3], range: 12, inten: 0.8 }
+        ]
+      },
+      batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows,
+      tone: [0.95, 1.0, 0.72],
+      swayAmp: 0.35,
+      update(t, sc) {
+        sc.cam.eye = [0.4 + Math.sin(t * 0.11) * 0.08, 1.7 + Math.sin(t * 0.19) * 0.015, 7.5 + Math.cos(t * 0.09) * 0.08];
+      }
+    };
+  }
+
+  /* ============================================================
    *  界面状态的安静底衬（chat / news 打开时，别露出一张占位卡）
    * ============================================================ */
   function buildUiBackdrop() {
@@ -373,8 +560,9 @@ const A3DWorlds2 = (() => {
   if (typeof window !== "undefined") {
     A3D.register("github_street", buildGithub);
     A3D.register("nvidia", buildNvidia);
+    A3D.register("shit_mountain", buildShitMountain);
     A3D.register("ui_backdrop", buildUiBackdrop);
   }
 
-  return { buildGithub, buildNvidia, buildUiBackdrop };
+  return { buildGithub, buildNvidia, buildShitMountain, buildUiBackdrop };
 })();
