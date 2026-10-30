@@ -125,6 +125,18 @@
   #status .bad{color:#D9534F;}
   #status .keys{margin-left:auto;letter-spacing:.4px;}
 
+  /* 纯净模式下的调试角标：画面留空，但读数还在——截图对比、弱机现场看帧率都要它。
+     ?perf=1 时非纯净模式也显示；P 键或 ?perf=0 可以彻底关掉。 */
+  #perfBadge{
+    position:fixed;left:10px;top:10px;z-index:40;display:none;pointer-events:none;
+    background:rgba(4,7,11,.84);border:1px solid var(--line);border-radius:4px;
+    font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;line-height:1.55;
+    color:#B9C7D8;padding:6px 9px;white-space:pre;
+  }
+  body.clean #perfBadge{display:block;}
+  body.want-perf #perfBadge{display:block;}
+  body.hide-perf #perfBadge{display:none !important;}
+
   /* 全部场景 */
   #grid{
     position:absolute;inset:0;z-index:9;display:none;overflow-y:auto;
@@ -289,6 +301,8 @@
     </div>
   </section>
 </main>
+
+<div id="perfBadge">—</div>
 
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
@@ -737,11 +751,19 @@ function simFrame(t) {
 
 /* ---------------- 帧循环 + FPS ---------------- */
 let last = performance.now(), fpsN = 0, fpsT = 0;
-let lastStatus = "";
+let lastStatus = "", lastBadge = "";
 function setStatus(txt) {
   if (txt === lastStatus) return;
   lastStatus = txt;
   const el = document.getElementById("stInfo");
+  if (el) el.textContent = txt;
+}
+/** 纯净模式（和 ?perf=1）看的角标：两行，够用就行 */
+function setBadge(fps, gainTxt, detail) {
+  const txt = "FPS " + fps + "   画布 " + gainTxt + "\n" + detail;
+  if (txt === lastBadge) return;
+  lastBadge = txt;
+  const el = $("perfBadge");
   if (el) el.textContent = txt;
 }
 function loop(now) {
@@ -751,15 +773,22 @@ function loop(now) {
   if (simOn) simFrame(t); else drawFrame(t);
   fpsN++;
   if (now - fpsT > 500) {
-    $("stFps").textContent = Math.round(fpsN * 1000 / (now - fpsT));
+    const fps = Math.round(fpsN * 1000 / (now - fpsT));
+    $("stFps").textContent = fps;
     if (simOn && typeof ART !== "undefined") {
       const t3 = ART.getTier ? ART.getTier() : 1;
-      $("stGain").textContent = simGain.toFixed(2) + "x";
-      $("stPaint").textContent =
-        (ART.lastCostMs || 0).toFixed(1) + "ms · " + QNAMES[t3] +
-        (ART.autoTier ? "(自动)" : "") +
+      const gainTxt = simGain.toFixed(2) + "x";
+      const tail = QNAMES[t3] + (ART.autoTier ? "(自动)" : "") +
         " · 3D " + (ART.hz3d ? ART.hz3d + "Hz" : "每帧") +
         " · 缩放 " + (A3D.renderScale || 1).toFixed(2);
+      $("stGain").textContent = gainTxt;
+      $("stPaint").textContent = (ART.lastCostMs || 0).toFixed(1) + "ms · " + tail;
+      setBadge(fps, gainTxt, "合成 " + (ART.lastCostMs || 0).toFixed(1) + "ms · " + tail);
+    } else {
+      const scaleTxt = (typeof A3D.renderScale === "number") ? A3D.renderScale.toFixed(2) : "1.00";
+      $("stGain").textContent = "1.00x";
+      $("stPaint").textContent = "原始路径 · 缩放 " + scaleTxt;
+      setBadge(fps, "1.00x", "原始路径 · 缩放 " + scaleTxt + "（" + qName + "）");
     }
     fpsN = 0; fpsT = now;
   }
@@ -904,6 +933,8 @@ window.addEventListener("keydown", e => {
     $("grid").classList.contains("show") ? closeGrid() : openGrid();
   }
   else if (k === "h" || k === "H") { $("btnClean").click(); }
+  /* P：临时收起 / 放回纯净模式下的调试角标（截图要干净画面时用） */
+  else if (k === "p" || k === "P") { document.body.classList.toggle("hide-perf"); }
   else if (k === "Escape") {
     if (lightPanelOpen) closeLightPanel();
     else if ($("grid").classList.contains("show")) closeGrid();
@@ -1006,6 +1037,11 @@ function boot() {
   $("stGl").className = "ok";
   parseQualityParam();
   $("selQuality").value = String(simQuality);
+  /* 调试角标：纯净模式下默认显示（画面留空但读数还在）；
+     ?perf=1 让非纯净模式也显示，?perf=0 彻底关掉，P 键临时切换。 */
+  const perfQ = (new URLSearchParams(location.search).get("perf") || "").toLowerCase();
+  if (perfQ === "1" || perfQ === "true" || perfQ === "on") document.body.classList.add("want-perf");
+  if (perfQ === "0" || perfQ === "false" || perfQ === "off") document.body.classList.add("hide-perf");
   bindSimControls();
   applyRawQuality();                 // 原始模式先按 ?q= 落一次
   syncPostButton();
