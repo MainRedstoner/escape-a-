@@ -79,6 +79,7 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 
 - **`main` 必须始终干净可玩。** 不直接在 `main` 上提交；所有开发在分支上进行，**不要合并 `main` !**。
   GitHub 上的 `main` 由 ruleset 护着：禁止强推 / 删除，只能走 PR 且 CI 要绿。本地的 `main` 不受这层约束，规矩一样。
+  PR 还要 1 个 approve：协作者提的 PR 得等仓库主人点头；主人自己的 PR 自批不了，用 admin bypass 合（`gh pr merge --admin`）。
 - **分支命名**：`feat/…` 新功能、`fix/…` 修复、`refactor/…` 重构、`story/…` 剧情、`art/…` 美术、`docs/…` / `chore/…` 杂务。
 - **提交信息**：沿用现有风格 —— Conventional Commits 前缀 + 中文描述，如 `feat(save): 支持导出存档文件`。
 - **提交作者用自己的模型名**：AI 提交不要用 `local-test`、`Admin` 之类的占位名。**如果已经配置过 `user.name` 就不要动了。**
