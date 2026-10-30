@@ -652,10 +652,13 @@ const ART = (() => {
 
     // 故障：切片 + 色散
     if (FX.glitch > 0 || vis.glitch) {
+      /* 画布后备存储可能是 1600×900 的 1.x 倍（按 DPR 放大），源矩形得按设备像素取，
+       * 否则切出来的只是左边一窄条。目标矩形仍然用逻辑坐标，外面的 transform 会处理。 */
+      const gk = ctx.canvas && ctx.canvas.width ? ctx.canvas.width / W2 : 1;
       for (let i = 0; i < 6; i++) {
         if (Math.random() < 0.6) {
           const y = Math.random() * H2, h = 3 + Math.random() * 26, dx = (Math.random() - 0.5) * 46;
-          try { ctx.drawImage(ctx.canvas, 0, y, W2, h, dx, y, W2, h); } catch (e) {}
+          try { ctx.drawImage(ctx.canvas, 0, y * gk, W2 * gk, h * gk, dx, y, W2, h); } catch (e) {}
         }
       }
       ctx.globalCompositeOperation = "screen";

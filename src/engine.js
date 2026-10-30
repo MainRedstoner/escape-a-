@@ -7,6 +7,26 @@
 const ENGINE = (() => {
   const $ = id => document.getElementById(id);
   const cv = $("cv"), ctx = cv.getContext("2d");
+  /* 画布后备存储对齐到真实设备像素。
+   * 舞台上所有绘制都用 1600×900 的逻辑坐标，这里按 gain 放大后备存储再上一个
+   * 整体 scale —— 代码一行不用改，文字和 UI 直接变清晰（手机上原来是 1600 的位图
+   * 被拉到 1667 设备像素，天生发虚）。
+   * 只放大不缩小：gain < 1 的场景留给 3D 层的画质档去省，2D 这边缩了就只剩糊。 */
+  const BASE_W = 1600, BASE_H = 900;
+  let canvasGain = 1;
+  function sizeCanvas() {
+    let s = 1;
+    try { s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H); } catch (e) {}
+    const dpr = window.devicePixelRatio || 1;
+    // 舞台 CSS 宽 = 1600·s，设备像素 = 1600·s·dpr → 后备存储要 1600·(s·dpr) 才 1:1
+    // 上限 1.5 倍：再往上内存和填充都涨得太快，肉眼也快分不出来了
+    const gain = Math.max(1, Math.min(1.5, s * dpr));
+    if (Math.abs(gain - canvasGain) < 0.01 && cv.width) return;
+    canvasGain = gain;
+    cv.width = Math.round(BASE_W * gain);
+    cv.height = Math.round(BASE_H * gain);
+    ctx.setTransform(gain, 0, 0, gain, 0, 0);
+  }
   const ui = {
     hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"),
     stArg: $("stArg"), stEgg: $("stEgg"),
@@ -79,9 +99,10 @@ const ENGINE = (() => {
     perfEl = document.createElement("div");
     perfEl.id = "perfHud";
     /* 固定定位、挂在 body 上而不是 #stage 里：#stage 会按窗口缩放（手机上可能只剩 0.5 倍），
-     * 面板跟着缩就彻底看不清了。挂在 body 上才是真实像素尺寸。 */
+     * 面板跟着缩就彻底看不清了。挂在 body 上才是真实像素尺寸。
+     * 放顶部居中：左下角会被文本框和桌宠挡住。 */
     perfEl.style.cssText =
-      "position:fixed;left:10px;bottom:10px;z-index:9999;pointer-events:none;" +
+      "position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9999;pointer-events:none;" +
       "background:rgba(4,7,11,.88);border:1px solid #2C3542;border-radius:4px;" +
       "color:#C9D2DE;font:13px/1.45 'Cascadia Mono','Consolas',monospace;" +
       "padding:8px 11px;white-space:pre;";
@@ -114,6 +135,7 @@ const ENGINE = (() => {
         "   缩放 " + (A3D && A3D.renderScale ? A3D.renderScale.toFixed(2) : "-") +
         "   3D " + (hz ? hz + "Hz" : "每帧") + "\n" +
       "批次 " + st.draws + "   顶点 " + Math.round(st.verts / 1000) + "k" +
+        "   画布 " + canvasGain.toFixed(2) + "x" +
         (st.shadow ? "   阴影 " + st.shadow + "/" + st.taps : "");
   }
 
@@ -231,6 +253,7 @@ const ENGINE = (() => {
     const w = window.innerWidth, h = window.innerHeight;
     const s = Math.min(w / 1600, h / 900);
     $("stage").style.transform = `scale(${s})`;
+    sizeCanvas();   // 屏幕尺寸 / DPR 变了就重算画布后备存储
   }
   window.addEventListener("resize", fit);
 
@@ -2358,6 +2381,8 @@ const ENGINE = (() => {
   return {
     goto, toTitle, showGallery, closeOverlay, toast,
     get started() { return started; },
+    get canvasGain() { return canvasGain; },
+    get canvasSize() { return [cv.width, cv.height]; },
     setGlitch(on) { SYS.state.vis.glitch = on; document.body.classList.toggle("glitching", on); },
     debug: () => ({ scene: cur.scene, idx: cur.idx, pending: pending ? pending.t : null, typing })
   };
