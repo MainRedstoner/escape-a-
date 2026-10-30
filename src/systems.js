@@ -23,7 +23,8 @@ const SYS = (() => {
     autoDelay: 1600,    // 自动模式停顿
     volume: 0.5,
     blip: true,
-    draftBadge: true    // 在 SDXL 草稿素材上显示角标（正式美术替换后可关）
+    draftBadge: true,   // 在 SDXL 草稿素材上显示角标（正式美术替换后可关）
+    quality: 0          // 3D 画质：0 自动 / 1 低 / 2 中 / 3 高（见 art.js 的 applyTier）
   }, store.get("ea_settings", {}));
 
   function saveSettings() { store.set("ea_settings", settings); }

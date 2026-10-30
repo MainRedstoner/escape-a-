@@ -67,6 +67,54 @@ const ENGINE = (() => {
     if (blocking && ui.hintBubble.style.display === "block") ui.hintBubble.style.display = "none";
   }
 
+  /* ---------------- 性能面板（index.html?perf=1） ----------------
+   * 弱机上调档 / 报数字用：能看出到底是"整帧贵"还是"3D 那一层贵"。
+   * 数字含义：帧 = 相邻两帧的间隔（受显示器刷新率和掉帧共同影响）；
+   * paint = 本帧 2D 合成 + 3D 提交 + 立绘 + 后期的总耗时；
+   * 3D提交 = 上一次真正渲染 3D 场景的 CPU 时间（GPU 是异步的，不等于 GPU 时间）。 */
+  let perfEl = null, perfLastT = 0, perfAccT = 0, perfGapN = 0, perfTick = 0;
+  const perfGaps = [];
+  function buildPerfHud() {
+    if (perfEl) return;
+    perfEl = document.createElement("div");
+    perfEl.id = "perfHud";
+    perfEl.style.cssText =
+      "position:absolute;left:18px;bottom:18px;z-index:60;pointer-events:none;" +
+      "background:rgba(4,7,11,.88);border:1px solid #2C3542;border-radius:4px;" +
+      "color:#C9D2DE;font:15px/1.5 'Cascadia Mono','Consolas',monospace;" +
+      "padding:10px 14px;white-space:pre;";
+    document.getElementById("stage").appendChild(perfEl);
+    window.__perf = { gaps: perfGaps, snapshot: () => (perfEl ? perfEl.textContent : "") };
+    perfLastT = performance.now();
+  }
+  function updatePerf(now) {
+    if (!perfEl) return;
+    const gap = now - perfLastT;
+    perfLastT = now;
+    if (gap > 0 && gap < 500) {
+      perfAccT += gap; perfGapN++;
+      perfGaps.push(Math.round(gap * 10) / 10);
+      if (perfGaps.length > 180) perfGaps.shift();
+    }
+    if (now - perfTick < 250) return;
+    perfTick = now;
+    const avg = perfGapN ? perfAccT / perfGapN : 0;
+    perfAccT = 0; perfGapN = 0;
+    const st = (typeof A3D !== "undefined" && A3D.stats) ? A3D.stats() : { draws: 0, verts: 0 };
+    const tier = (typeof ART !== "undefined" && ART.getTier) ? ART.getTier() : 0;
+    const hz = (typeof ART !== "undefined" && ART.hz3d) ? ART.hz3d : 0;
+    const paintMs = (typeof ART !== "undefined" && ART.lastCostMs) ? ART.lastCostMs : 0;
+    const d3 = (typeof A3D !== "undefined" && A3D.lastDrawMs) ? A3D.lastDrawMs : 0;
+    perfEl.textContent =
+      "帧 " + (avg ? Math.round(1000 / avg) + "fps / " + avg.toFixed(1) + "ms" : "—") + "\n" +
+      "paint " + paintMs.toFixed(1) + "ms   3D提交 " + d3.toFixed(1) + "ms\n" +
+      "档 " + Q_NAMES[tier] + (ART && ART.autoTier ? "（自动）" : "") +
+        "   缩放 " + (A3D && A3D.renderScale ? A3D.renderScale.toFixed(2) : "-") +
+        "   3D " + (hz ? hz + "Hz" : "每帧") + "\n" +
+      "批次 " + st.draws + "   顶点 " + Math.round(st.verts / 1000) + "k" +
+        (st.shadow ? "   阴影 " + st.shadow + "/" + st.taps : "");
+  }
+
   /* ---------------- 主循环 ----------------
    * rAF 在后台标签页会被浏览器节流，加一个低频 interval 兜底：
    * rAF 正常时全速渲染；rAF 停滞超过 400ms 才由 interval 补帧。
@@ -78,6 +126,7 @@ const ENGINE = (() => {
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     if (document.hidden) return;
+    updatePerf(now);
     ART.stepFX(dt);
     syncChoiceBlock();
     ART.paint(ctx, SYS.state.vis, now / 1000, pending && pending.t === "say" ? pending.who : null);
@@ -2123,12 +2172,28 @@ const ENGINE = (() => {
     }
     $("ovGallery").style.display = "flex";
   }
+  /* ---------------- 3D 画质 ----------------
+   * 优先级：URL 的 ?q= > 设置里的 quality（0 = 自动）。 */
+  const Q_NAMES = ["自动", "低", "中", "高"];
+  function applyQuality(param) {
+    let v = param;
+    if (v === undefined || v === null || v === "") v = SYS.settings.quality;
+    if (typeof v === "string") {
+      const k = { auto: 0, "0": 0, low: 1, "1": 1, mid: 2, "2": 2, high: 3, "3": 3 }[v.toLowerCase()];
+      v = k === undefined ? 0 : k;
+    }
+    v = Math.max(0, Math.min(3, v | 0));
+    if (typeof ART !== "undefined" && ART.setQuality) ART.setQuality(v);
+    return v;
+  }
+
   function showSettings() {
     $("rngSpeed").value = 61 - SYS.settings.speed;
     $("rngAuto").value = SYS.settings.autoDelay;
     $("rngVol").value = Math.round(SYS.settings.volume * 100);
     $("chkBlip").checked = SYS.settings.blip;
     $("chkDraft").checked = SYS.settings.draftBadge !== false;
+    $("rngQuality").value = SYS.settings.quality | 0;
     updSetLabels();
     $("ovSet").style.display = "flex";
   }
@@ -2136,6 +2201,9 @@ const ENGINE = (() => {
     $("lblSpeed").textContent = `速度 ${$("rngSpeed").value}`;
     $("lblAuto").textContent = `${$("rngAuto").value}ms`;
     $("lblVol").textContent = `${$("rngVol").value}%`;
+    const q = +$("rngQuality").value | 0;
+    $("lblQuality").textContent = Q_NAMES[q] + (q === 0 && typeof ART !== "undefined" && ART.getTier
+      ? `（当前${Q_NAMES[ART.getTier()]}）` : "");
   }
   function bindSettings() {
     $("rngSpeed").addEventListener("input", e => { SYS.settings.speed = 61 - (+e.target.value); updSetLabels(); SYS.saveSettings(); });
@@ -2143,6 +2211,12 @@ const ENGINE = (() => {
     $("rngVol").addEventListener("input", e => { SYS.settings.volume = (+e.target.value) / 100; AUDIO.setVolume(SYS.settings.volume); updSetLabels(); SYS.saveSettings(); });
     $("chkBlip").addEventListener("change", e => { SYS.settings.blip = e.target.checked; SYS.saveSettings(); });
     $("chkDraft").addEventListener("change", e => { SYS.settings.draftBadge = e.target.checked; SYS.saveSettings(); });
+    $("rngQuality").addEventListener("input", e => {
+      SYS.settings.quality = +e.target.value;
+      applyQuality(SYS.settings.quality);
+      updSetLabels();
+      SYS.saveSettings();
+    });
   }
 
   function confirmMenu() {
@@ -2255,9 +2329,13 @@ const ENGINE = (() => {
     bindWorkUI();
     buildTitle();
     ui.titleScreen.style.display = "flex";
+    const qs = new URLSearchParams(location.search);
     /* ?bg=<id>：标题画面上直接预览某个背景（美术调试用，见 DEBUGGING.md） */
-    const bgQ = new URLSearchParams(location.search).get("bg");
+    const bgQ = qs.get("bg");
     if (bgQ) SYS.state.vis.bg = bgQ;
+    /* ?q=low|mid|high|auto 强制 3D 画质；?bg= 预览一律高档，别让自动降档干扰美术判断 */
+    applyQuality(qs.get("q") || (bgQ ? "high" : null));
+    if (qs.has("perf")) { ART.setPerf(true); buildPerfHud(); }
     requestAnimationFrame(loop);
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
