@@ -401,6 +401,9 @@ const A3D = (() => {
    * shadowSizeCap / shadowTaps 控制那盏点光的 cubemap 尺寸与 PCF 采样数。 */
   let renderScale = 1, rw = W, rh = H;
   let shadowSizeCap = 0, shadowTaps = 8;
+  /* 实际拿到的多重采样数：浏览器不保证给，得问。1 = 没有 MSAA。
+   * a2cOK = 能不能用 alpha-to-coverage 给镂空材质做边缘抗锯齿（需要 MSAA）。 */
+  let msaaSamples = 1, a2cOK = false;
 
   /* 上限放到 2.0：3D 也可以超采样，让背景和主画布的后备存储 1:1。
    * 1080p 全屏时主画布是 1920×1080（画布 1.20x），3D 还画 1600×900 的话
@@ -534,7 +537,7 @@ const A3D = (() => {
   in vec3 vWorld; in vec3 vNor; in vec2 vUV; in vec3 vCol; in float vFogDepth;
   out vec4 o;
   uniform sampler2D uTex;
-  uniform float uUseTex, uUnlit, uOpacity, uSpec, uRim, uFogAmt, uEmisBoost, uCutout;
+  uniform float uUseTex, uUnlit, uOpacity, uSpec, uRim, uFogAmt, uEmisBoost, uCutout, uA2C;
   uniform vec3 uTint, uEmissive, uCam;
   uniform vec3 uSunDir, uSunCol, uSkyCol, uGroundCol, uFogCol;
   uniform float uFogNear, uFogFar;
@@ -573,9 +576,20 @@ const A3D = (() => {
   void main(){
     vec2 uv = vUV * uUVScale + uUVOff;
     vec4 tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
-    if (uCutout > 0.5 && tx.a < 0.45) discard;
-    vec3 alb = tx.rgb * uTint * vCol;
     float a = tx.a * uOpacity;
+    /* 镂空材质（树叶 / 海带 / 藤蔓）的边缘抗锯齿：
+     *   · 有 MSAA 且支持 alpha-to-coverage 时不 discard，把贴图 alpha 交给覆盖度，
+     *     4 个采样点按 alpha 抖动 → 边缘是渐变的，而不是一刀切；
+     *   · 否则退回老的硬阈值 discard（老设备上观感和以前完全一样）。 */
+    if (uCutout > 0.5) {
+      if (uA2C > 0.5) {
+        a = tx.a;
+      } else {
+        if (tx.a < 0.45) discard;
+        a = 1.0;
+      }
+    }
+    vec3 alb = tx.rgb * uTint * vCol;
     vec3 col;
     if (uUnlit > 0.5) {
       col = alb;
@@ -761,6 +775,10 @@ const A3D = (() => {
     gl = gcv.getContext("webgl2", { antialias: true, alpha: false, depth: true,
                                     powerPreference: "high-performance", preserveDrawingBuffer: false });
     if (!gl) { failReason = "浏览器不支持 WebGL2"; return false; }
+    /* antialias: true 只是"请求"，能不能拿到 MSAA 得看驱动和浏览器。
+     * 这里量一次真实采样数：拿不到就退回硬阈值镂空，别指望 alpha-to-coverage。 */
+    msaaSamples = Math.max(1, (gl.getParameter(gl.SAMPLES) | 0));
+    a2cOK = msaaSamples > 1 && typeof gl.SAMPLE_ALPHA_TO_COVERAGE === "number";
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.disable(gl.CULL_FACE);   // 几何体双面可见：法线决定明暗，省得逐个检查绕序
@@ -924,6 +942,7 @@ const A3D = (() => {
     const far = sh.far || 9;
     const tex = makeDepthCube(size);
     try {
+      setA2C(false);            // 阴影 pass 不需要也绝不能带 alpha-to-coverage
       gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
       gl.drawBuffers([gl.NONE]);
       gl.readBuffer(gl.NONE);
@@ -969,6 +988,17 @@ const A3D = (() => {
     }
   }
 
+  /* alpha-to-coverage 是全局 GL 状态，逐批次切会很啰嗦，缓存一下当前值再改。
+   * 只有镂空批次会打开它，其它（天空 / 海 / 粒子 / 发光片 / 阴影）一律关掉。 */
+  let a2cOn = false;
+  function setA2C(on) {
+    const want = !!(on && a2cOK);
+    if (want === a2cOn) return;
+    a2cOn = want;
+    if (want) gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE);
+    else gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
+  }
+
   function setBatch(b, t, view) {
     const P = litProg, u = P.u;
     gl.uniformMatrix4fv(u.uModel, false, b.model || scratchMat);
@@ -991,6 +1021,11 @@ const A3D = (() => {
     if (b.blend === "add") { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); }
     else if (b.blend === "alpha") { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     else gl.disable(gl.BLEND);
+    /* 镂空批次走 alpha-to-coverage：覆盖度按贴图 alpha 抖动，边缘由 MSAA 采出来。
+     * 这是逐批的状态，别的批次必须关掉，否则半透明混合会被它搅乱。 */
+    const useA2C = !!(b.cutout && a2cOK);
+    setA2C(useA2C);
+    gl.uniform1f(u.uA2C, useA2C ? 1 : 0);
     gl.depthMask(b.blend === undefined || b.blend === "opaque");
     gl.bindVertexArray(b.mesh.vao);
     gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
@@ -1046,6 +1081,7 @@ const A3D = (() => {
   function drawSky(scene, t) {
     const s = scene.sky || {};
     const u = skyProg.u;
+    setA2C(false);
     gl.useProgram(skyProg.p);
     gl.depthMask(false);
     gl.enable(gl.DEPTH_TEST);
@@ -1073,6 +1109,7 @@ const A3D = (() => {
 
   function drawSea(b, t) {
     const u = seaProg.u;
+    setA2C(false);
     gl.useProgram(seaProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
@@ -1097,6 +1134,7 @@ const A3D = (() => {
 
   function drawPoints(sc, t) {
     const u = ptProg.u;
+    setA2C(false);          // 粒子是软边贴图，不参与 alpha-to-coverage
     gl.useProgram(ptProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
@@ -1119,6 +1157,7 @@ const A3D = (() => {
 
   function drawGlow(b, t) {
     const u = glowProg.u;
+    setA2C(false);          // 发光片是加法混合，开 A2C 会把覆盖度也乘进去
     gl.useProgram(glowProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
@@ -1290,6 +1329,9 @@ const A3D = (() => {
     get renderSize() { return [rw, rh]; },
     setShadowQuality,
     get shadowTaps() { return shadowTaps; },
+    /** 实际拿到的多重采样数（1 = 没有 MSAA）与 alpha-to-coverage 可用性 */
+    get samples() { return msaaSamples; },
+    get alphaToCoverage() { return a2cOK; },
     /** 上一次 draw 的 CPU 提交耗时（毫秒）；GPU 是异步的，这只是个参考量 */
     get lastDrawMs() { return lastDrawMs; },
     /** 调试 / 性能面板用：当前这一帧画了多少批次与顶点 */

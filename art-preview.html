@@ -310,6 +310,7 @@
   <span>场景 <b id="stInfo">—</b></span>
   <span>画布 <b id="stGain">1.00x</b></span>
   <span>合成 <b id="stPaint">—</b></span>
+  <span>AA <b id="stAA">—</b></span>
   <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选 · L 光影</span>
 </div>
 
@@ -1051,6 +1052,14 @@ function boot() {
   }
   $("stGl").textContent = "可用";
   $("stGl").className = "ok";
+  /* 抗锯齿信息：MSAA 是浏览器给的（antialias:true 只是请求），
+   * A2C = 镂空材质走 alpha-to-coverage，需要 MSAA 才生效。 */
+  if ($("stAA")) {
+    $("stAA").textContent = A3D.samples > 1
+      ? A3D.samples + "x" + (A3D.alphaToCoverage ? " + A2C" : "")
+      : "无（浏览器没给 MSAA）";
+    $("stAA").className = A3D.samples > 1 ? "ok" : "bad";
+  }
   parseQualityParam();
   $("selQuality").value = String(simQuality);
   /* 调试角标：纯净模式下默认显示（画面留空但读数还在）；

@@ -143,6 +143,7 @@ const ENGINE = (() => {
         "   3D " + (hz ? hz + "Hz" : "每帧") + "\n" +
       "批次 " + st.draws + "   顶点 " + Math.round(st.verts / 1000) + "k" +
         "   画布 " + canvasGain.toFixed(2) + "x" +
+        "   MSAA " + (A3D && A3D.samples > 1 ? A3D.samples + "x" + (A3D.alphaToCoverage ? "+A2C" : "") : "关") +
         (st.shadow ? "   阴影 " + st.shadow + "/" + st.taps : "");
   }
 
