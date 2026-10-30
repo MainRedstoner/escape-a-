@@ -85,7 +85,7 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 - **提交作者用自己的模型名**：AI 提交不要用 `local-test`、`Admin` 之类的占位名。**如果已经配置过 `user.name` 就不要动了。**
   - 例: `Claude Opus 5.5 <noreply@anthropic.com>`
   - **不要为此修改仓库的 git 配置**。
-- **修正历史里的作者**（早期提交误用了占位名）：用 `git filter-branch --env-filter` 直接改提交，改完用 `git rev-parse <ref>^{tree}` 确认树没变，再 `git push --force-with-lease local <branch>`。同样**不要改 git 配置**；分支只推到 `local`，不碰 GitHub。
+- **修正历史里的作者**（早期提交误用了占位名）：用 `git filter-branch --env-filter` 直接改提交，改完用 `git rev-parse <ref>^{tree}` 确认树没变，再用 `--force-with-lease` 覆盖 `local` 和 `origin` 上的同名分支。同样**不要改 git 配置**；`main` 有 ruleset 挡着强推，重写历史只对功能分支有意义。
 - **开工前先 `git fetch --prune`，干活中途也尽量勤 fetch**：fetch 只更新远端跟踪引用，不碰工作区和本地分支，任何时候做都安全，不必等用户批准。别等到推送被拒、或者 rebase 出大冲突才发现自己落后了。
 - **发现落后就先同步再继续**：自己分支落后于远端同名分支时，先 `git rebase` 过去再往下改；拿不准该 rebase 还是该让用户决定，就问一声，别抱着旧代码闷头写。
 - **GitHub 远端随时可以推，而且尽量勤推**（推分支）：这些小步推送是为了和别人同步进度，不必等用户点头，也不要攒一大堆再一起推。本地 `local` 备份仓照样可以推，两边一起推最好。
@@ -94,7 +94,8 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
   （`剧本与代码校验`、`分支命名`），合并方式只留 merge commit（squash / rebase 已在仓库设置里关掉）。
   所以上 GitHub 的完整流程是：本地分支 → `git push origin <branch>` → `gh pr create` → CI 绿 → 合并。
   本地 `main` 照样可以本地合并再同步，但推不上去——要进 GitHub 只能走 PR。
-- **只有 Actions 挂了或者急着修**才用 admin bypass 合并（`gh pr merge --admin`），合并后记一笔原因。
+- **admin bypass 只用来绕过 approve，不用来绕过 CI。** 自己的 PR 自批不了，所以合并时得带 `--admin`；
+  但检查该绿还得绿——只有 Actions 本身挂了才允许连检查一起绕过，事后记一笔原因。
 - **不要自行改远端或改分支保护**，除非用户明确要求。
 - **`main-del0` 分支暂时冻结**，不要合并、变基或删除。
 - 不提交本地产物：`.tmp/`、`.mimosa/`、`.zcode/`、`.qoder/`、`saves/`（存档服务数据目录）等，已在 `.gitignore`。

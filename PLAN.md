@@ -24,8 +24,9 @@
 - [~] `DESIGN.md`（剧情与玩法企划）
 - [x] `.gitignore` 加入 `saves/`
 - [x] 修正 STORY_GUIDE.md 第三节的过时描述：工具里已改为 `require`，不再有 `FILES` 数组
-- [ ] 推送 `main` 并设置上游（等用户确认）
-- [?] GitHub 分支保护 / Actions 自动跑校验（等用户决定）
+- [x] 推送 `main` 到 GitHub（上游故意没设：`main` 只能走 PR，裸 `git push` 会被 ruleset 拒绝）
+- [x] GitHub 分支保护 / Actions 自动跑校验 —— ruleset `main protection`（只收 PR、1 个 approve、两个检查必过、只许 merge commit）+
+       `tag protection`（`v*` 禁删禁移）+ `.github/workflows/validate.yml` + PR 模板 + GitHub Pages
 
 ---
 
