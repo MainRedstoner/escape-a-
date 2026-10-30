@@ -410,17 +410,22 @@ const ART = (() => {
   let LADDER = BASE_STEPS.slice();
   let scaleIdx = 0;      // LADDER 下标
   let shadowBand = 0;    // 上一次设过的阴影/辅助档（1 低 / 2 中 / 3 高）
+  let manualQ = 3;       // 手动档位（1 低 / 2 中 / 3 高），窗口变化后要按它重新套
 
   function bandOfScale(s) { return s >= 0.95 ? 3 : s >= 0.8 ? 2 : 1; }
 
-  /** 让主画布倍率变化时重建梯子（顶端换成新的原生倍率），并重新定位当前档 */
+  /** 主画布倍率变化时：重建梯子（顶端换成新的原生倍率），并按当前模式重新套一次。
+   *  手动档必须重套——用户选的是「高」，而「高」的含义跟着画布倍率走；
+   *  只按最近倍率映射下标的话，窗口变大后它会停在旧的 1.00 上，看着像"没跟着切"。 */
   function setFrameScale(g) {
     const v = Math.max(1, Math.min(1.5, g || 1));
     if (Math.abs(v - frameScale) < 0.01) return;
     frameScale = v;
     buildLadder();
-    if (LAYER) { LAYER = null; }          // 尺寸变了，下一帧重建
-    applyScaleStep(scaleIdx);
+    LAYER = null;                          // 尺寸变了，下一帧按新大小重建
+    autoLastT = -1;                        // 尺寸切换那一帧的耗时不算样本
+    if (auto) applyScaleStep(scaleIdx);
+    else applyScaleValue(manualQ === 1 ? 0.60 : manualQ === 2 ? 0.85 : Math.max(1, frameScale));
   }
   function buildLadder() {
     const top = Math.max(1, frameScale);
@@ -476,7 +481,8 @@ const ART = (() => {
   /** 设置面板的档位：0 自动 / 1 低 / 2 中 / 3 高 */
   function setQuality(q) {
     auto = q < 1;
-    if (auto) { autoCool = 0; autoFail = -1; autoStart(); }
+    if (!auto) manualQ = q;
+    if (auto) { autoCoolT = 0; autoFail = -1; autoFailT = 0; autoLastT = -1; autoStart(); }
     else applyScaleValue(q === 1 ? 0.60 : q === 2 ? 0.85 : Math.max(1, frameScale));
   }
   function getQuality() { return auto ? 0 : tier; }
@@ -488,15 +494,21 @@ const ART = (() => {
    * 两个信号一起看，缺一边都会判错：
    *   · 绝对：帧间隔 > 22ms（低于约 45fps）——覆盖"一直慢"的机器。
    *   · 相对：比本机最近见过的最好间隔慢 1.45 倍以上——覆盖"本来够快、这帧掉了"。
-   * 以前只有相对信号、而且"最好间隔"取的是开机以来的最小值，
-   * 一旦开头那几帧特别快（场景还没建好），后面每一帧都会被判成掉帧，
-   * 于是死锁在最低档——手机上"一直糊"就是这个问题。
-   * 现在改成滑动窗口里的最小值（最近 240 帧），会跟着机器状态走。
-   * 升档要求"几乎贴着最好的间隔 + CPU 也富余"，并且不许升回上次被踢下来的那一档。 */
+   *
+   * 判定窗口按**时间**算（0.5 秒）而不是按帧数：原来按 45 帧算，慢机上
+   * 一个窗口就要 1.5~1.9 秒，加上冷却设一次档要好几秒，手感就是"不灵敏、切不过去"。
+   * 现在降档后只等 0.8 秒就能再降一次，最快的机器 0.5 秒内就会开始爬。
+   * "上一级待不住"记 10 秒就过期，不会因为一次偶发卡顿把某一级永久封掉。 */
+  const AUTO = {
+    win: 0.5,          // 每次评估的窗口（秒）
+    downCool: 0.8,     // 降档后的冷却
+    upCool: 1.5,       // 升档后的冷却（升档更保守，避免来回抖；但别慢到像卡住）
+    failHold: 6        // 某一级被判"待不住"后多久内不再往上试（太短会来回抖，太长像卡住）
+  };
   let auto = false;
   let perfOn = false;    // ?perf=1：额外计时给性能面板用
-  let autoGapAcc = 0, autoCostAcc = 0, autoN = 0, autoCool = 0;
-  let autoLastT = -1, autoFail = -1, autoFailAge = 0;
+  let autoGapAcc = 0, autoCostAcc = 0, autoN = 0, autoWinT = 0;
+  let autoCoolT = 0, autoLastT = -1, autoFail = -1, autoFailT = 0;
   const gapWin = [];
   function bestGap() {
     let m = Infinity;
@@ -504,30 +516,34 @@ const ART = (() => {
     return m === Infinity ? 0 : m;
   }
   function autoTick(t, cost) {
+    const delta = autoLastT > 0 ? Math.max(0, t - autoLastT) : 0;
+    if (autoCoolT > 0) autoCoolT = Math.max(0, autoCoolT - delta);
+    if (autoFail >= 0) { autoFailT += delta; if (autoFailT > AUTO.failHold) { autoFail = -1; autoFailT = 0; } }
     if (autoLastT < 0) { autoLastT = t; return; }
     const gap = t - autoLastT;
     autoLastT = t;
     if (gap <= 0 || gap > 0.25) return;             // 后台 / 卡死的帧不算样本
     gapWin.push(gap);
-    if (gapWin.length > 240) gapWin.shift();
-    autoGapAcc += gap; autoCostAcc += cost; autoN++;
-    if (autoN < 45) return;
+    if (gapWin.length > 180) gapWin.shift();
+    autoGapAcc += gap; autoCostAcc += cost; autoN++; autoWinT += gap;
+    if (autoWinT < AUTO.win) return;
     const avgGap = autoGapAcc / autoN, avgCost = autoCostAcc / autoN;
-    autoGapAcc = 0; autoCostAcc = 0; autoN = 0;
+    autoGapAcc = 0; autoCostAcc = 0; autoN = 0; autoWinT = 0;
+    if (autoCoolT > 0) return;
     const best = bestGap();
-    const slow = avgGap > 0.022;                                  // 一直慢
-    const dropping = best > 0 && avgGap > best * 1.45 && best < 0.020;
-    if (autoCool > 0) { autoCool--; }
-    if (autoFail >= 0) { autoFailAge += 45; if (autoFailAge > 1800) { autoFail = -1; autoFailAge = 0; } }
-    if (autoCool > 0) return;
+    const slow = avgGap > 0.022;                                  // 一直慢（低于约 45fps）
+    /* 相对信号的参照系必须是个"正常的 60Hz"，不能是 120Hz 屏上的 8.3ms——
+     * 否则一台 120Hz 显示器上的机器会被一路逼到 120fps，白白降到最低档。
+     * 只有本机最好间隔不比 83fps 更快时，才用倍率判定"掉了帧"。 */
+    const dropping = best > 0.012 && best < 0.020 && avgGap > best * 1.45;
     if ((slow || dropping) && scaleIdx < LADDER.length - 1) {
-      autoFail = scaleIdx;          // 记住"刚才那一级待不住"，别马上又升回去
-      autoFailAge = 0;
+      autoFail = scaleIdx;          // 记住"刚才那一级待不住"，10 秒内别马上又升回去
+      autoFailT = 0;
       applyScaleStep(scaleIdx + 1);
-      autoCool = 2;
+      autoCoolT = AUTO.downCool;
     } else if (!slow && !dropping && avgCost < 0.006 && scaleIdx > 0 && (scaleIdx - 1) !== autoFail) {
       applyScaleStep(scaleIdx - 1);
-      autoCool = 4;
+      autoCoolT = AUTO.upCool;
     }
   }
 

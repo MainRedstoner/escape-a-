@@ -13,7 +13,7 @@ const ENGINE = (() => {
    * 被拉到 1667 设备像素，天生发虚）。
    * 只放大不缩小：gain < 1 的场景留给 3D 层的画质档去省，2D 这边缩了就只剩糊。 */
   const BASE_W = 1600, BASE_H = 900;
-  let canvasGain = 1;
+  let canvasGain = 1, canvasSized = false;
   function sizeCanvas() {
     let s = 1;
     try { s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H); } catch (e) {}
@@ -21,7 +21,10 @@ const ENGINE = (() => {
     // 舞台 CSS 宽 = 1600·s，设备像素 = 1600·s·dpr → 后备存储要 1600·(s·dpr) 才 1:1
     // 上限 1.5 倍：再往上内存和填充都涨得太快，肉眼也快分不出来了
     const gain = Math.max(1, Math.min(1.5, s * dpr));
-    if (Math.abs(gain - canvasGain) < 0.01 && cv.width) return;
+    /* 用独立标志判断"有没有量过"，不要拿 cv.width 当条件：
+     * gain 恰好是 1.00 时旧写法会直接早退，ART.setFrameScale 永远收不到通知。 */
+    if (canvasSized && Math.abs(gain - canvasGain) < 0.01) return;
+    canvasSized = true;
     canvasGain = gain;
     cv.width = Math.round(BASE_W * gain);
     cv.height = Math.round(BASE_H * gain);
@@ -260,6 +263,18 @@ const ENGINE = (() => {
     sizeCanvas();   // 屏幕尺寸 / DPR 变了就重算画布后备存储
   }
   window.addEventListener("resize", fit);
+  window.addEventListener("orientationchange", () => setTimeout(fit, 60));
+  /* 手机地址栏收放、捏合缩放只动 visualViewport，不一定会触发 window.resize */
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", fit);
+  /* 把窗口拖到另一块缩放比例不同的显示器上时，devicePixelRatio 变了但
+   * window.resize 不一定来。用 matchMedia 盯住当前 dppx，一变就重新量一次并重挂。 */
+  function watchDpr() {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+    const onChange = () => { fit(); watchDpr(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange, { once: true });
+    else if (mq.addListener) mq.addListener(() => { fit(); watchDpr(); });
+  }
 
   /* ---------------- 安全条件解析器 ----------------
    * 纯字符扫描（不使用正则、不使用动态求值）。
@@ -2372,6 +2387,7 @@ const ENGINE = (() => {
     AUDIO.ambience("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
+    watchDpr();
     // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「读档」按钮；失败只提示，不阻塞游戏
     SAVE.init({ validate: validateSnapshot }).then(() => {
       if (!started) buildTitle();

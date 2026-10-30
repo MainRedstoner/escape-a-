@@ -690,16 +690,21 @@ const simVis = { bg: "ds_room", sprites: [], cg: null, glitch: 0 };
 const QNAMES = ["自动", "低", "中", "高"];
 
 /** 照抄 engine.sizeCanvas：后备存储按「CSS 尺寸 / 1600 × dpr」放大 */
+let simSized = false;
 function simSizeCanvas() {
   const r = cv.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const gain = Math.max(1, Math.min(1.5, r.width > 0 ? (r.width / W) * dpr : 1));
-  if (Math.abs(gain - simGain) < 0.01 && cv.width !== W) return;
+  /* 用独立标志判断"量过没有"，别拿 cv.width 当条件：gain 恰好 1.00 时旧写法会早退，
+   * ART.setFrameScale 收不到通知；而且它还会在每次 resize 时白清一遍画布。 */
+  if (simSized && Math.abs(gain - simGain) < 0.01) return;
+  simSized = true;
   simGain = gain;
   cv.width = Math.round(W * gain);
   cv.height = Math.round(H * gain);
   ctx.setTransform(gain, 0, 0, gain, 0, 0);
   if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(gain);
+  $("stGain").textContent = gain.toFixed(2) + "x";
 }
 
 function applyQuality() {
@@ -1046,7 +1051,18 @@ function boot() {
   applyRawQuality();                 // 原始模式先按 ?q= 落一次
   syncPostButton();
   if (new URLSearchParams(location.search).has("sim")) setSim(true);
-  window.addEventListener("resize", () => { if (simOn) simSizeCanvas(); });
+  /* 画布倍率要在这些时机都重算：窗口缩放、转屏、手机地址栏收放、拖到别的显示器 */
+  const refit = () => { if (simOn) simSizeCanvas(); else $("stGain").textContent = "1.00x"; };
+  window.addEventListener("resize", refit);
+  window.addEventListener("orientationchange", () => setTimeout(refit, 60));
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+  (function watchDpr() {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+    const onChange = () => { refit(); watchDpr(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange, { once: true });
+    else if (mq.addListener) mq.addListener(() => { refit(); watchDpr(); });
+  })();
   requestAnimationFrame(t => { fpsT = t; loop(t); });
 }
 
