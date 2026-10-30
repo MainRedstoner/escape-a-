@@ -244,16 +244,25 @@ const CLAWD = (() => {
 
   /* ---------------- 主循环 ---------------- */
   let lastT = performance.now();
+  /* 桌宠的 DOM 位置原来每帧都写一遍 style.left / style.top。这两条会触发宿主
+   * 重新布局（不是纯合成），而 VN 里桌宠绝大多数时间是站着不动的。
+   * 现在只在数值真的变了才写——稳态下这几行完全不碰 style。 */
+  const dom = { x: -1e9, y: -1e9, show: null, bubble: null, todo: null, bx: -1e9, by: -1e9 };
+  function setShown(node, want, key) {
+    if (dom[key] === want) return;
+    dom[key] = want;
+    node.style.display = want ? "block" : "none";
+  }
   function loop(now) {
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     const s = S();
     const show = !!(s && s.vis && typeof ENGINE !== "undefined" && ENGINE.started);
-    el.style.display = show ? "block" : "none";
-    bubble.style.display = show && now < bubbleUntil ? "block" : "none";
+    setShown(el, show, "show");
+    setShown(bubble, show && now < bubbleUntil, "bubble");
     const todoOn = show && s.owned && (todoPinned || now < todoUntil);
-    todoBox.style.display = todoOn ? "block" : "none";
+    setShown(todoBox, todoOn, "todo");
     if (!show) return;
 
     if (!pos) pos = home();
@@ -293,10 +302,12 @@ const CLAWD = (() => {
       else { pos = [pos[0] + dx / d * step, pos[1] + dy / d * step]; walking = true; lookX = Math.sign(dx) * 0.35; lookUntil = now + 400; }
     }
 
-    el.style.left = Math.round(pos[0] - FOOT[0]) + "px";
-    el.style.top = Math.round(pos[1] - FOOT[1]) + "px";
-    bubble.style.left = Math.round(pos[0]) + "px";
-    bubble.style.top = Math.round(pos[1] - 84) + "px";
+    const px = Math.round(pos[0] - FOOT[0]), py = Math.round(pos[1] - FOOT[1]);
+    if (px !== dom.x) { dom.x = px; el.style.left = px + "px"; }
+    if (py !== dom.y) { dom.y = py; el.style.top = py + "px"; }
+    const bx = Math.round(pos[0]), by = Math.round(pos[1] - 84);
+    if (bx !== dom.bx) { dom.bx = bx; bubble.style.left = bx + "px"; }
+    if (by !== dom.by) { dom.by = by; bubble.style.top = by + "px"; }
 
     // 当前姿势：剧本指定的 > 403 吓到 > 走路 > 睡着 > 发呆
     let p = now < poseUntil ? pose : "idle";

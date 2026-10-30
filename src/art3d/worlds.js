@@ -1819,15 +1819,17 @@ const A3DWorlds = (() => {
         lastT = t;
         flock.update(dt, t);
         flock.matrices();
-        if (t - MON.lastDraw > 0.09) {
+        /* 屏幕上的三块动态贴图：重传 + 上传都算卡顿，频率压到还剩"活着"的观感。
+         * 显示器约 7 次/秒、终端 5.5 次/秒、白板 3 次/秒。 */
+        if (t - MON.lastDraw > 0.14) {
           MON.lastDraw = t;
           A3DTex.redraw("monitor", drawMonitor);
         }
-        if (t - lastTerm > 0.12) {
+        if (t - lastTerm > 0.18) {
           lastTerm = t;
           A3DTex.redraw("term", drawTerm);
         }
-        if (t - lastBoard > 0.25) {
+        if (t - lastBoard > 0.34) {
           lastBoard = t;
           A3DTex.redraw("monitorWb", drawBoard);
         }
@@ -1836,12 +1838,17 @@ const A3DWorlds = (() => {
     };
   }
 
-  /* ---------------- 注册 ---------------- */
+  /* ---------------- 注册 ----------------
+   * 同一个场景挂多个 id 时必须注册同一个函数对象：构建结果（__built）挂在函数对象上，
+   * 不同闭包会让整个房间连同 2048² 的 shadow cubemap 各建一份（≈100MB 一份）。
+   * 下图三兄弟本来就都是 buildRoomCompact({night:false})，共用一份即可。 */
+  const buildRoomDay = () => buildRoomCompact({ night: false });
+
   function registerAll() {
     A3D.register("sea", buildSea);
-    A3D.register("ds_room", () => buildRoomCompact({ night: false }));
-    A3D.register("ds_room_night", () => buildRoomCompact({ night: false })); // 不再区分白天晚上
-    A3D.register("ds_room_dawn", () => buildRoomCompact({ night: false })); // 同上，是 ds_room 的别名
+    A3D.register("ds_room", buildRoomDay);
+    A3D.register("ds_room_night", buildRoomDay); // 不再区分白天晚上
+    A3D.register("ds_room_dawn", buildRoomDay);  // 同上，是 ds_room 的别名
     A3D.register("claude_door", () => buildDoor({ blocked: false }));
     A3D.register("claude_door_403", () => buildDoor({ blocked: true }));
     A3D.register("claude_lib", buildLib);

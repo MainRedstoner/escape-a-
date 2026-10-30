@@ -50,6 +50,9 @@
     border:1px solid var(--line);border-left:3px solid var(--clay);
     padding:26px 40px 22px;box-shadow:0 18px 60px rgba(0,0,0,.75);cursor:pointer;
     backdrop-filter:blur(3px);}
+  /* 低画质：backdrop-filter 每帧都要重算一次模糊，弱显卡上单独就能吃掉好几帧。
+     底色本来就已经是 .90~.95 不透明，关掉几乎看不出来。 */
+  body.low-q #textbox{backdrop-filter:none;}
   #nameplate{position:absolute;top:-19px;left:30px;background:var(--slate);color:#F2F5FA;
     padding:5px 22px;border:1px solid var(--line);font-size:19px;font-weight:700;
     letter-spacing:3px;}
@@ -443,6 +446,8 @@
       <div class="setRow"><label>打字音效</label><input type="checkbox" id="chkBlip" checked></div>
       <div class="setRow"><label>草稿素材角标</label><input type="checkbox" id="chkDraft" checked>
         <span style="font-size:14px;color:var(--muted);">AI 草稿素材的角标；换成正式素材后可在 manifest 里去掉 draft 标记</span></div>
+      <div class="setRow"><label>3D 画质</label><input type="range" id="rngQuality" min="0" max="3" step="1" value="0"><span id="lblQuality"></span>
+        <span style="font-size:14px;color:var(--muted);">自动会按实测帧率在低/中/高之间挪；卡顿就手动调到「低」</span></div>
       <div class="closeRow"><button class="hbtn" onclick="ENGINE.closeOverlay()">关闭</button></div></div></div>
 
     <div id="ovGallery" class="overlay"><div class="panel" style="width:880px;"><h2>结局收集 & 彩蛋</h2>

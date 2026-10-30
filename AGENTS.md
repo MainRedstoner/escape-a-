@@ -59,6 +59,10 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 
 3D 背景改完后，先在浏览器里用 `index.html?bg=<场景id>` 单独看一遍（光、构图、帧率），
 再走一遍正常流程；WebGL2 不可用时会自动回落到占位卡，所以**不要只测一次就假定没问题**。
+**动到渲染 / 合成 / 后期**（`src/art3d/`、`src/art.js`、主循环）时再加一步：
+用 `index.html?perf=1&q=high` 和 `?q=low` 各看一遍性能面板，确认高档帧率没退、
+低档确实降了，「批次 / 顶点 / 缩放 / 3D 刷新率」都读得对。帧率排查与画质档位见
+[DEBUGGING.md](DEBUGGING.md) 的 3.5.1。
 
 改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测（具体手段见 [DEBUGGING.md](DEBUGGING.md)）：
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。

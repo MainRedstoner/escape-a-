@@ -94,6 +94,20 @@ const A3D = (() => {
         (b * f - c * e) * s, -(a * f - c * d) * s, (a * e - b * d) * s
       ]);
     },
+    /** 同 normalMat，但结果写进调用方给的数组。
+     *  每帧每个批次都要算一次法线矩阵，返回新 Float32Array 会白白制造几十个垃圾。 */
+    normalMatInto(m, out) {
+      const a = m[0], b = m[1], c = m[2];
+      const d = m[4], e = m[5], f = m[6];
+      const g = m[8], h = m[9], i = m[10];
+      const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+      const det = a * A + b * B + c * C;
+      const s = det ? 1 / det : 0;
+      out[0] = A * s; out[1] = B * s; out[2] = C * s;
+      out[3] = -(b * i - c * h) * s; out[4] = (a * i - c * g) * s; out[5] = -(a * h - b * g) * s;
+      out[6] = (b * f - c * e) * s; out[7] = -(a * f - c * d) * s; out[8] = (a * e - b * d) * s;
+      return out;
+    },
     /** 变换一个点 */
     xf(m, p) {
       const x = p[0], y = p[1], z = p[2];
@@ -379,7 +393,31 @@ const A3D = (() => {
   let anisoExt = null, maxAniso = 1;
   let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg;
   let shadowFbo = null, dummyShadow = null;
-  let res = { w: W, h: H };
+
+  /* ---------------- 画质旋钮 ----------------
+   * 内部渲染分辨率和逻辑舞台解耦：舞台坐标永远是 1600×900，但 WebGL 可以按
+   * renderScale 降分辨率画，最后 drawImage 放大回去。背景本身是雾 + 暗调 +
+   * 轻微柔化的东西，0.8 收缩肉眼看不出，填充量却只剩 64%——这是最直接的一档。
+   * shadowSizeCap / shadowTaps 控制那盏点光的 cubemap 尺寸与 PCF 采样数。 */
+  let renderScale = 1, rw = W, rh = H;
+  let shadowSizeCap = 0, shadowTaps = 8;
+  /* 实际拿到的多重采样数：浏览器不保证给，得问。1 = 没有 MSAA。
+   * a2cOK = 能不能用 alpha-to-coverage 给镂空材质做边缘抗锯齿（需要 MSAA）。 */
+  let msaaSamples = 1, a2cOK = false;
+
+  /* 上限放到 2.0：3D 也可以超采样，让背景和主画布的后备存储 1:1。
+   * 1080p 全屏时主画布是 1920×1080（画布 1.20x），3D 还画 1600×900 的话
+   * 背景就会比文字软一档——想要一样实，就得允许 renderScale > 1。 */
+  function applyScale(k) {
+    renderScale = clamp(k, 0.35, 2);
+    rw = Math.max(1, Math.round(W * renderScale));
+    rh = Math.max(1, Math.round(H * renderScale));
+    if (!gl) return;
+    if (gcv.width !== rw || gcv.height !== rh) {
+      gcv.width = rw; gcv.height = rh;   // 改尺寸会丢掉缓冲内容，下一帧整帧重画即可
+    }
+    gl.viewport(0, 0, rw, rh);
+  }
 
   function compile(type, src) {
     const s = gl.createShader(type);
@@ -499,7 +537,7 @@ const A3D = (() => {
   in vec3 vWorld; in vec3 vNor; in vec2 vUV; in vec3 vCol; in float vFogDepth;
   out vec4 o;
   uniform sampler2D uTex;
-  uniform float uUseTex, uUnlit, uOpacity, uSpec, uRim, uFogAmt, uEmisBoost, uCutout;
+  uniform float uUseTex, uUnlit, uOpacity, uSpec, uRim, uFogAmt, uEmisBoost, uCutout, uA2C;
   uniform vec3 uTint, uEmissive, uCam;
   uniform vec3 uSunDir, uSunCol, uSkyCol, uGroundCol, uFogCol;
   uniform float uFogNear, uFogFar;
@@ -508,7 +546,7 @@ const A3D = (() => {
   uniform float uPointRange[6];
   uniform vec2 uUVOff, uUVScale;
   uniform samplerCubeShadow uShadowMap;
-  uniform int uShadowIdx;
+  uniform int uShadowIdx, uShadowTaps;
   uniform float uShadowOn, uShadowFar, uShadowBias;
   float pointShadow(vec3 wp, vec3 n, vec3 lp) {
     vec3 d = wp - lp;
@@ -522,11 +560,13 @@ const A3D = (() => {
     vec3 b = cross(nd, t);
     float sum = 0.0;
     float R = 0.04;
-    float D = 0.7071;
     sum += texture(uShadowMap, vec4(normalize(dp + t * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp - t * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + b * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp - b * R), ref));
+    // 低画质只走十字四采样；多了四个对角采样，阴影边缘会软一点，但采样数减半
+    if (uShadowTaps <= 4) return sum * 0.25;
+    float D = 0.7071;
     sum += texture(uShadowMap, vec4(normalize(dp + (t * D + b * D) * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + (-t * D + b * D) * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + (t * D - b * D) * R), ref));
@@ -536,9 +576,20 @@ const A3D = (() => {
   void main(){
     vec2 uv = vUV * uUVScale + uUVOff;
     vec4 tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
-    if (uCutout > 0.5 && tx.a < 0.45) discard;
-    vec3 alb = tx.rgb * uTint * vCol;
     float a = tx.a * uOpacity;
+    /* 镂空材质（树叶 / 海带 / 藤蔓）的边缘抗锯齿：
+     *   · 有 MSAA 且支持 alpha-to-coverage 时不 discard，把贴图 alpha 交给覆盖度，
+     *     4 个采样点按 alpha 抖动 → 边缘是渐变的，而不是一刀切；
+     *   · 否则退回老的硬阈值 discard（老设备上观感和以前完全一样）。 */
+    if (uCutout > 0.5) {
+      if (uA2C > 0.5) {
+        a = tx.a;
+      } else {
+        if (tx.a < 0.45) discard;
+        a = 1.0;
+      }
+    }
+    vec3 alb = tx.rgb * uTint * vCol;
     vec3 col;
     if (uUnlit > 0.5) {
       col = alb;
@@ -717,10 +768,17 @@ const A3D = (() => {
   /* ---------------- 资源 ---------------- */
   function createGL() {
     gcv = document.createElement("canvas");
-    gcv.width = W; gcv.height = H;
+    gcv.width = rw; gcv.height = rh;
+    /* preserveDrawingBuffer 必须关：开着时浏览器每帧要多留一份整屏副本，
+     * 弱显卡上一次就够掉十几帧。全仓没有任何地方在渲染之后单独去读 gcv——
+     * art.js 和 art-preview.html 都是在同一次任务里紧接着 drawImage，缓冲区还没失效。 */
     gl = gcv.getContext("webgl2", { antialias: true, alpha: false, depth: true,
-                                    powerPreference: "high-performance", preserveDrawingBuffer: true });
+                                    powerPreference: "high-performance", preserveDrawingBuffer: false });
     if (!gl) { failReason = "浏览器不支持 WebGL2"; return false; }
+    /* antialias: true 只是"请求"，能不能拿到 MSAA 得看驱动和浏览器。
+     * 这里量一次真实采样数：拿不到就退回硬阈值镂空，别指望 alpha-to-coverage。 */
+    msaaSamples = Math.max(1, (gl.getParameter(gl.SAMPLES) | 0));
+    a2cOK = msaaSamples > 1 && typeof gl.SAMPLE_ALPHA_TO_COVERAGE === "number";
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.disable(gl.CULL_FACE);   // 几何体双面可见：法线决定明暗，省得逐个检查绕序
@@ -796,7 +854,10 @@ const A3D = (() => {
     return { vao, buf, count: list.length };
   }
 
-  /* ---------------- 贴图 ---------------- */
+  /* ---------------- 贴图 ----------------
+   * opts.mip === false：不生成 mipmap 链。动态贴图（显示器 / 终端 / 白板）每秒要
+   * 重传十几次，generateMipmap 每次都要重建整条链，是同步的卡顿尖峰；
+   * 这几张图在屏幕上都很小且近正交，不用 mip 也看不出闪烁。 */
   function texFromCanvas(cv, opts) {
     opts = opts || {};
     const t = gl.createTexture();
@@ -805,17 +866,18 @@ const A3D = (() => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
+      opts.mip === false ? gl.LINEAR : gl.LINEAR_MIPMAP_LINEAR);
+    if (opts.mip !== false) gl.generateMipmap(gl.TEXTURE_2D);
     if (anisoExt && !opts.clamp) {
       gl.texParameterf(gl.TEXTURE_2D, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
     }
     return t;
   }
-  function updateTex(t, cv) {
+  function updateTex(t, cv, mip) {
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    if (mip !== false) gl.generateMipmap(gl.TEXTURE_2D);
   }
 
   /* ============================================================
@@ -825,9 +887,34 @@ const A3D = (() => {
   function register(id, builder) { scenes[id] = builder; }
   function has(id) { return !!scenes[id] && init(); }
 
+  /** 阴影尺寸上限 / PCF 采样数。尺寸一变，已建好的 cubemap 就废了，必须回收重来，
+   *  否则换档只是白白多占一份显存。别在每帧里调它。 */
+  function setShadowQuality(cap, taps) {
+    const c = cap || 0, tp = taps || 8;
+    if (c === shadowSizeCap && tp === shadowTaps) return;
+    shadowSizeCap = c; shadowTaps = tp;
+    if (!gl) return;
+    const done = [];
+    for (const id in scenes) {
+      const sc = scenes[id] && scenes[id].__built;
+      if (!sc || sc.__shadow === undefined || done.indexOf(sc) >= 0) continue;
+      done.push(sc);                      // 别名共用同一个场景对象，别重复删
+      if (sc.__shadow && sc.__shadow.tex) gl.deleteTexture(sc.__shadow.tex);
+      sc.__shadow = undefined;            // 下一帧按新尺寸懒重建
+    }
+  }
+
   let cur = null, curId = "", curScene = null;
   let camOverride = null;   // 预览页的自由相机：场景 update 之后覆盖 cam
+  let lastDrawMs = 0;
   const scratchMat = M.ident();
+  const scratchNMat = new Float32Array(9);   // setBatch 的法线矩阵落脚点，别再每批新建
+  const UV_ONE = new Float32Array([1, 1]);
+  /* applyLights 的点光缓冲：6 盏灯上限，每帧只是覆写同一块内存 */
+  const PT_MAX = 6;
+  const ptPos = new Float32Array(PT_MAX * 3);
+  const ptCol = new Float32Array(PT_MAX * 3);
+  const ptRng = new Float32Array(PT_MAX);
 
 
   /* ---------------- 点光阴影（cubemap shadow map） ---------------- */
@@ -851,10 +938,11 @@ const A3D = (() => {
   function buildShadow(sc) {
     const sh = sc.shadow;
     if (!sh || !gl || !shadowProg) { sc.__shadow = null; return; }
-    const size = sh.size || 1024;
+    const size = shadowSizeCap ? Math.min(sh.size || 1024, shadowSizeCap) : (sh.size || 1024);
     const far = sh.far || 9;
     const tex = makeDepthCube(size);
     try {
+      setA2C(false);            // 阴影 pass 不需要也绝不能带 alpha-to-coverage
       gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
       gl.drawBuffers([gl.NONE]);
       gl.readBuffer(gl.NONE);
@@ -888,22 +976,33 @@ const A3D = (() => {
           gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
         }
       }
-      sc.__shadow = { tex, far, idx: sh.index || 0,
+      sc.__shadow = { tex, far, idx: sh.index || 0, size,
         bias: sh.bias === undefined ? 0.0025 : sh.bias };
     } catch (e) {
       console.error("[A3D] 阴影构建失败", e);
       sc.__shadow = null;
     } finally {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, W, H);
+      gl.viewport(0, 0, rw, rh);
       gl.bindVertexArray(null);
     }
+  }
+
+  /* alpha-to-coverage 是全局 GL 状态，逐批次切会很啰嗦，缓存一下当前值再改。
+   * 只有镂空批次会打开它，其它（天空 / 海 / 粒子 / 发光片 / 阴影）一律关掉。 */
+  let a2cOn = false;
+  function setA2C(on) {
+    const want = !!(on && a2cOK);
+    if (want === a2cOn) return;
+    a2cOn = want;
+    if (want) gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE);
+    else gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
   }
 
   function setBatch(b, t, view) {
     const P = litProg, u = P.u;
     gl.uniformMatrix4fv(u.uModel, false, b.model || scratchMat);
-    gl.uniformMatrix3fv(u.uNMat, false, M.normalMat(b.model || scratchMat));
+    gl.uniformMatrix3fv(u.uNMat, false, M.normalMatInto(b.model || scratchMat, scratchNMat));
     gl.uniform1f(u.uUseTex, b.tex ? 1 : 0);
     gl.uniform1f(u.uUnlit, b.unlit ? 1 : 0);
     gl.uniform1f(u.uOpacity, b.opacity === undefined ? 1 : b.opacity);
@@ -915,13 +1014,18 @@ const A3D = (() => {
     gl.uniform3fv(u.uEmissive, b.emissive || [0, 0, 0]);
     const off = b.uvAnim ? b.uvAnim(t) : (b.uvOff || [0, 0]);
     gl.uniform2fv(u.uUVOff, off);
-    gl.uniform2fv(u.uUVScale, [1, 1]);
+    gl.uniform2fv(u.uUVScale, UV_ONE);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, b.tex || null);
     gl.uniform1i(u.uTex, 0);
     if (b.blend === "add") { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); }
     else if (b.blend === "alpha") { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     else gl.disable(gl.BLEND);
+    /* 镂空批次走 alpha-to-coverage：覆盖度按贴图 alpha 抖动，边缘由 MSAA 采出来。
+     * 这是逐批的状态，别的批次必须关掉，否则半透明混合会被它搅乱。 */
+    const useA2C = !!(b.cutout && a2cOK);
+    setA2C(useA2C);
+    gl.uniform1f(u.uA2C, useA2C ? 1 : 0);
     gl.depthMask(b.blend === undefined || b.blend === "opaque");
     gl.bindVertexArray(b.mesh.vao);
     gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
@@ -943,20 +1047,21 @@ const A3D = (() => {
     gl.uniform1f(u.uSwayAmp, scene.swayAmp === undefined ? 1 : scene.swayAmp);
     gl.uniform3fv(u.uWind, scene.wind || [0, 0, 0]);
     const pts = L.points || [];
-    const n = Math.min(6, pts.length);
+    const n = Math.min(PT_MAX, pts.length);
     gl.uniform1i(u.uPointN, n);
     if (n) {
-      const pos = [], col = [], rng = [];
       for (let i = 0; i < n; i++) {
         const p = pts[i];
-        pos.push(p.pos[0], p.pos[1], p.pos[2]);
+        ptPos[i * 3] = p.pos[0]; ptPos[i * 3 + 1] = p.pos[1]; ptPos[i * 3 + 2] = p.pos[2];
         const inten = p.inten === undefined ? 1 : p.inten;
-        col.push(p.col[0] * inten, p.col[1] * inten, p.col[2] * inten);
-        rng.push(p.range || 5);
+        ptCol[i * 3] = p.col[0] * inten;
+        ptCol[i * 3 + 1] = p.col[1] * inten;
+        ptCol[i * 3 + 2] = p.col[2] * inten;
+        ptRng[i] = p.range || 5;
       }
-      gl.uniform3fv(u.uPointPos, pos);
-      gl.uniform3fv(u.uPointCol, col);
-      gl.uniform1fv(u.uPointRange, rng);
+      gl.uniform3fv(u.uPointPos, ptPos);
+      gl.uniform3fv(u.uPointCol, ptCol);
+      gl.uniform1fv(u.uPointRange, ptRng);
     }
     const sh = scene.__shadow;
     gl.activeTexture(gl.TEXTURE3);
@@ -964,33 +1069,47 @@ const A3D = (() => {
     gl.uniform1i(u.uShadowMap, 3);
     gl.uniform1f(u.uShadowOn, sh ? 1 : 0);
     gl.uniform1i(u.uShadowIdx, sh ? sh.idx : 0);
+    gl.uniform1i(u.uShadowTaps, shadowTaps);
     gl.uniform1f(u.uShadowFar, sh ? sh.far : 1);
     gl.uniform1f(u.uShadowBias, sh ? sh.bias : 0);
   }
 
+  /* 天空只在「这一帧还没有任何几何体写过深度」的像素上着色。
+   * depthRange 压到 [1,1]、depthFunc 用 EQUAL，深度缓冲里仍是清屏值 1.0 的地方才通过：
+   * 窗洞 / 纯天空区域照样出画面，被墙和家具挡住的那些像素连一次 hash 都省掉。
+   * 调用方负责把它排在实体几何之后、半透明批次之前（见 render）。 */
   function drawSky(scene, t) {
     const s = scene.sky || {};
     const u = skyProg.u;
+    setA2C(false);
     gl.useProgram(skyProg.p);
     gl.depthMask(false);
-    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.EQUAL);
+    gl.depthRange(1, 1);
     gl.disable(gl.BLEND);
     gl.uniform3fv(u.uTop, s.top || [0.02, 0.03, 0.05]);
     gl.uniform3fv(u.uBot, s.bot || [0.05, 0.06, 0.09]);
     gl.uniform3fv(u.uGlow, s.glow || [0.2, 0.3, 0.4]);
-    gl.uniform3fv(u.uSun, s.sun || [0.5, 0.7]);
+    /* 注意：各场景的 sky.sun 都是 [x, y] 两元组（见 worlds*.js），uniform3fv 收到
+     * 长度 2 的数组会报 INVALID_VALUE 并且整条上传作废——uSun 一直是 (0,0,0)。
+     * 这里照原样跳过，保证观感一丝不变，同时把每帧的控制台刷屏去掉。
+     * 真要让太阳位置生效得改美术侧的数据（那是单独一次观感改动）。 */
+    if (s.sun && s.sun.length >= 3) gl.uniform3fv(u.uSun, s.sun);
     gl.uniform1f(u.uMode, s.mode || 0);
     gl.uniform1f(u.uHorizon, s.horizon === undefined ? 0.5 : s.horizon);
     gl.uniform1f(u.uTime, t);
     gl.uniform1f(u.uGrain, 0.02);
     gl.bindVertexArray(null);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.enable(gl.DEPTH_TEST);
+    gl.depthRange(0, 1);
+    gl.depthFunc(gl.LEQUAL);
     gl.depthMask(true);
   }
 
   function drawSea(b, t) {
     const u = seaProg.u;
+    setA2C(false);
     gl.useProgram(seaProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
@@ -1015,11 +1134,13 @@ const A3D = (() => {
 
   function drawPoints(sc, t) {
     const u = ptProg.u;
+    setA2C(false);          // 粒子是软边贴图，不参与 alpha-to-coverage
     gl.useProgram(ptProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
     gl.uniform1f(u.uTime, t);
-    gl.uniform1f(u.uPix, H / (2 * Math.tan(cur.fov / 2)));
+    // 点精灵的像素尺寸要按实际绘制缓冲算，否则降分辨率后气泡会显得偏大
+    gl.uniform1f(u.uPix, rh / (2 * Math.tan(cur.fov / 2)));
     gl.uniform3fv(u.uCam, cur.eye);
     for (const p of sc.points) {
       gl.uniform1f(u.uYMin, p.yMin === undefined ? -6 : p.yMin);
@@ -1036,6 +1157,7 @@ const A3D = (() => {
 
   function drawGlow(b, t) {
     const u = glowProg.u;
+    setA2C(false);          // 发光片是加法混合，开 A2C 会把覆盖度也乘进去
     gl.useProgram(glowProg.p);
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
@@ -1058,8 +1180,8 @@ const A3D = (() => {
     const eye = cam.eye || [0, 1.6, 3];
     const target = cam.target || [0, 1.4, -3];
     const fov = (cam.fov || 42) * D2R;
-    const aspect = W / H;
-    gl.viewport(0, 0, W, H);
+    const aspect = rw / rh;
+    gl.viewport(0, 0, rw, rh);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -1072,7 +1194,11 @@ const A3D = (() => {
     cur = { proj, view, eye, fov };
     scene.time = t;
 
-    drawSky(scene, t);
+    /* 天空默认最后画（见 drawSky 的注释）：被墙挡住的像素直接跳过，省掉大半屏 hash。
+     * 个别场景如果靠「先铺天、再让半透明东西盖上去」出效果，可以在场景描述符里写
+     * skyFirst: true 退回旧顺序。 */
+    const skyFirst = scene.skyFirst === true;
+    if (skyFirst) drawSky(scene, t);
 
     /* 体积海（窗外的深海） */
     if (scene.sea) {
@@ -1093,6 +1219,12 @@ const A3D = (() => {
       const b = d.batch;
       if (d.matrix) b.model = d.matrix(t);
       setBatch(b, t, view);
+    }
+
+    /* 天空（后置版本）：必须在半透明之前，否则会盖住玻璃和光柱 */
+    if (!skyFirst) {
+      drawSky(scene, t);
+      gl.useProgram(litProg.p);   // drawSky 换了 program，半透明批次还得用 litProg
     }
 
     /* 半透明 / 叠加 */
@@ -1141,8 +1273,14 @@ const A3D = (() => {
       if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
     }
     if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
+    const t0 = performance.now();
     render(sc, t);
-    ctx.drawImage(gcv, 0, 0, W, H);
+    /* 贴到目标画布的真实像素尺寸，而不是写死 1600×900：
+     * 游戏那边会传一块按「画布倍率」放大的离屏层（1080p 全屏时是 1920×1080），
+     * 3D 超采样到同样尺寸才能真正 1:1，否则多出来的细节会被这一步重新缩回去。
+     * 预览页传的是 1600×900 的画布，行为和以前完全一样。 */
+    ctx.drawImage(gcv, 0, 0, ctx.canvas.width, ctx.canvas.height);
+    lastDrawMs = performance.now() - t0;   // 只是 CPU 提交耗时，GPU 是异步的
     return true;
   }
 
@@ -1183,6 +1321,33 @@ const A3D = (() => {
     get canvas() { return gcv; },
     meshFrom, pointMesh, texFromCanvas, updateTex,
     clamp, lerp, smooth, TAU, D2R, norm3, cross,
-    math: { v3: (x, y, z) => [x || 0, y || 0, z || 0] }
+    math: { v3: (x, y, z) => [x || 0, y || 0, z || 0] },
+
+    /* ---------------- 画质 ---------------- */
+    setRenderScale: k => applyScale(k),
+    get renderScale() { return renderScale; },
+    get renderSize() { return [rw, rh]; },
+    setShadowQuality,
+    get shadowTaps() { return shadowTaps; },
+    /** 实际拿到的多重采样数（1 = 没有 MSAA）与 alpha-to-coverage 可用性 */
+    get samples() { return msaaSamples; },
+    get alphaToCoverage() { return a2cOK; },
+    /** 上一次 draw 的 CPU 提交耗时（毫秒）；GPU 是异步的，这只是个参考量 */
+    get lastDrawMs() { return lastDrawMs; },
+    /** 调试 / 性能面板用：当前这一帧画了多少批次与顶点 */
+    stats() {
+      const sc = curScene;
+      const sh = (sc && sc.__shadow) || null;   // 报告实际建出来的边长，不是上限
+      const base = { scale: renderScale, shadow: sh ? sh.size : 0, taps: shadowTaps };
+      if (!sc) return Object.assign({ draws: 0, verts: 0 }, base);
+      let draws = 0, verts = 0;
+      const add = b => { if (b && b.mesh) { draws++; verts += b.mesh.count; } };
+      for (const b of sc.batches) add(b);
+      for (const d of sc.dyn) add(d.batch);
+      for (const b of sc.over) add(b);
+      for (const b of sc.glows || []) add(b);
+      for (const p of sc.points || []) add(p);
+      return Object.assign({ draws, verts }, base);
+    }
   };
 })();

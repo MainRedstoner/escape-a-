@@ -7,6 +7,33 @@
 const ENGINE = (() => {
   const $ = id => document.getElementById(id);
   const cv = $("cv"), ctx = cv.getContext("2d");
+  /* 画布后备存储对齐到真实设备像素。
+   * 舞台上所有绘制都用 1600×900 的逻辑坐标，这里按 gain 放大后备存储再上一个
+   * 整体 scale —— 代码一行不用改，文字和 UI 直接变清晰（手机上原来是 1600 的位图
+   * 被拉到 1667 设备像素，天生发虚）。
+   * 只放大不缩小：gain < 1 的场景留给 3D 层的画质档去省，2D 这边缩了就只剩糊。 */
+  const BASE_W = 1600, BASE_H = 900;
+  let canvasGain = 1, canvasSized = false;
+  function sizeCanvas() {
+    let s = 1;
+    try { s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H); } catch (e) {}
+    const dpr = window.devicePixelRatio || 1;
+    // 舞台 CSS 宽 = 1600·s，设备像素 = 1600·s·dpr → 后备存储要 1600·(s·dpr) 才 1:1
+    // 上限 1.5 倍：再往上内存和填充都涨得太快，肉眼也快分不出来了
+    const gain = Math.max(1, Math.min(1.5, s * dpr));
+    /* 用独立标志判断"有没有量过"，不要拿 cv.width 当条件：
+     * gain 恰好是 1.00 时旧写法会直接早退，ART.setFrameScale 永远收不到通知。 */
+    if (canvasSized && Math.abs(gain - canvasGain) < 0.01) return;
+    canvasSized = true;
+    canvasGain = gain;
+    cv.width = Math.round(BASE_W * gain);
+    cv.height = Math.round(BASE_H * gain);
+    ctx.setTransform(gain, 0, 0, gain, 0, 0);
+    /* 告诉绘制层：主画布后备存储现在是 1600×900 的多少倍。
+     * 它会据此把 3D 离屏层开到同样大小，并且允许 3D 渲染倍率超过 1——
+     * 1080p 全屏时 3D 也画 1920×1080，背景才和文字一样实。 */
+    if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(gain);
+  }
   const ui = {
     hud: $("hud"), stTrust: $("stTrust"), stWanted: $("stWanted"),
     stArg: $("stArg"), stEgg: $("stEgg"),
@@ -67,14 +94,71 @@ const ENGINE = (() => {
     if (blocking && ui.hintBubble.style.display === "block") ui.hintBubble.style.display = "none";
   }
 
+  /* ---------------- 性能面板（index.html?perf=1） ----------------
+   * 弱机上调档 / 报数字用：能看出到底是"整帧贵"还是"3D 那一层贵"。
+   * 数字含义：帧 = 相邻两帧的间隔（受显示器刷新率和掉帧共同影响）；
+   * paint = 本帧 2D 合成 + 3D 提交 + 立绘 + 后期的总耗时；
+   * 3D提交 = 上一次真正渲染 3D 场景的 CPU 时间（GPU 是异步的，不等于 GPU 时间）。 */
+  let perfEl = null, perfLastT = 0, perfAccT = 0, perfGapN = 0, perfTick = 0;
+  const perfGaps = [];
+  function buildPerfHud() {
+    if (perfEl) return;
+    perfEl = document.createElement("div");
+    perfEl.id = "perfHud";
+    /* 固定定位、挂在 body 上而不是 #stage 里：#stage 会按窗口缩放（手机上可能只剩 0.5 倍），
+     * 面板跟着缩就彻底看不清了。挂在 body 上才是真实像素尺寸。
+     * 放顶部居中：左下角会被文本框和桌宠挡住。 */
+    perfEl.style.cssText =
+      "position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9999;pointer-events:none;" +
+      "background:rgba(4,7,11,.88);border:1px solid #2C3542;border-radius:4px;" +
+      "color:#C9D2DE;font:13px/1.45 'Cascadia Mono','Consolas',monospace;" +
+      "padding:8px 11px;white-space:pre;";
+    document.body.appendChild(perfEl);
+    window.__perf = { gaps: perfGaps, snapshot: () => (perfEl ? perfEl.textContent : "") };
+    perfLastT = performance.now();
+  }
+  function updatePerf(now) {
+    if (!perfEl) return;
+    const gap = now - perfLastT;
+    perfLastT = now;
+    if (gap > 0 && gap < 500) {
+      perfAccT += gap; perfGapN++;
+      perfGaps.push(Math.round(gap * 10) / 10);
+      if (perfGaps.length > 180) perfGaps.shift();
+    }
+    if (now - perfTick < 250) return;
+    perfTick = now;
+    const avg = perfGapN ? perfAccT / perfGapN : 0;
+    perfAccT = 0; perfGapN = 0;
+    const st = (typeof A3D !== "undefined" && A3D.stats) ? A3D.stats() : { draws: 0, verts: 0 };
+    const tier = (typeof ART !== "undefined" && ART.getTier) ? ART.getTier() : 0;
+    const hz = (typeof ART !== "undefined" && ART.hz3d) ? ART.hz3d : 0;
+    const paintMs = (typeof ART !== "undefined" && ART.lastCostMs) ? ART.lastCostMs : 0;
+    const d3 = (typeof A3D !== "undefined" && A3D.lastDrawMs) ? A3D.lastDrawMs : 0;
+    perfEl.textContent =
+      "帧 " + (avg ? Math.round(1000 / avg) + "fps / " + avg.toFixed(1) + "ms" : "—") + "\n" +
+      "paint " + paintMs.toFixed(1) + "ms   3D提交 " + d3.toFixed(1) + "ms\n" +
+      "档 " + Q_NAMES[tier] + (ART && ART.autoTier ? "（自动）" : "") +
+        "   缩放 " + (A3D && A3D.renderScale ? A3D.renderScale.toFixed(2) : "-") +
+        "   3D " + (hz ? hz + "Hz" : "每帧") + "\n" +
+      "批次 " + st.draws + "   顶点 " + Math.round(st.verts / 1000) + "k" +
+        "   画布 " + canvasGain.toFixed(2) + "x" +
+        "   MSAA " + (A3D && A3D.samples > 1 ? A3D.samples + "x" + (A3D.alphaToCoverage ? "+A2C" : "") : "关") +
+        (st.shadow ? "   阴影 " + st.shadow + "/" + st.taps : "");
+  }
+
   /* ---------------- 主循环 ----------------
    * rAF 在后台标签页会被浏览器节流，加一个低频 interval 兜底：
-   * rAF 正常时全速渲染；rAF 停滞超过 400ms 才由 interval 补帧。 */
+   * rAF 正常时全速渲染；rAF 停滞超过 400ms 才由 interval 补帧。
+   * 标签页不可见时两边都别画——那个兜底 interval 本来是为了"rAF 被节流"
+   * 这种前台场景，躲在后台还每秒画 5 帧纯属白烧电。 */
   let lastFrameT = -1e9;
   function frame(now) {
     lastFrameT = now;
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
+    if (document.hidden) return;
+    updatePerf(now);
     ART.stepFX(dt);
     syncChoiceBlock();
     ART.paint(ctx, SYS.state.vis, now / 1000, pending && pending.t === "say" ? pending.who : null);
@@ -92,6 +176,12 @@ const ENGINE = (() => {
     const n = performance.now();
     if (n - lastFrameT >= 400) frame(n);
   }, 200);
+  // 回前台立刻重画一帧，别等 rAF 自然跟上（切回来时画面还停在旧状态会闪一下）
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    fit();                        // 后台期间窗口可能变过，resize 事件不一定补发
+    frame(performance.now());
+  });
 
   const keys = { ctrl: false };
   window.addEventListener("keydown", e => {
@@ -173,8 +263,21 @@ const ENGINE = (() => {
     const w = window.innerWidth, h = window.innerHeight;
     const s = Math.min(w / 1600, h / 900);
     $("stage").style.transform = `scale(${s})`;
+    sizeCanvas();   // 屏幕尺寸 / DPR 变了就重算画布后备存储
   }
   window.addEventListener("resize", fit);
+  window.addEventListener("orientationchange", () => setTimeout(fit, 60));
+  /* 手机地址栏收放、捏合缩放只动 visualViewport，不一定会触发 window.resize */
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", fit);
+  /* 把窗口拖到另一块缩放比例不同的显示器上时，devicePixelRatio 变了但
+   * window.resize 不一定来。用 matchMedia 盯住当前 dppx，一变就重新量一次并重挂。 */
+  function watchDpr() {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+    const onChange = () => { fit(); watchDpr(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange, { once: true });
+    else if (mq.addListener) mq.addListener(() => { fit(); watchDpr(); });
+  }
 
   /* ---------------- 安全条件解析器 ----------------
    * 纯字符扫描（不使用正则、不使用动态求值）。
@@ -2116,12 +2219,28 @@ const ENGINE = (() => {
     }
     $("ovGallery").style.display = "flex";
   }
+  /* ---------------- 3D 画质 ----------------
+   * 优先级：URL 的 ?q= > 设置里的 quality（0 = 自动）。 */
+  const Q_NAMES = ["自动", "低", "中", "高"];
+  function applyQuality(param) {
+    let v = param;
+    if (v === undefined || v === null || v === "") v = SYS.settings.quality;
+    if (typeof v === "string") {
+      const k = { auto: 0, "0": 0, low: 1, "1": 1, mid: 2, "2": 2, high: 3, "3": 3 }[v.toLowerCase()];
+      v = k === undefined ? 0 : k;
+    }
+    v = Math.max(0, Math.min(3, v | 0));
+    if (typeof ART !== "undefined" && ART.setQuality) ART.setQuality(v);
+    return v;
+  }
+
   function showSettings() {
     $("rngSpeed").value = 61 - SYS.settings.speed;
     $("rngAuto").value = SYS.settings.autoDelay;
     $("rngVol").value = Math.round(SYS.settings.volume * 100);
     $("chkBlip").checked = SYS.settings.blip;
     $("chkDraft").checked = SYS.settings.draftBadge !== false;
+    $("rngQuality").value = SYS.settings.quality | 0;
     updSetLabels();
     $("ovSet").style.display = "flex";
   }
@@ -2129,6 +2248,9 @@ const ENGINE = (() => {
     $("lblSpeed").textContent = `速度 ${$("rngSpeed").value}`;
     $("lblAuto").textContent = `${$("rngAuto").value}ms`;
     $("lblVol").textContent = `${$("rngVol").value}%`;
+    const q = +$("rngQuality").value | 0;
+    $("lblQuality").textContent = Q_NAMES[q] + (q === 0 && typeof ART !== "undefined" && ART.getTier
+      ? `（当前${Q_NAMES[ART.getTier()]}）` : "");
   }
   function bindSettings() {
     $("rngSpeed").addEventListener("input", e => { SYS.settings.speed = 61 - (+e.target.value); updSetLabels(); SYS.saveSettings(); });
@@ -2136,6 +2258,12 @@ const ENGINE = (() => {
     $("rngVol").addEventListener("input", e => { SYS.settings.volume = (+e.target.value) / 100; AUDIO.setVolume(SYS.settings.volume); updSetLabels(); SYS.saveSettings(); });
     $("chkBlip").addEventListener("change", e => { SYS.settings.blip = e.target.checked; SYS.saveSettings(); });
     $("chkDraft").addEventListener("change", e => { SYS.settings.draftBadge = e.target.checked; SYS.saveSettings(); });
+    $("rngQuality").addEventListener("input", e => {
+      SYS.settings.quality = +e.target.value;
+      applyQuality(SYS.settings.quality);
+      updSetLabels();
+      SYS.saveSettings();
+    });
   }
 
   function confirmMenu() {
@@ -2248,9 +2376,13 @@ const ENGINE = (() => {
     bindWorkUI();
     buildTitle();
     ui.titleScreen.style.display = "flex";
+    const qs = new URLSearchParams(location.search);
     /* ?bg=<id>：标题画面上直接预览某个背景（美术调试用，见 DEBUGGING.md） */
-    const bgQ = new URLSearchParams(location.search).get("bg");
+    const bgQ = qs.get("bg");
     if (bgQ) SYS.state.vis.bg = bgQ;
+    /* ?q=low|mid|high|auto 强制 3D 画质；?bg= 预览一律高档，别让自动降档干扰美术判断 */
+    applyQuality(qs.get("q") || (bgQ ? "high" : null));
+    if (qs.has("perf")) { ART.setPerf(true); buildPerfHud(); }
     requestAnimationFrame(loop);
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
@@ -2258,6 +2390,7 @@ const ENGINE = (() => {
     AUDIO.ambience("sea");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
+    watchDpr();
     // 存档后端探测 + 槽位缓存是异步的：完成后刷新标题的「读档」按钮；失败只提示，不阻塞游戏
     SAVE.init({ validate: validateSnapshot }).then(() => {
       if (!started) buildTitle();
@@ -2271,6 +2404,8 @@ const ENGINE = (() => {
   return {
     goto, toTitle, showGallery, closeOverlay, toast,
     get started() { return started; },
+    get canvasGain() { return canvasGain; },
+    get canvasSize() { return [cv.width, cv.height]; },
     setGlitch(on) { SYS.state.vis.glitch = on; document.body.classList.toggle("glitching", on); },
     debug: () => ({ scene: cur.scene, idx: cur.idx, pending: pending ? pending.t : null, typing })
   };

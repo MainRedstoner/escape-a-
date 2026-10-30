@@ -45,6 +45,13 @@
   .btn:active{transform:translateY(1px);}
   .btn:disabled{opacity:.42;cursor:not-allowed;}
   .btn:disabled:hover{border-color:var(--line);color:var(--text);}
+  header select{
+    background:rgba(11,14,19,.9);border:1px solid var(--line);color:var(--text);
+    border-radius:4px;padding:6px 6px;font-size:12px;cursor:pointer;font-family:inherit;
+    letter-spacing:.5px;outline:none;transition:border-color .12s;
+  }
+  header select:hover{border-color:var(--clay);}
+  header select:disabled{opacity:.42;cursor:not-allowed;}
 
   /* ---------- 主体 ---------- */
   main{flex:1;display:flex;min-height:0;}
@@ -117,6 +124,18 @@
   #status .ok{color:#6FB58A;}
   #status .bad{color:#D9534F;}
   #status .keys{margin-left:auto;letter-spacing:.4px;}
+
+  /* 纯净模式下的调试角标：画面留空，但读数还在——截图对比、弱机现场看帧率都要它。
+     ?perf=1 时非纯净模式也显示；P 键或 ?perf=0 可以彻底关掉。 */
+  #perfBadge{
+    position:fixed;left:10px;top:10px;z-index:40;display:none;pointer-events:none;
+    background:rgba(4,7,11,.84);border:1px solid var(--line);border-radius:4px;
+    font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;line-height:1.55;
+    color:#B9C7D8;padding:6px 9px;white-space:pre;
+  }
+  body.clean #perfBadge{display:block;}
+  body.want-perf #perfBadge{display:block;}
+  body.hide-perf #perfBadge{display:none !important;}
 
   /* 全部场景 */
   #grid{
@@ -205,6 +224,18 @@
   <span class="sub">程序化背景 · WebGL2 · 零素材</span>
   <span class="spacer"></span>
   <button class="btn" id="btnPost" title="模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒">游戏后期</button>
+  <button class="btn" id="btnSim" title="切到游戏真实的合成路径 ART.paint：3D 层节流 + 画质档 + 2D 后期 + 立绘占位卡。切过去读到的 FPS 才和游戏里是一个量级">游戏合成</button>
+  <select id="selQuality" title="3D 画质档，和游戏设置面板里的一致">
+    <option value="0">画质 自动</option>
+    <option value="1">画质 低</option>
+    <option value="2">画质 中</option>
+    <option value="3">画质 高</option>
+  </select>
+  <select id="selSprites" title="游戏合成模式下叠加的立绘占位卡数量（占位卡的绘制成本是真金白银）">
+    <option value="0">无立绘</option>
+    <option value="1">单立绘</option>
+    <option value="2">双立绘</option>
+  </select>
   <button class="btn" id="btnLights" title="调所有光源的颜色/亮度，复制 JSON">光影</button>
   <button class="btn" id="btnAuto" title="每 8 秒切下一个场景">自动轮播</button>
   <button class="btn" id="btnGrid" title="一次看全部场景">全部场景</button>
@@ -271,14 +302,20 @@
   </section>
 </main>
 
+<div id="perfBadge">—</div>
+
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
+  <span>画布 <b id="stGain">1.00x</b></span>
+  <span>合成 <b id="stPaint">—</b></span>
+  <span>AA <b id="stAA">—</b></span>
   <span class="keys">拖拽旋转 · Shift/右键平移 · 滚轮缩放 · WASD 移动 · Q/E 升降 · R 重置 · 1–9 直选 · L 光影</span>
 </div>
 
 <script src="assets/shh.js"></script>
+<script src="assets/manifest.js"></script>
 <script src="src/art3d/core.js?v=109"></script>
 <script src="src/art3d/textures.js?v=109"></script>
 <script src="src/art3d/props.js?v=109"></script>
@@ -286,6 +323,8 @@
 <script src="src/art3d/decor.js?v=109"></script>
 <script src="src/art3d/worlds.js?v=109"></script>
 <script src="src/art3d/worlds2.js?v=109"></script>
+<!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
+<script src="src/art.js?v=109"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -538,7 +577,8 @@ function syncPostButton() {
   const on = !sc || sc.post !== false;
   const b = $("btnPost");
   if (!b) return;
-  b.disabled = !on;
+  // 合成模式下后期由 ART 自己按场景决定（ds_room 的 post:false 就是这么生效的）
+  b.disabled = simOn || !on;
   b.classList.toggle("on", on && showPost);
   b.title = on ? "模拟游戏里的 2D 后期：调色 / 暗角 / 颗粒" : "该场景在游戏里已关闭后期（保留警报/闪白/故障）";
 }
@@ -620,22 +660,149 @@ function drawFrame(t) {
   if (s) {
     let v = 0;
     (s.batches || []).forEach(b => { v += b.mesh ? b.mesh.count : 0; });
-    $("stInfo").textContent = sc.id + " · " + (v / 1000).toFixed(0) + "k 顶点 · " +
-      (s.dyn ? s.dyn.length : 0) + " 动态";
+    /* 状态栏每帧算一次字符串、只在变了才写 DOM：以前是无条件 textContent 赋值，
+     * 每帧一次强制重排，弱机上看 FPS 时它自己也是一份开销。 */
+    const scaleTxt = (typeof A3D.renderScale === "number") ? A3D.renderScale.toFixed(2) : "1.00";
+    setStatus(sc.id + " · " + (v / 1000).toFixed(0) + "k 顶点 · " +
+      (s.dyn ? s.dyn.length : 0) + " 动态 · 缩放 " + scaleTxt + "（" + qName + "）");
+    if (lightPanelOpen && lightDirty) { buildLightPanel(s); lightDirty = false; }
+  }
+}
+
+/* ============================================================
+ *  游戏合成模拟
+ *
+ *  上面那条 drawFrame 是「原始 3D 路径」——固定 1600×900、每帧都 A3D.draw、
+ *  不做 3D 层节流，所以它天生吃不到 art.js / engine.js 那边的优化。
+ *  想测「游戏里到底多少帧」，必须走同一条链路：
+ *
+ *    engine.frame  →  ART.paint  →  layer3d  →  A3D.draw
+ *                       ↑ 画质档 / 3D 节流 / 2D 后期 / 立绘占位卡全在这一层
+ *
+ *  这里就把 ART.paint 直接拉起来，vis 由页面上的选择器喂。
+ *  画布尺寸也照抄 engine.sizeCanvas 的算法（s × dpr，夹在 [1, 1.5]），
+ *  这样读到的数字才和游戏里可比。
+ * ============================================================ */
+let simOn = false;
+let simGain = 1;
+let simQuality = 0;              // 0 自动 / 1 低 / 2 中 / 3 高
+let simSprites = 0;              // 0 无 / 1 单立绘 / 2 双立绘
+const simVis = { bg: "ds_room", sprites: [], cg: null, glitch: 0 };
+const QNAMES = ["自动", "低", "中", "高"];
+
+/** 照抄 engine.sizeCanvas：后备存储按「CSS 尺寸 / 1600 × dpr」放大 */
+let simSized = false;
+function simSizeCanvas() {
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const gain = Math.max(1, Math.min(1.5, r.width > 0 ? (r.width / W) * dpr : 1));
+  /* 用独立标志判断"量过没有"，别拿 cv.width 当条件：gain 恰好 1.00 时旧写法会早退，
+   * ART.setFrameScale 收不到通知；而且它还会在每次 resize 时白清一遍画布。 */
+  if (simSized && Math.abs(gain - simGain) < 0.01) return;
+  simSized = true;
+  simGain = gain;
+  cv.width = Math.round(W * gain);
+  cv.height = Math.round(H * gain);
+  ctx.setTransform(gain, 0, 0, gain, 0, 0);
+  if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(gain);
+  $("stGain").textContent = gain.toFixed(2) + "x";
+}
+
+function applyQuality() {
+  if (typeof ART === "undefined" || !ART.setQuality) return;
+  ART.setQuality(simQuality);
+}
+
+function setSim(on) {
+  if (on && (typeof ART === "undefined" || typeof A3D === "undefined" || !A3D.ok)) return;
+  simOn = !!on;
+  if (simOn) {
+    A3D.clearCamOverride();            // 游戏里没有自由相机，合成模式也不该有
+    if (ART.setPerf) ART.setPerf(true);   // 让 paint 报耗时
+    simSizeCanvas();
+    applyQuality();
+  } else {
+    cv.width = W; cv.height = H;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (typeof ART !== "undefined" && ART.setFrameScale) ART.setFrameScale(1);
+    needInit = true;                   // 回原始路径时重新拿一次场景默认相机
+    lastStatus = ""; lastBadge = "";
+  }
+  $("btnSim").classList.toggle("on", simOn);
+  $("btnPost").disabled = simOn;       // 合成模式的后期由 ART 自己决定
+  syncPostButton();
+  $("stGain").textContent = (simOn ? simGain : 1).toFixed(2) + "x";
+}
+
+/** 布局/视口一变就重新量画布。纯净模式切换、转屏、DPR 变化都走这里。 */
+function refit() {
+  if (simOn) simSizeCanvas();
+  else $("stGain").textContent = "1.00x";
+}
+
+function simSpritesFor() {
+  if (!simSprites) return [];
+  const out = [{ who: "clawd", face: "normal", pos: simSprites === 2 ? "left" : "center", scale: 1 }];
+  if (simSprites === 2) out.push({ who: "claude", face: "normal", pos: "right", scale: 1 });
+  return out;
+}
+
+function simFrame(t) {
+  if (typeof ART === "undefined" || !ART.paint) return;
+  const sc = SCENES[cur];
+  simVis.bg = sc.id;
+  simVis.sprites = simSpritesFor();
+  ART.paint(ctx, simVis, t, null);
+  const s = A3D.debugScene();
+  if (s) {
+    let v = 0;
+    (s.batches || []).forEach(b => { v += b.mesh ? b.mesh.count : 0; });
+    setStatus(sc.id + " · " + (v / 1000).toFixed(0) + "k 顶点 · 合成路径");
     if (lightPanelOpen && lightDirty) { buildLightPanel(s); lightDirty = false; }
   }
 }
 
 /* ---------------- 帧循环 + FPS ---------------- */
 let last = performance.now(), fpsN = 0, fpsT = 0;
+let lastStatus = "", lastBadge = "";
+function setStatus(txt) {
+  if (txt === lastStatus) return;
+  lastStatus = txt;
+  const el = document.getElementById("stInfo");
+  if (el) el.textContent = txt;
+}
+/** 纯净模式（和 ?perf=1）看的角标：两行，够用就行 */
+function setBadge(fps, gainTxt, detail) {
+  const txt = "FPS " + fps + "   画布 " + gainTxt + "\n" + detail;
+  if (txt === lastBadge) return;
+  lastBadge = txt;
+  const el = $("perfBadge");
+  if (el) el.textContent = txt;
+}
 function loop(now) {
   const t = now / 1000;
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-  moveOrbit(dt);
-  drawFrame(t);
+  if (!simOn) moveOrbit(dt);
+  if (simOn) simFrame(t); else drawFrame(t);
   fpsN++;
   if (now - fpsT > 500) {
-    $("stFps").textContent = Math.round(fpsN * 1000 / (now - fpsT));
+    const fps = Math.round(fpsN * 1000 / (now - fpsT));
+    $("stFps").textContent = fps;
+    if (simOn && typeof ART !== "undefined") {
+      const t3 = ART.getTier ? ART.getTier() : 1;
+      const gainTxt = simGain.toFixed(2) + "x";
+      const tail = QNAMES[t3] + (ART.autoTier ? "(自动)" : "") +
+        " · 3D " + (ART.hz3d ? ART.hz3d + "Hz" : "每帧") +
+        " · 缩放 " + (A3D.renderScale || 1).toFixed(2);
+      $("stGain").textContent = gainTxt;
+      $("stPaint").textContent = (ART.lastCostMs || 0).toFixed(1) + "ms · " + tail;
+      setBadge(fps, gainTxt, "合成 " + (ART.lastCostMs || 0).toFixed(1) + "ms · " + tail);
+    } else {
+      const scaleTxt = (typeof A3D.renderScale === "number") ? A3D.renderScale.toFixed(2) : "1.00";
+      $("stGain").textContent = "1.00x";
+      $("stPaint").textContent = "原始路径 · 缩放 " + scaleTxt;
+      setBadge(fps, "1.00x", "原始路径 · 缩放 " + scaleTxt + "（" + qName + "）");
+    }
     fpsN = 0; fpsT = now;
   }
   if (autoRotate && autoTimer && now - autoTimer > 8000) {
@@ -761,6 +928,10 @@ $("btnClean").addEventListener("click", () => {
   const clean = document.body.classList.toggle("clean");
   $("btnClean").classList.toggle("on", clean);
   if (clean) closeLightPanel();
+  /* 纯净模式改的是 CSS，#frame 会从「带边距的框」变成整屏铺满——
+   * 这不是 window.resize，光靠 resize 监听画布倍率会停在旧值。
+   * ResizeObserver 也会来一发，但那是异步的，这里先同步量一次。 */
+  refit();
 });
 window.addEventListener("keydown", e => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -779,6 +950,8 @@ window.addEventListener("keydown", e => {
     $("grid").classList.contains("show") ? closeGrid() : openGrid();
   }
   else if (k === "h" || k === "H") { $("btnClean").click(); }
+  /* P：临时收起 / 放回纯净模式下的调试角标（截图要干净画面时用） */
+  else if (k === "p" || k === "P") { document.body.classList.toggle("hide-perf"); }
   else if (k === "Escape") {
     if (lightPanelOpen) closeLightPanel();
     else if ($("grid").classList.contains("show")) closeGrid();
@@ -836,6 +1009,32 @@ cv.addEventListener("wheel", e => {
   orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0011), 0.7, 17);
 }, { passive: false });
 
+/* ---------------- 画质档位 ----------------
+ * 两种模式各有各的用法：
+ *   · 原始路径（默认）——美术调试要看真东西：1600×900 全分辨率、每帧都 A3D.draw。
+ *     这里直接改 A3D 的渲染倍率/阴影，不动 ART。
+ *   · 游戏合成（右上角「游戏合成」按钮）——完全交给 ART.setQuality，
+ *     和游戏设置面板里那个滑条走的是同一段代码。
+ * ?q=low|mid|high|auto 两个模式都认，?sim=1 直接进合成模式。 */
+const RAW_QUALITY = { low: [0.6, 512, 4], mid: [0.85, 1024, 8], high: [1, 0, 8] };
+let qName = "high";
+function parseQualityParam() {
+  const raw = (new URLSearchParams(location.search).get("q") || "").toLowerCase();
+  const map = { low: 1, mid: 2, high: 3, auto: 0, "1": 1, "2": 2, "3": 3, "0": 0 };
+  const v = map[raw];
+  simQuality = v === undefined ? 0 : v;
+  qName = simQuality ? ["", "low", "mid", "high"][simQuality] : "auto";
+}
+/** 原始路径下直接改 A3D（合成模式由 ART.setQuality 接管） */
+function applyRawQuality() {
+  const key = simQuality ? ["", "low", "mid", "high"][simQuality] : "high";
+  const [scale, cap, taps] = RAW_QUALITY[key];
+  if (typeof A3D !== "undefined" && A3D.setRenderScale) {
+    A3D.setRenderScale(scale);
+    A3D.setShadowQuality(cap, taps);
+  }
+}
+
 /* ---------------- 启动 ---------------- */
 function boot() {
   buildSide();
@@ -853,8 +1052,51 @@ function boot() {
   }
   $("stGl").textContent = "可用";
   $("stGl").className = "ok";
+  /* 抗锯齿信息：MSAA 是浏览器给的（antialias:true 只是请求），
+   * A2C = 镂空材质走 alpha-to-coverage，需要 MSAA 才生效。 */
+  if ($("stAA")) {
+    $("stAA").textContent = A3D.samples > 1
+      ? A3D.samples + "x" + (A3D.alphaToCoverage ? " + A2C" : "")
+      : "无（浏览器没给 MSAA）";
+    $("stAA").className = A3D.samples > 1 ? "ok" : "bad";
+  }
+  parseQualityParam();
+  $("selQuality").value = String(simQuality);
+  /* 调试角标：纯净模式下默认显示（画面留空但读数还在）；
+     ?perf=1 让非纯净模式也显示，?perf=0 彻底关掉，P 键临时切换。 */
+  const perfQ = (new URLSearchParams(location.search).get("perf") || "").toLowerCase();
+  if (perfQ === "1" || perfQ === "true" || perfQ === "on") document.body.classList.add("want-perf");
+  if (perfQ === "0" || perfQ === "false" || perfQ === "off") document.body.classList.add("hide-perf");
+  bindSimControls();
+  applyRawQuality();                 // 原始模式先按 ?q= 落一次
   syncPostButton();
+  if (new URLSearchParams(location.search).has("sim")) setSim(true);
+  /* 画布倍率要在这些时机都重算：窗口缩放、转屏、手机地址栏收放、拖到别的显示器、
+   * 以及任何改变 #frame 尺寸的布局变化（纯净模式就是这一类）。
+   * ResizeObserver 兜住最后那一类；前面几个是它观测不到的。 */
+  window.addEventListener("resize", refit);
+  window.addEventListener("orientationchange", () => setTimeout(refit, 60));
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+  if (window.ResizeObserver) new ResizeObserver(refit).observe($("frame"));
+  (function watchDpr() {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+    const onChange = () => { refit(); watchDpr(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange, { once: true });
+    else if (mq.addListener) mq.addListener(() => { refit(); watchDpr(); });
+  })();
   requestAnimationFrame(t => { fpsT = t; loop(t); });
+}
+
+/* ---------------- 合成模式的控件 ---------------- */
+function bindSimControls() {
+  $("btnSim").addEventListener("click", () => setSim(!simOn));
+  $("selQuality").addEventListener("change", e => {
+    simQuality = +e.target.value | 0;
+    if (simOn) applyQuality(); else applyRawQuality();
+    lastStatus = "";                 // 让状态栏下一帧重画
+  });
+  $("selSprites").addEventListener("change", e => { simSprites = +e.target.value | 0; });
 }
 boot();
 </script>
