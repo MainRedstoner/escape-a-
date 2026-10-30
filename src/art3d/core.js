@@ -94,6 +94,20 @@ const A3D = (() => {
         (b * f - c * e) * s, -(a * f - c * d) * s, (a * e - b * d) * s
       ]);
     },
+    /** 同 normalMat，但结果写进调用方给的数组。
+     *  每帧每个批次都要算一次法线矩阵，返回新 Float32Array 会白白制造几十个垃圾。 */
+    normalMatInto(m, out) {
+      const a = m[0], b = m[1], c = m[2];
+      const d = m[4], e = m[5], f = m[6];
+      const g = m[8], h = m[9], i = m[10];
+      const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+      const det = a * A + b * B + c * C;
+      const s = det ? 1 / det : 0;
+      out[0] = A * s; out[1] = B * s; out[2] = C * s;
+      out[3] = -(b * i - c * h) * s; out[4] = (a * i - c * g) * s; out[5] = -(a * h - b * g) * s;
+      out[6] = (b * f - c * e) * s; out[7] = -(a * f - c * d) * s; out[8] = (a * e - b * d) * s;
+      return out;
+    },
     /** 变换一个点 */
     xf(m, p) {
       const x = p[0], y = p[1], z = p[2];
@@ -831,6 +845,13 @@ const A3D = (() => {
   let cur = null, curId = "", curScene = null;
   let camOverride = null;   // 预览页的自由相机：场景 update 之后覆盖 cam
   const scratchMat = M.ident();
+  const scratchNMat = new Float32Array(9);   // setBatch 的法线矩阵落脚点，别再每批新建
+  const UV_ONE = new Float32Array([1, 1]);
+  /* applyLights 的点光缓冲：6 盏灯上限，每帧只是覆写同一块内存 */
+  const PT_MAX = 6;
+  const ptPos = new Float32Array(PT_MAX * 3);
+  const ptCol = new Float32Array(PT_MAX * 3);
+  const ptRng = new Float32Array(PT_MAX);
 
 
   /* ---------------- 点光阴影（cubemap shadow map） ---------------- */
@@ -906,7 +927,7 @@ const A3D = (() => {
   function setBatch(b, t, view) {
     const P = litProg, u = P.u;
     gl.uniformMatrix4fv(u.uModel, false, b.model || scratchMat);
-    gl.uniformMatrix3fv(u.uNMat, false, M.normalMat(b.model || scratchMat));
+    gl.uniformMatrix3fv(u.uNMat, false, M.normalMatInto(b.model || scratchMat, scratchNMat));
     gl.uniform1f(u.uUseTex, b.tex ? 1 : 0);
     gl.uniform1f(u.uUnlit, b.unlit ? 1 : 0);
     gl.uniform1f(u.uOpacity, b.opacity === undefined ? 1 : b.opacity);
@@ -918,7 +939,7 @@ const A3D = (() => {
     gl.uniform3fv(u.uEmissive, b.emissive || [0, 0, 0]);
     const off = b.uvAnim ? b.uvAnim(t) : (b.uvOff || [0, 0]);
     gl.uniform2fv(u.uUVOff, off);
-    gl.uniform2fv(u.uUVScale, [1, 1]);
+    gl.uniform2fv(u.uUVScale, UV_ONE);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, b.tex || null);
     gl.uniform1i(u.uTex, 0);
@@ -946,20 +967,21 @@ const A3D = (() => {
     gl.uniform1f(u.uSwayAmp, scene.swayAmp === undefined ? 1 : scene.swayAmp);
     gl.uniform3fv(u.uWind, scene.wind || [0, 0, 0]);
     const pts = L.points || [];
-    const n = Math.min(6, pts.length);
+    const n = Math.min(PT_MAX, pts.length);
     gl.uniform1i(u.uPointN, n);
     if (n) {
-      const pos = [], col = [], rng = [];
       for (let i = 0; i < n; i++) {
         const p = pts[i];
-        pos.push(p.pos[0], p.pos[1], p.pos[2]);
+        ptPos[i * 3] = p.pos[0]; ptPos[i * 3 + 1] = p.pos[1]; ptPos[i * 3 + 2] = p.pos[2];
         const inten = p.inten === undefined ? 1 : p.inten;
-        col.push(p.col[0] * inten, p.col[1] * inten, p.col[2] * inten);
-        rng.push(p.range || 5);
+        ptCol[i * 3] = p.col[0] * inten;
+        ptCol[i * 3 + 1] = p.col[1] * inten;
+        ptCol[i * 3 + 2] = p.col[2] * inten;
+        ptRng[i] = p.range || 5;
       }
-      gl.uniform3fv(u.uPointPos, pos);
-      gl.uniform3fv(u.uPointCol, col);
-      gl.uniform1fv(u.uPointRange, rng);
+      gl.uniform3fv(u.uPointPos, ptPos);
+      gl.uniform3fv(u.uPointCol, ptCol);
+      gl.uniform1fv(u.uPointRange, ptRng);
     }
     const sh = scene.__shadow;
     gl.activeTexture(gl.TEXTURE3);

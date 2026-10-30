@@ -273,24 +273,49 @@ const ART = (() => {
        "（这是一张占位卡，不是演出事故。）"], "rgba(217,119,87,.85)");
   }
 
-  function placeholderChara(ctx, x, who, face, scale) {
-    const h = SPRITE_H * (scale || 1), w = h * 0.62;
-    ctx.save();
-    ctx.translate(x, SPRITE_BASE);
-    // 地面投影
-    ctx.fillStyle = "rgba(0,0,0,.45)";
-    ell(ctx, 0, 6, w * 0.42, 22); ctx.fill();
-    plate(ctx, -w / 2, -h, w, h,
+  /** 立绘占位卡：按 (who, face, scale) 缓存成位图。
+   *  每帧重画一张卡要 2 条圆角路径 + 虚线描边 + 4 个角标 + 5 次 fillText，
+   *  而它的内容根本不变——只有位置在动。缓一份图，每帧只做一次 drawImage。 */
+  const CHARA_CARDS = {};
+  let charaCardCount = 0;
+  function charaCard(who, face, scale) {
+    const key = who + "|" + face + "|" + (scale || 1);
+    let cv = CHARA_CARDS[key];
+    if (cv) return cv;
+    if (charaCardCount >= 24) {                     // 上限兜底：超了整批清掉，别无限吃内存
+      for (const k in CHARA_CARDS) delete CHARA_CARDS[k];
+      charaCardCount = 0;
+    }
+    const h = Math.round(SPRITE_H * (scale || 1));
+    const w = Math.round(h * 0.62);
+    const pad = 34;                                  // 卡片下面留出地面投影的位置
+    cv = document.createElement("canvas");
+    cv.width = w;
+    cv.height = h + pad;
+    const c = cv.getContext("2d");
+    c.fillStyle = "rgba(0,0,0,.45)";
+    ell(c, w / 2, h + 6, w * 0.42, 22); c.fill();
+    plate(c, 0, 0, w, h,
       who + " · " + face,
       ["立绘素材位", "规范：≥1400 × 2000 PNG", "透明底 · 全身 · 脚底对齐",
        "assets/chara/" + who + "_" + face + ".png"],
       "rgba(150,164,184,.9)");
-    ctx.restore();
+    CHARA_CARDS[key] = cv;
+    charaCardCount++;
+    return cv;
+  }
+
+  function placeholderChara(ctx, x, who, face, scale) {
+    const h = SPRITE_H * (scale || 1);
+    const cv = charaCard(who, face, scale);
+    // 按位图原尺寸贴，别缩放：缩放会让描边和 14px 小字重采样发糊
+    ctx.drawImage(cv, Math.round(x - cv.width / 2), Math.round(SPRITE_BASE - h), cv.width, cv.height);
   }
 
   /* ============================================================
    *  气氛层（不是美术，只是别让占位卡太空）
    * ============================================================ */
+  let coldBar = null;    // 顶部冷光带：参数固定，建一次就够
   function atmosphere(ctx, t) {
     // 背景暂时全部留空，统一走冷光
     const cold = 1;
@@ -300,10 +325,12 @@ const ART = (() => {
       ell(ctx, d.x, d.y, d.r, d.r); ctx.fill();
     }
     // 顶部冷光带
-    const g = ctx.createLinearGradient(0, 0, 0, 220);
-    g.addColorStop(0, cold ? "rgba(140,170,220,.07)" : "rgba(230,220,190,.06)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 220);
+    if (!coldBar) {
+      coldBar = ctx.createLinearGradient(0, 0, 0, 220);
+      coldBar.addColorStop(0, cold ? "rgba(140,170,220,.07)" : "rgba(230,220,190,.06)");
+      coldBar.addColorStop(1, "rgba(0,0,0,0)");
+    }
+    ctx.fillStyle = coldBar; ctx.fillRect(0, 0, W, 220);
     // 金色火花（强调色氛围粒子）
     for (const s of FX.sparks) {
       ctx.fillStyle = `rgba(201,162,39,${Math.min(1, s.life / 4) * 0.45})`;
@@ -402,6 +429,45 @@ const ART = (() => {
     night: ["rgb(176,192,240)", "rgb(206,214,238)", "rgb(170,178,206)"],
     red:   ["rgb(255,206,200)", "rgb(240,214,212)", "rgb(206,176,176)"]
   };
+  /* ---------------- 后期：渐变与颗粒都缓存起来 ----------------
+   * 两条全屏渐变每帧都要用，但它们的参数只跟舞台尺寸 / 色调 / 是否 3D 有关；
+   * 每帧 createLinearGradient + createRadialGradient = 每帧两次对象分配外加
+   * 一遍色标解析，纯浪费。变了才重建。 */
+  let gradeKey = "", gradeTone = null, gradeVig = null;
+  function gradeGrads(ctx, tone, bg3d) {
+    const key = tone[0] + tone[1] + tone[2] + "|" + (bg3d ? 1 : 0) + "|" + W + "x" + H;
+    if (key === gradeKey) return { tone: gradeTone, vig: gradeVig };
+    gradeKey = key;
+    gradeTone = ctx.createLinearGradient(0, 0, 0, H);
+    gradeTone.addColorStop(0, tone[0]);
+    gradeTone.addColorStop(0.55, tone[1]);
+    gradeTone.addColorStop(1, tone[2]);
+    gradeVig = ctx.createRadialGradient(W / 2, H / 2, H * 0.40, W / 2, H / 2, H * 1.02);
+    gradeVig.addColorStop(0, "rgba(0,0,0,0)");
+    gradeVig.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
+    return { tone: gradeTone, vig: gradeVig };
+  }
+
+  /* 胶片颗粒：原来每帧 160 次 fillRect，现在预生成 4 张 256×256 噪点图轮着贴。
+   * 点数按原密度折算（160 点 / 1600×900 ≈ 7 点 / 256²），alpha 仍是 0.05，观感一样。 */
+  const GRAIN_TILES = [];
+  function grainTile(k) {
+    let p = GRAIN_TILES[k];
+    if (p) return p;
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const g = c.getContext("2d");
+    let s = k * 7919 + 17;
+    const r = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let i = 0; i < 7; i++) {
+      g.fillStyle = r() < 0.5 ? "#000" : "#fff";
+      g.fillRect(r() * 256, r() * 256, 1.6, 1.6);
+    }
+    p = { cv: c, pat: null };
+    GRAIN_TILES[k] = p;
+    return p;
+  }
+
   function post(ctx, t, vis, bgId, bg3d) {
     const W2 = W, H2 = H;
     const realBg = bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId;
@@ -409,28 +475,21 @@ const ART = (() => {
       A3D.postOf && A3D.postOf(realBg) === false);
     if (gradeOn) {
       const tone = (bg3d && typeof A3D !== "undefined" && A3D.toneOf(realBg)) || TONES.cold;
+      const gr = gradeGrads(ctx, tone, bg3d);
       // 整体压色
       ctx.globalCompositeOperation = "multiply";
-      const cg = ctx.createLinearGradient(0, 0, 0, H2);
-      cg.addColorStop(0, tone[0]);
-      cg.addColorStop(0.55, tone[1]);
-      cg.addColorStop(1, tone[2]);
-      ctx.fillStyle = cg; ctx.fillRect(0, 0, W2, H2);
+      ctx.fillStyle = gr.tone; ctx.fillRect(0, 0, W2, H2);
       ctx.globalCompositeOperation = "source-over";
 
       // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
-      const vg = ctx.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.40, W2 / 2, H2 / 2, H2 * 1.02);
-      vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(2,4,8," + (bg3d ? 0.40 : 0.52) + ")");
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W2, H2);
+      ctx.fillStyle = gr.vig; ctx.fillRect(0, 0, W2, H2);
 
-      // 胶片颗粒
+      // 胶片颗粒：4 张噪点图按时间轮换，每帧只做一次填充
       ctx.save();
       ctx.globalAlpha = 0.05;
-      for (let i = 0; i < 160; i++) {
-        ctx.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
-        ctx.fillRect(Math.random() * W2, Math.random() * H2, 1.6, 1.6);
-      }
+      const tile = grainTile((t * 30 | 0) & 3);
+      if (!tile.pat) tile.pat = ctx.createPattern(tile.cv, "repeat");
+      if (tile.pat) { ctx.fillStyle = tile.pat; ctx.fillRect(0, 0, W2, H2); }
       ctx.restore();
     }
 
