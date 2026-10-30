@@ -718,8 +718,11 @@ const A3D = (() => {
   function createGL() {
     gcv = document.createElement("canvas");
     gcv.width = W; gcv.height = H;
+    /* preserveDrawingBuffer 必须关：开着时浏览器每帧要多留一份整屏副本，
+     * 弱显卡上一次就够掉十几帧。全仓没有任何地方在渲染之后单独去读 gcv——
+     * art.js 和 art-preview.html 都是在同一次任务里紧接着 drawImage，缓冲区还没失效。 */
     gl = gcv.getContext("webgl2", { antialias: true, alpha: false, depth: true,
-                                    powerPreference: "high-performance", preserveDrawingBuffer: true });
+                                    powerPreference: "high-performance", preserveDrawingBuffer: false });
     if (!gl) { failReason = "浏览器不支持 WebGL2"; return false; }
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -968,12 +971,18 @@ const A3D = (() => {
     gl.uniform1f(u.uShadowBias, sh ? sh.bias : 0);
   }
 
+  /* 天空只在「这一帧还没有任何几何体写过深度」的像素上着色。
+   * depthRange 压到 [1,1]、depthFunc 用 EQUAL，深度缓冲里仍是清屏值 1.0 的地方才通过：
+   * 窗洞 / 纯天空区域照样出画面，被墙和家具挡住的那些像素连一次 hash 都省掉。
+   * 调用方负责把它排在实体几何之后、半透明批次之前（见 render）。 */
   function drawSky(scene, t) {
     const s = scene.sky || {};
     const u = skyProg.u;
     gl.useProgram(skyProg.p);
     gl.depthMask(false);
-    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.EQUAL);
+    gl.depthRange(1, 1);
     gl.disable(gl.BLEND);
     gl.uniform3fv(u.uTop, s.top || [0.02, 0.03, 0.05]);
     gl.uniform3fv(u.uBot, s.bot || [0.05, 0.06, 0.09]);
@@ -985,7 +994,8 @@ const A3D = (() => {
     gl.uniform1f(u.uGrain, 0.02);
     gl.bindVertexArray(null);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.enable(gl.DEPTH_TEST);
+    gl.depthRange(0, 1);
+    gl.depthFunc(gl.LEQUAL);
     gl.depthMask(true);
   }
 
@@ -1072,7 +1082,11 @@ const A3D = (() => {
     cur = { proj, view, eye, fov };
     scene.time = t;
 
-    drawSky(scene, t);
+    /* 天空默认最后画（见 drawSky 的注释）：被墙挡住的像素直接跳过，省掉大半屏 hash。
+     * 个别场景如果靠「先铺天、再让半透明东西盖上去」出效果，可以在场景描述符里写
+     * skyFirst: true 退回旧顺序。 */
+    const skyFirst = scene.skyFirst === true;
+    if (skyFirst) drawSky(scene, t);
 
     /* 体积海（窗外的深海） */
     if (scene.sea) {
@@ -1093,6 +1107,12 @@ const A3D = (() => {
       const b = d.batch;
       if (d.matrix) b.model = d.matrix(t);
       setBatch(b, t, view);
+    }
+
+    /* 天空（后置版本）：必须在半透明之前，否则会盖住玻璃和光柱 */
+    if (!skyFirst) {
+      drawSky(scene, t);
+      gl.useProgram(litProg.p);   // drawSky 换了 program，半透明批次还得用 litProg
     }
 
     /* 半透明 / 叠加 */
