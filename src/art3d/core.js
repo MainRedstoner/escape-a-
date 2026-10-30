@@ -393,7 +393,25 @@ const A3D = (() => {
   let anisoExt = null, maxAniso = 1;
   let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg;
   let shadowFbo = null, dummyShadow = null;
-  let res = { w: W, h: H };
+
+  /* ---------------- 画质旋钮 ----------------
+   * 内部渲染分辨率和逻辑舞台解耦：舞台坐标永远是 1600×900，但 WebGL 可以按
+   * renderScale 降分辨率画，最后 drawImage 放大回去。背景本身是雾 + 暗调 +
+   * 轻微柔化的东西，0.8 收缩肉眼看不出，填充量却只剩 64%——这是最直接的一档。
+   * shadowSizeCap / shadowTaps 控制那盏点光的 cubemap 尺寸与 PCF 采样数。 */
+  let renderScale = 1, rw = W, rh = H;
+  let shadowSizeCap = 0, shadowTaps = 8;
+
+  function applyScale(k) {
+    renderScale = clamp(k, 0.35, 1);
+    rw = Math.max(1, Math.round(W * renderScale));
+    rh = Math.max(1, Math.round(H * renderScale));
+    if (!gl) return;
+    if (gcv.width !== rw || gcv.height !== rh) {
+      gcv.width = rw; gcv.height = rh;   // 改尺寸会丢掉缓冲内容，下一帧整帧重画即可
+    }
+    gl.viewport(0, 0, rw, rh);
+  }
 
   function compile(type, src) {
     const s = gl.createShader(type);
@@ -522,7 +540,7 @@ const A3D = (() => {
   uniform float uPointRange[6];
   uniform vec2 uUVOff, uUVScale;
   uniform samplerCubeShadow uShadowMap;
-  uniform int uShadowIdx;
+  uniform int uShadowIdx, uShadowTaps;
   uniform float uShadowOn, uShadowFar, uShadowBias;
   float pointShadow(vec3 wp, vec3 n, vec3 lp) {
     vec3 d = wp - lp;
@@ -536,11 +554,13 @@ const A3D = (() => {
     vec3 b = cross(nd, t);
     float sum = 0.0;
     float R = 0.04;
-    float D = 0.7071;
     sum += texture(uShadowMap, vec4(normalize(dp + t * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp - t * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + b * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp - b * R), ref));
+    // 低画质只走十字四采样；多了四个对角采样，阴影边缘会软一点，但采样数减半
+    if (uShadowTaps <= 4) return sum * 0.25;
+    float D = 0.7071;
     sum += texture(uShadowMap, vec4(normalize(dp + (t * D + b * D) * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + (-t * D + b * D) * R), ref));
     sum += texture(uShadowMap, vec4(normalize(dp + (t * D - b * D) * R), ref));
@@ -731,7 +751,7 @@ const A3D = (() => {
   /* ---------------- 资源 ---------------- */
   function createGL() {
     gcv = document.createElement("canvas");
-    gcv.width = W; gcv.height = H;
+    gcv.width = rw; gcv.height = rh;
     /* preserveDrawingBuffer 必须关：开着时浏览器每帧要多留一份整屏副本，
      * 弱显卡上一次就够掉十几帧。全仓没有任何地方在渲染之后单独去读 gcv——
      * art.js 和 art-preview.html 都是在同一次任务里紧接着 drawImage，缓冲区还没失效。 */
@@ -846,8 +866,26 @@ const A3D = (() => {
   function register(id, builder) { scenes[id] = builder; }
   function has(id) { return !!scenes[id] && init(); }
 
+  /** 阴影尺寸上限 / PCF 采样数。尺寸一变，已建好的 cubemap 就废了，必须回收重来，
+   *  否则换档只是白白多占一份显存。别在每帧里调它。 */
+  function setShadowQuality(cap, taps) {
+    const c = cap || 0, tp = taps || 8;
+    if (c === shadowSizeCap && tp === shadowTaps) return;
+    shadowSizeCap = c; shadowTaps = tp;
+    if (!gl) return;
+    const done = [];
+    for (const id in scenes) {
+      const sc = scenes[id] && scenes[id].__built;
+      if (!sc || sc.__shadow === undefined || done.indexOf(sc) >= 0) continue;
+      done.push(sc);                      // 别名共用同一个场景对象，别重复删
+      if (sc.__shadow && sc.__shadow.tex) gl.deleteTexture(sc.__shadow.tex);
+      sc.__shadow = undefined;            // 下一帧按新尺寸懒重建
+    }
+  }
+
   let cur = null, curId = "", curScene = null;
   let camOverride = null;   // 预览页的自由相机：场景 update 之后覆盖 cam
+  let lastDrawMs = 0;
   const scratchMat = M.ident();
   const scratchNMat = new Float32Array(9);   // setBatch 的法线矩阵落脚点，别再每批新建
   const UV_ONE = new Float32Array([1, 1]);
@@ -879,7 +917,7 @@ const A3D = (() => {
   function buildShadow(sc) {
     const sh = sc.shadow;
     if (!sh || !gl || !shadowProg) { sc.__shadow = null; return; }
-    const size = sh.size || 1024;
+    const size = shadowSizeCap ? Math.min(sh.size || 1024, shadowSizeCap) : (sh.size || 1024);
     const far = sh.far || 9;
     const tex = makeDepthCube(size);
     try {
@@ -923,7 +961,7 @@ const A3D = (() => {
       sc.__shadow = null;
     } finally {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, W, H);
+      gl.viewport(0, 0, rw, rh);
       gl.bindVertexArray(null);
     }
   }
@@ -993,6 +1031,7 @@ const A3D = (() => {
     gl.uniform1i(u.uShadowMap, 3);
     gl.uniform1f(u.uShadowOn, sh ? 1 : 0);
     gl.uniform1i(u.uShadowIdx, sh ? sh.idx : 0);
+    gl.uniform1i(u.uShadowTaps, shadowTaps);
     gl.uniform1f(u.uShadowFar, sh ? sh.far : 1);
     gl.uniform1f(u.uShadowBias, sh ? sh.bias : 0);
   }
@@ -1013,7 +1052,11 @@ const A3D = (() => {
     gl.uniform3fv(u.uTop, s.top || [0.02, 0.03, 0.05]);
     gl.uniform3fv(u.uBot, s.bot || [0.05, 0.06, 0.09]);
     gl.uniform3fv(u.uGlow, s.glow || [0.2, 0.3, 0.4]);
-    gl.uniform3fv(u.uSun, s.sun || [0.5, 0.7]);
+    /* 注意：各场景的 sky.sun 都是 [x, y] 两元组（见 worlds*.js），uniform3fv 收到
+     * 长度 2 的数组会报 INVALID_VALUE 并且整条上传作废——uSun 一直是 (0,0,0)。
+     * 这里照原样跳过，保证观感一丝不变，同时把每帧的控制台刷屏去掉。
+     * 真要让太阳位置生效得改美术侧的数据（那是单独一次观感改动）。 */
+    if (s.sun && s.sun.length >= 3) gl.uniform3fv(u.uSun, s.sun);
     gl.uniform1f(u.uMode, s.mode || 0);
     gl.uniform1f(u.uHorizon, s.horizon === undefined ? 0.5 : s.horizon);
     gl.uniform1f(u.uTime, t);
@@ -1055,7 +1098,8 @@ const A3D = (() => {
     gl.uniformMatrix4fv(u.uProj, false, cur.proj);
     gl.uniformMatrix4fv(u.uView, false, cur.view);
     gl.uniform1f(u.uTime, t);
-    gl.uniform1f(u.uPix, H / (2 * Math.tan(cur.fov / 2)));
+    // 点精灵的像素尺寸要按实际绘制缓冲算，否则降分辨率后气泡会显得偏大
+    gl.uniform1f(u.uPix, rh / (2 * Math.tan(cur.fov / 2)));
     gl.uniform3fv(u.uCam, cur.eye);
     for (const p of sc.points) {
       gl.uniform1f(u.uYMin, p.yMin === undefined ? -6 : p.yMin);
@@ -1094,8 +1138,8 @@ const A3D = (() => {
     const eye = cam.eye || [0, 1.6, 3];
     const target = cam.target || [0, 1.4, -3];
     const fov = (cam.fov || 42) * D2R;
-    const aspect = W / H;
-    gl.viewport(0, 0, W, H);
+    const aspect = rw / rh;
+    gl.viewport(0, 0, rw, rh);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -1187,8 +1231,10 @@ const A3D = (() => {
       if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
     }
     if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
+    const t0 = performance.now();
     render(sc, t);
     ctx.drawImage(gcv, 0, 0, W, H);
+    lastDrawMs = performance.now() - t0;   // 只是 CPU 提交耗时，GPU 是异步的
     return true;
   }
 
@@ -1229,6 +1275,28 @@ const A3D = (() => {
     get canvas() { return gcv; },
     meshFrom, pointMesh, texFromCanvas, updateTex,
     clamp, lerp, smooth, TAU, D2R, norm3, cross,
-    math: { v3: (x, y, z) => [x || 0, y || 0, z || 0] }
+    math: { v3: (x, y, z) => [x || 0, y || 0, z || 0] },
+
+    /* ---------------- 画质 ---------------- */
+    setRenderScale: k => applyScale(k),
+    get renderScale() { return renderScale; },
+    get renderSize() { return [rw, rh]; },
+    setShadowQuality,
+    get shadowTaps() { return shadowTaps; },
+    /** 上一次 draw 的 CPU 提交耗时（毫秒）；GPU 是异步的，这只是个参考量 */
+    get lastDrawMs() { return lastDrawMs; },
+    /** 调试 / 性能面板用：当前这一帧画了多少批次与顶点 */
+    stats() {
+      const sc = curScene;
+      if (!sc) return { draws: 0, verts: 0, scale: renderScale, shadow: shadowSizeCap || 0, taps: shadowTaps };
+      let draws = 0, verts = 0;
+      const add = b => { if (b && b.mesh) { draws++; verts += b.mesh.count; } };
+      for (const b of sc.batches) add(b);
+      for (const d of sc.dyn) add(d.batch);
+      for (const b of sc.over) add(b);
+      for (const b of sc.glows || []) add(b);
+      for (const p of sc.points || []) add(p);
+      return { draws, verts, scale: renderScale, shadow: shadowSizeCap || 0, taps: shadowTaps };
+    }
   };
 })();

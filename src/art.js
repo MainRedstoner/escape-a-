@@ -374,9 +374,93 @@ const ART = (() => {
   }
 
   /* ============================================================
+   *  3D 背景层：跟 UI 解耦
+   *
+   *  WebGL 那一步（场景渲染 + 整屏拷进 2D）是整帧最贵的部分，但它动的幅度很小：
+   *  相机漂移、鱼群巡游、粒子、显示器跳字。没必要跟着 UI 跑满刷新率。
+   *  这里留一块离屏 2D 层存「最近一次画好的 3D 帧」，到点才重画，其余帧直接贴。
+   *  顺带一个好处：preserveDrawingBuffer 可以一直关着——像素留在 LAYER 里，
+   *  不依赖 WebGL 后备缓冲是否还在。
+   * ============================================================ */
+  let LAYER = null;
+  let hz3d = 0;          // 0 = 每帧都刷（高档）；30 / 24 = 节流
+  let tier = 3;          // 当前生效档位 1 低 / 2 中 / 3 高
+
+  function set3dHz(hz) { hz3d = hz > 0 ? hz : 0; }
+
+  /* 档位把几个旋钮绑在一起。高档 = 改动前的老样子，一点没动；
+   * 低档才真的省：渲染分辨率 0.6（填充量 36%）、3D 24Hz、阴影 512 边长 + 4 采样、
+   * 关颗粒、关文本框 backdrop-filter。 */
+  function applyTier(q) {
+    tier = q < 1 ? 1 : q > 3 ? 3 : q | 0;
+    if (typeof A3D !== "undefined" && A3D.setRenderScale) {
+      if (tier >= 3) { A3D.setRenderScale(1); A3D.setShadowQuality(0, 8); }
+      else if (tier === 2) { A3D.setRenderScale(0.8); A3D.setShadowQuality(1024, 8); }
+      else { A3D.setRenderScale(0.6); A3D.setShadowQuality(512, 4); }
+    }
+    set3dHz(tier >= 3 ? 0 : tier === 2 ? 30 : 24);
+    if (typeof document !== "undefined") document.body.classList.toggle("low-q", tier <= 1);
+  }
+  function setQuality(tierOrZero) {
+    auto = tierOrZero < 1;
+    applyTier(auto ? 2 : tierOrZero);
+  }
+  function getQuality() { return auto ? 0 : tier; }
+  function getTier() { return tier; }
+
+  /* ---------------- 自动降档 ----------------
+   * 用「帧间隔相对本机最好的间隔」判断掉没掉帧，不写死毫秒数——
+   * 120Hz 屏上好帧是 8ms、60Hz 上是 16.7ms，绝对值阈值会两边都判错。
+   * 连着两个窗口掉帧才降，四个窗口都富余才升，换完冷却一会儿，别来回抖。 */
+  let auto = false;
+  let perfOn = false;    // ?perf=1：额外计时给性能面板用
+  let autoBest = 0, autoGapAcc = 0, autoCostAcc = 0, autoN = 0, autoCool = 0;
+  let autoLastT = -1;
+  function autoTick(t, cost) {
+    if (autoLastT < 0) { autoLastT = t; return; }
+    const gap = t - autoLastT;
+    autoLastT = t;
+    if (gap <= 0 || gap > 0.25) return;             // 后台 / 卡死的帧不算样本
+    if (!autoBest || gap < autoBest) autoBest = gap;
+    autoGapAcc += gap; autoCostAcc += cost; autoN++;
+    if (autoN < 45) return;
+    const avgGap = autoGapAcc / autoN, avgCost = autoCostAcc / autoN;
+    autoGapAcc = 0; autoCostAcc = 0; autoN = 0;
+    if (autoCool > 0) { autoCool--; return; }
+    if (avgGap > autoBest * 1.45 && tier > 1) { applyTier(tier - 1); autoCool = 2; }
+    else if (tier < 3 && avgGap < autoBest * 1.15 && avgCost < 0.006) { applyTier(tier + 1); autoCool = 4; }
+  }
+
+  /** 返回这一帧该不该走 3D；true 时 LAYER 已贴进目标 ctx */
+  function layer3d(ctx, id, t) {
+    if (typeof A3D === "undefined" || !A3D.has(id)) return false;
+    if (!LAYER) {
+      const cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      LAYER = { cv, ctx: cv.getContext("2d"), at: -1e9, id: "", ok: false };
+    }
+    const gap = hz3d > 0 ? 1 / hz3d : 0;
+    if (LAYER.id !== id || LAYER.at < 0 || t - LAYER.at >= gap) {
+      LAYER.ok = A3D.draw(LAYER.ctx, id, t);
+      LAYER.at = t;
+      LAYER.id = LAYER.ok ? id : "";
+      if (!LAYER.ok) return false;
+    }
+    // 不复用旧帧的极端情况（切换场景那一帧画失败）直接让调用方走占位卡
+    if (!LAYER.ok) return false;
+    ctx.drawImage(LAYER.cv, 0, 0, W, H);
+    return true;
+  }
+
+  /* ============================================================
    *  主绘制
    * ============================================================ */
+  let lastCost = 0;      // 上一帧 paint 的耗时（秒），自动降档用
   function paint(ctx, vis, t, speaking) {
+    /* 自动档：先拿上一帧的耗时和本帧的间隔做判断，再画。计时只在这时候开。 */
+    const costOn = auto || perfOn;
+    if (auto) autoTick(t, lastCost);
+    const t0 = costOn ? performance.now() : 0;
     const nowMs = t * 1000;
     const shakeAge = nowMs - FX.shakeT;
     const flashAge = nowMs - FX.flashT;
@@ -394,7 +478,7 @@ const ART = (() => {
     if (bgRec) {
       cover(ctx, bgRec.img, W, H);
       ctx.fillStyle = "rgba(4,7,12,.18)"; ctx.fillRect(0, 0, W, H);  // 统一压暗
-    } else if (typeof A3D !== "undefined" && A3D.draw(ctx, bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId, t)) {
+    } else if (layer3d(ctx, bgId === "chat" || bgId === "news" ? "ui_backdrop" : bgId, t)) {
       bg3d = true;          // 3D 场景整幅画好，气氛粒子由场景自己负责
     } else {
       placeholderBG(ctx, bgId, t, "（当前为占位卡：正式美术替换后自动生效）");
@@ -410,6 +494,7 @@ const ART = (() => {
       post(ctx, t, vis, bgId, bg3d);
       draw403(ctx, nowMs);
       ctx.restore();
+      if (costOn) lastCost = (performance.now() - t0) / 1000;
       return;
     }
 
@@ -419,6 +504,7 @@ const ART = (() => {
     post(ctx, t, vis, bgId, bg3d);
     draw403(ctx, nowMs);
     ctx.restore();
+    if (costOn) lastCost = (performance.now() - t0) / 1000;
   }
 
   /* --- 后期：暗角 / 冷调 / 颗粒 / 故障 --- */
@@ -484,13 +570,15 @@ const ART = (() => {
       // 暗角（比常规更重，但别把立绘吃掉；3D 场景自带景深，压一点就够）
       ctx.fillStyle = gr.vig; ctx.fillRect(0, 0, W2, H2);
 
-      // 胶片颗粒：4 张噪点图按时间轮换，每帧只做一次填充
-      ctx.save();
-      ctx.globalAlpha = 0.05;
-      const tile = grainTile((t * 30 | 0) & 3);
-      if (!tile.pat) tile.pat = ctx.createPattern(tile.cv, "repeat");
-      if (tile.pat) { ctx.fillStyle = tile.pat; ctx.fillRect(0, 0, W2, H2); }
-      ctx.restore();
+      // 胶片颗粒：4 张噪点图按时间轮换，每帧只做一次填充（低档直接省掉）
+      if (tier > 1) {
+        ctx.save();
+        ctx.globalAlpha = 0.05;
+        const tile = grainTile((t * 30 | 0) & 3);
+        if (!tile.pat) tile.pat = ctx.createPattern(tile.cv, "repeat");
+        if (tile.pat) { ctx.fillStyle = tile.pat; ctx.fillRect(0, 0, W2, H2); }
+        ctx.restore();
+      }
     }
 
     // 警报红光
@@ -546,6 +634,12 @@ const ART = (() => {
 
   return {
     W, H, C, FX, trigger, clear403, resetFX, stepFX, paint, draftBadge,
+    set3dHz, setQuality, getQuality, getTier,
+    setPerf: on => { perfOn = !!on; autoLastT = -1; },
+    /** 性能面板读数：上一帧 paint 耗时（毫秒） */
+    get lastCostMs() { return lastCost * 1000; },
+    get hz3d() { return hz3d; },
+    get autoTier() { return auto; },
     get assets() { return { loaded, total, manifest: MANIFEST }; }
   };
 })();
