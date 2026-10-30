@@ -57,6 +57,9 @@ python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 /
 python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
 
+> 上面四个脚本在 PR 和推送 `main` 时由 GitHub Actions 自动再跑一遍（`.github/workflows/validate.yml`），
+> 本地先跑是为了别等 CI。PR 还会检查分支名前缀，所以分支名别省前缀。
+
 3D 背景改完后，先在浏览器里用 `index.html?bg=<场景id>` 单独看一遍（光、构图、帧率），
 再走一遍正常流程；WebGL2 不可用时会自动回落到占位卡，所以**不要只测一次就假定没问题**。
 **动到渲染 / 合成 / 后期**（`src/art3d/`、`src/art.js`、主循环）时再加一步：
@@ -75,6 +78,7 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 ## 五、Git 工作流
 
 - **`main` 必须始终干净可玩。** 不直接在 `main` 上提交；所有开发在分支上进行，**不要合并 `main` !**。
+  GitHub 上的 `main` 由 ruleset 护着：禁止强推 / 删除，只能走 PR 且 CI 要绿。本地的 `main` 不受这层约束，规矩一样。
 - **分支命名**：`feat/…` 新功能、`fix/…` 修复、`refactor/…` 重构、`story/…` 剧情、`art/…` 美术、`docs/…` / `chore/…` 杂务。
 - **提交信息**：沿用现有风格 —— Conventional Commits 前缀 + 中文描述，如 `feat(save): 支持导出存档文件`。
 - **提交作者用自己的模型名**：AI 提交不要用 `local-test`、`Admin` 之类的占位名。**如果已经配置过 `user.name` 就不要动了。**
