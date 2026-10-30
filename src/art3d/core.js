@@ -813,7 +813,10 @@ const A3D = (() => {
     return { vao, buf, count: list.length };
   }
 
-  /* ---------------- 贴图 ---------------- */
+  /* ---------------- 贴图 ----------------
+   * opts.mip === false：不生成 mipmap 链。动态贴图（显示器 / 终端 / 白板）每秒要
+   * 重传十几次，generateMipmap 每次都要重建整条链，是同步的卡顿尖峰；
+   * 这几张图在屏幕上都很小且近正交，不用 mip 也看不出闪烁。 */
   function texFromCanvas(cv, opts) {
     opts = opts || {};
     const t = gl.createTexture();
@@ -822,17 +825,18 @@ const A3D = (() => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
+      opts.mip === false ? gl.LINEAR : gl.LINEAR_MIPMAP_LINEAR);
+    if (opts.mip !== false) gl.generateMipmap(gl.TEXTURE_2D);
     if (anisoExt && !opts.clamp) {
       gl.texParameterf(gl.TEXTURE_2D, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
     }
     return t;
   }
-  function updateTex(t, cv) {
+  function updateTex(t, cv, mip) {
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    if (mip !== false) gl.generateMipmap(gl.TEXTURE_2D);
   }
 
   /* ============================================================

@@ -768,20 +768,24 @@ const A3DTex = (() => {
     return cache[key];
   }
 
-  /** 动态画布：调用方自己画，每帧或每 100ms 更新 */
+  /** 动态画布：调用方自己画，每帧或每 100ms 更新。
+   *  这类贴图不生成 mipmap（见 core.js 的 texFromCanvas）：重传频繁，
+   *  generateMipmap 每次都要重建整条链，是同步卡顿的主要来源。 */
+  const noMip = {};
   function dynamic(name, w, h, draw) {
     if (cache[name]) return cache[name];
     const c = cv(w, h);
     draw(ctxOf(c), w, h);
     canvases[name] = c;
-    cache[name] = A3D.texFromCanvas(c, { clamp: true });
+    noMip[name] = true;
+    cache[name] = A3D.texFromCanvas(c, { clamp: true, mip: false });
     return cache[name];
   }
   function redraw(name, draw) {
     const c = canvases[name];
     if (!c) return;
     draw(ctxOf(c), c.width, c.height);
-    A3D.updateTex(cache[name], c);
+    A3D.updateTex(cache[name], c, !noMip[name]);
   }
 
   return {

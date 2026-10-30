@@ -1819,15 +1819,17 @@ const A3DWorlds = (() => {
         lastT = t;
         flock.update(dt, t);
         flock.matrices();
-        if (t - MON.lastDraw > 0.09) {
+        /* 屏幕上的三块动态贴图：重传 + 上传都算卡顿，频率压到还剩"活着"的观感。
+         * 显示器约 7 次/秒、终端 5.5 次/秒、白板 3 次/秒。 */
+        if (t - MON.lastDraw > 0.14) {
           MON.lastDraw = t;
           A3DTex.redraw("monitor", drawMonitor);
         }
-        if (t - lastTerm > 0.12) {
+        if (t - lastTerm > 0.18) {
           lastTerm = t;
           A3DTex.redraw("term", drawTerm);
         }
-        if (t - lastBoard > 0.25) {
+        if (t - lastBoard > 0.34) {
           lastBoard = t;
           A3DTex.redraw("monitorWb", drawBoard);
         }
