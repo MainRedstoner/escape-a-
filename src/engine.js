@@ -78,12 +78,14 @@ const ENGINE = (() => {
     if (perfEl) return;
     perfEl = document.createElement("div");
     perfEl.id = "perfHud";
+    /* 固定定位、挂在 body 上而不是 #stage 里：#stage 会按窗口缩放（手机上可能只剩 0.5 倍），
+     * 面板跟着缩就彻底看不清了。挂在 body 上才是真实像素尺寸。 */
     perfEl.style.cssText =
-      "position:absolute;left:18px;bottom:18px;z-index:60;pointer-events:none;" +
+      "position:fixed;left:10px;bottom:10px;z-index:9999;pointer-events:none;" +
       "background:rgba(4,7,11,.88);border:1px solid #2C3542;border-radius:4px;" +
-      "color:#C9D2DE;font:15px/1.5 'Cascadia Mono','Consolas',monospace;" +
-      "padding:10px 14px;white-space:pre;";
-    document.getElementById("stage").appendChild(perfEl);
+      "color:#C9D2DE;font:13px/1.45 'Cascadia Mono','Consolas',monospace;" +
+      "padding:8px 11px;white-space:pre;";
+    document.body.appendChild(perfEl);
     window.__perf = { gaps: perfGaps, snapshot: () => (perfEl ? perfEl.textContent : "") };
     perfLastT = performance.now();
   }
