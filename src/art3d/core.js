@@ -954,7 +954,7 @@ const A3D = (() => {
           gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
         }
       }
-      sc.__shadow = { tex, far, idx: sh.index || 0,
+      sc.__shadow = { tex, far, idx: sh.index || 0, size,
         bias: sh.bias === undefined ? 0.0025 : sh.bias };
     } catch (e) {
       console.error("[A3D] 阴影构建失败", e);
@@ -1288,7 +1288,9 @@ const A3D = (() => {
     /** 调试 / 性能面板用：当前这一帧画了多少批次与顶点 */
     stats() {
       const sc = curScene;
-      if (!sc) return { draws: 0, verts: 0, scale: renderScale, shadow: shadowSizeCap || 0, taps: shadowTaps };
+      const sh = (sc && sc.__shadow) || null;   // 报告实际建出来的边长，不是上限
+      const base = { scale: renderScale, shadow: sh ? sh.size : 0, taps: shadowTaps };
+      if (!sc) return Object.assign({ draws: 0, verts: 0 }, base);
       let draws = 0, verts = 0;
       const add = b => { if (b && b.mesh) { draws++; verts += b.mesh.count; } };
       for (const b of sc.batches) add(b);
@@ -1296,7 +1298,7 @@ const A3D = (() => {
       for (const b of sc.over) add(b);
       for (const b of sc.glows || []) add(b);
       for (const p of sc.points || []) add(p);
-      return { draws, verts, scale: renderScale, shadow: shadowSizeCap || 0, taps: shadowTaps };
+      return Object.assign({ draws, verts }, base);
     }
   };
 })();
