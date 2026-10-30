@@ -1,0 +1,61 @@
+name: 校验
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: 剧本与代码校验
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 取回代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 运行时 JS 结构检查
+        run: python tools/check_js.py
+
+      - name: 剧本静态校验
+        run: python tools/validate_script.py
+
+      - name: 无头通关模拟
+        run: python tools/simulate_playthrough.py 40
+
+      - name: 存档服务冒烟测试
+        run: python tools/test_save_server.py
+
+  branch-name:
+    name: 分支命名
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检查分支前缀
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          case "$BRANCH" in
+            feat/*|fix/*|refactor/*|story/*|art/*|docs/*|chore/*|test/*|perf/*|ci/*|build/*|style/*|release/*|dependabot/*)
+              echo "分支名合规：$BRANCH"
+              ;;
+            *)
+              echo "::error::分支名不合规：$BRANCH"
+              echo "要以 feat/ fix/ refactor/ story/ art/ docs/ chore/ test/ perf/ ci/ build/ style/ release/ 之一开头（见 AGENTS.md 第五节）"
+              exit 1
+              ;;
+          esac
