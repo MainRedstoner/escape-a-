@@ -1,0 +1,18 @@
+# Escape A÷ · .gitattributes —— 换行与文件类型规则
+# 目的是把「换行怎么存」写进仓库，而不是依赖每台机器的 core.autocrlf。
+
+# 文本类：仓库内一律存 LF，检出时按各平台习惯（不强制 eol=lf，避免全量重新检出）
+* text=auto
+
+# 生成文件：在 GitHub 上折叠 diff，别让它淹没真正的改动
+assets/manifest.js linguist-generated=true
+
+# 二进制兜底：美术 / 音频资源，防止被当成文本做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ogg binary
+*.mp3 binary
+*.wav binary
