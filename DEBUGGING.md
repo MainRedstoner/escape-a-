@@ -114,12 +114,27 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 `H` 纯净模式、`G` 缩略图、`1–9` 直选；滚轮现在只缩放，不再切场景。
 `ds_room` 在游戏里是 `post:false`：跳过 2D 调色 / 暗角 / 颗粒（`A3D.postOf` 判断），但保留警报、闪白、故障这些玩法效果；预览页的「游戏后期」按钮在该场景禁用。
 
+**右上角「游戏合成」按钮**是这个页面的第二种模式，也是测帧率该用的那个：
+
+| 模式 | 走哪条路 | 用来干什么 |
+| --- | --- | --- |
+| 原始 3D（默认） | 固定 1600×900，每帧 `A3D.draw`，不做 3D 层节流 | 调光、调构图、看纯 WebGL 成本 |
+| 游戏合成 | 游戏真实的 `ART.paint`：画质档 + 3D 层节流 + 2D 后期 + 立绘占位卡 | 测「游戏里到底多少帧」 |
+
+合成模式下的两个下拉：**画质**（自动 / 低 / 中 / 高，和设置面板同源）、**立绘**
+（无 / 单 / 双，占位卡的绘制成本是实打实的）。画布尺寸照抄 `engine.sizeCanvas`
+的算法（`CSS 尺寸 / 1600 × dpr`，夹在 `[1, 1.5]`），所以底部读到的
+`FPS / 画布 / 合成` 和游戏里 `?perf=1` 的面板的量级一致。
+
+差别也有：合成模式只有画布这一层，没有 DOM 的文本框 / HUD / 桌宠。
+所以它的帧率是**游戏的下限更好看**（DOM 那部分没算进去），适合做 A/B 对比和快速迭代；
+要绝对数字还是以 `index.html?perf=1` 为准。
+
 排查按这个顺序：
 
 1. **先确认渲染层活着**：控制台 `A3D.ok` 应为 `true`；`false` 看 `A3D.failReason`。
    `ds_room` 的吊灯有真 cubemap 阴影：`A3D.debugScene().__shadow` 有对象才说明 shadow map 建成功；没有就是 FBO/深度贴图构建失败，看控制台 `[A3D] 阴影构建失败`。
-   `A3D` 都没定义，通常是 `index.html` 的 `src/art3d/*.js` 没加载（顺序：core → textures → props → worlds → worlds2 → art）。
-2. **看控制台有没有 shader 报错**：着色器编译失败会打印完整源码和行号，按行号改 `src/art3d/core.js`。
+   `A3D` 都没定义，通常是 `index.html` 的 `src/art3d/*.js` 没加载（顺序：core → textures → props → worlds → worlds2 → art）。2. **看控制台有没有 shader 报错**：着色器编译失败会打印完整源码和行号，按行号改 `src/art3d/core.js`。
 3. **单独预览一个场景**：`index.html?bg=ds_room`（可选 id 见 DESIGN.md 4.6）。
    标题画面会盖在场景上，想看干净的画面可以在控制台
    `document.getElementById('titleScreen').style.display='none'`。
