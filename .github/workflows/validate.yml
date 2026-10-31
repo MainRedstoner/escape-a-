@@ -36,6 +36,9 @@ jobs:
       - name: 无头通关模拟
         run: python tools/simulate_playthrough.py 40
 
+      - name: 小游戏关卡校验
+        run: python tools/validate_game.py
+
       - name: 存档服务冒烟测试
         run: python tools/test_save_server.py
 

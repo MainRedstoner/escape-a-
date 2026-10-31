@@ -65,6 +65,8 @@ src/engine.js         VN 引擎：节点解释 / 打字机 / 选项调度 / 立�
 src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道选项框（所有 choice 都用它）
 src/token-choice.css  该组件样式（类名前缀 tc-，配色接引擎主题变量）
 tools/                校验与生成工具（见下）
+game/                 「修复屎山」小游戏：独立可玩，也准备日后嵌进主线（见 game/README.md）
+  index.html          双击即玩；game/src/ 下 10 个普通 <script>，零依赖
 server.py             可选的本机存档服务（仅标准库；接口契约见 SAVE_API.md）
 SAVE_API.md           存档服务接口契约（通用 blob 存储，与存档格式解耦）
 STORY_GUIDE.md        剧本编写方法（先读这个）
@@ -83,6 +85,7 @@ PLAN.md               重做路线图
 python tools/check_js.py              # 运行时 JS 结构检查：括号 / 字符串 / 注释有没有闭合（不是完整语法）
 python tools/validate_script.py       # 剧本静态校验：跳转、id、元数据、出口、可达性、素材到位情况
 python tools/simulate_playthrough.py 40  # 无头通关模拟：多种"玩家性格"跑多轮，验证结局可达、无死路
+python tools/validate_game.py        # 小游戏关卡校验：地图尺寸 / 图例 / 虫位 / 配额 / 可达性 / 事件动作
 python tools/make_manifest.py > assets/manifest.js   # 扫描 assets/ 输出素材清单（--draft 0 关闭草稿角标）
 python tools/test_save_server.py     # 存档服务冒烟测试（改 server.py / SAVE_API.md 后必跑）
 ```
@@ -98,6 +101,14 @@ index.html?scene=start&trust=0&wanted=0&args=xxx&flags=egg1
 ```
 
 可选参数：`scene`（场景 id）、`trust`、`wanted`、`args`（逗号分隔）、`flags`（逗号分隔）。
+
+小游戏另有自己的参数：`game/index.html?level=3` 直跳某关简报、`?assist=1` 开辅助模式（记忆不过期）。
+
+## 小游戏：修复屎山
+
+`game/index.html` 双击即玩，和主线共用一套审美与代码风格但**互不依赖**：
+在 ASCII 地图上躲甲虫、在 `-o-` 上落 commit 当存档、死了回档、修干净所有虫才解锁 PR 门进下一关。
+操作、关卡数据结构、加关流程见 [game/README.md](game/README.md)。
 
 ## 素材
 

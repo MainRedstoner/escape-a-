@@ -24,6 +24,9 @@
    剧本只能写 `tools/jsdata.py` 认识的**数据子集**：字面量、数组、对象、`N()/CHOICE()/opt()` 这类速写函数调用；
    一旦写了循环、条件、模板字符串之类，校验器会直接报"剧本解析失败"，不会静默算错。
 5. **生成文件不手改。** `assets/manifest.js` 由 `python tools/make_manifest.py > assets/manifest.js` 生成。
+6. **小游戏 `game/` 同样受 1~4 条约束**，而且**存档必须与主线隔离**：它只写 `localStorage` 的 `ea_bugfix_progress`，
+   不碰 `ea_blob:` / `ea_save_` / `ea_endings`。关卡（`game/src/levels.js`）和地块 / 虫种表都是纯数据，
+   世界状态要能整份 `JSON.stringify` 快照（commit 回档靠这个），别往里塞函数、DOM 引用。
 
 ## 三、改一处要同步多处
 
@@ -38,6 +41,9 @@
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.py` 同语义分支 + `tools/validate_script.py` 检查 + STORY_GUIDE.md 节点表 |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
 | 存档契约 / 后端接口 | `SAVE_API.md` + `server.py` + `tools/test_save_server.py`（前端接入后还有 `src/save.js`） |
+| 小游戏新关卡 | `game/src/levels.js`（`w/h` 必须等于 `rows` 行列数）+ `python tools/validate_game.py` 必须通过；要新地块 / 新虫种再动 `game/src/tiles.js` / `game/src/bugs.js`，两者都要写 `hint`，图鉴会自动长出来 |
+| 小游戏新事件动作 | `game/src/world.js` 的 `act1()` + `tools/validate_game.py` 的动作白名单 + `game/README.md` 的关卡字段表 |
+| 小游戏接进主线 | 剧本新节点类型那一行（见上）+ `STORY_GUIDE.md` 节点表 + `game/README.md` 的"怎么接进视觉小说"章节 |
 
 ---
 
@@ -46,9 +52,10 @@
 提交前至少跑：
 
 ```bash
-python tools/check_js.py               # 运行时 JS 的括号 / 字符串 / 注释结构检查（不是完整语法）
+python tools/check_js.py               # 运行时 JS 的括号 / 字符串 / 注释结构检查（不是完整语法，含 game/src/）
 python tools/validate_script.py         # 剧本静态校验（顺带检查剧本数据能不能被解析），必须"校验通过"
 python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 / 死循环 / 不可达结局
+python tools/validate_game.py           # 小游戏关卡校验，改了 game/ 就必须跑，必须"关卡校验通过"
 ```
 
 改动 `server.py` 或 `SAVE_API.md` 时，还必须跑：
@@ -57,8 +64,8 @@ python tools/simulate_playthrough.py 40 # 无头通关模拟，必须无死路 /
 python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
 
-> 上面四个脚本在 PR 和推送 `main` 时由 GitHub Actions 自动再跑一遍（`.github/workflows/validate.yml`），
-> 本地先跑是为了别等 CI。PR 还会检查分支名前缀，所以分支名别省前缀。
+> 上面这些脚本（外加存档服务冒烟测试）在 PR 和推送 `main` 时由 GitHub Actions 自动再跑一遍
+> （`.github/workflows/validate.yml`），本地先跑是为了别等 CI。PR 还会检查分支名前缀，所以分支名别省前缀。
 
 3D 背景改完后，先在浏览器里用 `index.html?bg=<场景id>` 单独看一遍（光、构图、帧率），
 再走一遍正常流程；WebGL2 不可用时会自动回落到占位卡，所以**不要只测一次就假定没问题**。
@@ -70,6 +77,10 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 改到 UI / 引擎 / 素材 / 存档时，还要在浏览器里实测（具体手段见 [DEBUGGING.md](DEBUGGING.md)）：
 `file://` 直开无控制台报错 → 标题 → 开场 → 改动涉及的场景（可用 `index.html?scene=<id>` 直跳）→ 存档 / 读档 → 结局画面。
 有存档后端后，`file://` 模式和 `python` 服务模式各测一遍。
+
+改到 `game/` 时同理，**校验器只保证几何可达，不保证打得过**：`game/index.html` 直开，
+按 `game/README.md` 第五节那条链路（进关 → 死一次 → 回档 → 落 commit → 图鉴 → 过关）点一遍，
+再 `?level=<n>` 把动过的那关单独走一遍。
 
 > 整仓只用 Python 标准库：运行时零依赖，开发期的校验 / 模拟 / 素材清单也全是纯 Python（不再需要 Node / npm）。剧本的 JS 数据由 `tools/jsdata.py` 解析。
 
