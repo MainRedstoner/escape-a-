@@ -40,24 +40,17 @@ const A3DWorld = (() => {
     github: { x: -18, z: -44, rot: 0 },    // 局部 -Z = 往街里走
     hf:     { x: -70, z: -102, rot: 0 },   // 局部 +Z = 往岸上，-Z = 往海
     shit:   { x: -18, z: -84, rot: 0 },    // 局部 -Z = 屎山
-    // 南边的山：一片北面陡然落下去的高台（主标题就站在台边）
-    ridge:  { z0: -12, z1: 28, h: 30, x0: 8, wide: 96 },
-    /* 教堂所在的土丘：顶上是平的（放得下教堂和墓园），再往下收成一座小山。
-     * 位置必须落在「主标题镜头能看见」的那条带里：太近会被山脊挡、也会掉出画面下沿。 */
-    knoll:  { x: 18, z: -12, r: 23, flat: 12, h: 16 },
-    church: { x: 18, z: -12, rot: 0.3 },
+    // 南边：一块 30m 高的台地，北面是一道陡崖（教堂就立在崖沿上）
+    ridge:  { z0: 2, z1: 14, h: 30, x0: 8, wide: 96 },
+    church: { x: 18, z: 26, rot: 0.15 },
     // 对岸
     farShoreZ: -300,
     city:   { x0: 20, x1: 250, z0: -304, z1: -360, base: 6 },
     lighthouse: { x: 40, z: -286, top: 26 },
-    moon: { x: -78, y: 69, z: -230 },
-    // 主标题视角
-    titleCam: { eye: [2, 32, 30], target: [-2, 4, -190], fov: 42, far: 900 }
+    moon: { x: -78, y: 95, z: -230 },
+    // 主标题视角：升到台地上空，能同时看到教堂和下方街区
+    titleCam: { eye: [2, 62, 76], target: [-6, 21, -100], fov: 50, far: 900 }
   };
-  /* 镜头站在台地边上：眼高按地形算，免得地形起伏把镜头埋进去。
-   * 比 1.75m 再抬一点，是为了越过山脊看见下方教堂的地基。 */
-  L.titleCam.eye[1] = groundH(L.titleCam.eye[0], L.titleCam.eye[2]) + 2.6;
-
   /** 主标题视角下的四个分区在画面里的大致方向（只给调试/注释用） */
   const HASH = (a, b) => {
     const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
@@ -83,20 +76,19 @@ const A3DWorld = (() => {
     // 两侧远山，把海湾框起来
     h = Math.max(h, 14 * Math.max(0, 1 - Math.hypot(x + 168, z - 70) / 78));
     h = Math.max(h, 10 * Math.max(0, 1 - Math.hypot(x - 186, z - 86) / 88));
-    // 教堂土丘：顶上留一块平台，边缘再落下去
-    const kd = Math.hypot(x - L.knoll.x, z - L.knoll.z);
-    if (kd < L.knoll.r) {
-      const flat = L.knoll.flat || 0;
-      const t = kd <= flat ? 0 : (kd - flat) / (L.knoll.r - flat);
-      h = Math.max(h, L.knoll.h * (1 - smooth(t)));
-    }
     return h;
   }
 
   /** 地面颜色：草 / 沙 / 岩 */
+  /** 地面颜色：草 / 沙 / 岩（陡坡自动变岩石，悬崖才有“崖”的样子） */
   function groundCol(x, z) {
     const h = groundH(x, z);
     const n = HASH(x * 0.31, z * 0.29);
+    const slope = Math.abs(groundH(x + 2, z) - h) + Math.abs(groundH(x, z + 2) - h);
+    if (slope > 3.2) {
+      const g = 0.6 + n * 0.28;
+      return [0.6 * g, 0.62 * g, 0.68 * g];
+    }
     if (h > 23) {
       const g = 0.72 + n * 0.2;
       return [0.62 * g, 0.66 * g, 0.7 * g];
@@ -263,60 +255,49 @@ const A3DWorld = (() => {
   }
 
   /* ============================================================
-   *  南边的山：树、小径、栅栏
+   *  南边的悬崖台地：松树、草、崖沿的碎石
    * ============================================================ */
   function buildHill(st) {
     const trunk = st.pen("w.trunk", T.woodDark(), { tint: [0.42, 0.34, 0.3] });
     const leaf = st.pen("w.pine", null, { tint: [0.24, 0.36, 0.3], spec: 0.05, rim: 0.15, sway: 1 });
     const r = rng(23);
-    // 台上与坡上的松树：镜头两侧各留一片，正前方别挡远景
+    // 台地上的松树：给教堂周围留一圈空地
     for (let i = 0; i < 56; i++) {
       const x = L.ridge.x0 + (r() - 0.5) * 2 * L.ridge.wide * 0.95;
-      const z = 6 + r() * 72;
-      if (Math.abs(x - 2) < 11 && z > 16 && z < 52) continue;
+      const z = 18 + r() * 62;
+      if (Math.hypot(x - L.church.x, z - L.church.z) < 15) continue;
+      if (Math.abs(x - 2) < 10 && z > 24 && z < 56) continue;
       pine(trunk, leaf, x, z, 5 + r() * 7, Math.floor(r() * 999), [0.9, 1.1, 0.95]);
     }
-    // 坡侧的一排，给画面左下角一点剪影
-    for (const [x, z, h] of [[-26, 18, 11], [-34, 8, 9], [-44, 2, 8], [32, 16, 9], [42, 8, 8], [-16, 0, 6], [24, 2, 7]]) {
-      pine(trunk, leaf, x, z, h, Math.floor(HASH(x, z) * 999), [1, 1.05, 0.95]);
+    // 崖脚的一排树，从上往下看能看出垂直落差
+    for (let i = 0; i < 14; i++) {
+      const x = -46 + i * 7 + (r() - 0.5) * 3;
+      const z = -2 + (r() - 0.5) * 5;
+      pine(trunk, leaf, x, z, 6 + r() * 5, Math.floor(r() * 999), [0.9, 1.05, 0.95]);
     }
 
-    // 草：台边和坡上，sway 让风有存在感
+    // 草：台地上，sway 让风有存在感
     const grass = st.pen("w.hillGrass", T.leaf(), { cutout: true, tint: [0.52, 0.66, 0.46], sway: 1, spec: 0.04 });
     const gr = rng(31);
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 170; i++) {
       const x = L.ridge.x0 + (gr() - 0.5) * 2 * L.ridge.wide * 0.9;
-      const z = 18 + gr() * 46;
-      if (Math.abs(x - 2) < 5 && z > 24) continue;
+      const z = 16 + gr() * 52;
+      if (Math.hypot(x - L.church.x, z - L.church.z) < 12) continue;
       const y = groundH(x, z);
       P.grass(grass, m4(x, y, z, 0, gr() * TAU, 0), 4 + Math.floor(gr() * 4), 0.3 + gr() * 0.35,
         [0.75, 1.0, 0.8], Math.floor(gr() * 999), 0.3);
     }
 
-    // 从台边下到教堂的石阶小径（贴着土丘西侧绕上去）
-    const path = st.pen("w.path", T.stone(), { tint: [0.5, 0.52, 0.55], spec: 0.2 });
-    for (let i = 0; i < 34; i++) {
-      const t = i / 33;
-      const x = 6 + t * 8;
-      const z = 28 - t * 34;
+    // 崖沿的碎石：标出悬崖边缘，从上往下看不会像一块平草地突然断掉
+    const rimRock = st.pen("w.rimRock", T.stone(), { tint: [0.42, 0.43, 0.46], spec: 0.12 });
+    const rr = rng(57);
+    for (let i = 0; i < 46; i++) {
+      const x = -60 + rr() * 120;
+      const z = L.ridge.z1 - 0.6 + rr() * 2.4;
+      const s = 0.35 + rr() * 1.25;
       const y = groundH(x, z);
-      path.quad.call(path, m4(x, y + 0.04, z, -Math.PI / 2, 0.18, 0), 1.7, 1.4, [1, 1, 1], [0, 0, 1.4, 1]);
-    }
-    // 台边的木栅栏（镜头左右两侧各一段）
-    const fence = st.pen("w.fence", T.woodDark(), { tint: [0.55, 0.44, 0.36] });
-    for (const [xa, xb] of [[-30, -6], [14, 30]]) {
-      for (let i = 0; i <= 12; i++) {
-        const x = xa + (xb - xa) * i / 12;
-        const z = 29 + Math.sin(i / 12 * Math.PI) * 0.6;
-        const y = groundH(x, z);
-        fence.cyl.call(fence, m4(x, y, z), 0.07, 0.06, 1.15, 5, [1, 1, 1], true);
-        if (i < 12) {
-          const nx = xa + (xb - xa) * (i + 1) / 12;
-          const dx = (nx - x) / 2;
-          fence.box.call(fence, m4(x + dx, y + 0.75, z, 0, 0, 0), Math.abs(nx - x) * 1.1, 0.09, 0.06, [1, 1, 1], 1.4);
-          fence.box.call(fence, m4(x + dx, y + 0.38, z, 0, 0, 0), Math.abs(nx - x) * 1.1, 0.08, 0.05, [1, 1, 1], 1.4);
-        }
-      }
+      rimRock.sphere.call(rimRock, m4(x, y + s * 0.15, z, rr(), rr() * TAU, rr(), s, s * 0.55, s * 0.8),
+        1, 7, 5, [0.85 + rr() * 0.3, 0.86, 0.9]);
     }
   }
 
@@ -699,52 +680,10 @@ const A3DWorld = (() => {
   }
 
   /* ============================================================
-   *  山脚到街口之间：一条带灯的石板路、几间小屋
-   *  主标题视角的下半部分原来是一大片空草地，加这条路把视线引到街区。
+   *  崖脚的小屋：没有山路了，只剩几户人家给崖底一点灯火
    * ============================================================ */
   function buildVale(st) {
-    const road = st.pen("w.road", T.paving(), { tint: [0.62, 0.64, 0.66], spec: 0.28 });
-    const lampPost = st.pen("w.lampPost", T.darkMetal(), { tint: [0.35, 0.34, 0.36], spec: 0.25 });
-    const lampBulb = st.pen("w.lampBulb", null, { unlit: true, tint: [1.0, 0.78, 0.42] });
-    const lampGlow = st.pen("w.lampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.62, 0.26], opacity: 0.22 });
-
-    // 折线路径：从山脊西侧绕下来，接到 GitHub 街口（绕开教堂土丘）
-    const pts = [
-      [2, 10], [-2, 0], [-6, -12], [-10, -24], [-14, -34], [-15, -41]
-    ];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const seg = 6;
-      for (let k = 0; k < seg; k++) {
-        const u0 = k / seg, u1 = (k + 1) / seg;
-        const x0 = a[0] + (b[0] - a[0]) * u0, z0 = a[1] + (b[1] - a[1]) * u0;
-        const x1 = a[0] + (b[0] - a[0]) * u1, z1 = a[1] + (b[1] - a[1]) * u1;
-        const y = (groundH(x0, z0) + groundH(x1, z1)) / 2;
-        const len = Math.hypot(x1 - x0, z1 - z0);
-        const ry = Math.atan2(x1 - x0, z1 - z0);
-        road.quad.call(road, m4((x0 + x1) / 2, y + 0.06, (z0 + z1) / 2, -Math.PI / 2, ry, 0),
-          3.1, len * 1.12, [1, 1, 1], [0, 0, 1, 1.6]);
-      }
-    }
-    // 路上的灯：每 9m 一根，暖黄小球
-    const total = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 9));
-      for (let k = 0; k < n; k++) total.push([a[0] + (b[0] - a[0]) * (k / n), a[1] + (b[1] - a[1]) * (k / n)]);
-    }
-    total.push(pts[pts.length - 1]);
-    total.forEach(([x, z], i) => {
-      const side = i % 2 ? 1 : -1;
-      const y = groundH(x, z);
-      const lx = x + side * 2.1, lz = z + 0.4;
-      lampPost.cyl.call(lampPost, m4(lx, y, lz), 0.09, 0.07, 3.0, 5, [1, 1, 1], true);
-      lampPost.box.call(lampPost, m4(lx, y + 3.05, lz, 0, 0, 0), 0.34, 0.1, 0.34, [1, 1, 1], 1.2);
-      lampBulb.sphere.call(lampBulb, m4(lx, y + 3.2, lz), 0.16, 6, 4, [1, 1, 1]);
-      lampGlow.quad.call(lampGlow, m4(lx, y + 3.2, lz), 2.4, 2.4, [1, 1, 1], [0, 0, 1, 1]);
-    });
-
-    // 路边的小屋：石墙、坡顶、暖窗，把山脚到街区之间填出人味
+    // 崖脚的小屋：石墙、坡顶、暖窗
     const wall = st.pen("w.cottage", T.plaster(), { tint: [0.72, 0.7, 0.66], spec: 0.1 });
     const roofB = st.pen("w.cottageRoof", T.woodDark(), { tint: [0.5, 0.4, 0.34], spec: 0.15 });
     const warm = st.pen("w.cottageWin", null, { unlit: true, tint: [1.0, 0.72, 0.38] });
@@ -858,28 +797,28 @@ const A3DWorld = (() => {
    *  四个视角
    * ============================================================ */
   const VIEWS = {
-    /* 视角 1：主标题 —— 远离海岸的山顶，教堂旁边，面向海岸线 */
+    /* 视角 1：主标题 —— 台地上空的鸟瞰，教堂在崖沿，下面是 GitHub / HF */
     world_title: {
       cam: L.titleCam,
       sky: {
         mode: 2, top: [0.006, 0.012, 0.032], bot: [0.06, 0.082, 0.122],
-        glow: [0.34, 0.42, 0.58], sun: [0.274, 0.953, 0], horizon: 0.72
+        glow: [0.34, 0.42, 0.58], sun: [0.342, 1.173, 0], horizon: 0.747
       },
       lights: {
-        sun: A3D.norm3([-0.29, 0.14, -0.95]), sunCol: [0.58, 0.64, 0.82],
-        skyCol: [0.26, 0.32, 0.46], groundCol: [0.08, 0.09, 0.12],
-        fog: { col: [0.06, 0.082, 0.122], near: 140, far: 780 }, fogAmt: 0.95,
+        sun: A3D.norm3([-0.28, 0.2, -0.94]), sunCol: [0.86, 0.92, 1.12],
+        skyCol: [0.36, 0.42, 0.56], groundCol: [0.12, 0.13, 0.16],
+        fog: { col: [0.06, 0.082, 0.122], near: 160, far: 820 }, fogAmt: 0.95,
         points: [
-          { pos: [L.church.x, groundH(L.church.x, L.church.z) + 4, L.church.z + 2], col: [1.0, 0.7, 0.36], range: 30, inten: 1.8 },
+          { pos: [L.church.x, groundH(L.church.x, L.church.z) + 4, L.church.z + 2], col: [1.0, 0.7, 0.36], range: 36, inten: 2.4 },
           { pos: [L.city.x0 + 60, 14, L.farShoreZ + 6], col: [1.0, 0.62, 0.32], range: 120, inten: 0.22 },
           { pos: [L.lighthouse.x, L.lighthouse.top, L.lighthouse.z], col: [1.0, 0.85, 0.55], range: 90, inten: 0.5 },
           { pos: [L.github.x, 7, L.github.z - 22], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 }
         ]
       },
-      tone: [0.82, 0.9, 1.06],
+      tone: [1.02, 1.06, 1.12],
       swayAmp: 0.8,
       update(t, sc) {
-        sc.cam.eye = [2 + Math.sin(t * 0.08) * 0.32, L.titleCam.eye[1] + Math.sin(t * 0.13) * 0.05, 30 + Math.cos(t * 0.06) * 0.26];
+        sc.cam.eye = [2 + Math.sin(t * 0.08) * 0.4, L.titleCam.eye[1] + Math.sin(t * 0.13) * 0.12, 76 + Math.cos(t * 0.06) * 0.4];
       }
     },
 

@@ -704,7 +704,9 @@ function drawFrame(t) {
     ok = A3D.draw(ctx, sc.id, t);
     if (ok) {
       const s = A3D.debugScene();
-      if (s && s.cam) initFP(s.cam);
+      /* 用 __cam0（场景建好时的原始相机），不要用 s.cam：
+       * s.cam 会被上一帧的自由相机覆盖掉，切回来会沿用上次的朝向。 */
+      if (s && (s.__cam0 || s.cam)) initFP(s.__cam0 || s.cam);
       needInit = false;
     }
   } else {
