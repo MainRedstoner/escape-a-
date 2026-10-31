@@ -402,44 +402,186 @@ const A3DWorld = (() => {
    *  城市就在这边岸边（x 30..250，z -100..-62），对岸不再有城市，海湾直接开到天边。
    * ============================================================ */
   function buildCity(st) {
+    const C = L.city;
+    const r = rng(83);
     const bld = st.pen("w.cityBld", null, { tint: [0.16, 0.18, 0.24], spec: 0.06, rim: 0.35 });
     const winW = st.pen("w.cityWinW", null, { unlit: true, tint: [1.0, 0.72, 0.4] });
     const winC = st.pen("w.cityWinC", null, { unlit: true, tint: [0.52, 0.68, 1.0] });
-    const r = rng(83);
-    const C = L.city;
+    const podium = st.pen("w.cityPodium", T.stone(), { tint: [0.26, 0.27, 0.31], spec: 0.04 });
+    const metal = st.pen("w.cityMetal", T.darkMetal(), { tint: [0.3, 0.31, 0.34], spec: 0.28 });
+    const tank = st.pen("w.cityTank", T.metal(), { tint: [0.55, 0.55, 0.58], spec: 0.2 });
+    const pave = st.pen("w.cityPave", T.paving(), { tint: [0.42, 0.44, 0.5], spec: 0.12 });
+    const quay = st.pen("w.cityQuay", T.stone(), { tint: [0.36, 0.37, 0.4], spec: 0.06 });
+    const lampPost = st.pen("w.cityLamp", T.darkMetal(), { tint: [0.3, 0.3, 0.33], spec: 0.2 });
+    const lampGlow = st.pen("w.cityLampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.7, 0.36], opacity: 0.24 });
+    const crown = st.pen("w.cityCrown", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.42], opacity: 0.2 });
+    const hull = st.pen("w.cityBoat", T.darkMetal(), { tint: [0.15, 0.17, 0.2], spec: 0.25 });
+    const boatLamp = st.pen("w.cityBoatLamp", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.8, 0.45], opacity: 0.5 });
 
-    // 近岸主城区：一栋栋楼 + 朝镜头（+Z）的窗
-    const n = 58;
-    for (let i = 0; i < n; i++) {
-      const x = C.x0 + r() * (C.x1 - C.x0);
-      const z = C.z1 - 5 - r() * (C.z1 - C.z0 - 12);
-      const w = 5 + r() * 9, d = 5 + r() * 8;
-      const h = 7 + r() * r() * 30;
-      const tone = 0.75 + r() * 0.5;
-      bld.box.call(bld, m4(x, h / 2, z), w, h, d, [tone, tone, tone * 1.02], 1.1);
-      // 窗：朝 +Z 的面（正对主标题镜头）
-      const cols = Math.max(1, Math.round(w / 1.6));
-      const rows = Math.max(1, Math.round(h / 2.2));
-      const wpen = r() < 0.55 ? winW : winC;
+    // 铺装：滨海步道 + 城区地面 + 靠镜头这侧的林荫道（主标题看得到的是这一面）
+    const xm = (C.x0 + C.x1) / 2, wcity = C.x1 - C.x0;
+    pave.quad.call(pave, m4(xm, 0.05, C.z0 + 3.2, -Math.PI / 2, 0, 0), wcity + 10, 7.6, [1, 1, 1], [0, 0, wcity / 6, 1.4]);
+    pave.quad.call(pave, m4(xm, 0.04, (C.z0 + C.z1) / 2 - 1, -Math.PI / 2, 0, 0), wcity + 10, C.z1 - C.z0 - 9,
+      [0.9, 0.92, 1.0], [0, 0, wcity / 6, (C.z1 - C.z0) / 6]);
+    pave.quad.call(pave, m4(xm, 0.05, C.z1 - 2.4, -Math.PI / 2, 0, 0), wcity + 10, 9, [0.96, 0.96, 0.98],
+      [0, 0, wcity / 6, 1.6]);
+
+    // 广告牌：立在这侧林荫道上，正对主标题镜头
+    const bbFrame = st.pen("w.cityBillFrame", T.darkMetal(), { tint: [0.18, 0.19, 0.22], spec: 0.3 });
+    const billboard = (key, text, x, z, w, h, y, fg, border, glowCol) => {
+      const tex = A3DTex.sign({
+        text, w: 640, h: 200, bg: "#0a0f16", fg, size: 92,
+        border, borderW: 5, glow: glowCol, glowBlur: 18
+      });
+      const pen = st.pen(key, tex, { unlit: true, tint: [1, 1, 1] });
+      pen.quad.call(pen, m4(x, y, z + 0.22), w, h, [1, 1, 1], [0, 0, 1, 1]);
+      bbFrame.box.call(bbFrame, m4(x, y, z), w + 0.7, h + 0.7, 0.3, [1, 1, 1], 2);
+      const legTop = y - h * 0.5, legH = legTop;
+      for (const sx of [-0.32, 0.32]) {
+        bbFrame.box.call(bbFrame, m4(x + w * sx, legH / 2, z), 0.28, legH, 0.28, [1, 1, 1], 1.6);
+      }
+    };
+    billboard("w.cityBb1", "NORTH BAY", 52, C.z1 - 2.6, 10.5, 3.3, 6.8, "#9ee9ff", "#2c5f78", "rgba(130,225,255,.5)");
+    billboard("w.cityBb2", "24H · 港湾", 94, C.z1 - 2.6, 8.4, 2.6, 6.1, "#ffd28a", "#5a3a1e", "rgba(255,190,110,.45)");
+
+    // 窗：只铺朝镜头（+Z）的那一面
+    const winFace = (x0, y0, zf, w, h) => {
+      const cols = Math.max(1, Math.round(w / 1.7));
+      const rows = Math.max(1, Math.round(h / 2.3));
       for (let cy = 0; cy < rows; cy++) {
         for (let cx = 0; cx < cols; cx++) {
-          if (r() < 0.42) continue;
-          const wx = x - w / 2 + (cx + 0.5) * (w / cols);
-          const wy = 1.2 + cy * (h / rows);
-          const ww = w / cols * 0.46, wh = Math.min(0.9, h / rows * 0.42);
-          wpen.quad.call(wpen, m4(wx, wy, z + d / 2 + 0.03), ww, wh, [1, 1, 1], [0, 0, 1, 1]);
+          if (r() < 0.4) continue;
+          const wx = x0 - w / 2 + (cx + 0.5) * (w / cols);
+          const wy = y0 + 1.1 + cy * (h / rows);
+          const ww = w / cols * 0.44, wh = Math.min(0.85, h / rows * 0.4);
+          const wp = r() < 0.55 ? winW : winC;
+          wp.quad.call(wp, m4(wx, wy, zf), ww, wh, [1, 1, 1], [0, 0, 1, 1]);
         }
       }
-      // 楼顶的灯
-      if (h > 24) {
-        winW.quad.call(winW, m4(x, h + 0.4, z + d / 2 + 0.03), 0.35, 0.35, [1, 1, 1], [0, 0, 1, 1]);
+    };
+
+    // 地标占位：这些位置不放随机楼
+    const landmarks = [[96, -76, 11], [166, -80, 12], [138, -68, 10]];
+    const roofLights = [];
+
+    // 主城区：裙楼 + 檐口 + 一层店面 + 立面竖肋 + 退台 + 楼顶水箱 / 空调 / 天线
+    const n = 62;
+    for (let i = 0; i < n; i++) {
+      const x = C.x0 + 6 + r() * (C.x1 - C.x0 - 12);
+      const z = C.z1 - 6 - r() * (C.z1 - C.z0 - 14);
+      if (landmarks.some(l => Math.hypot(x - l[0], z - l[1]) < l[2])) continue;
+      const w = 5 + r() * 9, d = 5 + r() * 8;
+      const h = 6 + r() * r() * 34;
+      const tone = 0.75 + r() * 0.5;
+      const pod = r() < 0.55 ? 1.1 : 0;
+      if (pod) podium.box.call(podium, m4(x, pod / 2, z), w + 1.8, pod, d + 1.8, [1, 1, 1], 1.5);
+      const stepped = h > 16 && r() < 0.42;
+      const h1 = stepped ? h * 0.72 : h;
+      const h2 = h - h1, w2 = stepped ? w * 0.66 : w, d2 = stepped ? d * 0.66 : d;
+      bld.box.call(bld, m4(x, pod + h1 / 2, z), w, h1, d, [tone, tone, tone * 1.02], 1.1);
+      winFace(x, pod, z + d / 2 + 0.03, w, h1);
+      if (stepped) {
+        bld.box.call(bld, m4(x, pod + h1 + h2 / 2, z), w2, h2, d2, [tone * 1.06, tone * 1.06, tone * 1.1], 1.2);
+        winFace(x, pod + h1, z + d2 / 2 + 0.03, w2, h2);
+        crown.quad.call(crown, m4(x, pod + h1 + h2 - 0.9, z + d2 / 2 + 0.06), w2 * 0.8, 0.5, [1, 1, 1], [0, 0, 1, 1]);
+      }
+      const topY = pod + h;
+      // 一层店面：一条亮着的橱窗带
+      if (r() < 0.55) {
+        const sw = w * (0.5 + r() * 0.4);
+        const sp = r() < 0.62 ? winW : winC;
+        sp.quad.call(sp, m4(x, pod + 0.95, z + d / 2 + 0.06), sw, 1.15, [1, 1, 1], [0, 0, 1, 1]);
+      }
+      // 檐口：比楼身略宽的一圈，压住轮廓
+      bld.box.call(bld, m4(x, topY - 0.3, z), w2 + 0.9, 0.55, d2 + 0.9, [tone * 1.15, tone * 1.15, tone * 1.2], 1.3);
+      // 立面竖肋：给近处的楼一点纵向线条
+      if (h1 > 12 && r() < 0.45) {
+        for (let k = -1; k <= 1; k++) {
+          bld.box.call(bld, m4(x + k * w * 0.3, pod + h1 * 0.45, z + d / 2 + 0.1), 0.42, h1 * 0.8, 0.35, [tone * 1.1, tone * 1.1, tone * 1.15], 1.4);
+        }
+      }
+      if (h < 26 && r() < 0.55) {
+        const rx = x + (r() - 0.5) * w2 * 0.45, rz = z + (r() - 0.5) * d2 * 0.4;
+        metal.cyl.call(metal, m4(rx, topY, rz), 0.14, 0.12, 1.0, 4, [1, 1, 1], true);
+        tank.cyl.call(tank, m4(rx, topY + 1.0, rz), 1.0 + r() * 0.35, 0.95, 1.9, 8, [1, 1, 1], true);
+      } else if (r() < 0.5) {
+        for (let k = 0; k < 2; k++) {
+          metal.box.call(metal, m4(x + (r() - 0.5) * w2 * 0.6, topY + 0.42, z + (r() - 0.5) * d2 * 0.5), 1.2, 0.85, 1.0, [1, 1, 1], 1.6);
+        }
+      }
+      if (h > 24) roofLights.push([x, topY + 0.8, z + d2 / 2]);
+      if (h > 28 && r() < 0.6) {
+        metal.cyl.call(metal, m4(x + w2 * 0.18, topY, z), 0.07, 0.05, 6.0, 4, [1, 1, 1], true);
+        roofLights.push([x + w2 * 0.18, topY + 6.2, z]);
       }
     }
 
-    // 城市光晕：贴着近岸楼群的暖色雾
+    // 地标 1：针塔（细高，顶上一盏红灯）
+    {
+      const lx = 96, lz = -76;
+      for (let k = 0; k < 5; k++) {
+        const ww = 7.4 - k * 1.05;
+        bld.box.call(bld, m4(lx, k * 10 + 5, lz), ww, 10, ww, [0.85, 0.88, 0.98], 1.1);
+        winFace(lx, k * 10, lz + ww / 2 + 0.03, ww, 10);
+      }
+      metal.cyl.call(metal, m4(lx, 50, lz), 2.0, 0.1, 12, 8, [1, 1, 1], false);
+      crown.quad.call(crown, m4(lx, 47.5, lz + 3.0), 4.6, 1.4, [1, 1, 1], [0, 0, 1, 1]);
+      roofLights.push([lx, 62.6, lz], [lx, 50.2, lz]);
+    }
+    // 地标 2：退台式装饰塔（立面上有竖向线条）
+    {
+      const lx = 166, lz = -80;
+      bld.box.call(bld, m4(lx, 12, lz), 16, 24, 12, [0.9, 0.92, 1.0], 1.1);
+      winFace(lx, 0, lz + 6.03, 16, 24);
+      for (let k = 0; k < 5; k++) bld.box.call(bld, m4(lx - 8 + k * 4, 12, lz + 6.15), 0.6, 24, 0.4, [1.05, 1.05, 1.1], 1.2);
+      bld.box.call(bld, m4(lx, 28, lz), 11, 8, 8, [0.95, 0.97, 1.05], 1.1);
+      winFace(lx, 24, lz + 4.03, 11, 8);
+      bld.box.call(bld, m4(lx, 36, lz), 7, 8, 6, [1, 1, 1.1], 1.1);
+      crown.quad.call(crown, m4(lx, 22.8, lz + 6.1), 13, 1.2, [1, 1, 1], [0, 0, 1, 1]);
+      crown.quad.call(crown, m4(lx, 39.6, lz + 3.06), 5.5, 1.0, [1, 1, 1], [0, 0, 1, 1]);
+      roofLights.push([lx, 40.6, lz]);
+    }
+    // 地标 3：圆塔（玻璃幕墙感）
+    {
+      const lx = 138, lz = -68;
+      bld.cyl.call(bld, m4(lx, 0, lz), 6.2, 4.4, 26, 14, [0.8, 0.84, 0.95], false);
+      for (let k = 0; k < 6; k++) {
+        const rr = 6.2 - (k / 5) * 1.8;
+        crown.quad.call(crown, m4(lx, 4 + k * 3.8, lz + rr + 0.05), 2.4, 0.5, [1, 1, 1], [0, 0, 1, 1]);
+      }
+      crown.quad.call(crown, m4(lx, 24.6, lz + 4.5), 6.0, 1.2, [1, 1, 1], [0, 0, 1, 1]);
+      roofLights.push([lx, 27.5, lz]);
+    }
+
+    // 滨海长堤：挡土墙 + 系缆桩 + 水侧步道灯（从海上看才有，主标题被楼挡住）
+    const qx0 = C.x0 - 4, qx1 = C.x1 + 4, qz = C.z0 - 0.4;
+    quay.box.call(quay, m4((qx0 + qx1) / 2, -0.3, qz), qx1 - qx0, 1.4, 1.4, [1, 1, 1], 2.2);
+    for (let x = qx0 + 6; x < qx1; x += 9) {
+      metal.cyl.call(metal, m4(x, 0.4, qz + 0.25), 0.2, 0.16, 0.62, 6, [1, 1, 1], true);
+    }
+    for (let x = qx0 + 10; x < qx1; x += 18) {
+      lampPost.cyl.call(lampPost, m4(x, 0.4, C.z0 + 1.6), 0.08, 0.06, 3.3, 5, [1, 1, 1], true);
+      lampPost.box.call(lampPost, m4(x, 3.75, C.z0 + 1.6), 0.4, 0.14, 0.4, [1, 1, 1], 1.2);
+      lampGlow.quad.call(lampGlow, m4(x, 3.72, C.z0 + 1.78), 2.8, 2.8, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 靠镜头这侧的林荫道：一排伸到画面里的路灯
+    for (let x = C.x0 + 6; x < C.x1; x += 18) {
+      const lz = C.z1 - 3.2;
+      lampPost.cyl.call(lampPost, m4(x, 0, lz), 0.08, 0.06, 3.6, 5, [1, 1, 1], true);
+      lampPost.box.call(lampPost, m4(x, 3.55, lz), 0.42, 0.15, 0.42, [1, 1, 1], 1.2);
+      lampGlow.quad.call(lampGlow, m4(x, 3.52, lz + 0.18), 3.0, 3.0, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 堤边两条小船
+    for (const [bx, bz, s] of [[64, -111, 1], [146, -113, 0.85]]) {
+      hull.box.call(hull, m4(bx, L.waterY + 0.35, bz), 3.4 * s, 0.8, 1.5 * s, [1, 1, 1], 1.4);
+      hull.box.call(hull, m4(bx - 0.6, L.waterY + 0.9, bz), 1.2 * s, 0.8, 1.1, [1, 1, 1], 1.3);
+      boatLamp.quad.call(boatLamp, m4(bx, L.waterY + 1.6, bz + 0.8), 1.0, 1.0, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    // 城市光晕：贴着朝镜头那侧楼群的暖色雾
     const haze = st.pen("w.cityHaze", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.66, 0.32], opacity: 0.11 });
     for (let i = 0; i < 6; i++) {
-      haze.quad.call(haze, m4(C.x0 + 28 + i * 34, 10 + i * 1.2, C.z0 + 2), 66, 28, [1, 1, 1], [0, 0, 1, 1]);
+      haze.quad.call(haze, m4(C.x0 + 24 + i * 34, 8 + i * 1.2, C.z1 - 1), 70, 26, [1, 1, 1], [0, 0, 1, 1]);
     }
     // 水面上的城市倒影：近岸城市北边的海面
     const refl = st.pen("w.cityRefl", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.6, 0.28], opacity: 0.10 });
@@ -457,19 +599,22 @@ const A3DWorld = (() => {
       crane.box.call(crane, m4(cx + 4.5 * s, 19.6 * s, cz, 0, 0, 0.08), 10 * s, 0.5 * s, 0.5 * s, [1, 1, 1], 2);
       crane.box.call(crane, m4(cx + 9 * s, 17.8 * s, cz), 0.18 * s, 4 * s, 0.18 * s, [1, 1, 1], 2);
     }
-    // 塔吊红灯（点精灵）
+    // 塔吊红灯 + 楼顶航空灯 + 城市光点
     const pts = [];
     for (const [cx, cz, s] of [[56, -101, 1], [118, -102, 0.85], [178, -101, 1.15]]) {
       pts.push({ x: cx + 9 * s, y: 20.1 * s, z: cz, r: 1, g: 0.2, b: 0.12, a: 0.9, size: 1.4, kind: 0, phase: 2.1, wob: 0 });
     }
-    for (let i = 0; i < 60; i++) {
+    for (const [lx, ly, lz] of roofLights) {
+      pts.push({ x: lx, y: ly, z: lz, r: 1, g: 0.18, b: 0.1, a: 0.85, size: 1.2, kind: 0, phase: 1.3, wob: 0 });
+    }
+    for (let i = 0; i < 70; i++) {
       pts.push({
-        x: C.x0 + 8 + r() * (C.x1 - C.x0 - 16), y: 3 + r() * 30, z: C.z1 - 8 - r() * (C.z1 - C.z0 - 12),
+        x: C.x0 + 8 + r() * (C.x1 - C.x0 - 16), y: 2 + r() * 34, z: C.z1 - 8 - r() * (C.z1 - C.z0 - 12),
         r: 1, g: 0.75, b: 0.45, a: 0.5 + r() * 0.4, size: 0.5 + r() * 0.7,
         kind: 0, phase: r() * 10, wob: 0
       });
     }
-    st.points.push({ mesh: A3D.pointMesh(pts), blend: "add", yMin: 0, yMax: 40, fogNear: 120, fogFar: 620 });
+    st.points.push({ mesh: A3D.pointMesh(pts), blend: "add", yMin: 0, yMax: 70, fogNear: 120, fogFar: 620 });
   }
 
   function buildLighthouse(st) {
