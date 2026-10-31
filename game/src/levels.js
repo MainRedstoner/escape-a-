@@ -10,7 +10,7 @@
  *   jump               起跳能升几格（横版：先原地起跳，再往旁边挪才上得了台阶）
  *   pDeadly            踩没解锁的 PR 门是否当场暴毙（教学两关关着）
  *   requireTut         教学不走完不给过关
- *   rows / rowsB       图层（rowsB = 另一条分支，按 B 切；机关只认 rows 那一份）
+ *   rows / rowsB       图层（rowsB = 另一条分支，按 V 切；机关只认 rows 那一份）
  *   bugs[]            {at:[x,y], kind, dir, range}
  *   movers/pads/belts/ci/leak/ghosts[]  地形机关
  *   events[]          阴间脚本：{when, at/onEnter/onKillKind/onBug…, act|acts, every, persist}
@@ -60,19 +60,19 @@ window.GAME_LEVELS = [
       { when: "onEnter", onEnter: [10, 6, 0], persist: true,
         acts: [{ act: "spawn", kind: "docile", at: [10, 6] }],
         msg: "别怕，这一口是剧情：你得死一次才知道回档是什么", tone: "bad" },
-      { when: "tick", at: 6, act: "msg", tone: "tut", text: "按 H 随时能翻图鉴，虫和地块都写了是什么" }
+      { when: "tick", at: 6, act: "msg", tone: "tut", text: "按 Q 随时能翻图鉴，虫和地块都写了是什么" }
     ],
     mutate: [],
     tut: [
       { wait: true, text: "欢迎来到屎山。目标很简单：到达 -o- 落 commit，把所有甲虫修干净，然后踩 PR 门进下一关。" },
-      { when: "move", n: 3, text: "先用 WASD 或方向键走三格。你每走一步，世界才推进一格 —— 这是个回合制的坑。" },
-      { when: "log", text: "按 L 丢一条 console.log：它会照亮前方，还能让「假墙 / 假地板」现形。现在灯还亮着，先习惯这个键。" },
+      { when: "move", n: 3, text: "先用方向键走三格（WASD 也认）。你每走一步，世界才推进一格 —— 这是个回合制的坑。" },
+      { when: "log", text: "按 G 丢一条 console.log：它会照亮前方，还能让「假墙 / 假地板」现形。现在灯还亮着，先习惯这个键。" },
       { when: "nearCommit", text: "看到地上那个 -o- 了吗？走过去。" },
-      { when: "commit", text: "对，按 Enter 就落了一个 commit。它是存档，也是你的棺材板 —— 死了就从这里回。" },
-      { when: "kill", text: "旁边贴着一只甲虫就按 K 修掉它（要站着引导 0.4 秒，一动就打断）。" },
+      { when: "commit", text: "对，按 C 就落了一个 commit（Enter 同效）。它是存档，也是你的棺材板 —— 死了就从这里回。" },
+      { when: "kill", text: "旁边贴着一只甲虫就按 F 修掉它（要站着引导 0.4 秒，一动就打断）。" },
       { when: "dead", text: "往下那条路会让虫钻出来咬死你。这不是意外，是课程。" },
       { when: "revert", text: "回档把地形、虫群、记忆一起还原到那个 commit。但每两次回档，屎山自己会长一层。" },
-      { when: "test", text: "最后这只是祖传虫：先按 T 给它盖测试再按 K 删。裸删 = 改 1 行炸 47 处，它会当场变成两只。" },
+      { when: "test", text: "最后这只是祖传虫：先按 T 给它盖测试再按 F 删。裸删 = 改 1 行炸 47 处，它会当场变成两只。" },
       { when: "bugsLeft", n: 0, text: "虫清零了。那个 PR 门已经亮起 —— 踩上去就过关。" }
     ]
   },
@@ -136,7 +136,7 @@ window.GAME_LEVELS = [
    * ============================================================ */
   {
     id: "l3", name: "第 3 关 · 换个角度看屎山", mode: "side", w: 35, h: 16,
-    brief: "这一关是横版：W / 空格跳，脚下没东西就会掉。2 格宽的窟窿跳得过去，再宽要借跳板。\n中途有人会「重构坐标系」，重力说翻就翻。",
+    brief: "这一关是横版：↑ / 空格跳，脚下没东西就会掉。2 格宽的窟窿跳得过去，再宽要借跳板。\n中途有人会「重构坐标系」，重力说翻就翻。",
     fog: { r: 4.2, mem: 60, ghost: 0.2 },
     tools: { test: 2, blame: 1 },
     jump: 2,
@@ -178,7 +178,7 @@ window.GAME_LEVELS = [
     ],
     mutate: [{ at: [5, 10], kind: "walk" }, { at: [30, 10], kind: "chase" }],
     tut: [
-      { when: "start", text: "横版：W / 空格 跳两格高，先原地起跳再往旁边挪才上得了台阶。掉进窟窿就是死。" },
+      { when: "start", text: "横版：↑ / 空格 跳两格高，先原地起跳再往旁边挪才上得了台阶。掉进窟窿就是死。" },
       { when: "kill", n: 1, text: "虫子也归重力管。把它们引到 CI 红光前面也是一种打法。" },
       { when: "pr", text: "清完虫，PR 门在右边那块平台上。" }
     ]
@@ -189,7 +189,7 @@ window.GAME_LEVELS = [
    * ============================================================ */
   {
     id: "l4", name: "第 4 关 · 两条分支", mode: "top", w: 30, h: 16,
-    brief: "按 B 在 main 和 hotfix 两条分支之间切图层：同一格在另一条分支上可能是墙，也可能是路。\n这一关还有只能在黑暗里看见的虫，和一条必须按顺序踩的依赖地砖。",
+    brief: "按 V 在 main 和 hotfix 两条分支之间切图层：同一格在另一条分支上可能是墙，也可能是路。\n这一关还有只能在黑暗里看见的虫，和一条必须按顺序踩的依赖地砖。",
     fog: { r: 3.6, mem: 55, ghost: 0.16 },
     tools: { test: 2, blame: 2 },
     jump: 2,
@@ -240,7 +240,7 @@ window.GAME_LEVELS = [
     ],
     movers: [{ at: [24, 9], axis: "x", span: 3, rate: 9 }],
     events: [
-      { when: "tick", at: 8, act: "msg", tone: "tut", text: "按 B 切分支。切之前想清楚：你站的那一格在另一条分支上是不是实心的" },
+      { when: "tick", at: 8, act: "msg", tone: "tut", text: "按 V 切分支。切之前想清楚：你站的那一格在另一条分支上是不是实心的" },
       { when: "tick", at: 45, acts: [{ act: "fakePr", at: [11, 13] }],
         msg: "前面多了一个 PR 门 —— 这条路太顺了，顺得不正常", tone: "warn" },
       { when: "onEnter", onEnter: [26, 9, 0], act: "blackout", r: 2.8, msg: "你踩进了它的窝：GC 把整个区域的记忆吞了" },
@@ -381,7 +381,7 @@ window.GAME_LEVELS = [
     ],
     mutate: [{ at: [14, 5], kind: "chase" }, { at: [20, 14], kind: "heisen" }, { at: [6, 11], kind: "walk" }],
     tut: [
-      { when: "test", text: "祖传本体三管血：先按 T 盖测试（测试罩会一直留着），再按 K 三下。裸删只会让它每掉血就分家。" },
+      { when: "test", text: "祖传本体三管血：先按 T 盖测试（测试罩会一直留着），再按 F 三下。裸删只会让它每掉血就分家。" },
       { when: "blame", text: "blame 额度可以把一只虫钉 20 秒，别的虫还会绕着它走 —— 用来开路很好。" },
       { when: "bugsLeft", n: 0, text: "全清了。右下角的 PR 是最后一次门。" }
     ]

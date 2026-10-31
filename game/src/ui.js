@@ -74,8 +74,8 @@ window.UI = (() => {
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "WASD/方向键 移动 · K 修 · T 测试 · L console.log · G blame · Enter commit · R 回档 · H 图鉴 · Esc 菜单"; return; }
-    el.hint.textContent = state === "on" ? "Esc 菜单 · H 图鉴 · M 辅助模式 · V 音效" : "";
+    if (state === null) { el.hint.textContent = "方向键 移动 · F 修 · T 测试 · G console.log · B blame · C commit · R 回档 · Q 图鉴 · Esc 菜单"; return; }
+    el.hint.textContent = state === "on" ? "Esc 菜单 · Q 图鉴 · Z 辅助模式 · X 音效" : "";
   }
 
   /* ---------------- HUD ---------------- */
@@ -95,7 +95,7 @@ window.UI = (() => {
   }
 
   /* ---------------- 目标 / 教学 ---------------- */
-  const KEYS = ["WASD", "Enter", "Esc", "空格", "方向键", "console.log"];
+  const KEYS = ["WASD", "Enter", "Esc", "空格", "方向键", "↑", "console.log"];
   /** 把文本里的按键名包成 .gf-key（手写扫描，不用 lookbehind —— 老 WebView 不支持） */
   function keyNodes(text, into) {
     let buf = "", i = 0;
@@ -140,12 +140,12 @@ window.UI = (() => {
     box.appendChild(h);
     const lines = [];
     if (W.bugs.length > 0) {
-      lines.push("还剩 " + W.bugs.length + " 只甲虫。贴上去按 K 修，祖传虫要先按 T 盖测试。");
+      lines.push("还剩 " + W.bugs.length + " 只甲虫。贴上去按 F 修，祖传虫要先按 T 盖测试。");
     } else {
       lines.push(W.prReady ? "甲虫清零了 —— 去踩亮着的 PR 门过关。" : "继续清虫。");
     }
-    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 Enter 落一个 commit。");
-    if (W.layers.length > 1) lines.push("按 B 在 main / hotfix 之间切图层。");
+    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 C 落一个 commit。");
+    if (W.layers.length > 1) lines.push("按 V 在 main / hotfix 之间切图层。");
     if (W.player.cast) lines.push("施法中…… 别动，动了就打断。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
   }
@@ -229,7 +229,7 @@ window.UI = (() => {
     if (!log.length) {
       const d = document.createElement("div");
       d.className = "gf-commit";
-      d.textContent = "没有可回的 commit —— 找到 -o- 按 Enter 落一个。";
+      d.textContent = "没有可回的 commit —— 找到 -o- 按 C 落一个。";
       box.appendChild(d);
       return;
     }
