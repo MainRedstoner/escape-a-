@@ -1072,6 +1072,12 @@ const A3DWorldHf = (() => {
     }
     stringLights([16.0, 7.2, 3.0], [18.2, 5.6, 3.2], 0.45);
 
+    // 营地两头的灯笼：给两端补一点实体光源（点光源在 world.js 的视角配置里）
+    lantern(-29.4, 2.1, 16.2, 1.0, [1, 1, 1], 2.9, true);
+    lantern(29.4, 2.1, 16.2, 1.0, [1, 1, 1], 2.9, true);
+    lantern(-25.4, 2.1, 6.7, 0.9, [1, 1, 1], 2.6, true);
+    lantern(9.0, 2.1, 6.7, 0.9, [1, 1, 1], 2.6, true);
+
     bunting([11.7, 6.8, 3.35], [17.4, 9.0, 2.6], 0.45, 10, 1);
     bunting([16.3, 6.6, 3.35], [16.8, 11.8, 2.9], 0.5, 10, 1);
     bunting([-15.0, 18.2, 3.1], [15.0, 16.0, 3.1], 0.9, 16, 1);
@@ -1109,13 +1115,8 @@ const A3DWorldHf = (() => {
         quadP(canvas, m4(ex, 0, ez), [u0, 3.62, -0.7], [u1, 3.62, -0.7],
           [u1, 3.3, -0.94], [u0, 3.3, -0.94], i % 2 ? [1.25, 0.55, 0.45] : [1.3, 1.16, 0.95]);
       }
-      // 大招牌
-      const cfg = {
-        text: "HUGGING FACE\n营地 · 许多模型的第二个家", w: 896, h: 384, bg: "#2b2016",
-        fg: "#ffdaa0", size: 56, lineH: 88, border: "#8a6236", borderW: 8,
-        glow: "rgba(255,200,120,.4)", glowBlur: 18
-      };
-      addSignBoard("entrance", cfg, ex, 2.5, ez, Math.PI, 4.6, 1.34);
+      // 大招牌（拱门上方的 HUGGING FACE，朝海滩那面保留）
+      // 原来拱门下方那块「营地 · 许多模型的第二个家」横幅和左侧路牌已去掉
       for (const s of [-1, 1]) {
         tubeLine(rope, [[ex + s * 2.0, 3.18, ez - 0.02], [ex + s * 2.0, 3.44, ez - 0.02]],
           0.009, 3, [1, 1, 1]);
@@ -1127,15 +1128,6 @@ const A3DWorldHf = (() => {
         dark.box.call(dark, m4(lx, 3.12, lz), 0.06, 0.05, 0.35, [1, 1, 1], 1);
         lantern(lx, 2.78, lz - 0.3, 1.1, [1, 1, 1], 3.1, true);
       }
-      // 路牌（放在入口左柱外侧，正好卡在画面左缘）
-      const dirCfg = {
-        text: "篝火 ↑\n食堂 →\n码头 ←", w: 448, h: 512, bg: "#261d15", fg: "#f2d49a",
-        size: 46, lineH: 96, border: "#7a5a34", borderW: 6,
-        glow: "rgba(255,205,130,.3)", glowBlur: 10
-      };
-      const px = 16.4, pz = 4.6;
-      wood.cyl.call(wood, m4(px, 0, pz), 0.07, 0.05, 2.35, 6, [1, 1, 1], true);
-      addSignBoard("directions", dirCfg, px, 1.78, pz - 0.07, Math.PI, 1.06, 1.16);
       // 拴马桩 + 绳子
       for (let i = 0; i < 4; i++) {
         const hx = 8.2 + i * 1.05, hz = 3.0 + (i % 2) * 0.4;

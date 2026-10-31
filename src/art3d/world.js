@@ -920,7 +920,10 @@ const A3DWorld = (() => {
           { pos: [L.church.x, groundH(L.church.x, L.church.z) + 4, L.church.z + 2], col: [1.0, 0.7, 0.36], range: 36, inten: 2.4 },
           { pos: [L.city.x0 + 70, 12, L.city.z0 + 6], col: [1.0, 0.62, 0.32], range: 150, inten: 0.30 },
           { pos: [L.lighthouse.x, groundH(L.lighthouse.x, L.lighthouse.z) + 0.3 + L.lighthouse.top, L.lighthouse.z], col: [1.0, 0.85, 0.55], range: 90, inten: 0.5 },
-          { pos: [L.github.x - 22, 7, L.github.z], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 }
+          { pos: [L.github.x - 22, 7, L.github.z], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 },
+          /* HF 营地两头也是：远远看过去两团暖光，别让两端黑掉 */
+          { pos: [-96.5, 4, -85.0], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 },
+          { pos: [-43.5, 4, -84.6], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 }
         ]
       },
       tone: [1.02, 1.06, 1.12],
@@ -975,7 +978,11 @@ const A3DWorld = (() => {
           { pos: [-71.6, 0.9, -94.2], col: [1.0, 0.52, 0.22], range: 11, inten: 1.5 },
           { pos: [-56.0, 2.6, -95.6], col: [1.0, 0.8, 0.5], range: 16, inten: 1.2 },
           { pos: [-78.0, 3.2, -121.4], col: [1.0, 0.85, 0.6], range: 14, inten: 0.9 },
-          { pos: [-50.0, 3.4, -88.0], col: [1.0, 0.82, 0.55], range: 20, inten: 1.0 }
+          { pos: [-50.0, 3.4, -88.0], col: [1.0, 0.82, 0.55], range: 20, inten: 1.0 },
+          /* 营地两头各补一盏暖光，不然两端只剩自发光，地面和帐篷背光发黑 */
+          { pos: [-96.5, 3.0, -85.0], col: [1.0, 0.62, 0.3], range: 17, inten: 1.35 },
+          { pos: [-43.5, 3.0, -84.6], col: [1.0, 0.62, 0.3], range: 17, inten: 1.35 },
+          { pos: [-78.5, 2.6, -94.0], col: [1.0, 0.58, 0.28], range: 14, inten: 0.9 }
         ]
       },
       tone: [0.9, 0.94, 1.02],
