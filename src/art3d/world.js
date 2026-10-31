@@ -801,31 +801,6 @@ const A3DWorld = (() => {
     return m4(part.x, 0, part.z, 0, part.rot || 0, 0);
   }
 
-  /* ============================================================
-   *  崖脚的小屋：没有山路了，只剩几户人家给崖底一点灯火
-   * ============================================================ */
-  function buildVale(st) {
-    // 崖脚的小屋：石墙、坡顶、暖窗
-    const wall = st.pen("w.cottage", T.plaster(), { tint: [0.72, 0.7, 0.66], spec: 0.1 });
-    const roofB = st.pen("w.cottageRoof", T.woodDark(), { tint: [0.5, 0.4, 0.34], spec: 0.15 });
-    const warm = st.pen("w.cottageWin", null, { unlit: true, tint: [1.0, 0.72, 0.38] });
-    const warmGlow = st.pen("w.cottageGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.6, 0.26], opacity: 0.14 });
-    const cottages = [[14, -30, 0.5, 6.2, 4.8], [-6, -36, -0.7, 5.6, 4.4], [24, -40, 1.2, 6.8, 5.2], [2, -48, 2.4, 5.2, 4.0]];
-    for (const [cx, cz, ry, w, d] of cottages) {
-      const y = groundH(cx, cz);
-      const M0 = m4(cx, y, cz, 0, ry, 0);
-      wall.box.call(wall, M.mul(M0, m4(0, 1.6, 0)), w, 3.2, d, [1, 1, 1], 1.3);
-      gableRoof(roofB, M.mul(M0, m4(0, 3.2, 0)), w + 1.0, d + 0.8, 1.8, [1, 1, 1], 1.2);
-      // 门与两扇窗（朝 +Z 那面）
-      wall.box.call(wall, M.mul(M0, m4(0, 0.9, d / 2 + 0.03)), 0.9, 1.8, 0.1, [0.28, 0.2, 0.14], 1.4);
-      for (const sx of [-1, 1]) {
-        warm.quad.call(warm, M.mul(M0, m4(sx * w * 0.26, 1.9, d / 2 + 0.06)), 0.8, 0.95, [1, 1, 1], [0, 0, 1, 1]);
-        warmGlow.quad.call(warmGlow, M.mul(M0, m4(sx * w * 0.26, 1.9, d / 2 + 0.14)), 3.0, 3.2, [1, 1, 1], [0, 0, 1, 1]);
-      }
-      // 烟囱
-      wall.box.call(wall, M.mul(M0, m4(w * 0.3, 4.4, -d * 0.2)), 0.5, 1.6, 0.5, [0.6, 0.58, 0.55], 1.3);
-    }
-  }
 
   /* ============================================================
    *  大世界的招牌：从山上看下去时，街区需要一块能认出来的地标
@@ -878,7 +853,6 @@ const A3DWorld = (() => {
     buildGround(st);
     buildHill(st);
     buildChurch(st);
-    buildVale(st);
     buildCity(st);
     buildLighthouse(st);
     buildBoats(st);

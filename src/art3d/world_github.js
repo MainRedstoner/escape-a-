@@ -441,6 +441,112 @@ const A3DWorldGithub = (() => {
       }
     }
 
+    /** 背面装饰：后门、门灯、后窗、空调、落水管、电线、晾衣绳、后巷杂物。
+     *  主标题那侧看到的正是这一面，别让它是一排光板。 */
+    function buildBack(side, b) {
+      const fw = b.z0 - b.z1, cz = (b.z0 + b.z1) / 2;
+      const bx = b.fx + b.d;                 // 背面到街心的距离
+      const H = b.h;
+      const ry = faceRy(-side);              // 朝街外
+      const bq = (p, dist, y, z, w, h, uv) =>
+        p.quad.call(p, m4(side * dist, y, z, 0, ry, 0), w, h, [1, 1, 1], uv || [0, 0, 1, 1]);
+      const bb = (p, dist, y, z, tx, sy, sz, col, uv) =>
+        p.box.call(p, m4(side * dist, y, z), tx, sy, sz, col, uv === undefined ? 1.2 : uv);
+
+      // 后门 + 门口小台阶
+      const dz = cz + (r() - 0.5) * fw * 0.5;
+      bb(woodDark, bx + 0.05, 1.03, dz, 0.14, 2.06, 1.02, [0.5, 0.42, 0.35], 1.3);
+      bb(bldD, bx + 0.14, 0.09, dz, 0.36, 0.18, 1.36, [0.5, 0.5, 0.54], 1.4);
+      // 门楣小灯 + 门口一片暖光
+      bb(darkMetal, bx + 0.16, 2.62, dz + 0.72, 0.18, 0.12, 0.18, [0.4, 0.42, 0.46], 1.2);
+      bq(bulb, bx + 0.28, 2.48, dz + 0.72, 0.24, 0.24);
+      bq(gLamp, bx + 0.3, 2.48, dz + 0.72, 2.2, 2.2);
+      bq(gWall, bx + 0.06, 1.7, dz + 0.2, 2.6, 2.6);
+      // 门上的小雨棚
+      bb(darkMetal, bx + 0.34, 2.78, dz + 0.1, 0.8, 0.08, 1.5, [0.32, 0.33, 0.37], 1.3);
+
+      // 背面女儿墙：和街面一侧对齐，屋顶轮廓才收得住
+      const pc = [b.tone[0] * 0.92 + 0.05, b.tone[1] * 0.92 + 0.05, b.tone[2] * 0.92 + 0.05];
+      bb(b.mat, bx + 0.06, H + 0.3, cz, 0.2, 0.62, fw, pc, 1.3);
+
+      // 后窗：有的亮着，有的黑着
+      const nw = 3 + Math.floor(r() * 3);
+      for (let i = 0; i < nw; i++) {
+        const wy = 2.5 + r() * Math.max(1.0, H - 4.0);
+        const wz = cz + (r() - 0.5) * fw * 0.72;
+        const k = r();
+        const wp = k < 0.42 ? winWarm : k < 0.7 ? winCool : winDark;
+        bq(wp, bx + 0.03, wy, wz, 0.66 + r() * 0.3, 0.86 + r() * 0.3);
+        if (k < 0.42) bq(gWall, bx + 0.05, wy, wz, 1.8, 1.8);
+      }
+
+      // 竖向壁柱：把光板墙打碎
+      if (r() < 0.6) {
+        for (const off of [-0.32, 0.32]) {
+          bb(b.mat, bx + 0.08, H / 2, cz + fw * off, 0.24, H, 0.34,
+            [b.tone[0] * 1.08, b.tone[1] * 1.08, b.tone[2] * 1.12], 1.2);
+        }
+      }
+
+      // 铁爬梯（检修用）
+      if (r() < 0.4) {
+        const lz = cz + fw * 0.3;
+        for (const sx of [-0.22, 0.22]) {
+          cylAt(darkMetal, side * (bx + 0.14), 0.15, lz + sx, 0.02, 0.02, H - 1.0, 4, [0.35, 0.36, 0.4], true);
+        }
+        for (let k = 0; k < 6; k++) {
+          bb(darkMetal, bx + 0.14, 1.5 + k * 1.05, lz, 0.05, 0.04, 0.46, [0.35, 0.36, 0.4], 1.1);
+        }
+      }
+
+
+      // 壁挂空调 + 冷凝水管
+      if (r() < 0.65) {
+        const ay = 3.3 + r() * 2.4, az = cz + (r() - 0.5) * fw * 0.55;
+        bb(metal, bx + 0.3, ay, az, 0.5, 0.48, 0.56, [0.66, 0.7, 0.78], 1.3);
+        bb(darkMetal, bx + 0.56, ay, az, 0.04, 0.4, 0.46, [0.72, 0.74, 0.8], 1.2);
+        cylAt(darkMetal, side * (bx + 0.42), 0.03, az + 0.34, 0.018, 0.016,
+          Math.max(0.4, ay - 0.5), 3, [0.2, 0.2, 0.22], false);
+      }
+
+      // 背面的落水管
+      cylAt(darkMetal, side * (bx + 0.07), 0.03, cz + fw * 0.44, 0.05, 0.045, H, 5, [0.45, 0.45, 0.5], true);
+
+      // 墙上贴的小海报 / 电表箱
+      if (r() < 0.55) {
+        bq(paper, bx + 0.04, 1.55 + r() * 1.3, cz + (r() - 0.5) * fw * 0.6, 0.44, 0.58);
+      }
+      bb(darkMetal, bx + 0.09, 2.2, cz - fw * 0.3, 0.2, 0.5, 0.38, [0.4, 0.42, 0.46], 1.3);
+
+      // 背面拉到檐口的电线
+      if (r() < 0.7) {
+        const pts = [];
+        for (let k = 0; k <= 6; k++) {
+          pts.push([side * (bx + 0.09), 4.4 + Math.sin(k * 1.9 + b.z0) * 0.3, b.z0 - (k / 6) * fw]);
+        }
+        tubeAt(cable, pts, 0.011, 4, [1, 1, 1]);
+      }
+
+      // 晾衣绳 + 几件衣服
+      if (r() < 0.5) {
+        const yy = 3.1 + r() * 1.1, zz = cz + fw * 0.16;
+        bb(darkMetal, bx + 0.34, yy, zz, 0.06, 0.06, 2.9, [0.5, 0.5, 0.55], 1.1);
+        bb(darkMetal, bx + 0.16, yy, zz - 1.35, 0.36, 0.05, 0.05, [0.5, 0.5, 0.55], 1.1);
+        bb(darkMetal, bx + 0.16, yy, zz + 1.35, 0.36, 0.05, 0.05, [0.5, 0.5, 0.55], 1.1);
+        for (let i = 0; i < 4; i++) {
+          bq(cloth, bx + 0.37, yy - 0.34, zz - 0.95 + i * 0.63, 0.44, 0.6);
+        }
+      }
+
+      // 后巷杂物：纸箱 / 垃圾桶
+      if (r() < 0.55) {
+        P.crate(wood.raw, dm(side * (bx + 0.55), 0.2, cz + (r() - 0.5) * fw * 0.6, 0, r() * TAU, 0), 0.32, [0.55, 0.42, 0.3]);
+      }
+      if (r() < 0.4) {
+        cylAt(darkMetal, side * (bx + 0.5), 0.03, cz - fw * 0.26, 0.22, 0.2, 0.62, 10, [0.42, 0.45, 0.52], true);
+      }
+    }
+
     for (const b of rowsL) buildBuilding(-1, b);
     for (const b of rowsR) buildBuilding(1, b);
 
@@ -1273,6 +1379,12 @@ const A3DWorldGithub = (() => {
       });
     }
     points(pts, { blend: "add", yMin: 0, yMax: 9, fogNear: 8, fogFar: 36 });
+
+    /* ============================================================
+     *  背面装饰：放在最后，前面已经调好的随机序列一点不动
+     * ============================================================ */
+    for (const b of rowsL) buildBack(-1, b);
+    for (const b of rowsR) buildBack(1, b);
   }
 
   return { build };
