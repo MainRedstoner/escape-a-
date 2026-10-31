@@ -77,6 +77,9 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 
 ## 五、Git 工作流
 
+- **默认流程：改完 → 提交 → `git push origin <branch>` → 汇报，结束。不要开 PR。**
+  分支推上去就算交付，合并时机由用户决定；只有用户明确说「合并到 main」或「开 PR」时才走 PR。
+  别自作主张 `gh pr create`，也别在收尾时问「要不要开 PR」——默认不需要。
 - **`main` 必须始终干净可玩。** 不直接在 `main` 上提交；所有开发在分支上进行，**不要合并 `main` !**。
   GitHub 上的 `main` 由 ruleset 护着：禁止强推 / 删除，只能走 PR 且 CI 要绿。本地的 `main` 不受这层约束，规矩一样。
   PR 还要 1 个 approve：协作者提的 PR 得等仓库主人点头；主人自己的 PR 自批不了，用 admin bypass 合（`gh pr merge --admin`）。
@@ -90,9 +93,9 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 - **发现落后就先同步再继续**：自己分支落后于远端同名分支时，先 `git rebase` 过去再往下改；拿不准该 rebase 还是该让用户决定，就问一声，别抱着旧代码闷头写。
 - **GitHub 远端随时可以推，而且尽量勤推**（推分支）：这些小步推送是为了和别人同步进度，不必等用户点头，也不要攒一大堆再一起推。本地 `local` 备份仓照样可以推，两边一起推最好。
 - **推到 GitHub 远端（尤其 `main`）必须先经用户测试确认。** 分支自测通过只是前提（见第四节），真要上 GitHub 的 `main` 还得用户实际跑一遍、明确说可以才推。
-- **GitHub 上的 `main` 只收 PR。** ruleset 挡掉了直推 / 强推 / 删除，PR 必须过两个检查
-  （`剧本与代码校验`、`分支命名`），合并方式只留 merge commit（squash / rebase 已在仓库设置里关掉）。
-  所以上 GitHub 的完整流程是：本地分支 → `git push origin <branch>` → `gh pr create` → CI 绿 → 合并。
+- **只有用户明确要求合进 `main` 时才需要 PR。** ruleset 挡掉了直推 / 强推 / 删除，
+  PR 必须过两个检查（`剧本与代码校验`、`分支命名`），合并方式只留 merge commit（squash / rebase 已在仓库设置里关掉）。
+  到那一步的流程才是：`git push origin <branch>` → `gh pr create` → CI 绿 → 合并。
   本地 `main` 照样可以本地合并再同步，但推不上去——要进 GitHub 只能走 PR。
 - **admin bypass 只用来绕过 approve，不用来绕过 CI。** 自己的 PR 自批不了，所以合并时得带 `--admin`；
   但检查该绿还得绿——只有 Actions 本身挂了才允许连检查一起绕过，事后记一笔原因。
