@@ -234,6 +234,14 @@
   #camPanel .cpFoot .btn{padding:5px 10px;font-size:12px;}
   #camPanel .cpFoot .btn.primary{border-color:var(--clay);color:#FFE3D7;}
   #camPanel .cpFoot .btn.primary:hover{background:rgba(217,119,87,.15);}
+  #camPanel .fovCtl{display:flex;align-items:center;justify-content:flex-end;gap:6px;}
+  #camPanel .fovCtl b{min-width:30px;text-align:right;}
+  #camPanel .fovCtl button{
+    width:18px;height:18px;padding:0;line-height:1;cursor:pointer;
+    background:transparent;border:1px solid var(--line);border-radius:3px;
+    color:var(--muted);font-size:12px;font-family:Consolas,monospace;
+  }
+  #camPanel .fovCtl button:hover{color:#fff;border-color:var(--clay);}
 
   #fail{
     position:absolute;inset:0;display:none;align-items:center;justify-content:center;
@@ -342,7 +350,7 @@
     <div class="cpRow"><span>target</span><b id="camTarget">—</b></div>
     <div class="cpRow"><span>yaw / pitch</span><b id="camAngles">—</b></div>
     <div class="cpRow"><span>dir</span><b id="camDir">—</b></div>
-    <div class="cpRow"><span>fov</span><b id="camFov">—</b></div>
+    <div class="cpRow"><span>fov</span><span class="fovCtl"><button id="camFovMinus" title="FOV −2（[ 或 Shift+滚轮）">−</button><b id="camFov">—</b><button id="camFovPlus" title="FOV +2（] 或 Shift+滚轮）">+</button></span></div>
   </div>
   <div class="cpFoot">
     <button class="btn primary" id="camCopy" title="复制成 world.js 里的 cam: { eye, target, fov }">复制机位</button>
@@ -358,7 +366,7 @@
   <span>合成 <b id="stPaint">—</b></span>
   <span>AA <b id="stAA">—</b></span>
   <span>速度 <b id="stSpeed">25.0 m/s</b></span>
-  <span class="keys">拖拽看 · WASD 飞 · Q/E 升降 · 滚轮调速 · R 复位 · C 机位 · 1–9 · L 光影</span>
+  <span class="keys">拖拽看 · WASD 飞 · Q/E 升降 · 滚轮调速 · [ ] / Shift+滚轮 FOV · R 复位 · C 机位 · 1–9 · L 光影</span>
 </div>
 
 <script src="assets/shh.js"></script>
@@ -471,6 +479,13 @@ function resetFP() {
   fp.pitch = fpHome.pitch;
   fp.fov = fpHome.fov;
 }
+/** 调 fov：只在自由相机下有意义（游戏合成时 fov 由场景决定） */
+const FOV_MIN = 18, FOV_MAX = 110;
+function setFov(v, flash) {
+  if (!fp) { toast("游戏合成模式下 fov 由场景决定", 1000); return; }
+  fp.fov = clamp(v, FOV_MIN, FOV_MAX);
+  if (flash) toast("FOV " + fp.fov.toFixed(0) + "°", 700);
+}
 function moveFP(dt) {
   if (!fp) return;
   const v = fpVectors();
@@ -522,6 +537,7 @@ function setSpeed(v, flash) {
  */
 let camPanelOpen = false, camPanelT = 0;
 const fmtVec = (a, n) => "[" + a.map(v => v.toFixed(n === undefined ? 1 : n)).join(", ") + "]";
+const fmtNum = v => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1));
 
 function camInfo() {
   if (typeof simOn !== "undefined" && simOn && typeof A3D !== "undefined" && A3D.debugScene) {
@@ -543,7 +559,7 @@ function camTargetOf(info) {
   return [info.eye[0] + info.dir[0] * 100, info.eye[1] + info.dir[1] * 100, info.eye[2] + info.dir[2] * 100];
 }
 function camSnippet(info) {
-  return "cam: { eye: " + fmtVec(info.eye) + ", target: " + fmtVec(camTargetOf(info)) + ", fov: " + info.fov + " }";
+  return "cam: { eye: " + fmtVec(info.eye) + ", target: " + fmtVec(camTargetOf(info)) + ", fov: " + fmtNum(info.fov) + " }";
 }
 function updateCamPanel(force) {
   if (!camPanelOpen) return;
@@ -570,7 +586,7 @@ function updateCamPanel(force) {
   $("camTarget").textContent = fmtVec(t);
   $("camAngles").textContent = yaw.toFixed(1) + "° / " + pitch.toFixed(1) + "°";
   $("camDir").textContent = fmtVec(info.dir, 3);
-  $("camFov").textContent = String(info.fov);
+  $("camFov").textContent = fmtNum(info.fov);
 }
 /** 剪贴板在 file:// 下不一定可用，退回 execCommand */
 function fallbackCopy(text) {
@@ -1140,6 +1156,8 @@ $("btnClean").addEventListener("click", () => {
 $("btnCam").addEventListener("click", toggleCamPanel);
 $("camCopy").addEventListener("click", copyCam);
 $("camClose").addEventListener("click", closeCamPanel);
+$("camFovMinus").addEventListener("click", () => { if (fp) setFov(fp.fov - 2, true); });
+$("camFovPlus").addEventListener("click", () => { if (fp) setFov(fp.fov + 2, true); });
 window.addEventListener("keydown", e => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const k = e.key, kl = k.toLowerCase();
@@ -1157,6 +1175,9 @@ window.addEventListener("keydown", e => {
   if (k === "ArrowRight") { if (fp) fp.yaw += 0.06; e.preventDefault(); return; }
   if (k === "ArrowUp") { if (fp) fp.pitch = clamp(fp.pitch + 0.05, -1.55, 1.55); e.preventDefault(); return; }
   if (k === "ArrowDown") { if (fp) fp.pitch = clamp(fp.pitch - 0.05, -1.55, 1.55); e.preventDefault(); return; }
+  /* [ / ] 调 FOV（Shift+滚轮也行） */
+  if (k === "[" || k === "【") { if (fp) setFov(fp.fov - 2, true); e.preventDefault(); return; }
+  if (k === "]" || k === "】") { if (fp) setFov(fp.fov + 2, true); e.preventDefault(); return; }
   if (kl === "r") { resetFP(); return; }
   if (kl === "w" || kl === "a" || kl === "s" || kl === "d" || kl === "q" || kl === "e") {
     held[kl] = true;
@@ -1217,6 +1238,11 @@ cv.addEventListener("contextmenu", e => e.preventDefault());
 cv.addEventListener("wheel", e => {
   if (!fp) return;
   e.preventDefault();
+  /* Shift+滚轮调 FOV（视野），普通滚轮调移动速度 */
+  if (e.shiftKey) {
+    setFov(fp.fov * Math.exp(e.deltaY * 0.0015), true);
+    return;
+  }
   /* 每格约 ±30%，滚轮往前 = 加速 */
   setSpeed(moveSpeed * Math.exp(-e.deltaY * 0.0035), true);
 }, { passive: false });

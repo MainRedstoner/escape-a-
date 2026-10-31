@@ -111,7 +111,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 **最快的看法：双击 `art-preview.html`**（`file://` 可用）。左侧切场景、
 `全部场景` 生成缩略图、`游戏后期` 开关对比调色，`光影` 面板（或 `L`）调环境 / 每盏点光 / 后期色调的颜色和亮度，`复制 JSON` 一键复制（`file://` 下剪贴板不可用时回退到文本框）；底部有 FPS、顶点数和当前移动速度；
 画面是**第一人称自由相机**：打开就站在该场景的设计机位（eye + 朝向），
-**拖拽看视角 / WASD 飞 / Q/E 升降 / Shift 加速 / Alt 减速 / 滚轮调移动速度 / R 回默认机位**，
+**拖拽看视角 / WASD 飞 / Q/E 升降 / Shift 加速 / Alt 减速 / 滚轮调移动速度 / `[` `]` 或 `Shift+滚轮` 调 FOV（18–110°）/ R 回默认机位**，
 `H` 纯净模式、`G` 缩略图、`P` 调试角标、`1–9` 直选；滚轮只调移动速度，不再切场景。
 调机位时用 `机位` 面板（或 `C`）：实时显示 `eye / target / yaw·pitch / dir / fov`，
 `复制机位`（或 `Shift+C`）复制成能直接贴进 `world.js` 的一行 `cam: { eye: [...], target: [...], fov: 50 }`；
