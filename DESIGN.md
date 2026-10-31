@@ -405,6 +405,7 @@ Clawd 想做事时，会弹出仿 Claude Code 的权限请求框：
   `index.html` / `art-preview.html` 引入。
 * 画风靠三件事统一：统一的白天暖色脚本、手绘感贴图、2D 后期的调色 / 暗角 / 颗粒。
 * **真阴影**：`src/art3d/core.js` 支持点光 cubemap shadow map（深度 pass + 8-tap PCF）；目前只有 `ds_room` 的吊灯启用（2048、6 面，灯罩/灯架标了 `noShadow`）。太阳、其他灯和其他场景暂不投影，无阴影场景绑 1x1 dummy cube。
+* **点光源上限 10 盏**（`core.js` 的 `PT_MAX`，着色器里 `uPointPos[10]`）。场景的 `lights.points` 超过 10 个时多余的会被静默丢掉，所以引擎会打一条控制台警告；调夜景别只顾加灯不管上限。
   墙面本身是纯色，护墙板、压条、气泡贴花都是单独的几何 / 贴花，不往墙上糊噪点。
   场景自己的 `tone` 决定后期压色，别让三个场景看起来像三个游戏。
 * `ds_room` 的鱼群用 `src/art3d/flock.js` 的 boids：40 条鱼，每条跟随最近的 7 条，

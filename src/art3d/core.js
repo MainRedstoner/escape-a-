@@ -542,8 +542,8 @@ const A3D = (() => {
   uniform vec3 uSunDir, uSunCol, uSkyCol, uGroundCol, uFogCol;
   uniform float uFogNear, uFogFar;
   uniform int uPointN;
-  uniform vec3 uPointPos[6], uPointCol[6];
-  uniform float uPointRange[6];
+  uniform vec3 uPointPos[10], uPointCol[10];
+  uniform float uPointRange[10];
   uniform vec2 uUVOff, uUVScale;
   uniform samplerCubeShadow uShadowMap;
   uniform int uShadowIdx, uShadowTaps;
@@ -605,7 +605,7 @@ const A3D = (() => {
       col += uSunCol * pow(max(dot(n, h), 0.0), 28.0) * uSpec * wrap;
       float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
       col += uSkyCol * rim * uRim;
-      for (int i = 0; i < 6; i++) {
+      for (int i = 0; i < 10; i++) {
         if (i >= uPointN) break;
         vec3 d = uPointPos[i] - vWorld;
         float dist = length(d);
@@ -923,11 +923,12 @@ const A3D = (() => {
   const scratchMat = M.ident();
   const scratchNMat = new Float32Array(9);   // setBatch 的法线矩阵落脚点，别再每批新建
   const UV_ONE = new Float32Array([1, 1]);
-  /* applyLights 的点光缓冲：6 盏灯上限，每帧只是覆写同一块内存 */
-  const PT_MAX = 6;
+  /* applyLights 的点光缓冲：10 盏灯上限（超出会被静默丢掉，所以超了要吼一声），每帧只是覆写同一块内存 */
+  const PT_MAX = 10;
   const ptPos = new Float32Array(PT_MAX * 3);
   const ptCol = new Float32Array(PT_MAX * 3);
   const ptRng = new Float32Array(PT_MAX);
+  let ptWarned = false;
 
 
   /* ---------------- 点光阴影（cubemap shadow map） ---------------- */
@@ -1061,6 +1062,10 @@ const A3D = (() => {
     gl.uniform3fv(u.uWind, scene.wind || [0, 0, 0]);
     const pts = L.points || [];
     const n = Math.min(PT_MAX, pts.length);
+    if (pts.length > PT_MAX && !ptWarned) {
+      ptWarned = true;
+      console.warn("[A3D] 场景点光源 " + pts.length + " 个，超过上限 " + PT_MAX + "，多余的会被忽略");
+    }
     gl.uniform1i(u.uPointN, n);
     if (n) {
       for (let i = 0; i < n; i++) {
