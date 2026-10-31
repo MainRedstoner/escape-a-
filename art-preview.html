@@ -216,6 +216,25 @@
   #lightJson.show{display:block;}
   body.clean #lightPanel{display:none;}
 
+  /* ---------- 相机机位调试 ---------- */
+  #camPanel{
+    position:fixed;right:16px;bottom:58px;width:356px;display:none;flex-direction:column;
+    z-index:36;background:rgba(8,11,16,.96);border:1px solid var(--line);border-radius:5px;
+    box-shadow:0 18px 50px rgba(0,0,0,.66);
+  }
+  #camPanel.show{display:flex;}
+  #camPanel .cpHead{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);}
+  #camPanel .cpHead .t{font-size:12.5px;color:#EDF2F9;letter-spacing:1px;white-space:nowrap;}
+  #camPanel .cpHead .id{font-family:Consolas,monospace;font-size:10.5px;color:var(--blue-pale);margin-left:auto;overflow:hidden;text-overflow:ellipsis;}
+  #camPanel .cpBody{padding:5px 12px 8px;}
+  #camPanel .cpRow{display:grid;grid-template-columns:70px 1fr;gap:8px;padding:3px 0;align-items:baseline;}
+  #camPanel .cpRow span{font-size:10.5px;color:var(--muted);letter-spacing:.6px;}
+  #camPanel .cpRow b{font-family:Consolas,"Cascadia Mono",monospace;font-size:11px;font-weight:400;color:#C9D2DE;text-align:right;white-space:nowrap;}
+  #camPanel .cpFoot{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line);}
+  #camPanel .cpFoot .btn{padding:5px 10px;font-size:12px;}
+  #camPanel .cpFoot .btn.primary{border-color:var(--clay);color:#FFE3D7;}
+  #camPanel .cpFoot .btn.primary:hover{background:rgba(217,119,87,.15);}
+
   #fail{
     position:absolute;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(4,6,9,.96);z-index:12;text-align:center;padding:40px;
@@ -247,6 +266,7 @@
     <option value="2">双立绘</option>
   </select>
   <button class="btn" id="btnLights" title="调所有光源的颜色/亮度，复制 JSON">光影</button>
+  <button class="btn" id="btnCam" title="显示当前相机的位置/朝向，可复制成 world.js 的 cam 配置（C 开关，Shift+C 复制）">机位</button>
   <button class="btn" id="btnAuto" title="每 8 秒切下一个场景">自动轮播</button>
   <button class="btn" id="btnGrid" title="一次看全部场景">全部场景</button>
   <button class="btn" id="btnClean" title="隐藏 UI，只看画面（Esc 退出）">纯净模式</button>
@@ -315,6 +335,21 @@
 <div id="perfBadge">—</div>
 <div id="speedToast">—</div>
 
+<div id="camPanel" aria-label="相机机位">
+  <div class="cpHead"><div class="t">相机机位</div><div class="id" id="camScene">—</div></div>
+  <div class="cpBody">
+    <div class="cpRow"><span>eye</span><b id="camEye">—</b></div>
+    <div class="cpRow"><span>target</span><b id="camTarget">—</b></div>
+    <div class="cpRow"><span>yaw / pitch</span><b id="camAngles">—</b></div>
+    <div class="cpRow"><span>dir</span><b id="camDir">—</b></div>
+    <div class="cpRow"><span>fov</span><b id="camFov">—</b></div>
+  </div>
+  <div class="cpFoot">
+    <button class="btn primary" id="camCopy" title="复制成 world.js 里的 cam: { eye, target, fov }">复制机位</button>
+    <button class="btn" id="camClose">关闭</button>
+  </div>
+</div>
+
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
   <span>FPS <b id="stFps">—</b></span>
@@ -323,7 +358,7 @@
   <span>合成 <b id="stPaint">—</b></span>
   <span>AA <b id="stAA">—</b></span>
   <span>速度 <b id="stSpeed">25.0 m/s</b></span>
-  <span class="keys">拖拽看 · WASD 飞 · Q/E 升降 · 滚轮调速 · R 复位 · 1–9 · L 光影</span>
+  <span class="keys">拖拽看 · WASD 飞 · Q/E 升降 · 滚轮调速 · R 复位 · C 机位 · 1–9 · L 光影</span>
 </div>
 
 <script src="assets/shh.js"></script>
@@ -459,21 +494,124 @@ function moveFP(dt) {
 function speedText() {
   return moveSpeed >= 100 ? Math.round(moveSpeed) + " m/s" : moveSpeed.toFixed(1) + " m/s";
 }
+/** 底部浮一下的通用提示（调速、复制机位都用它） */
+function toast(text, ms) {
+  const tt = $("speedToast");
+  if (!tt) return;
+  tt.textContent = text;
+  tt.classList.add("show");
+  clearTimeout(speedToastTimer);
+  speedToastTimer = setTimeout(() => tt.classList.remove("show"), ms || 1000);
+}
 function updateSpeedHud(flash) {
   const el = $("stSpeed");
   if (el) el.textContent = speedText();
-  if (!flash) return;
-  const tt = $("speedToast");
-  if (!tt) return;
-  tt.textContent = "移动速度 " + speedText();
-  tt.classList.add("show");
-  clearTimeout(speedToastTimer);
-  speedToastTimer = setTimeout(() => tt.classList.remove("show"), 900);
+  if (flash) toast("移动速度 " + speedText(), 900);
 }
 function setSpeed(v, flash) {
   moveSpeed = clamp(v, SPEED_MIN, SPEED_MAX);
   updateSpeedHud(flash);
 }
+
+/* ---------------- 相机机位：显示 eye / target / 朝向，一键复制 ----------------
+ * 面板读的是「真正在用的相机」：
+ *   · 游戏合成模式（simOn）→ 场景自己的相机；
+ *   · 原始路径 → 第一人称自由相机。
+ * 复制出来的是能直接贴进 world.js 的一行：
+ *   cam: { eye: [...], target: [...], fov: 50 }
+ */
+let camPanelOpen = false, camPanelT = 0;
+const fmtVec = (a, n) => "[" + a.map(v => v.toFixed(n === undefined ? 1 : n)).join(", ") + "]";
+
+function camInfo() {
+  if (typeof simOn !== "undefined" && simOn && typeof A3D !== "undefined" && A3D.debugScene) {
+    const s = A3D.debugScene();
+    if (s && s.cam) {
+      const eye = s.cam.eye.slice();
+      const d = [s.cam.target[0] - eye[0], s.cam.target[1] - eye[1], s.cam.target[2] - eye[2]];
+      const l = Math.hypot(d[0], d[1], d[2]) || 1;
+      return { eye, dir: [d[0] / l, d[1] / l, d[2] / l], fov: s.cam.fov || 50 };
+    }
+  }
+  if (fp) {
+    const v = fpVectors();
+    return { eye: fp.pos.slice(), dir: v.f.slice(), fov: fp.fov };
+  }
+  return null;
+}
+function camTargetOf(info) {
+  return [info.eye[0] + info.dir[0] * 100, info.eye[1] + info.dir[1] * 100, info.eye[2] + info.dir[2] * 100];
+}
+function camSnippet(info) {
+  return "cam: { eye: " + fmtVec(info.eye) + ", target: " + fmtVec(camTargetOf(info)) + ", fov: " + info.fov + " }";
+}
+function updateCamPanel(force) {
+  if (!camPanelOpen) return;
+  const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+  if (!force && now - camPanelT < 80) return;
+  camPanelT = now;
+  const info = camInfo();
+  if (!info) {
+    /* 2D 场景（或切换途中）没有相机，别把上一帧的数值留在面板上 */
+    const dash = "—";
+    $("camScene").textContent = SCENES[cur].id;
+    $("camEye").textContent = dash;
+    $("camTarget").textContent = dash;
+    $("camAngles").textContent = dash;
+    $("camDir").textContent = dash;
+    $("camFov").textContent = dash;
+    return;
+  }
+  const t = camTargetOf(info);
+  const yaw = Math.atan2(info.dir[0], -info.dir[2]) * 180 / Math.PI;
+  const pitch = Math.asin(clamp(info.dir[1], -1, 1)) * 180 / Math.PI;
+  $("camScene").textContent = SCENES[cur].id;
+  $("camEye").textContent = fmtVec(info.eye);
+  $("camTarget").textContent = fmtVec(t);
+  $("camAngles").textContent = yaw.toFixed(1) + "° / " + pitch.toFixed(1) + "°";
+  $("camDir").textContent = fmtVec(info.dir, 3);
+  $("camFov").textContent = String(info.fov);
+}
+/** 剪贴板在 file:// 下不一定可用，退回 execCommand */
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed"; ta.style.left = "-9999px"; ta.style.top = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+function copyCam() {
+  const info = camInfo();
+  if (!info) { toast("当前没有可读的相机", 900); return; }
+  const text = camSnippet(info);
+  const done = () => toast("已复制：" + text, 1800);
+  const fail = () => toast("复制失败，请手动抄一下面板", 1400);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => { fallbackCopy(text) ? done() : fail(); });
+    } else {
+      fallbackCopy(text) ? done() : fail();
+    }
+  } catch (e) {
+    fallbackCopy(text) ? done() : fail();
+  }
+}
+function openCamPanel() {
+  camPanelOpen = true;
+  $("camPanel").classList.add("show");
+  $("btnCam").classList.add("on");
+  updateCamPanel(true);
+}
+function closeCamPanel() {
+  camPanelOpen = false;
+  $("camPanel").classList.remove("show");
+  $("btnCam").classList.remove("on");
+}
+function toggleCamPanel() { camPanelOpen ? closeCamPanel() : openCamPanel(); }
 
 
 /* ---------------- 2D 后期：和游戏 art.js 的 post() 保持一致 ---------------- */
@@ -849,6 +987,7 @@ function loop(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   if (!simOn) moveFP(dt);
   if (simOn) simFrame(t); else drawFrame(t);
+  updateCamPanel();
   fpsN++;
   if (now - fpsT > 500) {
     const fps = Math.round(fpsN * 1000 / (now - fpsT));
@@ -998,6 +1137,9 @@ $("btnClean").addEventListener("click", () => {
    * ResizeObserver 也会来一发，但那是异步的，这里先同步量一次。 */
   refit();
 });
+$("btnCam").addEventListener("click", toggleCamPanel);
+$("camCopy").addEventListener("click", copyCam);
+$("camClose").addEventListener("click", closeCamPanel);
 window.addEventListener("keydown", e => {
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const k = e.key, kl = k.toLowerCase();
@@ -1006,6 +1148,11 @@ window.addEventListener("keydown", e => {
   if (k === "Alt") { held.alt = true; return; }
   if (k === "Control") { held.ctrl = true; return; }
   if (kl === "l") { toggleLightPanel(); return; }
+  if (kl === "c") {
+    if (e.shiftKey) copyCam(); else toggleCamPanel();
+    e.preventDefault();
+    return;
+  }
   if (k === "ArrowLeft") { if (fp) fp.yaw -= 0.06; e.preventDefault(); return; }
   if (k === "ArrowRight") { if (fp) fp.yaw += 0.06; e.preventDefault(); return; }
   if (k === "ArrowUp") { if (fp) fp.pitch = clamp(fp.pitch + 0.05, -1.55, 1.55); e.preventDefault(); return; }
