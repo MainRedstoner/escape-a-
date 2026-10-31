@@ -67,7 +67,7 @@ window.RENDER = (() => {
     drawHazardsBack(W, x0, y0, cols, rowsN);
     drawEntities(W);
     drawPlayer(W);
-    drawHazardsFront(W);
+    drawHazardsFront(W, dt);
     drawOverlays(W);
     ctx.restore();
 
@@ -523,23 +523,47 @@ window.RENDER = (() => {
     }
   }
 
-  function drawHazardsFront(W) {
-    for (const bd of W.bands) {
+  function drawHazardsFront(W, dt) {
+    for (let bi = 0; bi < W.bands.length; bi++) {
+      const bd = W.bands[bi];
       if (!bd.on) continue;
-      ctx.globalAlpha = 0.85;
-      if (bd.axis === "x") {
-        const gx = (bd.pos + 0.5) * TS;
-        const g = ctx.createLinearGradient(gx - TS, 0, gx + TS, 0);
-        g.addColorStop(0, "rgba(255,40,40,0)"); g.addColorStop(0.5, "rgba(255,60,50,.85)"); g.addColorStop(1, "rgba(255,40,40,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(gx - TS, cam.y - TS, TS * 2, view.h + TS * 2);
-      } else {
-        const gy = (bd.pos + 0.5) * TS;
-        const g = ctx.createLinearGradient(0, gy - TS, 0, gy + TS);
-        g.addColorStop(0, "rgba(255,40,40,0)"); g.addColorStop(0.5, "rgba(255,60,50,.85)"); g.addColorStop(1, "rgba(255,40,40,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(cam.x - TS, gy - TS, view.w + TS * 2, TS * 2);
+      /* 判定只有 ±thick 格，这儿原来硬画 ±1 格 —— 看着宽、死得窄，时机根本读不准。
+       * 现在"芯"和判定同宽，外面那圈只是无害的光晕；熄灭的几 tick 只剩一条虚线：
+       * CI 抖动留给你的那道缝，画在它自己的位置上。 */
+      const lit = bd.lit !== false;
+      const core = bd.thick * TS, glow = TS;
+      const c = (smooth("bd" + W.id + bi, bd.pos, 0, dt).x + 0.5) * TS;
+      const a = (glow - core) / (2 * glow);
+      const vert = bd.axis === "x";
+      const g = vert ? ctx.createLinearGradient(c - glow, 0, c + glow, 0)
+                     : ctx.createLinearGradient(0, c - glow, 0, c + glow);
+      const solid = "rgba(255,60,50," + (lit ? 0.85 : 0.06) + ")";
+      g.addColorStop(0, "rgba(255,40,40,0)");
+      g.addColorStop(Math.max(0.02, a), solid);
+      g.addColorStop(Math.min(0.98, 1 - a), solid);
+      g.addColorStop(1, "rgba(255,40,40,0)");
+      ctx.fillStyle = g;
+      if (vert) ctx.fillRect(c - glow, cam.y - TS, glow * 2, view.h + TS * 2);
+      else ctx.fillRect(cam.x - TS, c - glow, view.w + TS * 2, glow * 2);
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = lit ? "#ff6a52" : "#7cf3b0";
+      ctx.lineWidth = 1;
+      ctx.setLineDash(lit ? [] : [5, 5]);
+      ctx.beginPath();
+      if (lit) {                       // 两条实线之间就是会死人的宽度
+        if (vert) {
+          ctx.moveTo(c - core, cam.y - TS); ctx.lineTo(c - core, cam.y + view.h + TS);
+          ctx.moveTo(c + core, cam.y - TS); ctx.lineTo(c + core, cam.y + view.h + TS);
+        } else {
+          ctx.moveTo(cam.x - TS, c - core); ctx.lineTo(cam.x + view.w + TS, c - core);
+          ctx.moveTo(cam.x - TS, c + core); ctx.lineTo(cam.x + view.w + TS, c + core);
+        }
+      } else {                         // 熄了：只剩中线，踩过去不死人
+        if (vert) { ctx.moveTo(c, cam.y - TS); ctx.lineTo(c, cam.y + view.h + TS); }
+        else { ctx.moveTo(cam.x - TS, c); ctx.lineTo(cam.x + view.w + TS, c); }
       }
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
     for (let gi = 0; gi < W.ghosts.length; gi++) {

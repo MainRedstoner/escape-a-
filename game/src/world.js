@@ -250,10 +250,16 @@ window.WORLD = (() => {
     return W;
   }
 
+  /* CI 抖动：流水线不是常亮的，它每隔一会儿就要"重试"一次。
+   * 亮 onT 个 tick、熄 offT 个 tick（缺省 10/6 —— 一个周期正好 16 tick = 2 秒，其中 0.75 秒是黑的），
+   * 熄的那几 tick 既不扫人也不扫虫，那是留给玩家穿过去的缝。
+   * 全部由 bd.t 推出来，纯数据进快照，回档后节奏一模一样。 */
   function mkBand(c) {
     const axis = c.axis || (c.dir === "n" || c.dir === "s" ? "y" : "x");
+    const onT = c.onT || 10, offT = c.offT || 6;
     return { axis, pos: axis === "y" ? c.at[1] : c.at[0], dir: (c.dir === "w" || c.dir === "n") ? -1 : 1,
-             speed: c.speed || 0.5, thick: 0.5, on: true };
+             speed: c.speed || 0.5, thick: 0.5, on: true,
+             onT, offT, cyc: onT + offT, t: 0, lit: true, justLit: false };
   }
   function beltDirOf(lv, x, y) {
     for (const b of (lv.belts || [])) if (b.at[0] === x && b.at[1] === y) return b.dir || "e";
@@ -667,7 +673,7 @@ window.WORLD = (() => {
         U.Input.scramble(a.kind || "swap"); W.flags.scrambled = (a.turns || 8) * STEP_HZ;
         sfx("glitch"); toast(W, a.text || "键盘被 AI 改了 —— 方向键和 WASD 一起转了，看清了再走", "bad"); break;
       case "unscramble": U.Input.unscramble(); W.flags.scrambled = 0; break;
-      case "ci": W.bands.push(mkBand({ at: a.at, dir: a.dir || "w", axis: a.axis, speed: a.speed || 0.5 })); sfx("alarm"); toast(W, a.text || "CI 开始跑：那道红光会一路推平，包括虫子", "bad"); break;
+      case "ci": W.bands.push(mkBand({ at: a.at, dir: a.dir || "w", axis: a.axis, speed: a.speed || 0.5, onT: a.onT, offT: a.offT })); sfx("alarm"); toast(W, a.text || "CI 开始跑：那道红光会一路推平，包括虫子 —— 它每两秒熄一次，熄的时候踩过去没事", "bad"); break;
       case "leak": W.leaks.push({ x: a.at[0], y: a.at[1], r: 0.5, rate: a.rate || 8, grow: a.grow || 1, ticks: 0, on: true }); toast(W, a.text || "泄漏开始扩散", "bad"); break;
       case "ghost": {
         W.flags.trailOn = true;
@@ -890,12 +896,20 @@ window.WORLD = (() => {
       m.x = nx; m.y = ny;
     }
 
-    /* CI 红光带 */
+    /* CI 红光带：亮着扫平一切，熄灯的几 tick 是缝 */
     for (const bd of W.bands) {
       if (!bd.on) continue;
+      const was = bd.lit;
       bd.pos += bd.dir * bd.speed * DT;
       if (bd.pos < -3 || bd.pos > (bd.axis === "x" ? W.w : W.h) + 3) { bd.on = false; continue; }
-      if (Math.abs((bd.axis === "x" ? p.x : p.y) - bd.pos) < bd.thick) { die(W, "被 CI 的红光扫到了"); return; }
+      bd.t++;
+      bd.lit = (bd.t % bd.cyc) < bd.onT;
+      bd.justLit = !was && bd.lit;
+      if (!bd.lit) continue;
+      if (Math.abs((bd.axis === "x" ? p.x : p.y) - bd.pos) < bd.thick) {
+        die(W, bd.justLit ? "CI 重试成功，红光亮起来的时候你正好站在光里" : "被 CI 的红光扫到了");
+        return;
+      }
       for (const b of W.bugs.slice()) if (Math.abs((bd.axis === "x" ? b.x : b.y) - bd.pos) < bd.thick) sweepBug(W, b);
     }
 

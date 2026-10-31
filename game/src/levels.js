@@ -13,6 +13,8 @@
  *   rows / rowsB       图层（rowsB = 另一条分支，按 I 切；机关只认 rows 那一份）
  *   bugs[]            {at:[x,y], kind, dir, range}
  *   movers/pads/belts/ci/leak/ghosts[]  地形机关
+ *     · ci {at,dir,speed,onT,offT}  红光带。onT/offT = 亮 / 熄各几个 tick，缺省 10/6
+ *       （一个周期 16 tick = 2 秒，其中 0.75 秒是黑的）。熄的那几 tick 不扫人也不扫虫，那是穿过去的缝。
  *   events[]          阴间脚本：{when, at/onEnter/onKillKind/onBug…, act|acts, every, persist}
  *     · when:"tick" 的 at 是**秒数**；动作自己也要坐标时一律写进 acts:[{act:…, at:[x,y]}]，
  *       同一行写两个 at: 会让后者覆盖前者，触发时间就丢了（校验器会抓）
@@ -168,7 +170,7 @@ window.GAME_LEVELS = [
     belts: [{ at: [20, 4], dir: "w" }, { at: [21, 4], dir: "w" }],
     ci: [{ at: [25, 10], dir: "w", speed: 0.55 }],
     events: [
-      { when: "tick", at: 35, act: "msg", tone: "tut", text: "红光那道是失败的 CI，它会一路推过来 —— 能帮你杀虫，也能把你刷掉" },
+      { when: "tick", at: 35, act: "msg", tone: "tut", text: "红光那道是失败的 CI，它会一路推过来 —— 能帮你杀虫，也能把你刷掉。它每两秒熄一次，熄的时候踩过去没事" },
       { when: "tick", at: 50, act: "flipGravity", to: "up", msg: "有人把重力重构了：现在天花板是地板，往上掉" },
       { when: "tick", at: 78, act: "flipGravity", to: "down", msg: "重力又翻回来了（提交信息写着「temporary fix」）" },
       { when: "onEnter", onEnter: [16, 10, 1], acts: [{ act: "spawn", kind: "jumper", at: [15, 10] }],
@@ -314,7 +316,7 @@ window.GAME_LEVELS = [
       { when: "tick", at: 140, act: "wallGrow", n: 4 },
       { when: "tick", at: 165, act: "flipMode", to: "top", msg: "有人重构了坐标系：现在这是个俯视图了（坑还是坑）" },
       { when: "onBug", onBug: 3, acts: [{ act: "ci", at: [34, 10], dir: "w", speed: 0.7 }],
-        msg: "第二趟 CI 开始跑：可以借它刷虫，但你自己也得躲", tone: "bad" }
+        msg: "第二趟 CI 开始跑：可以借它刷虫，但你自己也得躲 —— 它每两秒熄一次", tone: "bad" }
     ],
     mutate: [{ at: [6, 10], kind: "chase" }, { at: [33, 14], kind: "timer" }, { at: [15, 5], kind: "walk" }],
     tut: [
