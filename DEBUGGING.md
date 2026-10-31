@@ -27,6 +27,9 @@
 
 > 改完代码记得 **Ctrl+F5 硬刷新**。服务端已给静态文件加了 `no-cache`，但 `file://` 下
 > 浏览器仍可能拿缓存，硬刷新最稳。
+>
+> 小游戏是第四种：双击 **`game/index.html`**，只走浏览器本地存储（`ea_bugfix_progress`），
+> 不接 `server.py`。调试句柄与参数见 3.6。
 
 ---
 
@@ -67,6 +70,7 @@
 | `ea_settings` | 文字速度 / 音量等设置 |
 | `ea_endings` | 已解锁结局 |
 | `ea_eggs_found` | 已发现的彩蛋 |
+| `ea_bugfix_progress` | **小游戏**「修复屎山」的进度（解锁、每关 commit 快照、图鉴）。和上面几条互不相干，删掉不影响主线 |
 
 清空全部存档：`localStorage.clear()` 然后刷新。
 
@@ -267,6 +271,40 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 
 ---
 
+## 3.6 小游戏（`game/`）怎么调
+
+双击 **`game/index.html`**（`file://` 直开，和主线一样不依赖后端）。它是独立小游戏，
+控制台句柄、存档键都和主线分开——主线的 `SYS` / `ENGINE` 在这里不存在。
+
+| 参数 | 作用 |
+| --- | --- |
+| `?level=<n>` | 直接开第 n 关的简报（**未解锁会被拽回第 1 关**，先 `Esc → 选关` 打过前面） |
+| `?assist=1` | 辅助模式：记忆不过期。`?assist=0` / `off` / `no` 显式关掉（覆盖存档里的设置） |
+
+控制台速查：
+
+| 表达式 | 看什么 |
+| --- | --- |
+| `BUGFIX.state` | 状态机：`title/pick/brief/play/dead/win/end/codex/menu/revert` |
+| `BUGFIX.world` | **世界状态**（`tick`、`player`、`bugs`、`tools`、`cfg`、`lit/seen`、`commitLog`），可整份 `JSON.stringify` |
+| `WORLD.brightness(BUGFIX.world, x, y)` | 某格此刻的亮度：`1` 实时可见 · `0` 全黑 · 中间是记忆。别写成 `BUGFIX.world.brightness(...)`，算法挂在 `WORLD` 上 |
+| `WORLD.observed(BUGFIX.world, x, y)` | 这格此刻在不在光源里（记忆不算） |
+| `WORLD.snap(BUGFIX.world)` | 当前 commit 快照的原文，回档就是把它灌回去 |
+| `BUGFIX.ctl.openTitle()` / `.restartLevel()` | 不点按钮也能切状态 |
+| `GSAVE.load()` | 进度（`unlocked` / 每关 commits / 图鉴） |
+| `localStorage.removeItem('ea_bugfix_progress')` | 清小游戏进度（**不会**碰主线存档） |
+
+关卡是数据，所以大部分问题先看 `game/src/levels.js` 那一关的 `rows` / `events`，
+再用 `python tools/validate_game.py` 复核尺寸、图例、虫位、配额与可达性。
+**校验器只证明几何可达，不证明打得过**：改完还是要进浏览器走一遍
+（进关 → 死一次 → 回档 → 落 commit → 图鉴 → 过关），黑暗 / 事件这类机制只有真跑才暴露。
+
+> 想要自动化，可以用 Chrome DevTools 协议把 `game/index.html` 用 `--headless=new` 打开、
+> 注入 `Runtime.evaluate` 收控制台报错并截图（草稿脚本放 `.tmp/`，不入库）。
+> headless 里没有真实 vsync，要反复 `Page.captureScreenshot` 逼合成器出帧，`requestAnimationFrame` 才会跑。
+
+---
+
 ## 4. 存档怎么调
 
 1. **确认后端**：控制台 `SAVE.label`。想强制用服务端就 `python server.py` 再打开页面。面板里点槽位会展开操作（读取 / 保存 / 导出 / 导入 / 删除），覆盖已有档与删除都会先弹确认。
@@ -328,6 +366,8 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 | 服务端（`server.py` / `SAVE_API.md`） | `python tools/test_save_server.py`，必须「全部通过」 |
 | 素材（`assets/`） | 重新生成 `manifest.js`，检查占位卡是否消失 |
 | 工具自身（`tools/*.py`） | 三个命令都要能跑通，输出与改动前一致或按预期变化 |
+| 小游戏关卡（`game/src/levels.js`） | `check_js.py` → `validate_game.py`（必须"关卡校验通过"）→ 浏览器 `?level=<n>` 真走一遍 |
+| 小游戏机制（`world.js` / `bugs.js` / `tiles.js`） | 上面三步 + 死一次 / 回档 / 落 commit / 图鉴各点一遍；照明改动要对比「全亮 · 记忆 · 全黑」三档（3.6 有表达式） |
 
 ---
 

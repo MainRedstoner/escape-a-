@@ -159,6 +159,19 @@ SAVE.importFile(file)  → 校验后写入槽位
 - 如果阶段 1 要拆 `engine.js`，`pet.js` 直接按新结构写，避免写两遍。
 - 剧本可以先行：没有素材时引擎显示占位卡，不阻塞。
 
+### 4.5 支线：小游戏「修复屎山」【进行中 · feat/bugfix-game】
+
+独立目录 `game/`，双击 `game/index.html` 即玩；设计、操作与关卡数据结构见 [game/README.md](game/README.md)，issue #11。
+
+- [x] 骨架：10 个普通 `<script>` + 一个内联启动，零依赖零构建，`file://` 直开；世界状态与渲染 / DOM 严格分离
+- [x] 核心机制：回合制挪格、`-o-` 落 commit 当存档、全量快照回档、甲虫致死、工具（修 / 测试 / log 探针 / blame）、图层切换
+- [x] 上下文机制：未探索全黑 · 光圈内实时可见 · 走出光圈按 `fog.mem` 秒渐暗到归零；灯 / commit 点 / PR 门自带光源
+- [x] 6 关（俯视 ×4 + 横版 ×2，第 1 关全图常亮且教学不可跳过）+ 阴间事件脚本（`tick/onEnter/onKillKind/onRevert/onCommit/onBug/onPr`）+ 回档熵增
+- [x] `tools/validate_game.py`：尺寸 / 图例 / 虫位 / 配额 / 事件动作 / 几何可达；已进 CI
+- [x] 存档隔离：只写 `ea_bugfix_progress`，不碰主线键
+- [ ] 真人试玩：六关的实际可通性（校验器只保证几何可达）
+- [ ] 接进主线：剧本 `minigame` 节点 + `BUGFIX.mount()`（引擎循环的暂停 / 恢复要一并想清楚）
+
 ---
 
 ## 五、待决定事项
