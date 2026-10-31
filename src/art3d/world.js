@@ -66,11 +66,6 @@ const A3DWorld = (() => {
   /** 地面高度：海岸平原 = 0，北边沙滩下沉，南边是高台（北面陡坡） */
   function groundH(x, z) {
     let h = 0;
-    // 沙滩：z 从 beachZ 到 shoreZ 从 0 沉到 -1.4
-    if (z < L.beachZ) {
-      const t = clamp((z - L.shoreZ) / (L.beachZ - L.shoreZ), 0, 1);
-      h = -1.4 * (1 - t);
-    }
     // 南边高台：z0 以北是平地，z1 以南是 30m 高的台地
     const rise = clamp((z - L.ridge.z0) / (L.ridge.z1 - L.ridge.z0), 0, 1);
     const side = 1 / (1 + Math.pow(Math.abs(x - L.ridge.x0) / L.ridge.wide, 4));
@@ -79,11 +74,16 @@ const A3DWorld = (() => {
     // 两侧远山，把海湾框起来
     h = Math.max(h, 14 * Math.max(0, 1 - Math.hypot(x + 168, z - 70) / 78));
     h = Math.max(h, 10 * Math.max(0, 1 - Math.hypot(x - 186, z - 86) / 88));
+    /* 沙滩：z 从 beachZ 到 shoreZ 从 0 沉到 -1.4。
+     * 必须放在高台/远山之后取 min，否则会被 Math.max 抬回 0（沙滩就平了）。 */
+    if (z < L.beachZ) {
+      const t = clamp((z - L.shoreZ) / (L.beachZ - L.shoreZ), 0, 1);
+      h = Math.min(h, -1.4 * (1 - t));
+    }
     return h;
   }
 
-  /** 地面颜色：草 / 沙 / 岩 */
-  /** 地面颜色：草 / 沙 / 岩（陡坡自动变岩石，悬崖才有“崖”的样子） */
+  /** 地面颜色：草 / 沙（带过渡）/ 岩（陡坡自动变岩石，悬崖才有“崖”的样子） */
   function groundCol(x, z) {
     const h = groundH(x, z);
     const n = HASH(x * 0.31, z * 0.29);
@@ -96,12 +96,22 @@ const A3DWorld = (() => {
       const g = 0.72 + n * 0.2;
       return [0.62 * g, 0.66 * g, 0.7 * g];
     }
-    if (h < 0.2 || z < L.beachZ) {
-      const g = 0.85 + n * 0.3;
-      return [1.55 * g, 1.36 * g, 1.05 * g];
-    }
+    // 草地
     const g = 0.82 + n * 0.36;
-    return [g, g * (1.02 + n * 0.1), g * (0.94 + n * 0.08)];
+    const grass = [g, g * (1.02 + n * 0.1), g * (0.94 + n * 0.08)];
+    /* 沙：水线附近全沙，往内陆 ~10m 内用噪声混到草地（边缘毛毛的，不是一条直边） */
+    const wobble = (HASH(x * 0.6 + 11.3, z * 0.6 - 4.7) - 0.5) * 0.34;
+    const t = clamp((L.beachZ + 4 - z) / 10 + wobble, 0, 1);
+    if (t <= 0.002) return grass;
+    // 近水的湿沙压暗一点，干沙偏暖
+    const wet = clamp((-z - 104) / 6, 0, 1) * 0.16;
+    const s = (0.92 + n * 0.2) * (1 - wet);
+    const sand = [2.55 * s, 1.62 * s, 0.9 * s];
+    return [
+      grass[0] + (sand[0] - grass[0]) * t,
+      grass[1] + (sand[1] - grass[1]) * t,
+      grass[2] + (sand[2] - grass[2]) * t
+    ];
   }
 
   /** 用三角形铺一张高度场地形（每个格子两个三角形，法线逐面算） */
@@ -218,7 +228,7 @@ const A3DWorld = (() => {
       for (let i = 0; i < 24; i++) {
         const w = 40, d = 40;
         const cx = -480 + i * w + w / 2;
-        const cz = -108 - j * d - d / 2;
+        const cz = -102 - j * d - d / 2;
         const k = 0.82 + sr() * 0.3;
         seaQuad(cx, cz, w, d, [k, k * (0.98 + sr() * 0.05), k * (1.02 + sr() * 0.05)]);
       }
