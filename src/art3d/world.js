@@ -37,9 +37,11 @@ const A3DWorld = (() => {
     beachZ: -100,          // 沙滩内缘
     plainZ: -100,          // 平地北界
     // 三个分区（origin 是局部原点，rot 是绕 Y 的朝向）
-    github: { x: -18, z: -44, rot: 0 },    // 局部 -Z = 往街里走
+    /* GitHub 街横过来：局部 -Z（往街里走）指向世界 -X，所以街是从东往西走，
+     * 街口朝东，正对着近岸城市；屎山接在街尾西侧。 */
+    github: { x: 18, z: -70, rot: Math.PI / 2 },
     hf:     { x: -70, z: -102, rot: 0 },   // 局部 +Z = 往岸上，-Z = 往海
-    shit:   { x: -18, z: -84, rot: 0 },    // 局部 -Z = 屎山
+    shit:   { x: -22, z: -70, rot: Math.PI / 2 },  // 局部 -Z = 屎山（世界 -X）
     // 南边：一块 30m 高的台地，北面是一道陡崖（教堂就立在崖沿上）
     ridge:  { z0: 2, z1: 14, h: 30, x0: 8, wide: 96 },
     church: { x: 18, z: 26, rot: 0.15 },
@@ -838,9 +840,11 @@ const A3DWorld = (() => {
       border: "#30363d", borderW: 6, glow: "rgba(130,205,255,.45)", glowBlur: 24
     });
     const ghSign = st.pen("w.lmGithub", ghTex, { unlit: true, tint: [0.95, 0.97, 1.0] });
-    ghSign.quad.call(ghSign, m4(L.github.x + 5.2, 9.6, L.github.z + 2.2), 7.6, 2.2, [1, 1, 1], [0, 0, 1, 1]);
-    glowB.quad.call(glowB, m4(L.github.x + 5.2, 9.6, L.github.z + 2.6), 11, 4.6, [1, 1, 1], [0, 0, 1, 1]);
-    frames.box.call(frames, m4(L.github.x + 5.2, 9.6, L.github.z + 2.0), 8.0, 2.5, 0.2, [1, 1, 1], 2);
+    /* 街横过来以后，街口的楼在局部 (5.2, 2.2) → 世界 (x+2.2, z−5.2)，招牌仍朝 +Z（主标题镜头） */
+    const gsx = L.github.x + 2.2, gsz = L.github.z - 5.2;
+    ghSign.quad.call(ghSign, m4(gsx, 9.6, gsz + 0.2), 7.6, 2.2, [1, 1, 1], [0, 0, 1, 1]);
+    glowB.quad.call(glowB, m4(gsx, 9.6, gsz + 0.6), 11, 4.6, [1, 1, 1], [0, 0, 1, 1]);
+    frames.box.call(frames, m4(gsx, 9.6, gsz), 8.0, 2.5, 0.2, [1, 1, 1], 2);
 
     // HF 营地入口上方的暖色小招牌（从山上看是左边那一小团暖光）
     const hfTex = A3DTex.sign({
@@ -856,13 +860,13 @@ const A3DWorld = (() => {
      * 这里补几片很淡的加法光池，让远处能读出「那里有人在过日子」。 */
     const poolWarm = st.pen("w.poolWarm", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.66, 0.3], opacity: 0.10 });
     for (let i = 0; i < 6; i++) {
-      poolWarm.quad.call(poolWarm, m4(L.github.x, 3.4, L.github.z - 4 - i * 6.4), 11, 9, [1, 1, 1], [0, 0, 1, 1]);
+      poolWarm.quad.call(poolWarm, m4(L.github.x - 4 - i * 6.4, 3.4, L.github.z), 9, 11, [1, 1, 1], [0, 0, 1, 1]);
     }
     for (const [dx, dz, s] of [[14, 6, 12], [4, 16, 10], [22, 20, 9]]) {
       poolWarm.quad.call(poolWarm, m4(L.hf.x + dx, 2.6, L.hf.z + dz), s, s * 0.8, [1, 1, 1], [0, 0, 1, 1]);
     }
     const poolGreen = st.pen("w.poolGreen", T.glow(), { unlit: true, blend: "add", tint: [0.6, 0.9, 0.32], opacity: 0.08 });
-    poolGreen.quad.call(poolGreen, m4(L.shit.x, 4.5, L.shit.z - 10), 16, 12, [1, 1, 1], [0, 0, 1, 1]);
+    poolGreen.quad.call(poolGreen, m4(L.shit.x - 10, 4.5, L.shit.z), 16, 12, [1, 1, 1], [0, 0, 1, 1]);
   }
 
   /* ============================================================
@@ -932,7 +936,7 @@ const A3DWorld = (() => {
           { pos: [L.church.x, groundH(L.church.x, L.church.z) + 4, L.church.z + 2], col: [1.0, 0.7, 0.36], range: 36, inten: 2.4 },
           { pos: [L.city.x0 + 70, 12, L.city.z0 + 6], col: [1.0, 0.62, 0.32], range: 150, inten: 0.30 },
           { pos: [L.lighthouse.x, groundH(L.lighthouse.x, L.lighthouse.z) + 0.3 + L.lighthouse.top, L.lighthouse.z], col: [1.0, 0.85, 0.55], range: 90, inten: 0.5 },
-          { pos: [L.github.x, 7, L.github.z - 22], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 }
+          { pos: [L.github.x - 22, 7, L.github.z], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 }
         ]
       },
       tone: [1.02, 1.06, 1.12],
@@ -942,9 +946,9 @@ const A3DWorld = (() => {
       }
     },
 
-    /* 视角 2：GitHub 夜市街 —— 左右两边是摊位，尽头是屎山 */
+    /* 视角 2：GitHub 夜市街 —— 从街口往西看，左右两边是摊位，尽头是屎山 */
     world_github: {
-      cam: { eye: [L.github.x, 1.68, L.github.z + 4], target: [L.github.x, 1.5, L.github.z - 40], fov: 50, far: 120 },
+      cam: { eye: [L.github.x + 4, 1.68, L.github.z], target: [L.github.x - 40, 1.5, L.github.z], fov: 50, far: 120 },
       sky: {
         mode: 2, top: [0.012, 0.016, 0.03], bot: [0.07, 0.07, 0.1],
         glow: [0.34, 0.26, 0.3], sun: [0.5, 0.88, 0], horizon: 0.55
@@ -953,19 +957,20 @@ const A3DWorld = (() => {
         sun: A3D.norm3([-0.2, 0.8, 0.5]), sunCol: [0.28, 0.3, 0.44],
         skyCol: [0.22, 0.24, 0.32], groundCol: [0.12, 0.1, 0.1],
         fog: { col: [0.06, 0.07, 0.1], near: 10, far: 42 }, fogAmt: 0.55,
+        /* 局部 (lx, lz) → 世界 (x + lz, z − lx) */
         points: [
-          { pos: [L.github.x - 3.2, 1.6, L.github.z - 2], col: [1.0, 0.62, 0.32], range: 11, inten: 2.2 },
-          { pos: [L.github.x + 3.2, 1.6, L.github.z - 9], col: [0.95, 0.66, 0.42], range: 11, inten: 2.0 },
-          { pos: [L.github.x - 3.2, 1.6, L.github.z - 17], col: [1.0, 0.62, 0.32], range: 11, inten: 2.0 },
-          { pos: [L.github.x + 3.2, 1.6, L.github.z - 25], col: [0.8, 0.82, 1.0], range: 11, inten: 1.8 },
-          { pos: [L.github.x, 3.4, L.github.z - 6], col: [0.4, 0.45, 0.6], range: 16, inten: 0.9 },
-          { pos: [L.github.x, 5.2, L.github.z - 36], col: [0.35, 0.65, 1.0], range: 18, inten: 0.9 }
+          { pos: [L.github.x - 2, 1.6, L.github.z + 3.2], col: [1.0, 0.62, 0.32], range: 11, inten: 2.2 },
+          { pos: [L.github.x - 9, 1.6, L.github.z - 3.2], col: [0.95, 0.66, 0.42], range: 11, inten: 2.0 },
+          { pos: [L.github.x - 17, 1.6, L.github.z + 3.2], col: [1.0, 0.62, 0.32], range: 11, inten: 2.0 },
+          { pos: [L.github.x - 25, 1.6, L.github.z - 3.2], col: [0.8, 0.82, 1.0], range: 11, inten: 1.8 },
+          { pos: [L.github.x - 6, 3.4, L.github.z], col: [0.4, 0.45, 0.6], range: 16, inten: 0.9 },
+          { pos: [L.github.x - 36, 5.2, L.github.z], col: [0.35, 0.65, 1.0], range: 18, inten: 0.9 }
         ]
       },
       tone: [1.0, 0.88, 0.78],
       swayAmp: 0.45,
       update(t, sc) {
-        sc.cam.eye = [L.github.x + Math.sin(t * 0.13) * 0.08, 1.68 + Math.sin(t * 0.21) * 0.014, L.github.z + 4 + Math.cos(t * 0.1) * 0.08];
+        sc.cam.eye = [L.github.x + 4 + Math.cos(t * 0.1) * 0.08, 1.68 + Math.sin(t * 0.21) * 0.014, L.github.z + Math.sin(t * 0.13) * 0.08];
       }
     },
 
@@ -998,7 +1003,7 @@ const A3DWorld = (() => {
 
     /* 视角 4：屎山 —— 站在街尾，正对着这座山 */
     world_shit: {
-      cam: { eye: [L.shit.x - 2, 3.0, L.shit.z + 8], target: [L.shit.x - 1, 4.2, L.shit.z - 12], fov: 56, far: 130 },
+      cam: { eye: [L.shit.x + 8, 3.0, L.shit.z + 2], target: [L.shit.x - 12, 4.2, L.shit.z + 1], fov: 56, far: 130 },
       sky: {
         mode: 2, top: [0.028, 0.036, 0.02], bot: [0.085, 0.095, 0.055],
         glow: [0.32, 0.36, 0.16], sun: [0.5, 0.85, 0], horizon: 0.58
@@ -1007,18 +1012,19 @@ const A3DWorld = (() => {
         sun: A3D.norm3([-0.3, 0.7, 0.6]), sunCol: [0.4, 0.42, 0.3],
         skyCol: [0.24, 0.26, 0.16], groundCol: [0.14, 0.12, 0.08],
         fog: { col: [0.1, 0.11, 0.06], near: 12, far: 46 }, fogAmt: 0.5,
+        /* 局部 (lx, lz) → 世界 (x + lz, z − lx) */
         points: [
-          { pos: [L.shit.x - 5.5, 1.2, L.shit.z - 4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
-          { pos: [L.shit.x + 6.0, 1.2, L.shit.z - 4.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
-          { pos: [L.shit.x, 11, L.shit.z - 12], col: [0.7, 0.9, 0.3], range: 14, inten: 1.4 },
-          { pos: [L.shit.x - 6.95, 3.0, L.shit.z - 4.0], col: [1.0, 0.85, 0.5], range: 9, inten: 1.6 },
-          { pos: [L.shit.x, 2.0, L.shit.z - 6], col: [0.5, 0.6, 0.3], range: 12, inten: 0.8 }
+          { pos: [L.shit.x - 4.5, 1.2, L.shit.z + 5.5], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
+          { pos: [L.shit.x - 4.5, 1.2, L.shit.z - 6.0], col: [1.0, 0.55, 0.2], range: 9, inten: 2.0 },
+          { pos: [L.shit.x - 12, 11, L.shit.z], col: [0.7, 0.9, 0.3], range: 14, inten: 1.4 },
+          { pos: [L.shit.x - 4.0, 3.0, L.shit.z + 6.95], col: [1.0, 0.85, 0.5], range: 9, inten: 1.6 },
+          { pos: [L.shit.x - 6, 2.0, L.shit.z], col: [0.5, 0.6, 0.3], range: 12, inten: 0.8 }
         ]
       },
       tone: [0.95, 1.0, 0.72],
       swayAmp: 0.35,
       update(t, sc) {
-        sc.cam.eye = [L.shit.x - 2 + Math.sin(t * 0.11) * 0.08, 3.0 + Math.sin(t * 0.19) * 0.015, L.shit.z + 8 + Math.cos(t * 0.09) * 0.08];
+        sc.cam.eye = [L.shit.x + 8 + Math.cos(t * 0.09) * 0.08, 3.0 + Math.sin(t * 0.19) * 0.015, L.shit.z + 2 + Math.sin(t * 0.11) * 0.08];
       }
     }
   };
