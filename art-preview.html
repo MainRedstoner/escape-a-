@@ -1004,8 +1004,8 @@ window.addEventListener("keydown", e => {
   if (k === "Alt") { held.alt = true; return; }
   if (k === "Control") { held.ctrl = true; return; }
   if (kl === "l") { toggleLightPanel(); return; }
-  if (k === "ArrowLeft") { if (fp) fp.yaw += 0.06; e.preventDefault(); return; }
-  if (k === "ArrowRight") { if (fp) fp.yaw -= 0.06; e.preventDefault(); return; }
+  if (k === "ArrowLeft") { if (fp) fp.yaw -= 0.06; e.preventDefault(); return; }
+  if (k === "ArrowRight") { if (fp) fp.yaw += 0.06; e.preventDefault(); return; }
   if (k === "ArrowUp") { if (fp) fp.pitch = clamp(fp.pitch + 0.05, -1.55, 1.55); e.preventDefault(); return; }
   if (k === "ArrowDown") { if (fp) fp.pitch = clamp(fp.pitch - 0.05, -1.55, 1.55); e.preventDefault(); return; }
   if (kl === "r") { resetFP(); return; }
@@ -1054,7 +1054,9 @@ cv.addEventListener("pointermove", e => {
   if (!drag || !fp) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY;
-  fp.yaw -= dx * LOOK_SENS;
+  /* 拖拽方向按 FPS 鼠标视角：往右拖 = 视线右转，往左 = 左转；
+   * 往下拖 = 低头，往上 = 抬头。 */
+  fp.yaw += dx * LOOK_SENS;
   fp.pitch = clamp(fp.pitch - dy * LOOK_SENS, -1.55, 1.55);
 });
 cv.addEventListener("pointerup", e => {
