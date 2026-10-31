@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<!--
+  Escape A÷ · game/index.html —— 小游戏「修复屎山」
+
+  双击这个文件即可玩（file:// 直开，零依赖、零构建、无 fetch、无 ES module）。
+  它刻意不引用主线的 src/：以后要打进视觉小说时，是把这一批 game/src/*.js
+  用 <script> 追加进根目录 index.html，再由 window.BUGFIX.mount() 挂到一个容器上。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>修复屎山 · Escape A÷ 小游戏</title>
+<link rel="stylesheet" href="src/game.css">
+</head>
+<body>
+<div id="gf-app">
+  <div id="gf-stage">
+    <canvas id="gf-canvas">你的浏览器不支持 canvas，玩不了这个小游戏。</canvas>
+    <div class="gf-vignette"></div>
+    <div class="gf-scanlines"></div>
+
+    <div id="gf-hud">
+      <span class="gf-lvl" id="gf-lvl">—</span>
+      <span><span class="gf-tag">甲虫 </span><span class="gf-val" id="gf-bugs">0</span></span>
+      <span><span class="gf-tag">测试 </span><span class="gf-val" id="gf-tests">0</span></span>
+      <span><span class="gf-tag">blame </span><span class="gf-val" id="gf-blames">0</span></span>
+      <span><span class="gf-tag">commit </span><span class="gf-val" id="gf-commits">0</span></span>
+      <span><span class="gf-tag">回档 </span><span class="gf-warn" id="gf-reverts">0</span></span>
+      <span class="gf-sp"></span>
+      <span class="gf-badge" id="gf-mode">俯视</span>
+      <span class="gf-badge" id="gf-layer">main</span>
+      <span class="gf-badge" id="gf-time">00:00</span>
+    </div>
+
+    <div id="gf-toasts"></div>
+    <div id="gf-objective" style="display:none"></div>
+    <div id="gf-log"></div>
+    <div id="gf-hint">WASD/方向键 移动 · K 修 · T 测试 · L console.log · G blame · Enter commit · R 回档 · H 图鉴 · Esc 菜单</div>
+
+    <!-- 标题 -->
+    <div class="gf-modal gf-on" id="gf-m-title">
+      <div class="gf-card">
+        <h1>修复屎山</h1>
+        <p class="gf-sub">Escape A÷ 番外小游戏 · 一座由祖传代码堆成的山，上面爬满了甲虫（bug）。</p>
+        <p>你的工具只有一把：<b>修</b>、<b>测试</b>、<b>console.log</b>、<b>git blame</b>，以及永远的救命稻草 <b>回档</b>。
+           黑暗会吞掉你的上下文 —— 看过的地方只亮 60 秒。</p>
+        <div class="gf-keys">
+          <div><span class="k">WASD</span>移动 / <b>横版里 W=跳</b></div>
+          <div><span class="k">K</span>修掉挨着的甲虫</div>
+          <div><span class="k">T</span>给挨着的甲虫盖测试（防复发）</div>
+          <div><span class="k">L</span>丢一条 console.log：点亮远处 + 看穿假地块</div>
+          <div><span class="k">G</span>git blame：钉住一只虫</div>
+          <div><span class="k">Enter</span>在 <b>-o-</b> 上落一个 commit</div>
+          <div><span class="k">R</span>回到以前的 commit（有代价）</div>
+          <div><span class="k">B</span>切换分支图层（有的关卡才有）</div>
+          <div><span class="k">H</span>甲虫图鉴 / 地块图鉴</div>
+          <div><span class="k">M</span>辅助模式：记忆不再过期</div>
+          <div><span class="k">Esc</span>菜单</div>
+          <div><span class="k">V</span>音效开关</div>
+        </div>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-start">开始 · 第 1 关（教学）</button>
+          <button class="gf-btn" id="gf-pick">选关</button>
+          <button class="gf-btn gf-ghost" id="gf-wipe">清空进度</button>
+        </div>
+        <div id="gf-title-commits" class="gf-sub" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- 选关 -->
+    <div class="gf-modal" id="gf-m-pick">
+      <div class="gf-card">
+        <h1>选一个坑</h1>
+        <p class="gf-sub">每关都是同一座山的不同角度。教学关不能跳。</p>
+        <div class="gf-levels" id="gf-levels"></div>
+        <div id="gf-pick-commits"></div>
+        <div class="gf-btns">
+          <button class="gf-btn" id="gf-pick-back">返回</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 关卡开场 -->
+    <div class="gf-modal" id="gf-m-brief">
+      <div class="gf-card">
+        <h1 id="gf-brief-name">—</h1>
+        <p id="gf-brief-text"></p>
+        <pre id="gf-brief-new"></pre>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-brief-go">进入（Enter）</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 死亡 / 回档 -->
+    <div class="gf-modal" id="gf-m-death">
+      <div class="gf-card gf-danger">
+        <h1 id="gf-death-title">Segmentation fault</h1>
+        <p id="gf-death-why"></p>
+        <h2>回到哪个 commit？</h2>
+        <div class="gf-commits" id="gf-death-commits"></div>
+        <p class="gf-sub">回档会把地形、虫群、配额、照明记忆一起还原。但每两次回档，屎山就自己长一层 —— 多一只虫。</p>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-death-latest">回到最新 commit（R）</button>
+          <button class="gf-btn gf-ghost" id="gf-death-restart">重打本关</button>
+          <button class="gf-btn gf-ghost" id="gf-death-title-btn">回标题</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 过关 -->
+    <div class="gf-modal" id="gf-m-win">
+      <div class="gf-card">
+        <h1>PR merged 🎉</h1>
+        <p id="gf-win-stats"></p>
+        <p class="gf-sub" id="gf-win-note"></p>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-win-next">下一关（Enter）</button>
+          <button class="gf-btn gf-ghost" id="gf-win-replay">重打本关</button>
+          <button class="gf-btn gf-ghost" id="gf-win-title">回标题</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 全通 -->
+    <div class="gf-modal" id="gf-m-end">
+      <div class="gf-card">
+        <h1>屎山没了</h1>
+        <p>你现在面对着一片干净的、有测试覆盖的、没人会骂的代码。奇怪的是，你有点想念它。</p>
+        <pre id="gf-end-stats"></pre>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-end-title">回标题</button>
+          <button class="gf-btn gf-ghost" id="gf-end-again">从头再来</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图鉴 -->
+    <div class="gf-modal" id="gf-m-codex">
+      <div class="gf-card">
+        <h1>图鉴</h1>
+        <h2>甲虫</h2>
+        <div class="gf-codex" id="gf-codex-bugs"></div>
+        <h2>地块与坑</h2>
+        <div class="gf-codex" id="gf-codex-tiles"></div>
+        <div class="gf-btns"><button class="gf-btn" id="gf-codex-back">返回（H）</button></div>
+      </div>
+    </div>
+
+    <!-- 菜单 -->
+    <div class="gf-modal" id="gf-m-menu">
+      <div class="gf-card">
+        <h1>菜单</h1>
+        <p class="gf-sub">这个小游戏的存档只写 localStorage 的 <b>ea_bugfix_*</b>，和视觉小说主线的存档互不影响。</p>
+        <div class="gf-btns">
+          <button class="gf-btn gf-primary" id="gf-menu-resume">继续（Esc）</button>
+          <button class="gf-btn" id="gf-menu-revert">打开回档列表</button>
+          <button class="gf-btn" id="gf-menu-replay">重打本关</button>
+          <button class="gf-btn" id="gf-menu-assist">辅助模式：关</button>
+          <button class="gf-btn" id="gf-menu-sound">音效：开</button>
+          <button class="gf-btn gf-ghost" id="gf-menu-pick">选关</button>
+          <button class="gf-btn gf-ghost" id="gf-menu-title">回标题</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 回档列表（活着的时候也能回） -->
+    <div class="gf-modal" id="gf-m-revert">
+      <div class="gf-card">
+        <h1>git reset --hard</h1>
+        <p class="gf-sub">活着也能回档 —— 发现虫杀错了、门开错了、依赖踩歪了，就退回去。</p>
+        <div class="gf-commits" id="gf-revert-commits"></div>
+        <div class="gf-btns"><button class="gf-btn gf-ghost" id="gf-revert-back">返回（Esc）</button></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 数据在前、逻辑在后；game.js 是最后的引导（和主线「引擎永远最后」的习惯一致） -->
+<script src="src/util.js"></script>
+<script src="src/sfx.js"></script>
+<script src="src/tiles.js"></script>
+<script src="src/bugs.js"></script>
+<script src="src/save.js"></script>
+<script src="src/world.js"></script>
+<script src="src/levels.js"></script>
+<script src="src/render.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
