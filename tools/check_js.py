@@ -158,36 +158,53 @@ def check_file(path, rel):
     return problems, lines
 
 
-def local_scripts():
-    """从 index.html 里取 <script src="..."> 的本地文件（保持加载顺序）。"""
-    html_path = os.path.join(ROOT, "index.html")
+def local_scripts(html_rel="index.html"):
+    """从某个 HTML 里取 <script src="..."> 的本地文件（保持加载顺序，路径按 HTML 所在目录解析）。"""
+    html_path = os.path.join(ROOT, html_rel)
+    if not os.path.exists(html_path):
+        return []
     with open(html_path, "r", encoding="utf-8") as f:
         html = f.read()
+    base = os.path.dirname(html_rel).replace("\\", "/")
     out = []
     for m in re.finditer(r'<script[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', html, re.I):
         src = m.group(1)
         if re.match(r"^[a-z]+://", src) or src.startswith("//"):
             continue
         src = src.split("?")[0]
+        if src.startswith("/"):
+            src = src[1:]
+        elif base:
+            src = base + "/" + src
         out.append(src)
     return out
 
 
 def main():
-    scripts = local_scripts()
+    # 主线 index.html + 小游戏 game/index.html，两边引到的脚本都查
+    scripts = local_scripts("index.html") + local_scripts(os.path.join("game", "index.html"))
     if not scripts:
         print("× index.html 里没有找到本地 <script src>")
         return 1
 
     total = 0
     all_problems = []
+    missing = []
     for rel in scripts:
         path = os.path.join(ROOT, rel)
+        if not os.path.exists(path):
+            missing.append(rel)
+            continue
         problems, lines = check_file(path, rel)
         total += lines
         all_problems.extend(problems)
 
-    print(f"检查 {len(scripts)} 个脚本 · 共 {total} 行")
+    if missing:
+        for rel in missing:
+            print(f"  × {rel}：index.html 引了这个脚本，但文件不存在")
+        all_problems.append(Problem("index.html", 0, 0, f"缺文件 {len(missing)} 个"))
+
+    print(f"检查 {len(scripts) - len(missing)} 个脚本 · 共 {total} 行")
     for rel in scripts:
         print(f"  · {rel}")
 
