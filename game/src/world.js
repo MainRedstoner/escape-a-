@@ -239,7 +239,7 @@ window.WORLD = (() => {
                       cd: m.delay || 0, rate: m.rate || 8, dir: m.dir === "n" || m.dir === "w" ? -1 : 1 });
     }
     for (const c of (lv.ci || [])) W.bands.push(mkBand(c));
-    for (const l of (lv.leak || [])) W.leaks.push({ x: l.at[0], y: l.at[1], r: l.r0 || 0.5, rate: l.rate || 8, grow: l.grow || 1, ticks: 0, on: true });
+    for (const l of (lv.leak || [])) W.leaks.push({ x: l.at[0], y: l.at[1], r: l.r0 || 0.5, rate: l.rate || 8, grow: l.grow || 1, cap: l.cap || null, ticks: 0, on: true });
     for (const g of (lv.ghosts || [])) W.ghosts.push({ i: 0, x: g.at[0], y: g.at[1], lag: Math.round((g.lag || 5) * STEP_HZ), speed: g.speed || 1, on: !!lv.ghostTrail });
     if (lv.ghostTrail) W.flags.trailOn = true;
 
@@ -427,11 +427,12 @@ window.WORLD = (() => {
     }
   }
 
-  function randomTileNear(W, cx, cy, rad) {
+  function randomTileNear(W, cx, cy, rad, min) {
     for (let tries = 0; tries < 26; tries++) {
       const x = cx + U.rint(W.rng, rad * 2 + 1) - rad, y = cy + U.rint(W.rng, rad * 2 + 1) - rad;
       if (!inb(W, x, y) || solidAt(W, x, y) || isPitAt(W, x, y)) continue;
       if (x === W.player.x && y === W.player.y) continue;
+      if (min && U.dist(x, y, cx, cy) < min) continue;     // 摘到"附近"不该等于贴脸
       if (bugAt(W, x, y)) continue;
       return { x, y };
     }
@@ -674,7 +675,7 @@ window.WORLD = (() => {
         sfx("glitch"); toast(W, a.text || "键盘被 AI 改了 —— 方向键和 WASD 一起转了，看清了再走", "bad"); break;
       case "unscramble": U.Input.unscramble(); W.flags.scrambled = 0; break;
       case "ci": W.bands.push(mkBand({ at: a.at, dir: a.dir || "w", axis: a.axis, speed: a.speed || 0.5, onT: a.onT, offT: a.offT })); sfx("alarm"); toast(W, a.text || "CI 开始跑：那道红光会一路推平，包括虫子 —— 它每两秒熄一次，熄的时候踩过去没事", "bad"); break;
-      case "leak": W.leaks.push({ x: a.at[0], y: a.at[1], r: 0.5, rate: a.rate || 8, grow: a.grow || 1, ticks: 0, on: true }); toast(W, a.text || "泄漏开始扩散", "bad"); break;
+      case "leak": W.leaks.push({ x: a.at[0], y: a.at[1], r: 0.5, rate: a.rate || 8, grow: a.grow || 1, cap: a.cap || null, ticks: 0, on: true }); toast(W, a.text || "泄漏开始扩散", "bad"); break;
       case "ghost": {
         W.flags.trailOn = true;
         W.ghosts.push({ i: 0, x: W.player.x, y: W.player.y, lag: Math.round((a.lag || 5) * STEP_HZ), speed: a.speed || 1, on: true });
@@ -691,7 +692,7 @@ window.WORLD = (() => {
         const live = W.bugs.filter(b => b.kind !== "egg");
         if (live.length) {
           const b = live[U.rint(W.rng, live.length)];
-          const s = randomTileNear(W, W.player.x, W.player.y, 4);
+          const s = randomTileNear(W, W.player.x, W.player.y, 4, a.min || 3);
           if (s) { b.x = s.x; b.y = s.y; sfx("glitch"); toast(W, "cherry-pick：一只「" + BUGS.get(b.kind).label + "」被摘到你附近", "bad"); }
         }
         break;
@@ -767,7 +768,10 @@ window.WORLD = (() => {
       return true;
     }
     if (dy < 0) return jump(W);
-    if (tile(W, p.x, p.y) === "+" && !solidAt(W, p.x, p.y + 1)) { p.y++; onEnter(W); return true; }
+    /* ↓ 主动往下踩一格。旧规则只有「自己正站在单杠上」才允许，横版里跳上一层就成了单向牢笼
+       —— 人会踩在地板砖的头顶上「着地」，再也下不来，PR 门就在脚底下也碰不到。
+       现在只要下面进得去（不是墙、不是坑）就能下来，单杠那条特例自然被这条覆盖。 */
+    if (!solidAt(W, nx, ny) && !isPitAt(W, nx, ny)) { p.x = nx; p.y = ny; onEnter(W); return true; }
     return false;
   }
 
@@ -916,7 +920,7 @@ window.WORLD = (() => {
     /* 内存泄漏 */
     for (const lk of W.leaks) {
       if (!lk.on) continue;
-      if (++lk.ticks % Math.round(lk.rate * STEP_HZ) === 0) lk.r += lk.grow;
+      if (++lk.ticks % Math.round(lk.rate * STEP_HZ) === 0 && (lk.cap == null || lk.r < lk.cap)) lk.r += lk.grow;
       if (U.dist(p.x, p.y, lk.x, lk.y) <= lk.r) {
         W.flags.o2 = (W.flags.o2 || 0) + 1;
         if (W.flags.o2 % STEP_HZ === 0) sfx("tick");
