@@ -24,7 +24,6 @@
       <span class="gf-lvl" id="gf-lvl">—</span>
       <span><span class="gf-tag">甲虫 </span><span class="gf-val" id="gf-bugs">0</span></span>
       <span><span class="gf-tag">测试 </span><span class="gf-val" id="gf-tests">0</span></span>
-      <span><span class="gf-tag">blame </span><span class="gf-val" id="gf-blames">0</span></span>
       <span><span class="gf-tag">commit </span><span class="gf-val" id="gf-commits">0</span></span>
       <span><span class="gf-tag">回档 </span><span class="gf-warn" id="gf-reverts">0</span></span>
       <span class="gf-sp"></span>
@@ -36,28 +35,27 @@
     <div id="gf-toasts"></div>
     <div id="gf-objective" style="display:none"></div>
     <div id="gf-log"></div>
-    <div id="gf-hint">方向键 移动 · F 修 · T 测试 · G console.log · B blame · C commit · R 回档 · Q 图鉴 · Esc 菜单</div>
+    <div id="gf-hint">WASD 移动 · H 修 · K 测试 · J console.log · L commit · U 回档 · O 图鉴 · Esc 菜单</div>
 
     <!-- 标题 -->
     <div class="gf-modal gf-on" id="gf-m-title">
       <div class="gf-card">
         <h1>修复屎山</h1>
         <p class="gf-sub">Escape A÷ 番外小游戏 · 一座由祖传代码堆成的山，上面爬满了甲虫（bug）。</p>
-        <p>你的工具只有一把：<b>修</b>、<b>测试</b>、<b>console.log</b>、<b>git blame</b>，以及永远的救命稻草 <b>回档</b>。
+        <p>你的工具只有三样：<b>修</b>、<b>测试</b>、<b>console.log</b>，以及永远的救命稻草 <b>回档</b>。
            黑暗会吞掉你的上下文 —— 看过的地方只亮 60 秒。</p>
         <div class="gf-keys">
-          <div><span class="k">方向键</span>移动（<b>WASD</b> 同效 / 横版里 <b>↑</b> 或 <span class="k">空格</span> 跳）</div>
-          <div><span class="k">F</span>修掉挨着的甲虫</div>
-          <div><span class="k">T</span>给挨着的甲虫盖测试（防复发）</div>
-          <div><span class="k">G</span>丢一条 console.log：点亮远处 + 看穿假地块</div>
-          <div><span class="k">B</span>git blame：钉住一只虫</div>
-          <div><span class="k">C</span>在 <b>-o-</b> 上落一个 commit（<b>Enter</b> 同效）</div>
-          <div><span class="k">R</span>回到以前的 commit（有代价）</div>
-          <div><span class="k">V</span>切换分支图层（有的关卡才有）</div>
-          <div><span class="k">Q</span>甲虫图鉴 / 地块图鉴</div>
-          <div><span class="k">Z</span>辅助模式：记忆不再过期</div>
+          <div><span class="k">WASD</span>移动（<b>方向键</b> 同效 / 横版里 <b>↑</b> 或 <span class="k">空格</span> 跳）</div>
+          <div><span class="k">H</span>修掉挨着的甲虫</div>
+          <div><span class="k">K</span>给挨着的甲虫盖测试（防复发）</div>
+          <div><span class="k">J</span>丢一条 console.log：点亮远处 + 看穿假地块</div>
+          <div><span class="k">L</span>在 <b>-o-</b> 上落一个 commit（<b>Enter</b> 同效）</div>
+          <div><span class="k">U</span>回到以前的 commit（有代价）</div>
+          <div><span class="k">I</span>切换分支图层（有的关卡才有）</div>
+          <div><span class="k">O</span>甲虫图鉴 / 地块图鉴</div>
+          <div><span class="k">P</span>辅助模式：记忆不再过期</div>
           <div><span class="k">Esc</span>菜单</div>
-          <div><span class="k">X</span>音效开关</div>
+          <div><span class="k">M</span>音效开关</div>
         </div>
         <div class="gf-btns">
           <button class="gf-btn gf-primary" id="gf-start">开始 · 第 1 关（教学）</button>
@@ -102,7 +100,7 @@
         <div class="gf-commits" id="gf-death-commits"></div>
         <p class="gf-sub">回档会把地形、虫群、配额、照明记忆一起还原。但每两次回档，屎山就自己长一层 —— 多一只虫。</p>
         <div class="gf-btns">
-          <button class="gf-btn gf-primary" id="gf-death-latest">回到最新 commit（R）</button>
+          <button class="gf-btn gf-primary" id="gf-death-latest">回到最新 commit（U）</button>
           <button class="gf-btn gf-ghost" id="gf-death-restart">重打本关</button>
           <button class="gf-btn gf-ghost" id="gf-death-title-btn">回标题</button>
         </div>
@@ -144,7 +142,7 @@
         <div class="gf-codex" id="gf-codex-bugs"></div>
         <h2>地块与坑</h2>
         <div class="gf-codex" id="gf-codex-tiles"></div>
-        <div class="gf-btns"><button class="gf-btn" id="gf-codex-back">返回（Q）</button></div>
+        <div class="gf-btns"><button class="gf-btn" id="gf-codex-back">返回（O）</button></div>
       </div>
     </div>
 

@@ -164,7 +164,7 @@ SAVE.importFile(file)  → 校验后写入槽位
 独立目录 `game/`，双击 `game/index.html` 即玩；设计、操作与关卡数据结构见 [game/README.md](game/README.md)，issue #11。
 
 - [x] 骨架：10 个普通 `<script>` + 一个内联启动，零依赖零构建，`file://` 直开；世界状态与渲染 / DOM 严格分离
-- [x] 核心机制：回合制挪格、`-o-` 落 commit 当存档、全量快照回档、甲虫致死、工具（修 / 测试 / log 探针 / blame）、图层切换
+- [x] 核心机制：回合制挪格、`-o-` 落 commit 当存档、全量快照回档、甲虫致死、工具（修 / 测试 / log 探针）、图层切换
 - [x] 上下文机制：未探索全黑 · 光圈内实时可见 · 走出光圈按 `fog.mem` 秒渐暗到归零；灯 / commit 点 / PR 门自带光源
 - [x] 6 关（俯视 ×4 + 横版 ×2，第 1 关全图常亮且教学不可跳过）+ 阴间事件脚本（`tick/onEnter/onKillKind/onRevert/onCommit/onBug/onPr`）+ 回档熵增
 - [x] `tools/validate_game.py`：尺寸 / 图例 / 虫位 / 配额 / 事件动作 / 几何可达；已进 CI

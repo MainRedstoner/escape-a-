@@ -37,7 +37,7 @@ BUG_KINDS = {"docile", "walk", "chase", "legacy", "breeder", "egg", "jumper",
              "heisen", "crawler", "timer", "boss"}
 ACTS = {"msg", "spawn", "blackout", "fog", "rebase", "collapse", "pit", "wallGrow",
         "layerSwap", "flipGravity", "flipMode", "scramble", "unscramble", "ci", "leak",
-        "ghost", "giveTests", "giveBlame", "fakePr", "stash", "cherryPick", "bugRush",
+        "ghost", "giveTests", "fakePr", "stash", "cherryPick", "bugRush",
         "revealAll", "openDoor", "kill", "sound", "win"}
 NEEDS_AT = {"pit", "fakePr", "openDoor", "ci", "leak"}   # spawn 可以不给 at（随机黑暗格）
 NEEDS_R = {"flipGravity"}
@@ -131,8 +131,6 @@ def read_levels(path):
         if re.match(r"\s*tools\s*:", line):
             t = re.search(r"test:\s*(\d+)", line)
             cur["test"] = int(t.group(1)) if t else 0
-            b = re.search(r"blame:\s*(\d+)", line)
-            cur["blame"] = int(b.group(1)) if b else 0
         if re.match(r"\s*(requireTut|ghostTrail)\s*:", line):
             cur["requireTut"] = True
         if re.match(r"\s*pads\s*:", line):

@@ -9,7 +9,7 @@
 
 window.UI = (() => {
 
-  const IDS = ["app", "stage", "canvas", "hud", "lvl", "bugs", "tests", "blames", "commits",
+  const IDS = ["app", "stage", "canvas", "hud", "lvl", "bugs", "tests", "commits",
                "reverts", "mode", "layer", "time", "toasts", "objective", "log", "hint",
                "m-title", "m-pick", "m-brief", "m-death", "m-win", "m-end", "m-codex", "m-menu", "m-revert",
                "start", "pick", "wipe", "levels", "pick-back", "pick-commits", "title-commits",
@@ -74,8 +74,8 @@ window.UI = (() => {
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "方向键 移动 · F 修 · T 测试 · G console.log · B blame · C commit · R 回档 · Q 图鉴 · Esc 菜单"; return; }
-    el.hint.textContent = state === "on" ? "Esc 菜单 · Q 图鉴 · Z 辅助模式 · X 音效" : "";
+    if (state === null) { el.hint.textContent = "WASD 移动 · H 修 · K 测试 · J console.log · L commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
+    el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效" : "";
   }
 
   /* ---------------- HUD ---------------- */
@@ -86,7 +86,6 @@ window.UI = (() => {
     el.bugs.textContent = left;
     el.bugs.className = "gf-val" + (left === 0 ? " gf-good" : "");
     el.tests.textContent = W.tools.test;
-    el.blames.textContent = W.tools.blame;
     el.commits.textContent = Math.max(0, W.commitLog.length - 1);
     el.reverts.textContent = W.reverted + " / 熵 " + W.entropy;
     el.mode.textContent = W.mode === "side" ? (W.gravity > 0 ? "横版" : "横版·倒立") : "俯视";
@@ -140,12 +139,12 @@ window.UI = (() => {
     box.appendChild(h);
     const lines = [];
     if (W.bugs.length > 0) {
-      lines.push("还剩 " + W.bugs.length + " 只甲虫。贴上去按 F 修，祖传虫要先按 T 盖测试。");
+      lines.push("还剩 " + W.bugs.length + " 只甲虫。贴上去按 H 修，祖传虫要先按 K 盖测试。");
     } else {
       lines.push(W.prReady ? "甲虫清零了 —— 去踩亮着的 PR 门过关。" : "继续清虫。");
     }
-    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 C 落一个 commit。");
-    if (W.layers.length > 1) lines.push("按 V 在 main / hotfix 之间切图层。");
+    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 L 落一个 commit。");
+    if (W.layers.length > 1) lines.push("按 I 在 main / hotfix 之间切图层。");
     if (W.player.cast) lines.push("施法中…… 别动，动了就打断。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
   }
@@ -229,7 +228,7 @@ window.UI = (() => {
     if (!log.length) {
       const d = document.createElement("div");
       d.className = "gf-commit";
-      d.textContent = "没有可回的 commit —— 找到 -o- 按 C 落一个。";
+      d.textContent = "没有可回的 commit —— 找到 -o- 按 L 落一个。";
       box.appendChild(d);
       return;
     }
@@ -254,7 +253,7 @@ window.UI = (() => {
       el["death-why"].textContent = "死因：" + (W.dead_why || "撞上甲虫");
       commitRows(el["death-commits"], W, onPick);
       const last = W.commitLog[W.commitLog.length - 1];
-      el["death-latest"].textContent = last ? "回到 " + last.hash + "（R）" : "没有 commit 可回（R）";
+      el["death-latest"].textContent = last ? "回到 " + last.hash + "（U）" : "没有 commit 可回（U）";
       el["death-latest"].disabled = !last || !!last.stashed;
     }
     show("m-death");

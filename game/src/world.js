@@ -173,7 +173,7 @@ window.WORLD = (() => {
                 dir: 1, lastDx: 1, lastDy: 0, grounded: true, airUp: 0,
                 cast: null, dead: false, inv: 0, stun: 0, logCd: 0 },
       bugs: [], movers: [], bands: [], leaks: [], ghosts: [], trail: [],
-      tools: { test: (lv.tools && lv.tools.test) || 0, blame: (lv.tools && lv.tools.blame) || 0 },
+      tools: { test: (lv.tools && lv.tools.test) || 0 },
       commitLog: [], entropy: 0, reverted: 0, kills: 0, seenKinds: {},
       tick: 0, seed: opts.seed || (1234 + li * 77), rng: U.rngNew(opts.seed || (1234 + li * 77)),
       fired: {}, notes: [], toasts: [], flags: {}, tutFlags: {}, tutStep: 0,
@@ -269,7 +269,7 @@ window.WORLD = (() => {
     const k = BUGS.get(kind);
     const b = {
       id: nextIdFor(W), kind, x, y, cd: kind === "egg" ? BUGS.KINDS.egg.hatch * STEP_HZ : (k.speed || 0),
-      hp: k.hp || 1, tested: false, frozen: 0, stun: 0, blamed: false,
+      hp: k.hp || 1, tested: false, frozen: 0, stun: 0,
       dx: k.chase ? 0 : (x % 2 ? 1 : -1), dy: 0,
       attached: kind === "crawler", jumpCd: k.jump || null, fuse: k.fuse ? k.fuse * STEP_HZ : null,
       justJumped: 0, range: null,
@@ -305,7 +305,6 @@ window.WORLD = (() => {
     const nx = b.x + dx, ny = b.y + dy;
     if (bugBlock(W, b, nx, ny)) return false;
     const other = bugAt(W, nx, ny);
-    if (other && other.blamed) return false;      // 别的虫绕着被 blame 的那只走
     if (other) return false;
     b.x = nx; b.y = ny;
     if (b.kind === "heisen" && !b.dx && !b.dy) { b.dx = dx; b.dy = dy; }
@@ -352,7 +351,7 @@ window.WORLD = (() => {
     if (name === "commit") return doCommit(W);
     if (name === "log") return doLog(W);
     if (name === "layer") return doLayer(W);
-    if (p.cast) { if (name === "fix" || name === "test" || name === "blame") p.cast = null; return; }
+    if (p.cast) { if (name === "fix" || name === "test") p.cast = null; return; }
     const pickTarget = verb => {
       const b = adjacentBug(W);
       if (!b) { toast(W, "挨着 " + verb + " 才有用 —— 走近一点", "warn"); return null; }
@@ -365,10 +364,6 @@ window.WORLD = (() => {
       if (W.tools.test <= 0) { toast(W, "测试配额用完了，剩下的祖传虫只能绕", "bad"); return; }
       const b = pickTarget("盖测试"); if (!b) return;
       p.cast = { type: "test", turns: 4, bug: b.id }; sfx("cast");
-    } else if (name === "blame") {
-      if (W.tools.blame <= 0) { toast(W, "没有 blame 额度了，锅甩不动了", "bad"); return; }
-      const b = pickTarget("钉住"); if (!b) return;
-      p.cast = { type: "blame", turns: 2, bug: b.id }; sfx("cast");
     }
   }
 
@@ -383,12 +378,6 @@ window.WORLD = (() => {
       W.tools.test--; bug.tested = true; sfx("test");
       toast(W, "给「" + BUGS.get(bug.kind).label + "」盖了测试，现在删它不会复发", "good");
       flag(W, "test");
-      return;
-    }
-    if (c.type === "blame") {
-      W.tools.blame--; bug.frozen = 20 * STEP_HZ; bug.blamed = true; sfx("blame");
-      toast(W, "blame 成功：它被钉在原地，别的虫绕着走", "good");
-      flag(W, "blame");
       return;
     }
     const seen = observed(W, bug.x, bug.y);
@@ -686,7 +675,6 @@ window.WORLD = (() => {
         toast(W, a.text || "你的 git history 活了：一个「几秒前的你」正沿着老路追过来", "bad"); break;
       }
       case "giveTests": W.tools.test += a.n || 1; toast(W, "捡到 " + (a.n || 1) + " 份测试配额", "good"); break;
-      case "giveBlame": W.tools.blame += a.n || 1; toast(W, "捡到 " + (a.n || 1) + " 次 blame 额度", "good"); break;
       case "fakePr": W.fakePrs.push({ x: a.at[0], y: a.at[1] }); setTile(W, a.at[0], a.at[1], "!"); toast(W, "远处亮起一个 PR 门（顺路得有点可疑）", "warn"); break;
       case "stash": {
         const i2 = Math.max(1, W.commitLog.length - 2);
@@ -811,7 +799,7 @@ window.WORLD = (() => {
       toast(W, "PR 门还没解锁：还剩 " + W.bugs.length + " 只甲虫", "warn");
     }
     if (ch === "j") { p.airUp = Math.max(p.airUp, 3); p.grounded = false; sfx("jump"); }
-    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 C 落一个 commit"); } }
+    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 L 落一个 commit"); } }
   }
 
   function tryDoor(W, x, y) {
@@ -1065,7 +1053,6 @@ window.WORLD = (() => {
       case "log": return !!f.ev_log;
       case "kill": return (f.cnt_kill || 0) >= (st.n || 1);
       case "test": return !!f.ev_test;
-      case "blame": return !!f.ev_blame;
       case "layer": return !!f.ev_layer;
       case "revert": return W.reverted >= (st.n || 1);
       case "dead": return !!f.ev_dead;
