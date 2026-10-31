@@ -1145,6 +1145,21 @@ const A3DWorlds = (() => {
    *  DeepSeek 家里 · 紧凑卧室版
    *  5.6 × 5.5m，床 + 两张桌子；木器全部换成白漆 / 金属 / 亚麻
    * ============================================================ */
+  /** 圆角矩形路径：CanvasRenderingContext2D.roundRect 要 Chrome 99+，
+   *  老 WebView（华为浏览器是 Chrome 92）上不存在，会在构建贴图时抛异常，
+   *  异常被 A3D.draw 吞掉后整个房间场景会从注册表摘掉、永远回落占位卡。
+   *  这里用 arcTo 手写一遍，行为等价。 */
+  function roundRectPath(x, px, py, w, h, r) {
+    const k = Math.min(r, w / 2, h / 2);
+    x.beginPath();
+    x.moveTo(px + k, py);
+    x.arcTo(px + w, py, px + w, py + h, k);
+    x.arcTo(px + w, py + h, px, py + h, k);
+    x.arcTo(px, py + h, px, py, k);
+    x.arcTo(px, py, px + w, py, k);
+    x.closePath();
+  }
+
   /** 墙面贴纸：小鲸鱼 + Clawd + 爱心 */
   function drawWallArt(x, w, h) {
     x.clearRect(0, 0, w, h);
@@ -1207,7 +1222,7 @@ const A3DWorlds = (() => {
     x.fillRect(416, 264, 14, 30); x.strokeRect(416, 264, 14, 30);
     x.fillRect(442, 264, 14, 30); x.strokeRect(442, 264, 14, 30);
     // 更宽的橙色身体（带描边）
-    x.beginPath(); x.roundRect(320, 190, 150, 80, 8); x.fill(); x.stroke();
+    roundRectPath(x, 320, 190, 150, 80, 8); x.fill(); x.stroke();
     // ^ 形眼睛
     x.strokeStyle = "#2a120b"; x.lineWidth = 6; x.lineCap = "round"; x.lineJoin = "round";
     x.beginPath(); x.moveTo(352, 222); x.lineTo(362, 210); x.lineTo(372, 222); x.stroke();
