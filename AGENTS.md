@@ -32,7 +32,7 @@
 | 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `SCRIPT_FILES` 按同一顺序登记，两处一致 |
 | 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.py` `SPEAKERS` + 立绘文件 |
 | 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.py` 白名单 |
-| 新 3D 背景场景 | `src/art3d/worlds*.js` 里 `A3D.register(id, …)` + `tools/validate_script.py` `PROCEDURAL_BG` + `DESIGN.md` 背景表 |
+| 新 3D 背景场景 | `src/art3d/worlds*.js` 或 `world*.js` 里 `A3D.register(id, …)` + `tools/validate_script.py` `PROCEDURAL_BG` + `DESIGN.md` 背景表 |
 | 新环境音（跟背景绑定） | `src/audio.js` `ambience()` 的 switch（不在剧本里，所以不用进白名单） |
 | 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.py` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.py` 同语义分支 + `tools/validate_script.py` 检查 + STORY_GUIDE.md 节点表 |

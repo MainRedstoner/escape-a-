@@ -827,7 +827,20 @@ const A3D = (() => {
     gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 3, gl.FLOAT, false, st, 32);
     gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 1, gl.FLOAT, false, st, 44);
     gl.bindVertexArray(null);
-    const m = { vao, buf, count: builder.count, verts: builder.count, keep: builder.d.length };
+    /* 顺便记一个世界空间 AABB：调试要看几何体到底建在哪，
+     * 以后做批次级距离剔除也能直接用（不用再扫一遍顶点）。 */
+    let mnx = Infinity, mny = Infinity, mnz = Infinity, mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+    const d = builder.d;
+    for (let i = 0; i < d.length; i += STRIDE) {
+      const x = d[i], y = d[i + 1], z = d[i + 2];
+      if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+      if (y < mny) mny = y; if (y > mxy) mxy = y;
+      if (z < mnz) mnz = z; if (z > mxz) mxz = z;
+    }
+    const m = {
+      vao, buf, count: builder.count, verts: builder.count, keep: builder.d.length,
+      bounds: { min: [mnx, mny, mnz], max: [mxx, mxy, mxz] }
+    };
     meshes.push(m);
     return m;
   }
@@ -1189,7 +1202,10 @@ const A3D = (() => {
     gl.disable(gl.BLEND);
 
     curScene = scene;
-    const proj = M.perspective(fov, aspect, 0.05, 120);
+    /* 远裁剪面默认 120m（室内和小场景够用）；大世界这种要看海湾对岸的场景
+     * 在 cam.far 里单独写远一点，别为了几个远景把近处精度一起拉低。 */
+    const far = cam.far || 120;
+    const proj = M.perspective(fov, aspect, 0.05, far);
     const view = M.lookAt(eye, target, [0, 1, 0]);
     cur = { proj, view, eye, fov };
     scene.time = t;

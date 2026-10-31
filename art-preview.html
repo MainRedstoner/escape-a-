@@ -316,15 +316,19 @@
 
 <script src="assets/shh.js"></script>
 <script src="assets/manifest.js"></script>
-<script src="src/art3d/core.js?v=109"></script>
-<script src="src/art3d/textures.js?v=109"></script>
-<script src="src/art3d/props.js?v=109"></script>
-<script src="src/art3d/flock.js?v=109"></script>
-<script src="src/art3d/decor.js?v=109"></script>
-<script src="src/art3d/worlds.js?v=109"></script>
-<script src="src/art3d/worlds2.js?v=109"></script>
+<script src="src/art3d/core.js?v=110"></script>
+<script src="src/art3d/textures.js?v=110"></script>
+<script src="src/art3d/props.js?v=110"></script>
+<script src="src/art3d/flock.js?v=110"></script>
+<script src="src/art3d/decor.js?v=110"></script>
+<script src="src/art3d/worlds.js?v=110"></script>
+<script src="src/art3d/worlds2.js?v=110"></script>
+<script src="src/art3d/world_github.js?v=110"></script>
+<script src="src/art3d/world_hf.js?v=110"></script>
+<script src="src/art3d/world_shit.js?v=110"></script>
+<script src="src/art3d/world.js?v=110"></script>
 <!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
-<script src="src/art.js?v=109"></script>
+<script src="src/art.js?v=36"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -341,10 +345,11 @@ const SCENES = [
   { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "石门套、橡木门、紧闭的百叶窗、常春藤，门口石池里的橙色菊花。", group: "序章" },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。序章第二课在这里——DeepSeek 上门学写信。", group: "序章" },
-  { id: "hf_camp",        name: "Hugging Face · 营地",    desc: "海边营地（夜）：帐篷群、篝火、串灯、月亮和海面。", group: "后面的章节" },
-  { id: "github_street",  name: "GitHub · 夜市",          desc: "摊位与店招、灯笼、屎山和上面爬来爬去的甲虫。", group: "后面的章节" },
+  { id: "world_title",    name: "大世界 · 主标题",        desc: "山顶教堂旁边，面向海岸线：下方是教堂与墓园，远处 GitHub 居中、HF 营地居左、灯塔与城市居右，海湾里有一条月光。", group: "大世界" },
+  { id: "github_street",  name: "大世界 · GitHub 夜市街", desc: "街两边的摊位一个比一个不一样，灯笼和店招连成串；街尾是屎山，远远就能看见那些报错屏。", group: "大世界" },
+  { id: "hf_camp",        name: "大世界 · HF 营地",       desc: "从海滩斜望向岸边（夜）：帐篷群、地摊和小吃、串灯与篝火，模型们的第二个家。", group: "大世界" },
   { id: "nvidia",         name: "NVIDIA · 机房",          desc: "两排机柜、闪烁的绿灯、转动的风扇、尽头的大门。", group: "后面的章节" },
-  { id: "shit_mountain",  name: "屎山",                   desc: "堆积如山的遗留代码：山坡上挂满祖传注释的旧屏幕（TODO、改 1 行炸 47 处、上一任没交接、git blame 全是我），两块屏平时安静、偶尔闪一下红色报错，坡面贴着胶带补丁；山旁一尊鎏金佛祖结跏趺坐，山脚「禁止重构」警告牌与「负责人：已离职」小牌，意大利面条电缆拖到山脚，两拨甲虫与苍蝇环绕。暂未接入剧情。", group: "独立场景" },
+  { id: "shit_mountain",  name: "大世界 · 屎山",          desc: "街尽头的遗留代码山：坡上挂满祖传注释的旧屏幕、胶带补丁、鎏金佛祖与烧垃圾的铁桶，甲虫绕着山脚爬。", group: "大世界" },
   { id: "ui_backdrop",    name: "界面底衬",               desc: "聊天 / 新闻这类全屏界面背后的安静底衬。", group: "后面的章节" }
 ];
 
@@ -362,6 +367,7 @@ const $ = id => document.getElementById(id);
 
 /* ---------------- 自由相机（轨道 + 平移 + 缩放 + WASD） ---------------- */
 let orbit = null, defaultCam = null, needInit = true;
+let orbitHome = null;      // 场景默认相机的位置：平移范围按它算，大世界也能用
 let drag = null;
 const held = {};
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -380,6 +386,10 @@ function initOrbit(cam) {
     dist: dist,
     fov: cam.fov || 50
   };
+  /* 平移范围跟着场景尺度走：ds_room 这种 5m 的房间是 ±12，
+   * 大世界（相机离目标 200m+）就得放到 ±100m，否则一帧就被夹回去。 */
+  const bound = Math.max(12, dist * 0.9);
+  orbitHome = { target: cam.target.slice(), bound: bound, maxDist: Math.max(17, dist * 2.2) };
 }
 function camFromOrbit() {
   const cp = Math.cos(orbit.pitch);
@@ -407,9 +417,11 @@ function moveOrbit(dt) {
   if (held.a) { dx -= cy; dz += sy; }
   if (held.q) dy += 1;
   if (held.e) dy -= 1;
-  orbit.target[0] = clamp(orbit.target[0] + dx * speed, -12, 12);
-  orbit.target[1] = clamp(orbit.target[1] + dy * speed, 0.15, 3.4);
-  orbit.target[2] = clamp(orbit.target[2] + dz * speed, -12, 12);
+  const B = orbitHome ? orbitHome.bound : 12;
+  const H = orbitHome ? orbitHome.target : [0, 1.5, 0];
+  orbit.target[0] = clamp(orbit.target[0] + dx * speed, H[0] - B, H[0] + B);
+  orbit.target[1] = clamp(orbit.target[1] + dy * speed, 0.15, H[1] + B * 0.5);
+  orbit.target[2] = clamp(orbit.target[2] + dz * speed, H[2] - B, H[2] + B);
 }
 
 
@@ -1006,7 +1018,8 @@ cv.addEventListener("contextmenu", e => e.preventDefault());
 cv.addEventListener("wheel", e => {
   if (!orbit) return;
   e.preventDefault();
-  orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0011), 0.7, 17);
+  const maxD = orbitHome ? orbitHome.maxDist : 17;
+  orbit.dist = clamp(orbit.dist * Math.exp(e.deltaY * 0.0011), 0.7, maxD);
 }, { passive: false });
 
 /* ---------------- 画质档位 ----------------

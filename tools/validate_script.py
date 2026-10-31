@@ -337,6 +337,8 @@ def main():
         "sea", "ds_room", "ds_room_night", "ds_room_dawn",
         "claude_door", "claude_door_403", "claude_lib",
         "hf_camp", "github_street", "nvidia", "shit_mountain", "ui_backdrop",
+        # 大世界（src/art3d/world.js）：一张地图四个视角，老 id 是它的别名
+        "world_title", "world_github", "world_hf", "world_shit",
     }
     miss_bg = [x for x in used_bg if x not in bg_ass and x not in UI_ONLY_BG and x not in PROCEDURAL_BG]
     miss_cg = [x for x in used_cg if x not in cg_ass]

@@ -294,12 +294,25 @@ const AUDIO = (() => {
         ambFireTick();
         break;
       case "hf_camp":
+      case "world_hf":
         ambNoise(0.020, 380, 0.6);
         ambFireTick();
         break;
       case "github_street":
+      case "world_github":
         ambNoise(0.016, 700, 0.6);
         ambCrowdTick();
+        break;
+      case "shit_mountain":
+      case "world_shit":
+        // 街尾/山脚：低沉的垃圾场嗡鸣 + 火桶噼啪
+        ambNoise(0.018, 600, 0.5);
+        ambFireTick();
+        break;
+      case "world_title":
+        // 山顶夜风与远处的浪；偶尔一声海鸟
+        ambNoise(0.018, 300, 0.6);
+        ambBirdTick();
         break;
       case "nvidia": {
         // 机柜嗡鸣：低频锯齿 + 风扇噪声
