@@ -301,11 +301,11 @@ window.GAME_LEVELS = [
       { at: [32, 10], kind: "breeder" }
     ],
     belts: [{ at: [30, 10], dir: "e" }, { at: [31, 10], dir: "e" }],
-    leak: [{ at: [10, 14], rate: 9, grow: 1.2, r0: 1 }, { at: [24, 14], rate: 22, grow: 0.6, r0: 0.5 }],
+    leak: [{ at: [10, 14], rate: 9, grow: 1.2, r0: 1, cap: 6 }, { at: [25, 14], rate: 22, grow: 0.6, r0: 0.5, cap: 3.5 }],
     ci: [{ at: [36, 10], dir: "w", speed: 0.5 }],
     movers: [{ at: [17, 10], axis: "x", span: 3, rate: 7 }],
     events: [
-      { when: "tick", at: 10, act: "msg", tone: "tut", text: "紫色那团是内存泄漏，站进去超过 3 秒就 OOM。它在长大 —— 下层有两团" },
+      { when: "tick", at: 10, act: "msg", tone: "tut", text: "紫色那团是内存泄漏，站进去超过 3 秒就 OOM。它在长大，涨到边界才停 —— 下层有两团" },
       { when: "tick", at: 30, acts: [{ act: "bugRush", turns: 7, text: "流水线全量构建：所有甲虫同时动了 7 秒 —— 这 7 秒别想着对拼" }] },
       { when: "tick", at: 50, acts: [{ act: "cherryPick" }] },
       { when: "tick", at: 60, act: "scramble", kind: "cw", turns: 9, msg: "键盘被 AI 改了（方向顺时针转）" },
@@ -313,9 +313,9 @@ window.GAME_LEVELS = [
       { when: "onEnter", onEnter: [10, 10, 2], acts: [{ act: "spawn", kind: "jumper", at: [11, 10] }],
         msg: "跳虫从上面掉下来了", tone: "bad" },
       { when: "tick", at: 95, acts: [{ act: "pit", at: [4, 14], w: 4, h: 1 }], msg: "下层左边那块地板被删了", tone: "bad" },
-      { when: "tick", at: 120, acts: [{ act: "fakePr", at: [21, 10] }], msg: "多出一个 PR 门，就在你手边 —— 踩上去是 404", tone: "warn" },
-      { when: "tick", at: 140, act: "wallGrow", n: 4 },
-      { when: "tick", at: 165, act: "flipMode", to: "top", msg: "有人重构了坐标系：现在这是个俯视图了（坑还是坑）" },
+      { when: "tick", at: 105, acts: [{ act: "fakePr", at: [21, 10] }], msg: "多出一个 PR 门，就在你手边 —— 踩上去是 404", tone: "warn" },
+      { when: "tick", at: 120, act: "wallGrow", n: 4 },
+      { when: "tick", at: 140, act: "flipMode", to: "top", msg: "有人重构了坐标系：现在这是个俯视图了（坑还是坑）" },
       { when: "onBug", onBug: 3, acts: [{ act: "ci", at: [34, 10], dir: "w", speed: 0.7 }],
         msg: "第二趟 CI 开始跑：可以借它刷虫，但你自己也得躲 —— 它每两秒熄一次", tone: "bad" }
     ],
