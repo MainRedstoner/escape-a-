@@ -831,15 +831,7 @@ const A3DWorld = (() => {
     glowB.quad.call(glowB, m4(gsx, 9.6, gsz + 0.6), 11, 4.6, [1, 1, 1], [0, 0, 1, 1]);
     frames.box.call(frames, m4(gsx, 9.6, gsz), 8.0, 2.5, 0.2, [1, 1, 1], 2);
 
-    // HF 营地入口上方的暖色小招牌（从山上看是左边那一小团暖光）
-    const hfTex = A3DTex.sign({
-      text: "HUGGING FACE", w: 768, h: 180, bg: "#1a1208", fg: "#ffd9a0", size: 84,
-      border: "#8a6431", borderW: 5, glow: "rgba(255,205,130,.45)", glowBlur: 20
-    });
-    const hfSign = st.pen("w.lmHf", hfTex, { unlit: true, tint: [0.9, 0.88, 0.84] });
-    hfSign.quad.call(hfSign, m4(L.hf.x + 14, 6.4, L.hf.z + 8), 6.4, 1.5, [1, 1, 1], [0, 0, 1, 1]);
-    const hfGlow = st.pen("w.lmHfGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.36], opacity: 0.2 });
-    hfGlow.quad.call(hfGlow, m4(L.hf.x + 14, 6.4, L.hf.z + 8.4), 10, 4, [1, 1, 1], [0, 0, 1, 1]);
+    /* HF 营地入口原来有一块 HUGGING FACE 招牌，已经连拱门一起拆掉了 */
 
     /* 从山上看下去时，街区里那些灯笼/串灯会糊成一团暖光。
      * 这里补几片很淡的加法光池，让远处能读出「那里有人在过日子」。 */
