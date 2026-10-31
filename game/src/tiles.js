@@ -29,7 +29,7 @@ window.TILES = (() => {
     "+": { label: "单杠平台", hint: "只能从上面踩住，从下面穿得过去（横版）。", support: true, oneway: true },
     "~": { label: "深坑", hint: "删干净了，但没测。掉下去就没了。", pit: true },
     "l": { label: "还亮着的旧屏幕", hint: "上面那个显示器一直没人关，它周围永远看得见。", lamp: 2.6 },
-    "o": { label: "commit 点", hint: "踩上去按 L 落一个 commit —— 你的救命稻草。", commit: true, lamp: 1.3 },
+    "o": { label: "commit 点", hint: "踩上去按 空格 落一个 commit —— 你的救命稻草。", commit: true, lamp: 1.3 },
     "P": { label: "PR 门", hint: "甲虫清空前它是灰的；踩一个没解锁的 PR 会有惊喜。", pr: true, lamp: 1.2 },
     "x": { label: "玻璃渣", hint: "散落的一地 `undefined`，踩上去就扎死。", pit: true, trap: "spike" },
 

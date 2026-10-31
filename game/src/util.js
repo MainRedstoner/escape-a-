@@ -54,14 +54,14 @@ window.U = (() => {
     base: {
       /* 左手 WASD 走路（方向键留着一起用），右手一整个功能块：
        *   U 回档   I 图层   O 图鉴   P 辅助
-       *      H 修   J log   K 测试   L commit
+       *      H 修   J log   K 测试
        *                       M 音效
-       * Enter 与 L 同义（菜单里 Enter 本来就是确认），空格是跳 / 确认。 */
+       * 空格 = 落 commit（横版里跳是 W / ↑），Enter 与空格同义（菜单里它本来就是确认）。 */
       ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
       KeyA: "left", KeyD: "right", KeyW: "up", KeyS: "down",
-      Space: "jump",
+      Space: "commit", Enter: "commit",
       KeyH: "fix", KeyJ: "log", KeyK: "test", KeyI: "layer",
-      KeyL: "commit", Enter: "commit", KeyU: "revert",
+      KeyU: "revert",
       KeyO: "help", KeyP: "assist", KeyM: "volume", Escape: "menu"
     },
     /** 物理键 → 逻辑动作名（没映射到就返回 null） */
