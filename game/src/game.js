@@ -151,7 +151,11 @@ window.BUGFIX = (() => {
     if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，W / ↑ 跳，脚下没东西会掉");
     if (lv.rowsB) out.push("新机制：两条分支 —— 按 I 切图层");
     if (lv.fog && lv.fog.r) out.push("新黑暗：光圈只有 " + lv.fog.r + " 格，记忆只亮 " + (lv.fog.mem || 60) + " 秒");
-    if (lv.leak || lv.ci || lv.ghosts) out.push("新对手：CI 红光 / 内存泄漏 / 你自己的 history");
+    const foes = [];
+    if (lv.ci) foes.push("CI 红光（每两秒熄一次）");
+    if (lv.leak) foes.push("内存泄漏");
+    if (lv.ghosts) foes.push("你自己的 history");
+    if (foes.length) out.push("新对手：" + foes.join(" / "));
     return out;
   }
 
