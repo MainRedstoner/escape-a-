@@ -52,15 +52,17 @@ window.U = (() => {
     pressed: new Set(),   // 本帧刚按下
     map: null,            // 键位打乱表（阴间事件用）：{ 物理键: 逻辑名 }
     base: {
-      ArrowLeft: "left", KeyA: "left",
-      ArrowRight: "right", KeyD: "right",
-      ArrowUp: "up", KeyW: "up",
-      ArrowDown: "down", KeyS: "down",
+      /* 右手方向键走路（WASD 留作备用），左手一整个功能块：
+       *   Q 图鉴   R 回档   T 测试
+       *      F 修   G log
+       *   Z 辅助   C commit  B blame  V 图层  X 音效
+       * Enter 与 C 同义（菜单里 Enter 本来就是确认），空格是跳 / 确认。 */
+      ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
+      KeyA: "left", KeyD: "right", KeyW: "up", KeyS: "down",
       Space: "jump",
-      KeyK: "fix", KeyT: "test", KeyL: "log", KeyG: "blame",
-      KeyR: "revert", Enter: "commit", KeyB: "layer",
-      KeyH: "help", KeyM: "assist", KeyV: "volume", Escape: "menu",
-      KeyE: "use"
+      KeyF: "fix", KeyT: "test", KeyG: "log", KeyB: "blame",
+      KeyC: "commit", Enter: "commit", KeyR: "revert", KeyV: "layer",
+      KeyQ: "help", KeyZ: "assist", KeyX: "volume", Escape: "menu"
     },
     /** 物理键 → 逻辑动作名（没映射到就返回 null） */
     logical(code) {

@@ -676,7 +676,7 @@ window.WORLD = (() => {
       }
       case "scramble":
         U.Input.scramble(a.kind || "swap"); W.flags.scrambled = (a.turns || 8) * STEP_HZ;
-        sfx("glitch"); toast(W, a.text || "键盘被 AI 改了 —— 方向键不对劲，先用 WASD 试试", "bad"); break;
+        sfx("glitch"); toast(W, a.text || "键盘被 AI 改了 —— 方向键和 WASD 一起转了，看清了再走", "bad"); break;
       case "unscramble": U.Input.unscramble(); W.flags.scrambled = 0; break;
       case "ci": W.bands.push(mkBand({ at: a.at, dir: a.dir || "w", axis: a.axis, speed: a.speed || 0.5 })); sfx("alarm"); toast(W, a.text || "CI 开始跑：那道红光会一路推平，包括虫子", "bad"); break;
       case "leak": W.leaks.push({ x: a.at[0], y: a.at[1], r: 0.5, rate: a.rate || 8, grow: a.grow || 1, ticks: 0, on: true }); toast(W, a.text || "泄漏开始扩散", "bad"); break;
@@ -811,7 +811,7 @@ window.WORLD = (() => {
       toast(W, "PR 门还没解锁：还剩 " + W.bugs.length + " 只甲虫", "warn");
     }
     if (ch === "j") { p.airUp = Math.max(p.airUp, 3); p.grounded = false; sfx("jump"); }
-    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 Enter 落一个 commit"); } }
+    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 C 落一个 commit"); } }
   }
 
   function tryDoor(W, x, y) {
