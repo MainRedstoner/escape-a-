@@ -705,7 +705,7 @@ const A3DWorld = (() => {
 
     // 折线路径：从教堂台地西侧绕过山脚，接到 GitHub 街口
     const pts = [
-      [20, 8], [13, 0], [5, -8], [-4, -16], [-11, -26], [-15, -36], [-17, -42]
+      [22, -18], [14, -26], [6, -34], [-2, -40], [-10, -43], [-15, -41]
     ];
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
@@ -744,7 +744,7 @@ const A3DWorld = (() => {
     const roofB = st.pen("w.cottageRoof", T.woodDark(), { tint: [0.5, 0.4, 0.34], spec: 0.15 });
     const warm = st.pen("w.cottageWin", null, { unlit: true, tint: [1.0, 0.72, 0.38] });
     const warmGlow = st.pen("w.cottageGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.6, 0.26], opacity: 0.14 });
-    const cottages = [[8, -6, 0.5, 5.2, 4.2], [-8, -20, -0.7, 4.6, 3.8], [2, -30, 1.2, 5.8, 4.6], [-20, -32, 2.4, 4.2, 3.4]];
+    const cottages = [[14, -30, 0.5, 6.2, 4.8], [-6, -36, -0.7, 5.6, 4.4], [24, -40, 1.2, 6.8, 5.2], [2, -48, 2.4, 5.2, 4.0]];
     for (const [cx, cz, ry, w, d] of cottages) {
       const y = groundH(cx, cz);
       const M0 = m4(cx, y, cz, 0, ry, 0);
