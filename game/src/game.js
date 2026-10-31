@@ -107,9 +107,10 @@ window.BUGFIX = (() => {
     const name = U.Input.logical(e.code);
     if (!name) return;
     if (state === "play") {
+      const tut = WORLD.tutNow(W);
+      if (tut && tut.wait && name === "commit") { WORLD.tutAck(W); return; }   // 教学卡住的这一步优先于落 commit
       if (name === "fix" || name === "test" || name === "log" ||
           name === "commit" || name === "layer") { WORLD.act(W, name); return; }
-      if (name === "jump" && W.tutStep < W.tut.length && WORLD.tutNow(W) && WORLD.tutNow(W).wait) { WORLD.tutAck(W); return; }
       if (name === "revert") return ctl.openRevert();
       if (name === "help") return ctl.openCodex();
       if (name === "menu") return ctl.openMenu();
@@ -128,7 +129,7 @@ window.BUGFIX = (() => {
       return;
     }
     if (state === "end") { if (name === "commit" || name === "menu") ctl.openTitle(); return; }
-    if (state === "brief") { if (name === "commit" || name === "jump") ctl.enterLevel(); else if (name === "menu") ctl.openTitle(); return; }
+    if (state === "brief") { if (name === "commit") ctl.enterLevel(); else if (name === "menu") ctl.openTitle(); return; }
     if (state === "title") {
       if (name === "commit") ctl.firstLevel();
       else if (name === "help") ctl.openCodex();
@@ -147,7 +148,7 @@ window.BUGFIX = (() => {
     for (const s of (lv.bugs || [])) {
       if (!cod[s.kind] && BUGS.get(s.kind) && out.indexOf("新甲虫：" + BUGS.get(s.kind).label) < 0) out.push("新甲虫：" + BUGS.get(s.kind).label);
     }
-    if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，↑ / 空格 跳，脚下没东西会掉");
+    if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，W / ↑ 跳，脚下没东西会掉");
     if (lv.rowsB) out.push("新机制：两条分支 —— 按 I 切图层");
     if (lv.fog && lv.fog.r) out.push("新黑暗：光圈只有 " + lv.fog.r + " 格，记忆只亮 " + (lv.fog.mem || 60) + " 秒");
     if (lv.leak || lv.ci || lv.ghosts) out.push("新对手：CI 红光 / 内存泄漏 / 你自己的 history");

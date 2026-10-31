@@ -799,7 +799,7 @@ window.WORLD = (() => {
       toast(W, "PR 门还没解锁：还剩 " + W.bugs.length + " 只甲虫", "warn");
     }
     if (ch === "j") { p.airUp = Math.max(p.airUp, 3); p.grounded = false; sfx("jump"); }
-    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 L 落一个 commit"); } }
+    if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 空格 落一个 commit"); } }
   }
 
   function tryDoor(W, x, y) {
@@ -860,7 +860,7 @@ window.WORLD = (() => {
       } else {
         if (I.down("left")) moved = movePlayer(W, -1, 0);
         if (!moved && I.down("right")) moved = movePlayer(W, 1, 0);
-        if (I.hit("jump") || I.hit("up")) jump(W);
+        if (I.hit("up")) jump(W);
         if (!moved && I.hit("down")) moved = movePlayer(W, 0, 1);
       }
       if (!moved && W.mode === "side") physics(W);

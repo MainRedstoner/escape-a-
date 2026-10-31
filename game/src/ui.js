@@ -74,7 +74,7 @@ window.UI = (() => {
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "WASD 移动 · H 修 · K 测试 · J console.log · L commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
+    if (state === null) { el.hint.textContent = "WASD 移动 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
     el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效" : "";
   }
 
@@ -143,7 +143,7 @@ window.UI = (() => {
     } else {
       lines.push(W.prReady ? "甲虫清零了 —— 去踩亮着的 PR 门过关。" : "继续清虫。");
     }
-    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 L 落一个 commit。");
+    if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 空格 落一个 commit。");
     if (W.layers.length > 1) lines.push("按 I 在 main / hotfix 之间切图层。");
     if (W.player.cast) lines.push("施法中…… 别动，动了就打断。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
@@ -228,7 +228,7 @@ window.UI = (() => {
     if (!log.length) {
       const d = document.createElement("div");
       d.className = "gf-commit";
-      d.textContent = "没有可回的 commit —— 找到 -o- 按 L 落一个。";
+      d.textContent = "没有可回的 commit —— 找到 -o- 按 空格 落一个。";
       box.appendChild(d);
       return;
     }
