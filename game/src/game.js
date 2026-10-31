@@ -107,7 +107,7 @@ window.BUGFIX = (() => {
     const name = U.Input.logical(e.code);
     if (!name) return;
     if (state === "play") {
-      if (name === "fix" || name === "test" || name === "log" || name === "blame" ||
+      if (name === "fix" || name === "test" || name === "log" ||
           name === "commit" || name === "layer") { WORLD.act(W, name); return; }
       if (name === "jump" && W.tutStep < W.tut.length && WORLD.tutNow(W) && WORLD.tutNow(W).wait) { WORLD.tutAck(W); return; }
       if (name === "revert") return ctl.openRevert();
@@ -148,7 +148,7 @@ window.BUGFIX = (() => {
       if (!cod[s.kind] && BUGS.get(s.kind) && out.indexOf("新甲虫：" + BUGS.get(s.kind).label) < 0) out.push("新甲虫：" + BUGS.get(s.kind).label);
     }
     if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，↑ / 空格 跳，脚下没东西会掉");
-    if (lv.rowsB) out.push("新机制：两条分支 —— 按 V 切图层");
+    if (lv.rowsB) out.push("新机制：两条分支 —— 按 I 切图层");
     if (lv.fog && lv.fog.r) out.push("新黑暗：光圈只有 " + lv.fog.r + " 格，记忆只亮 " + (lv.fog.mem || 60) + " 秒");
     if (lv.leak || lv.ci || lv.ghosts) out.push("新对手：CI 红光 / 内存泄漏 / 你自己的 history");
     return out;

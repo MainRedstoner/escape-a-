@@ -95,7 +95,6 @@ window.GSFX = (() => {
     fail:      () => { tone(160, 0.12, { type: "square", to: 120, vol: 0.3 }); tone(150, 0.16, { type: "square", to: 90, vol: 0.28, at: 0.11 }); },
     test:      () => { tone(660, 0.08, { vol: 0.2 }); tone(880, 0.08, { vol: 0.2, at: 0.07 }); tone(1100, 0.12, { vol: 0.18, at: 0.14 }); },
     log:       () => { tone(1200, 0.05, { type: "sine", vol: 0.2 }); noise(0.18, { freq: 1600, to: 600, vol: 0.14 }); },
-    blame:     () => tone(330, 0.2, { type: "sawtooth", to: 165, vol: 0.22 }),
     hatch:     () => tone(500, 0.06, { type: "triangle", to: 900, vol: 0.16 }),
     boom:      () => { noise(0.5, { filter: "lowpass", freq: 700, to: 90, vol: 0.55 }); tone(70, 0.4, { type: "square", to: 30, vol: 0.35 }); },
     death:     () => { tone(220, 0.5, { type: "sawtooth", to: 55, vol: 0.35 }); noise(0.4, { freq: 300, to: 80, vol: 0.3 }); },

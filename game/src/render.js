@@ -427,12 +427,7 @@ window.RENDER = (() => {
       ctx.strokeRect(-size * 1.15, -size * 1.15, size * 2.3, size * 2.3);
       ctx.fillStyle = "#7cf3b0"; ctx.font = "bold " + Math.floor(TS * 0.24) + "px monospace";
       ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText("[T]", 0, size * 1.2);
-    }
-    if (b.blamed && b.frozen > 0) {
-      ctx.fillStyle = "#ffe08a"; ctx.font = "bold " + Math.floor(TS * 0.22) + "px monospace";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("blame", 0, -size * 1.2);
+      ctx.fillText("[K]", 0, size * 1.2);
     }
     if (b.stun > 0) {
       ctx.fillStyle = "#fff2a8";
@@ -493,9 +488,9 @@ window.RENDER = (() => {
     }
     /* 施法进度 */
     if (p.cast) {
-      const total = p.cast.type === "test" ? 4 : p.cast.type === "blame" ? 2 : 3;
+      const total = p.cast.type === "test" ? 4 : 3;
       const k = 1 - p.cast.turns / total;
-      ctx.strokeStyle = p.cast.type === "fix" ? "#7cf3b0" : p.cast.type === "test" ? "#63c8ff" : "#ffe08a";
+      ctx.strokeStyle = p.cast.type === "fix" ? "#7cf3b0" : "#63c8ff";
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(px, py, TS * 0.42, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
     }
