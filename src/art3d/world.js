@@ -33,8 +33,9 @@ const A3DWorld = (() => {
    * ============================================================ */
   /* 教堂那座台地整体南移的量（世界 +Z = 远离海岸）。
    * 台地、教堂、墓园、甬道、台地松林和主标题机位一起走，崖脚到海岸的平地会变宽。
+   * 当前 60m：崖沿落在「8m 版」里甬道尽头山门的位置（约 z=74），海岸/城镇相对后退 52m。
    * 改这个数就等于「把山往后挪」，别单独挪教堂。 */
-  const HILL_SHIFT = 8;
+  const HILL_SHIFT = 60;
 
   const L = {
     waterY: -0.5,
@@ -745,20 +746,23 @@ const A3DWorld = (() => {
     const onStreet = (x, z) => x > -18 && x < 28 && z > -86 && z < -56;
     const nearCamp = (x, z) => rectDist(x, z, { x0: -108, x1: -33, z0: -104, z1: -62 }) < 4;
     const nearLh = (x, z) => Math.hypot(x - L.lighthouse.x, z - L.lighthouse.z) < 12;
+    // 平原北界跟着崖脚走：台地退到哪儿，草甸就补到哪儿，别留一条光秃秃的地
+    const plainTop = L.ridge.z0 - 2;
+    const plainSpan = plainTop + 96;
     const skip = (x, z, pad) => onPath(x, z, pad || 1.6) || inCity(x, z) || onStreet(x, z) ||
       nearCamp(x, z) || nearLh(x, z) || z < -98;
 
     // 平原草甸：成簇，不要均匀撒点
-    for (let i = 0; i < 2400; i++) {
-      const x = -185 + r() * 265, z = -96 + r() * 104;
+    for (let i = 0; i < 3600; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * plainSpan;
       if (skip(x, z, 1.2)) continue;
       const y = groundH(x, z);
       P.grass(grass, m4(x, y, z, 0, r() * TAU, 0), 3 + Math.floor(r() * 4), 0.2 + r() * 0.3,
         [0.8, 0.98, 0.7], Math.floor(r() * 999), 0.35);
     }
     // 灌木丛 / 石头
-    for (let i = 0; i < 190; i++) {
-      const x = -185 + r() * 265, z = -96 + r() * 104;
+    for (let i = 0; i < 300; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * plainSpan;
       if (skip(x, z, 2)) continue;
       const y = groundH(x, z);
       const s = 0.45 + r() * 0.8;
@@ -768,8 +772,8 @@ const A3DWorld = (() => {
           z + (r() - 0.5) * s, -0.3, r() * TAU, 0), 0.26, 0.36, [1, 1, 1], [0, 0, 1, 1]);
       }
     }
-    for (let i = 0; i < 420; i++) {
-      const x = -185 + r() * 265, z = -96 + r() * 104;
+    for (let i = 0; i < 680; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * plainSpan;
       if (skip(x, z, 1)) continue;
       const y = groundH(x, z);
       const s = 0.16 + r() * r() * 0.8;
@@ -777,7 +781,7 @@ const A3DWorld = (() => {
         1, 6, 4, [0.9 + r() * 0.25, 0.92, 1]);
     }
     // 草木花：只长在教堂路与营地入口土路两侧
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 170; i++) {
       const p = PATHS[i % 2 === 0 ? 2 : 0];
       const seg = Math.floor(r() * (p.pts.length - 1));
       const a = p.pts[seg], b = p.pts[seg + 1];
@@ -831,10 +835,11 @@ const A3DWorld = (() => {
     const pole = st.pen("w.pole", T.woodDark(), { tint: [0.8, 0.68, 0.54], spec: 0.06 });
     const cable = st.pen("w.cable", null, { tint: [0.06, 0.065, 0.07], spec: 0.2 });
     const poleTops = [];
-    for (let i = 0; i < 6; i++) {
-      const t = i / 5;
-      const px = 21.0 + t * 5.0 + 4.2;
-      const pz = 0.5 - t * 66.0 - 1.2;
+    for (let i = 0; i < 8; i++) {
+      const sp = samplePath(PATHS[2].pts, 0.06 + (i / 7) * 0.88);
+      // 路的东侧（城市那侧）立杆；用切线法线算，路变长了也不会歪
+      const px = sp.x - Math.cos(sp.ry) * 6.8;
+      const pz = sp.z + Math.sin(sp.ry) * 6.8;
       const py = groundH(px, pz);
       pole.cyl.call(pole, m4(px, py, pz), 0.11, 0.08, 7.2, 6, [1, 1, 1], true);
       pole.box.call(pole, m4(px, py + 6.7, pz, 0, 0, 0), 1.5, 0.11, 0.12, [1, 1, 1], 1.2);
@@ -855,8 +860,8 @@ const A3DWorld = (() => {
     const roadLampPole = st.pen("w.roadLampPole", T.darkMetal(), { tint: [0.34, 0.34, 0.38], spec: 0.3 });
     const roadLampGlow = st.pen("w.roadLampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.34 });
     const roadLampGlass = st.pen("w.roadLampGlass", null, { unlit: true, tint: [1.0, 0.84, 0.55] });
-    for (let i = 0; i < 6; i++) {
-      const sp = samplePath(PATHS[2].pts, (i + 0.5) / 6);
+    for (let i = 0; i < 8; i++) {
+      const sp = samplePath(PATHS[2].pts, (i + 0.5) / 8);
       const lx = sp.x - 5.4, lz = sp.z;
       const ly = groundH(lx, lz);
       roadLampPole.cyl.call(roadLampPole, m4(lx, ly, lz), 0.07, 0.055, 3.4, 5, [1, 1, 1], true);
@@ -878,7 +883,8 @@ const A3DWorld = (() => {
     const y0 = groundH(C.x, C.z);
     const D = m4(C.x, y0, C.z, 0, C.rot, 0);
     const stone = st.pen("w.church", WTex.ashlar(), { tint: [1.0, 0.97, 0.9], spec: 0.06, rim: 0.2 });
-    const trim = st.pen("w.churchTrim", WTex.ashlar(), { tint: [1.22, 1.16, 1.05], spec: 0.05, rim: 0.2 });    const dark = st.pen("w.churchDark", T.stone(), { tint: [0.34, 0.34, 0.37], spec: 0.05 });
+    const trim = st.pen("w.churchTrim", WTex.ashlar(), { tint: [1.22, 1.16, 1.05], spec: 0.05, rim: 0.2 });
+    const dark = st.pen("w.churchDark", T.stone(), { tint: [0.34, 0.34, 0.37], spec: 0.05 });
     const roofP = st.pen("w.churchRoof", WTex.slate(), { tint: [1.02, 1.08, 1.16], spec: 0.24, rim: 0.18 });
     const glass = st.pen("w.churchGlass", WTex.stained(), { unlit: true, tint: [1, 1, 1] });
     const roseP = st.pen("w.churchRose", WTex.rose(), { unlit: true, tint: [1, 1, 1] });
