@@ -29,6 +29,7 @@
 
 | 改动 | 必须同步的位置 |
 | --- | --- |
+| 改 `src/art3d/*` / `src/art.js` | `index.html` 和 `art-preview.html` 的 `?v=` 一起 +1 —— 预览页漏改就一直吃浏览器缓存，看着像"没生效" |
 | 新增 / 拆分剧本分卷 | `index.html` 的 `<script>`（引擎永远最后）+ `tools/jsdata.py` 的 `SCRIPT_FILES` 按同一顺序登记，两处一致 |
 | 新说话人 | `src/engine.js` `SPEAKERS` + `tools/validate_script.py` `SPEAKERS` + 立绘文件 |
 | 新 BGM / SFX / 特效 | `src/audio.js` 或 `src/art.js` + `tools/validate_script.py` 白名单 |
