@@ -2,12 +2,16 @@
  * Escape A÷ · src/art3d/world_github.js —— 大世界分区：GitHub 夜市街
  *
  * 局部坐标（由 world.js 用 D 矩阵摆到世界坐标）：
- *   原点 = 街口，世界 (-18, 0, -44)；局部 +X = 世界 +X，局部 -Z = 往街里走。
- *   街道 x ∈ [-7, 7]，z 从 +4（镜头）到 -32（街尾），路面 y = 0。
+ *   分区 origin = 世界 (18, 0, -70)，rot = +90°（绕 Y）：
+ *     局部 (lx, ly, lz) → 世界 (18 + lz, ly, -70 - lx)。
+ *   所以局部 -Z = 世界 -X（往街里走 = 往西），局部 +X = 世界 -Z。
+ *   局部原点在街口；街道 x ∈ [-7, 7]，z 从 +6.9（街口，朝城市）
+ *   到 -32.7（街尾，朝屎山），石板路面 y = 0.03。
+ *   街口 z=6.9 处接 world.js 的城市铺装（世界 x=24.9 → 25）；
+ *   街尾 z=-32.7 处接 world_shit.js 的垃圾过渡（世界 x=-14.7）。
  *   街两边是 6+6 栋夜市楼房，楼下店面、楼上住人；
  *   街里 9 个风格各不相同的摊位，头顶 5 条串灯和一排纸灯笼；
- *   街尾 z≈-30.7 一座 GITHUB 牌坊，牌坊后面只留一小段垃圾/木箱/电缆，
- *   更远的过渡垃圾由 world_shit.js 的屎山负责，这里不建山。
+ *   街尾 z≈-30.7 一座 GITHUB 牌坊，牌坊后面只留一小段垃圾/木箱/电缆。
  *
  * 本文件只往 st 里塞几何体，不碰相机 / 灯光 / 天空 / 注册。
  * ============================================================ */
@@ -81,6 +85,8 @@ const A3DWorldGithub = (() => {
     const vendor = pen("vendor", T.fabric(), { tint: [0.95, 0.95, 0.98], spec: 0.02 });
     const junk = pen("junk", T.darkMetal(), { tint: [0.6, 0.58, 0.52], spec: 0.25, rim: 0.2 });
     const bag = pen("bag", T.fabric(), { tint: [0.4, 0.46, 0.36], spec: 0.04 });
+    /** 街尾过渡带用的碎石 / 泥地贴图 */
+    const dirt = pen("dirt", T.dirt(), { tint: [0.5, 0.42, 0.32], spec: 0.05, rim: 0.1 });
 
     /* 发光片：加法混合，靠 glowAt 摆到世界坐标 */
     const gLamp = glow("lamp", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.58, 0.26], opacity: 0.2 });
@@ -153,7 +159,7 @@ const A3DWorldGithub = (() => {
         [0.4, -29.4, 0.3], [-4.2, -7.0, 0.2], [4.1, -14.0, -0.5], [-3.8, -24.8, 0.35]
       ];
       warmPuddles.forEach((q, i) => {
-        gPuddleW.quad.call(gPuddleW, m4(q[0], 0.056 + i * 0.0012, q[1], -HPI, q[2], 0),
+        gPuddleW.quad.call(gPuddleW, m4(q[0], 0.0322 + i * 0.0006, q[1], -HPI, q[2], 0),
           1.1 + (i % 3) * 0.7, 0.8 + (i % 4) * 0.5, [1, 1, 1], [0, 0, 2, 2]);
       });
       const coolPuddles = [
@@ -161,11 +167,78 @@ const A3DWorldGithub = (() => {
         [-4.8, -28.4, -0.2], [4.5, -30.0, 0.25]
       ];
       coolPuddles.forEach((q, i) => {
-        gPuddleC.quad.call(gPuddleC, m4(q[0], 0.058 + i * 0.0011, q[1], -HPI, q[2], 0),
+        gPuddleC.quad.call(gPuddleC, m4(q[0], 0.0324 + i * 0.0006, q[1], -HPI, q[2], 0),
           0.9 + (i % 3) * 0.6, 0.7 + (i % 2) * 0.5, [1, 1, 1], [0, 0, 2, 2]);
       });
     }
     buildStreet();
+
+    /* ============================================================
+     *  街口：GitHub 街 → 城市铺装的过渡
+     *  街道石板到 z=6.9（世界 x=24.9）结束，城市铺装从世界 x=25 起，
+     *  城市那边还留了条 1.4m 的缝。这里补 4.5m 实体过渡平台：
+     *  街面 0.03 → 一级 0.036 → 广场 0.048（城市步道 0.04/0.05），
+     *  单级高差 6/12mm；平台从 y=0 起是实心的，边缘不会悬空。
+     * ============================================================ */
+    function buildMouth() {
+      // 两级实体平台
+      Gbox(road, 0, 0.018, 7.12, 15.9, 0.036, 0.46, [0.68, 0.72, 0.8], 1.1);
+      Gbox(road, 0, 0.024, 9.42, 15.9, 0.048, 4.14, [0.7, 0.73, 0.8], 1.1);
+      // 两端路缘石（压在平台边上）
+      for (const sx of [-1, 1]) {
+        Gbox(gutter, sx * 7.82, 0.075, 9.1, 0.36, 0.15, 4.4, [0.6, 0.64, 0.72], 1.5);
+        for (let k = 0; k < 5; k++) {
+          Gbox(gutter, sx * 7.82, 0.155, 7.35 + k * 0.85, 0.42, 0.035, 0.5, [0.74, 0.78, 0.86], 1.3);
+        }
+      }
+      // 横跨广场的排水槽 + 格栅（接住街里流出来的水）
+      Gbox(gutter, 0, 0.052, 7.56, 12.8, 0.02, 0.26, [0.4, 0.44, 0.52], 1.2);
+      for (let k = 0; k < 14; k++) {
+        Gbox(gutter, -5.85 + k * 0.9, 0.063, 7.56, 0.5, 0.022, 0.3, [0.62, 0.66, 0.74], 1.1);
+      }
+      // 斑马线：4 条白漆条横跨广场，指向城市
+      const paint = pen("paint", null, { tint: [0.72, 0.73, 0.7], spec: 0.2, rim: 0.05 });
+      for (let k = 0; k < 4; k++) {
+        floorQ(paint, 0, 0.0492, 8.2 + k * 0.85, 0, 11.6, 0.42, [0.95, 0.95, 0.9], [0, 0, 2, 1]);
+      }
+      // 井盖
+      cylAt(darkMetal, 3.3, 0.048, 9.78, 0.42, 0.42, 0.02, 16, [0.5, 0.54, 0.62], true);
+      cylAt(darkMetal, 3.3, 0.068, 9.78, 0.34, 0.34, 0.012, 16, [0.36, 0.4, 0.48], true);
+      // 街口两根矮石墩：立在过渡平台上，把广场轮廓收住
+      for (const sx of [-1, 1]) {
+        cylAt(bldD, sx * 6.9, 0.048, 7.62, 0.22, 0.18, 0.5, 8, [0.52, 0.54, 0.58], true);
+        sphAt(bldD, sx * 6.9, 0.57, 7.62, 0.19, 7, 5, [0.56, 0.57, 0.61]);
+      }
+      /* 街口两栋楼的东侧山墙（朝广场）：补窗、落水管、小招牌。
+       * 山墙面朝 +Z，用 quad 直接贴上去，不再走 wallQ（那是贴侧墙的）。 */
+      for (const side of [-1, 1]) {
+        const b = (side < 0 ? rowsL : rowsR)[0];
+        const gz = b.z0 + 0.02;
+        const gx0 = side * (b.fx + 0.35);
+        const gx1 = side * (b.fx + b.d * 0.55);
+        // 两扇窗（一暖一冷）
+        for (let f = 0; f < 2; f++) {
+          const wy = 4.3 + f * 1.75;
+          if (wy > b.h - 0.9) break;
+          quadAt(woodDark, m4((gx0 + gx1) / 2, wy, gz, 0, 0, 0), 1.0, 1.16, [0.66, 0.54, 0.4], [0, 0, 1, 1]);
+          quadAt(f ? winCool : winWarm, m4((gx0 + gx1) / 2, wy, gz + 0.015, 0, 0, 0),
+            0.84, 1.0, [1, 1, 1], [0, 0, 1, 1]);
+          quadAt(bldD, m4((gx0 + gx1) / 2, wy - 0.64, gz + 0.02, 0, 0, 0), 1.08, 0.07, [0.74, 0.72, 0.68], [0, 0, 1, 1]);
+        }
+        // 山墙落水管：贴墙竖直，上下都有固定
+        cylAt(darkMetal, side * (b.fx + 0.12), 0.03, gz + 0.09, 0.05, 0.045, b.h - 0.5, 6, [0.45, 0.45, 0.5], true);
+        cylAt(darkMetal, side * (b.fx + 0.12), 0.03 + b.h - 0.5, gz + 0.09, 0.13, 0.05, 0.28, 8, [0.4, 0.41, 0.45], true);
+        for (let k = 0; k < 4; k++) {
+          Gbox(darkMetal, side * (b.fx + 0.12), 0.6 + k * (b.h - 1.4) / 3.2, gz + 0.04, 0.16, 0.06, 0.1, [0.34, 0.35, 0.4], 1.0);
+        }
+        // 山墙上的小招牌 / 楼号
+        GboxM(woodDark, m4(side * (b.fx + 1.5), 3.1, gz + 0.05, 0, 0, 0), 0.9, 0.5, 0.06, [0.45, 0.34, 0.25], 1.3);
+        quadAt(paper, m4(side * (b.fx + 1.5), 3.1, gz + 0.09, 0, 0, 0), 0.78, 0.4, [0.92, 0.86, 0.7], [0, 0, 1, 1]);
+        // 山墙脚的排水口
+        Gbox(darkMetal, side * (b.fx + 1.9), 0.12, gz + 0.03, 0.3, 0.14, 0.06, [0.28, 0.3, 0.34], 1.0);
+      }
+    }
+    /* buildMouth() 的调用放在 rowsL/rowsR 定义之后（它要读街口楼栋的山墙）。 */
 
     /* ============================================================
      *  楼房
@@ -187,89 +260,191 @@ const A3DWorldGithub = (() => {
       { z0: -27.0, z1: -31.8, h: 6.0, d: 5.0, fx: 6.78, mat: bldA, tone: [1.04, 0.9, 0.8], shop: 0, awn: [1.05, 0.55, 0.4], balcony: false, roof: 6 }
     ];
 
-    /** 楼顶水箱 */
+    /** 给定街侧与 z，查该处临街墙面到街心的距离（= b.fx）。
+     *  所有「伸进墙里的支架 / 吊杆 / 串灯固定点」都靠它精确落地，别再写死 6.62。 */
+    function wallFxAt(side, z) {
+      const rows = side < 0 ? rowsL : rowsR;
+      for (const b of rows) if (z <= b.z0 && z >= b.z1) return b.fx;
+      return 6.62;
+    }
+    /** 同上的带符号版本：临街墙面在局部 X 上的坐标。 */
+    const wallXAt = (side, z) => side * wallFxAt(side, z);
+
+    buildMouth();
+
+    /** 楼顶水箱：防水台 + 四条腿 + 箍带 + 爬梯护笼 + 溢流管 */
     function addWaterTank(side, fx, cz, fw, H, zOff) {
       const tx = side * (fx + 1.9);
       const tz = cz + fw * zOff;
-      const base = H + 0.62;
+      // 屋面防水台：水箱腿落在台上，不是直接插进瓦面
+      Gbox(bldD, tx, H + 0.05, tz, 2.3, 0.1, 2.3, [0.42, 0.44, 0.48], 1.4);
+      const base = H + 0.72;
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-        cylAt(darkMetal, tx + sx * 0.55, H, tz + sz * 0.55, 0.06, 0.05, 0.66, 4, [0.5, 0.5, 0.56], true);
+        cylAt(darkMetal, tx + sx * 0.55, H + 0.1, tz + sz * 0.55, 0.06, 0.05, 0.62, 4, [0.5, 0.5, 0.56], true);
+        // 腿脚的加劲板
+        Gbox(darkMetal, tx + sx * 0.55, H + 0.14, tz + sz * 0.55, 0.16, 0.04, 0.16, [0.38, 0.39, 0.43], 1.1);
       }
       cylAt(metal, tx, base, tz, 0.76, 0.76, 1.42, 14, [0.72, 0.78, 0.88], true);
       cylAt(metal, tx, base + 1.42, tz, 0.8, 0.26, 0.22, 14, [0.78, 0.84, 0.92], true);
-      for (const yy of [0.7]) {
-        metal.torus.call(metal, m4(tx, base + yy, tz), 0.785, 0.028, 14, 4, [0.7, 0.74, 0.8]);
+      for (const yy of [0.36, 0.7, 1.06]) {
+        metal.torus.call(metal, m4(tx, base + yy, tz), 0.785, 0.026, 14, 4, [0.7, 0.74, 0.8]);
       }
+      // 水箱爬梯：两根竖杆落地、横档、护笼（三个半圆箍）
       for (const sx of [-1, 1]) {
-        cylAt(darkMetal, tx + sx * 0.45, H, tz - 0.95, 0.018, 0.018, 2.1, 3, [0.45, 0.46, 0.5], false);
+        cylAt(darkMetal, tx + sx * 0.45, H + 0.1, tz - 0.95, 0.018, 0.018, 2.1, 3, [0.45, 0.46, 0.5], false);
       }
-      for (let k = 0; k < 4; k++) {
+      for (let k = 0; k < 5; k++) {
         Gbox(darkMetal, tx, H + 0.35 + k * 0.4, tz - 0.95, 0.9, 0.03, 0.03, [0.45, 0.46, 0.5], 1);
       }
+      for (let k = 0; k < 3; k++) {
+        metal.torus.call(metal, m4(tx, H + 0.85 + k * 0.42, tz - 0.95, 0, HPI, 0),
+          0.32, 0.014, 9, 4, [0.5, 0.51, 0.55]);
+      }
+      // 侧面溢流管：从水箱下部弯出来，落到屋面
+      tubeAt(darkMetal, [
+        [tx + 0.72, base + 0.25, tz],
+        [tx + 0.9, base + 0.18, tz + 0.1],
+        [tx + 0.92, H + 0.12, tz + 0.16]
+      ], 0.05, 6, [0.5, 0.5, 0.55]);
       cylAt(darkMetal, tx + 0.3, base + 1.6, tz, 0.06, 0.05, 0.5, 4, [0.5, 0.5, 0.55], true);
       // 水箱脚边一圈水渍
       gWall.quad.call(gWall, m4(tx, H + 0.04, tz, -HPI, 0, 0), 2.4, 2.0, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    /** 楼顶空调外机 */
+    /** 楼顶空调外机：四个减震脚落在屋面 + 排水管 */
     function addRoofAC(side, fx, cz, fw, H, k) {
       const ax = side * (fx + 1.1 + (k % 2) * 1.2);
       const az = cz + (k % 2 ? 0.75 : -0.6) * fw * 0.3;
-      Gbox(metal, ax, H + 0.4, az, 0.88, 0.62, 0.56, [0.62, 0.66, 0.74], 1.3);
-      for (let i = 0; i < 3; i++) {
-        Gbox(darkMetal, ax, H + 0.22 + i * 0.12, az, 0.92, 0.03, 0.6, [0.45, 0.47, 0.52], 1.2);
+      // 底座台 + 四个减震脚
+      Gbox(darkMetal, ax, H + 0.05, az, 1.06, 0.1, 0.74, [0.32, 0.33, 0.37], 1.2);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        cylAt(darkMetal, ax + sx * 0.38, H + 0.1, az + sz * 0.2, 0.05, 0.045, 0.16, 4, [0.35, 0.36, 0.4], true);
       }
-      metal.torus.call(metal, m4(ax - side * 0.46, H + 0.4, az, 0, HPI, 0),
+      Gbox(metal, ax, H + 0.42, az, 0.88, 0.62, 0.56, [0.62, 0.66, 0.74], 1.3);
+      for (let i = 0; i < 3; i++) {
+        Gbox(darkMetal, ax, H + 0.24 + i * 0.12, az, 0.92, 0.03, 0.6, [0.45, 0.47, 0.52], 1.2);
+      }
+      metal.torus.call(metal, m4(ax - side * 0.46, H + 0.42, az, 0, HPI, 0),
         0.19, 0.02, 10, 4, [0.55, 0.57, 0.6]);
+      // 冷凝水管沿屋面走一小段再下去
+      tubeAt(cable, [
+        [ax + side * 0.2, H + 0.16, az + 0.24],
+        [ax + side * 0.5, H + 0.06, az + 0.32],
+        [ax + side * 0.62, H + 0.02, az + 0.5]
+      ], 0.014, 4, [0.2, 0.2, 0.22]);
     }
 
-    /** 楼顶天线 */
+    /** 楼顶天线：底盘压住屋面，三根拉索落到屋面 */
     function addAntenna(side, fx, cz, fw, H, seed) {
       const ax = side * (fx + 2.0);
       const az = cz + (seed % 2 ? 1 : -1) * fw * 0.28;
       const hh = 2.2 + (seed % 3) * 0.5;
-      cylAt(darkMetal, ax, H, az, 0.03, 0.02, hh, 4, [0.4, 0.41, 0.45], true);
+      Gbox(darkMetal, ax, H + 0.05, az, 0.5, 0.1, 0.5, [0.32, 0.33, 0.37], 1.2);
+      cylAt(darkMetal, ax, H + 0.1, az, 0.03, 0.02, hh, 4, [0.4, 0.41, 0.45], true);
       for (let k = 0; k < 3; k++) {
-        Gbox(darkMetal, ax, H + hh * (0.55 + k * 0.18), az, 1.0 - k * 0.2, 0.025, 0.025, [0.4, 0.41, 0.45], 1);
+        Gbox(darkMetal, ax, H + 0.1 + hh * (0.55 + k * 0.18), az, 1.0 - k * 0.2, 0.025, 0.025, [0.4, 0.41, 0.45], 1);
+        // 横担两头的绝缘子
+        for (const sx of [-1, 1]) {
+          cylAt(brass, ax + sx * (0.5 - k * 0.1), H + 0.1 + hh * (0.55 + k * 0.18) + 0.02, az,
+            0.028, 0.022, 0.07, 5, [0.55, 0.5, 0.35], true);
+        }
       }
-      sphAt(bulb, ax, H + hh + 0.06, az, 0.05, 5, 4, [1, 0.25, 0.15]);
-      gLamp.quad.call(gLamp, m4(ax, H + hh + 0.06, az + 0.02), 0.6, 0.6, [1, 1, 1], [0, 0, 1, 1]);
+      // 拉索：从杆顶斜拉到屋面
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * TAU + 0.4;
+        const rx = ax + Math.cos(a) * 1.25, rz = az + Math.sin(a) * 1.25;
+        tubeAt(cable, [
+          [ax, H + 0.1 + hh * 0.74, az],
+          [rx, H + 0.05, rz]
+        ], 0.008, 3, [0.3, 0.3, 0.34]);
+        Gbox(darkMetal, rx, H + 0.03, rz, 0.12, 0.05, 0.12, [0.3, 0.31, 0.35], 1.0);
+      }
+      sphAt(bulb, ax, H + hh + 0.12, az, 0.05, 5, 4, [1, 0.25, 0.15]);
+      gLamp.quad.call(gLamp, m4(ax, H + hh + 0.12, az + 0.02), 0.6, 0.6, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    /** 楼顶小棚子 */
+    /** 楼顶小棚：棚体落地到屋面，带门、门框和压顶 */
     function addRoofShed(side, fx, cz, fw, H, zOff) {
       const sx0 = side * (fx + 2.7);
       const sz0 = cz + fw * zOff;
-      Gbox(woodDark, sx0, H + 0.75, sz0, 2.0, 1.4, 1.6, [0.5, 0.38, 0.3], 1.3);
-      GboxM(metal, m4(sx0, H + 1.55, sz0, 0.12, 0, 0.06), 2.25, 0.06, 1.95, [0.4, 0.42, 0.46], 1.3);
+      Gbox(bldD, sx0, H + 0.04, sz0, 2.2, 0.08, 1.8, [0.4, 0.42, 0.46], 1.3);
+      Gbox(woodDark, sx0, H + 0.75, sz0, 2.0, 1.42, 1.6, [0.5, 0.38, 0.3], 1.3);
+      GboxM(metal, m4(sx0, H + 1.5, sz0, 0.12, 0, 0.06), 2.25, 0.07, 1.95, [0.4, 0.42, 0.46], 1.3);
+      // 屋面压边条
+      for (const sz of [-1, 1]) {
+        GboxM(metal, m4(sx0, H + 1.44, sz0 + sz * 0.86, 0, 0, 0.1), 2.2, 0.05, 0.1, [0.34, 0.35, 0.39], 1.2);
+      }
+      // 小门 + 门框 + 把手
       quadAt(winWarm, m4(sx0 - side * 1.02, H + 0.8, sz0, 0, faceRy(side), 0), 0.55, 0.7, [1, 1, 1], [0, 0, 1, 1]);
+      GboxM(woodDark, m4(sx0 - side * 1.02, H + 0.8, sz0 + 0.36, 0, 0, 0), 0.06, 0.86, 0.06, [0.42, 0.32, 0.26], 1.2);
+      GboxM(woodDark, m4(sx0 - side * 1.02, H + 0.8, sz0 - 0.36, 0, 0, 0), 0.06, 0.86, 0.06, [0.42, 0.32, 0.26], 1.2);
+      GboxM(darkMetal, m4(sx0 - side * 1.08, H + 0.78, sz0 + 0.28, 0, 0, 0), 0.04, 0.08, 0.04, [0.55, 0.55, 0.6], 1.0);
       gWall.quad.call(gWall, m4(sx0 - side * 1.1, H + 0.8, sz0, 0, faceRy(side), 0), 1.4, 1.4, [1, 1, 1], [0, 0, 1, 1]);
+      // 棚顶的排气管：底座从棚顶穿出
+      cylAt(darkMetal, sx0 + side * 0.55, H + 1.44, sz0 - 0.35, 0.07, 0.06, 0.62, 6, [0.38, 0.39, 0.43], true);
+      cylAt(darkMetal, sx0 + side * 0.55, H + 2.06, sz0 - 0.35, 0.11, 0.11, 0.05, 6, [0.3, 0.31, 0.34], true);
     }
 
-    /** 二层小阳台 + 晾晒 */
+    /** 二层小阳台 + 晾晒：挑板下加两根斜撑，晾衣挂在栏杆上 */
     function addBalcony(side, fx, cz, fw, seed) {
       const by = 4.35 + (seed % 2) * 0.25;
       const bz = cz + (seed % 2 ? 1 : -1) * fw * 0.2;
       Gbox(woodDark, side * (fx - 0.48), by, bz, 0.95, 0.12, 1.9, [0.62, 0.48, 0.36], 1.3);
+      // 两根斜撑：从墙挑住阳台板
+      for (const sz of [-0.7, 0.7]) {
+        tubeAt(woodDark, [
+          [side * (fx - 0.86), by - 0.56, bz + sz],
+          [side * (fx - 0.01), by - 0.06, bz + sz]
+        ], 0.026, 4, [0.56, 0.44, 0.32]);
+      }
       for (let k = 0; k < 5; k++) {
         cylAt(darkMetal, side * (fx - 0.92), by + 0.02, bz - 0.8 + k * 0.4, 0.02, 0.018, 0.56, 4, [0.5, 0.5, 0.55], true);
       }
       for (const yy of [0.3, 0.56]) {
         Gbox(darkMetal, side * (fx - 0.92), by + yy, bz, 0.04, 0.04, 1.86, [0.48, 0.5, 0.55], 1.1);
       }
+      // 晾衣：短杆挂在栏杆横杆上，衣服贴着栏杆
       for (let k = 0; k < 2; k++) {
         const zz = bz - 0.35 + k * 0.7;
+        cylAt(cable, side * (fx - 0.92), by + 0.58, zz, 0.007, 0.007, 0.16, 3, [0.1, 0.1, 0.11], false);
         quadAt(cloth, m4(side * (fx - 0.95), by - 0.05, zz, 0, faceRy(side), 0), 0.34, 0.44,
           [0.7 + r() * 0.4, 0.5 + r() * 0.35, 0.45 + r() * 0.3], [0, 0, 1, 1], 0.4);
       }
     }
 
-    /** 临街立面上的壁挂空调 + 冷媒管 */
+    /** 临街立面上的壁挂空调 + 冷媒管：
+     *  机身贴住墙面（不再留 3cm 缝），下面两根三角托架顶着；
+     *  冷凝管从机身底部 L 形折下、沿墙落到墙脚，中间打三个管卡。 */
     function addWallAC(side, fx, y, z) {
-      wallBox(metal, side, fx - 0.28, y, z, 0.5, 0.48, 0.56, [0.66, 0.7, 0.78], 1.3);
-      wallBox(darkMetal, side, fx - 0.54, y, z, 0.04, 0.4, 0.46, [0.72, 0.74, 0.8], 1.2);
-      cylAt(darkMetal, side * (fx - 0.56), y, z, 0.16, 0.16, 0.02, 10, [0.32, 0.34, 0.38], true, 0, 0, HPI);
-      cylAt(cable, side * (fx - 0.3), 0.03, z + 0.2, 0.018, 0.016, y - 0.3, 3, [0.2, 0.2, 0.22], false);
+      // 机身：从墙面 fx 往街心凸 0.5m
+      wallBox(metal, side, fx - 0.25, y, z, 0.5, 0.48, 0.56, [0.66, 0.7, 0.78], 1.3);
+      // 前面板 + 出风格栅
+      wallBox(darkMetal, side, fx - 0.51, y, z, 0.04, 0.4, 0.46, [0.72, 0.74, 0.8], 1.2);
+      cylAt(darkMetal, side * (fx - 0.53), y, z, 0.16, 0.16, 0.02, 10,
+        [0.32, 0.34, 0.38], true, 0, 0, HPI);
+      // 两根三角托架：从墙斜撑到机身底部（tube 走 X-Y 平面）
+      for (const sz of [-0.22, 0.22]) {
+        tubeAt(metal, [
+          [side * (fx - 0.5), y - 0.26, z + sz],
+          [side * (fx - 0.04), y - 0.62, z + sz]
+        ], 0.018, 4, [0.5, 0.52, 0.58]);
+        wallBox(darkMetal, side, fx - 0.02, y - 0.6, z + sz, 0.05, 0.16, 0.12, [0.3, 0.31, 0.35], 1.1);
+      }
+      // 冷凝水管：机身底部 → 贴墙下到墙脚 → 出水弯头
+      tubeAt(cable, [
+        [side * (fx - 0.34), y - 0.24, z + 0.22],
+        [side * (fx - 0.34), y - 0.5, z + 0.22],
+        [side * (fx - 0.1), y - 0.52, z + 0.22],
+        [side * (fx - 0.08), 0.06, z + 0.22]
+      ], 0.017, 5, [0.2, 0.2, 0.22]);
+      // 管卡：贴着墙一路抱箍
+      for (let k = 0; k < 3; k++) {
+        const yy = Math.max(0.35, (y - 0.7) * (1 - k / 3));
+        wallBox(darkMetal, side, fx - 0.03, yy, z + 0.22, 0.1, 0.05, 0.09, [0.34, 0.35, 0.4], 1.0);
+      }
+      // 墙脚滴出来的一小摊冷凝水
+      gPuddleC.quad.call(gPuddleC, m4(side * (fx - 0.22), 0.058, z + 0.3, -HPI, 0, 0),
+        0.9, 0.55, [1, 1, 1], [0, 0, 1, 1]);
     }
 
     /** 一楼店面：0 暖光开张，1 冷光开张，2 卷帘门 */
@@ -281,10 +456,19 @@ const A3DWorldGithub = (() => {
         for (let k = 0; k < 7; k++) {
           wallBox(metal, side, fx - 0.09, 0.34 + k * 0.33, cz, 0.035, 0.032, sw * 0.98, [1.0, 1.04, 1.1], 1.3);
         }
+        // 两侧导轨：把门帘两边的缝收掉
+        for (const zz of [cz - sw / 2 - 0.07, cz + sw / 2 + 0.07]) {
+          wallBox(darkMetal, side, fx - 0.08, 1.27, zz, 0.12, 2.5, 0.08, [0.44, 0.46, 0.52], 1.3);
+        }
+        // 卷帘盒 + 上收口檐板
         wallBox(darkMetal, side, fx - 0.03, 2.62, cz, 0.26, 0.3, sw + 0.28, [0.6, 0.63, 0.7], 1.3);
+        wallBox(woodDark, side, fx - 0.12, 2.8, cz, 0.3, 0.07, sw + 0.5, [0.55, 0.44, 0.33], 1.3);
         for (const zz of [cz - sw / 2 - 0.12, cz + sw / 2 + 0.12]) {
           wallBox(woodDark, side, fx - 0.08, 1.3, zz, 0.16, 2.7, 0.2, [0.62, 0.5, 0.38], 1.4);
         }
+        // 卷帘门底边的配重条 + 门把手
+        wallBox(metal, side, fx - 0.09, 0.07, cz, 0.05, 0.08, sw * 0.96, [0.42, 0.44, 0.5], 1.2);
+        wallBox(darkMetal, side, fx - 0.13, 1.05, cz + sw * 0.28, 0.05, 0.14, 0.05, [0.3, 0.3, 0.34], 1.0);
         // 门上小灯
         cylAt(darkMetal, side * (fx - 0.3), 2.85, cz, 0.05, 0.06, 0.22, 6, [0.3, 0.26, 0.2], true);
         sphAt(bulb, side * (fx - 0.3), 2.82, cz, 0.07, 6, 4, [1, 1, 1]);
@@ -303,6 +487,16 @@ const A3DWorldGithub = (() => {
       // 开张的店面：暗底 + 灯光
       wallBox(winDark, side, fx - 0.02, 1.3, cz, 0.05, 2.5, sw, [1, 1, 1], 1.1);
       wallQ(lit, side, fx - 0.09, 1.35, cz, sw * 0.9, 2.15, [1, 1, 1], [0, 0, 1, 1]);
+      /* 店内凹龛：左右侧壁 + 顶板 + 地台，从街上斜看时能读出 0.55m 进深，
+       * 而不是一块发光的平板。侧壁落在门洞两侧，不会挡到灯光面。 */
+      const niche = 0.55;
+      for (const zz of [cz - sw / 2 - 0.02, cz + sw / 2 + 0.02]) {
+        wallBox(woodDark, side, fx - niche / 2, 1.36, zz, niche, 2.78, 0.16, [0.5, 0.4, 0.31], 1.4);
+      }
+      wallBox(woodDark, side, fx - niche / 2, 2.68, cz, niche, 0.18, sw + 0.3, [0.58, 0.45, 0.34], 1.4);
+      wallBox(woodDark, side, fx - niche / 2, 0.07, cz, niche, 0.12, sw + 0.3, [0.3, 0.25, 0.2], 1.4);
+      // 店内顶部灯管：一条贴着顶板往里去，有纵深
+      wallQ(lit, side, fx - 0.36, 2.54, cz, sw * 0.66, 0.05, [1, 1, 1], [0, 0, 1, 1]);
       for (const zz of [cz - sw / 2 - 0.1, cz + sw / 2 + 0.1]) {
         wallBox(woodDark, side, fx - 0.08, 1.35, zz, 0.18, 2.75, 0.22, [0.6, 0.48, 0.36], 1.4);
       }
@@ -334,19 +528,52 @@ const A3DWorldGithub = (() => {
       for (let k = 0; k < nS; k++) {
         const zz = cz - span / 2 + (k + 0.5) * span / nS;
         const awnCol = k % 2 ? b.awn : [1.25, 1.05, 0.9];
-        GboxM(cloth, m4(side * (fx - 0.6), 2.78, zz, 0, 0, side * 0.14),
-          1.05, 0.05, span / nS * 0.96, awnCol, 1.3, 0.35);
+        // 棚布加宽到 1.25m，靠墙一端压进墙里 0.07m，缝就没了
+        GboxM(cloth, m4(side * (fx - 0.55), 2.78, zz, 0, 0, side * 0.14),
+          1.25, 0.055, span / nS * 0.96, awnCol, 1.3, 0.35);
       }
-      GboxM(cloth, m4(side * (fx - 1.1), 2.6, cz), 0.04, 0.26, span, b.awn, 1.3, 0.6);
-      // 棚下灯泡
+      // 墙上的固定木条：棚布的靠墙端压在它下面
+      GboxM(woodDark, m4(side * (fx - 0.04), 2.8, cz, 0, 0, 0),
+        0.09, 0.13, span * 1.08, [0.55, 0.43, 0.32], 1.4);
+      // 木托架：前缘一根水平挑梁 + 一根从墙斜下来的撑杆（每两条布一对）
+      for (let k = 0; k < 3; k++) {
+        const zz = cz - span * 0.42 + k * span * 0.42;
+        GboxM(woodDark, m4(side * (fx - 0.58), 2.72, zz, 0, 0, 0),
+          1.22, 0.06, 0.055, [0.54, 0.42, 0.3], 1.4);
+        tubeAt(woodDark, [
+          [side * (fx - 0.01), 2.34, zz],
+          [side * (fx - 0.62), 2.71, zz]
+        ], 0.024, 4, [0.6, 0.46, 0.33]);
+        wallBox(darkMetal, side, fx - 0.03, 2.33, zz, 0.06, 0.1, 0.1, [0.4, 0.4, 0.45], 1.0);
+      }
+      GboxM(cloth, m4(side * (fx - 1.17), 2.62, cz), 0.06, 0.3, span, b.awn, 1.3, 0.6);
+      // 棚下灯泡：吊绳挂到挑梁上
       for (let k = 0; k < 2; k++) {
         const zz = cz + (k - 0.5) * span * 0.5;
+        cylAt(cable, side * (fx - 0.95), 2.48, zz, 0.007, 0.007, 0.24, 3, [0.08, 0.08, 0.09], false);
         sphAt(bulb, side * (fx - 0.95), 2.42, zz, 0.065, 6, 4, [1, 1, 1]);
         gLamp.quad.call(gLamp, m4(side * (fx - 0.95), 2.42, zz + 0.02), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
       }
-      // 门头霓虹细条
+      // 门头霓虹细条 + 一串小灯珠
       const strip = b.shop === 1 ? winCool : winWarm;
       wallQ(strip, side, fx - 0.13, 2.86, cz, sw * 0.9, 0.055, [1, 1, 1], [0, 0, 1, 1]);
+      for (let k = 0; k < 9; k++) {
+        const zz = cz - sw * 0.42 + k * sw * 0.105;
+        sphAt(bulb, side * (fx - 0.18), 2.86, zz, 0.028, 5, 3, [1, 1, 1]);
+      }
+      // 门口半截布帘：挡视线、又让灯光漏出来
+      for (let k = 0; k < 3; k++) {
+        quadAt(cloth, m4(side * (fx - 0.19), 2.2, cz - sw * 0.3 + k * sw * 0.3, 0, faceRy(side), 0),
+          sw * 0.28, 0.8, [0.7 + k * 0.15, 0.45, 0.4], [0, 0, 1, 1], 0.3);
+      }
+      // 柜台上：收银机 + 一盏小台灯
+      wallBox(darkMetal, side, fx - 0.58, 1.07, cz + sw * 0.24, 0.22, 0.18, 0.26, [0.3, 0.31, 0.35], 1.2);
+      wallQ(winCool, side, fx - 0.69, 1.11, cz + sw * 0.24, 0.16, 0.07, [1, 1, 1], [0, 0, 1, 1]);
+      wallBox(brass, side, fx - 0.58, 1.03, cz - sw * 0.2, 0.12, 0.04, 0.12, [0.8, 0.7, 0.45], 1.1);
+      cylAt(brass, side * (fx - 0.58), 1.05, cz - sw * 0.2, 0.018, 0.016, 0.3, 4, [0.8, 0.7, 0.45], false);
+      cylAt(brass, side * (fx - 0.58), 1.34, cz - sw * 0.2, 0.11, 0.06, 0.09, 8, [0.85, 0.75, 0.5], false);
+      sphAt(bulb, side * (fx - 0.58), 1.4, cz - sw * 0.2, 0.05, 5, 4, [1, 1, 1]);
+      gLamp.quad.call(gLamp, m4(side * (fx - 0.58), 1.4, cz - sw * 0.2 + 0.04), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
 
       // 冷光店门口摆一台自动贩卖机
       if (b.shop === 1) {
@@ -357,7 +584,7 @@ const A3DWorldGithub = (() => {
       }
     }
 
-    /** 二楼以上的窗：暖光 / 冷光 / 暗窗混合，带窗框、窗台和窗帘 */
+    /** 二楼以上的窗：暖光 / 冷光 / 暗窗混合，带窗框、窗台、窗楣和窗帘 */
     function addWindows(side, b, fx, cz, fw, H) {
       const floors = Math.max(1, Math.floor((H - 4.0) / 1.62));
       const cols = Math.max(2, Math.min(5, Math.round((fw - 1.4) / 1.55)));
@@ -373,10 +600,22 @@ const A3DWorldGithub = (() => {
           const bright = 0.88 + r() * 0.22;
           wallQ(wp, side, fx - 0.1, wy, wz, 0.79, 0.96,
             [bright, bright, bright], [0, 0, 1, 1]);
-          wallBox(bldD, side, fx - 0.1, wy - 0.6, wz, 0.2, 0.07, 0.99, [0.78, 0.75, 0.69], 1.3);
+          // 窗台（石） + 窗楣（木） + 窗楣上的薄石檐：上下都接住窗框
+          wallBox(bldD, side, fx - 0.1, wy - 0.575, wz, 0.2, 0.07, 0.99, [0.78, 0.75, 0.69], 1.3);
+          wallBox(bldD, side, fx - 0.13, wy - 0.63, wz, 0.08, 0.03, 1.03, [0.55, 0.53, 0.5], 1.2);
+          wallBox(woodDark, side, fx - 0.12, wy + 0.58, wz, 0.24, 0.09, 1.0, [0.66, 0.54, 0.4], 1.4);
+          wallBox(bldD, side, fx - 0.1, wy + 0.655, wz, 0.16, 0.05, 1.04, [0.7, 0.68, 0.63], 1.2);
+          // 中挺 + 横挺：把一块大玻璃分成四格，近看才有的细节
+          wallBox(woodDark, side, fx - 0.115, wy, wz, 0.035, 0.97, 0.04, [0.6, 0.48, 0.35], 1.3);
+          wallBox(woodDark, side, fx - 0.115, wy + 0.16, wz, 0.035, 0.035, 0.8, [0.6, 0.48, 0.35], 1.3);
           if (wp !== winDark && r() < 0.4) {
             wallQ(cloth, side, fx - 0.115, wy + 0.27, wz, 0.77, 0.38,
               [0.5 + r() * 0.5, 0.35 + r() * 0.4, 0.34 + r() * 0.3], [0, 0, 1, 1]);
+          }
+          // 少数窗台上摆一盆花
+          if (r() < 0.16) {
+            P.pot(bldD.raw, md(m4(side * (fx - 0.16), wy - 0.54, wz - 0.22)), 0.075, 0.12, [0.5, 0.36, 0.26]);
+            P.grass(leafB.raw, md(m4(side * (fx - 0.16), wy - 0.42, wz - 0.22)), 3, 0.1, [0.7, 0.95, 0.65], 7, 0.06);
           }
         }
       }
@@ -404,11 +643,22 @@ const A3DWorldGithub = (() => {
       buildShop(side, b, fx, cz, sw);
       addWindows(side, b, fx, cz, fw, H);
 
-      // 立面上的落水管、壁挂空调、乱七八糟的电缆
+      // 立面上的落水管：从墙脚一直到檐口漏斗，中间套管卡
       const pz = cz + fw * 0.4;
-      cylAt(darkMetal, side * (fx - 0.07), 0.03, pz, 0.055, 0.05, H, 5, [0.45, 0.45, 0.5], true);
-      for (let k = 0; k < 2; k++) {
-        wallBox(darkMetal, side, fx - 0.05, 1.2 + k * 2.0, pz, 0.16, 0.06, 0.16, [0.35, 0.36, 0.4], 1.1);
+      const pipeH = Math.max(1.2, H - 0.45);
+      cylAt(darkMetal, side * (fx - 0.07), 0.03, pz, 0.055, 0.05, pipeH, 6, [0.45, 0.45, 0.5], true);
+      // 顶部漏斗接进檐口，底部弯头往街心出水
+      cylAt(darkMetal, side * (fx - 0.07), 0.03 + pipeH, pz,
+        0.14, 0.055, Math.min(0.32, Math.max(0.1, H - 0.08 - pipeH)), 8, [0.4, 0.41, 0.45], true);
+      tubeAt(darkMetal, [
+        [side * (fx - 0.07), 0.12, pz],
+        [side * (fx - 0.09), 0.045, pz + 0.12],
+        [side * (fx - 0.16), 0.03, pz + 0.24]
+      ], 0.048, 6, [0.42, 0.42, 0.47]);
+      const nClamp = Math.max(2, Math.floor(pipeH / 1.4));
+      for (let k = 0; k <= nClamp; k++) {
+        wallBox(darkMetal, side, fx - 0.03, 0.35 + (k / nClamp) * (pipeH - 0.5), pz,
+          0.1, 0.055, 0.13, [0.35, 0.36, 0.4], 1.0);
       }
       if (r() < 0.8) addWallAC(side, fx, 4.1 + r() * 1.6, cz + (r() - 0.5) * (fw - 2.2));
       if (r() < 0.7) {
@@ -439,6 +689,44 @@ const A3DWorldGithub = (() => {
         wallQ(cloth, side, fx - 0.14, by, bz, 0.5, 1.5,
           [0.85 + r() * 0.3, 0.35 + r() * 0.35, 0.3 + r() * 0.3], [0, 0, 1, 1], 0.5);
       }
+
+      /* 屋顶收尾：每栋都有的排气管 / 落水口，再按楼号轮换加晒台或鸽笼。
+       * 全部用 b.z0 做确定性选择，不动已经跑过的随机数序列。 */
+      const rz1 = cz + fw * (0.16 - (Math.abs(b.z0) * 0.37 % 0.34));
+      cylAt(darkMetal, side * (fx + 0.7), H, rz1, 0.075, 0.06, 0.62, 6, [0.4, 0.41, 0.45], true);
+      cylAt(darkMetal, side * (fx + 0.7), H + 0.62, rz1, 0.12, 0.12, 0.05, 6, [0.34, 0.35, 0.39], true);
+      cylAt(darkMetal, side * (fx + 1.6), H + 0.01, cz - fw * 0.34, 0.11, 0.11, 0.05, 6, [0.3, 0.31, 0.35], true);
+      if (Math.round(Math.abs(b.z0) * 3) % 2 === 0) {
+        // 晒台：木台面 + 两根立柱 + 晾衣绳，台面落在屋面上
+        const dxp = side * (fx + d * 0.62), dzp = cz + fw * 0.24;
+        Gbox(woodDark, dxp, H + 0.04, dzp, 1.6, 0.06, 1.4, [0.46, 0.35, 0.26], 1.3);
+        for (const ox of [-0.7, 0.7]) for (const oz of [-0.6, 0.6]) {
+          cylAt(woodDark, dxp + ox, H + 0.07, dzp + oz, 0.03, 0.026, 1.3, 4, [0.5, 0.38, 0.27], true);
+        }
+        for (const oy of [1.3]) {
+          Gbox(darkMetal, dxp, H + 0.07 + oy, dzp, 1.5, 0.025, 0.025, [0.5, 0.5, 0.55], 1);
+        }
+        // 绳子上挂的两件衣服
+        for (let k = 0; k < 2; k++) {
+          GboxM(cloth, m4(dxp - 0.35 + k * 0.7, H + 0.9, dzp, 0, 0, 0.05),
+            0.34, 0.5, 0.03, [0.7 + k * 0.2, 0.45 + k * 0.2, 0.4 + k * 0.1], 1.2, 0.3);
+        }
+      } else {
+        // 鸽笼：木箱落在屋面，正面开一格一格的小门
+        const gx = side * (fx + d * 0.62), gz2 = cz + fw * 0.22;
+        Gbox(woodDark, gx, H + 0.035, gz2, 0.92, 0.07, 0.92, [0.42, 0.32, 0.24], 1.2);
+        Gbox(woodDark, gx, H + 0.46, gz2, 0.86, 0.78, 0.86, [0.5, 0.38, 0.3], 1.4);
+        Gbox(darkMetal, gx, H + 0.88, gz2, 0.94, 0.05, 0.94, [0.36, 0.37, 0.41], 1.2);
+        for (let i = 0; i < 3; i++) {
+          Gbox(darkMetal, gx - side * 0.44, H + 0.5 + (i % 2) * 0.26, gz2 - 0.26 + i * 0.26,
+            0.03, 0.16, 0.16, [0.14, 0.13, 0.12], 1.0);
+        }
+        // 笼顶落着两只鸽子（低面数：身体 + 头）
+        for (const oz of [-0.2, 0.15]) {
+          sphAt(bldD, gx + side * 0.05, H + 0.95, gz2 + oz, 0.08, 6, 4, [0.7, 0.7, 0.72], 0, 0, 0, 1.3, 0.9, 1);
+          sphAt(bldD, gx + side * 0.13, H + 1.0, gz2 + oz, 0.045, 5, 4, [0.72, 0.72, 0.74]);
+        }
+      }
     }
 
     /** 背面装饰：后门、门灯、后窗、空调、落水管、电线、晾衣绳、后巷杂物。
@@ -453,17 +741,28 @@ const A3DWorldGithub = (() => {
       const bb = (p, dist, y, z, tx, sy, sz, col, uv) =>
         p.box.call(p, m4(side * dist, y, z), tx, sy, sz, col, uv === undefined ? 1.2 : uv);
 
-      // 后门 + 门口小台阶
+      // 后门 + 门口两级台阶 + 门把手
       const dz = cz + (r() - 0.5) * fw * 0.5;
-      bb(woodDark, bx + 0.05, 1.03, dz, 0.14, 2.06, 1.02, [0.5, 0.42, 0.35], 1.3);
-      bb(bldD, bx + 0.14, 0.09, dz, 0.36, 0.18, 1.36, [0.5, 0.5, 0.54], 1.4);
-      // 门楣小灯 + 门口一片暖光
-      bb(darkMetal, bx + 0.16, 2.62, dz + 0.72, 0.18, 0.12, 0.18, [0.4, 0.42, 0.46], 1.2);
-      bq(bulb, bx + 0.28, 2.48, dz + 0.72, 0.24, 0.24);
-      bq(gLamp, bx + 0.3, 2.48, dz + 0.72, 2.2, 2.2);
+      bb(woodDark, bx + 0.03, 1.03, dz, 0.14, 2.06, 1.02, [0.5, 0.42, 0.35], 1.3);
+      bb(woodDark, bx + 0.09, 1.14, dz, 0.1, 0.9, 0.78, [0.42, 0.35, 0.29], 1.3);
+      bb(bldD, bx + 0.26, 0.19, dz, 0.36, 0.38, 1.36, [0.5, 0.5, 0.54], 1.4);
+      bb(bldD, bx + 0.44, 0.08, dz, 0.3, 0.16, 1.5, [0.46, 0.46, 0.5], 1.4);
+      bb(brass, bx + 0.13, 1.05, dz - 0.34, 0.05, 0.05, 0.05, [0.9, 0.78, 0.48], 1.0);
+      // 门楣小灯（灯座贴墙）+ 灯罩 + 门口一片暖光
+      bb(darkMetal, bx + 0.07, 2.62, dz + 0.72, 0.18, 0.12, 0.18, [0.4, 0.42, 0.46], 1.2);
+      bb(darkMetal, bx + 0.17, 2.55, dz + 0.72, 0.24, 0.06, 0.26, [0.3, 0.31, 0.35], 1.2);
+      bq(bulb, bx + 0.18, 2.47, dz + 0.72, 0.2, 0.2);
+      bq(gLamp, bx + 0.2, 2.47, dz + 0.72, 2.2, 2.2);
       bq(gWall, bx + 0.06, 1.7, dz + 0.2, 2.6, 2.6);
-      // 门上的小雨棚
+      // 门上的小雨棚 + 两根斜撑
       bb(darkMetal, bx + 0.34, 2.78, dz + 0.1, 0.8, 0.08, 1.5, [0.32, 0.33, 0.37], 1.3);
+      for (const sz of [-1, 1]) {
+        tubeAt(darkMetal, [
+          [side * (bx + 0.02), 2.36, dz + 0.1 + sz * 0.6],
+          [side * (bx + 0.7), 2.74, dz + 0.1 + sz * 0.6]
+        ], 0.014, 4, [0.34, 0.35, 0.39]);
+      }
+      bb(darkMetal, bx + 0.08, 2.2, dz - 0.82, 0.14, 0.2, 0.24, [0.3, 0.31, 0.35], 1.1);
 
       // 背面女儿墙：和街面一侧对齐，屋顶轮廓才收得住
       const pc = [b.tone[0] * 0.92 + 0.05, b.tone[1] * 0.92 + 0.05, b.tone[2] * 0.92 + 0.05];
@@ -488,29 +787,67 @@ const A3DWorldGithub = (() => {
         }
       }
 
-      // 铁爬梯（检修用）
+      // 铁爬梯（检修用）：竖杆落在墙脚，横档只排到檐下，顶端弯进女儿墙
       if (r() < 0.4) {
         const lz = cz + fw * 0.3;
+        const ladH = Math.max(1.6, H - 0.55);
         for (const sx of [-0.22, 0.22]) {
-          cylAt(darkMetal, side * (bx + 0.14), 0.15, lz + sx, 0.02, 0.02, H - 1.0, 4, [0.35, 0.36, 0.4], true);
+          cylAt(darkMetal, side * (bx + 0.14), 0.05, lz + sx, 0.022, 0.02, ladH, 4, [0.35, 0.36, 0.4], true);
         }
-        for (let k = 0; k < 6; k++) {
-          bb(darkMetal, bx + 0.14, 1.5 + k * 1.05, lz, 0.05, 0.04, 0.46, [0.35, 0.36, 0.4], 1.1);
+        const nRung = Math.max(3, Math.floor((ladH - 0.5) / 0.42));
+        for (let k = 0; k <= nRung; k++) {
+          bb(darkMetal, bx + 0.14, 0.45 + k * 0.42, lz, 0.05, 0.04, 0.46, [0.35, 0.36, 0.4], 1.1);
+        }
+        // 顶端向墙里弯一段，挂住女儿墙
+        for (const sx of [-0.22, 0.22]) {
+          tubeAt(darkMetal, [
+            [side * (bx + 0.14), 0.05 + ladH, lz + sx],
+            [side * (bx + 0.01), 0.05 + ladH + 0.32, lz + sx]
+          ], 0.022, 5, [0.35, 0.36, 0.4]);
+        }
+        // 三个墙固定件
+        for (const yy of [1.0, 1.0 + ladH * 0.45, 1.0 + ladH * 0.9]) {
+          bb(darkMetal, bx + 0.05, yy, lz, 0.18, 0.06, 0.07, [0.3, 0.31, 0.35], 1.0);
         }
       }
 
-
-      // 壁挂空调 + 冷凝水管
+      // 壁挂空调 + 三角托架 + 落到墙脚的冷凝水管
       if (r() < 0.65) {
         const ay = 3.3 + r() * 2.4, az = cz + (r() - 0.5) * fw * 0.55;
-        bb(metal, bx + 0.3, ay, az, 0.5, 0.48, 0.56, [0.66, 0.7, 0.78], 1.3);
-        bb(darkMetal, bx + 0.56, ay, az, 0.04, 0.4, 0.46, [0.72, 0.74, 0.8], 1.2);
-        cylAt(darkMetal, side * (bx + 0.42), 0.03, az + 0.34, 0.018, 0.016,
-          Math.max(0.4, ay - 0.5), 3, [0.2, 0.2, 0.22], false);
+        bb(metal, bx + 0.25, ay, az, 0.5, 0.48, 0.56, [0.66, 0.7, 0.78], 1.3);
+        bb(darkMetal, bx + 0.51, ay, az, 0.04, 0.4, 0.46, [0.72, 0.74, 0.8], 1.2);
+        for (const sz of [-0.22, 0.22]) {
+          tubeAt(metal, [
+            [side * (bx + 0.5), ay - 0.26, az + sz],
+            [side * (bx + 0.02), ay - 0.6, az + sz]
+          ], 0.016, 4, [0.5, 0.52, 0.58]);
+        }
+        tubeAt(cable, [
+          [side * (bx + 0.36), ay - 0.24, az + 0.2],
+          [side * (bx + 0.36), ay - 0.48, az + 0.2],
+          [side * (bx + 0.12), ay - 0.5, az + 0.24],
+          [side * (bx + 0.09), 0.06, az + 0.24]
+        ], 0.016, 5, [0.2, 0.2, 0.22]);
+        for (let k = 0; k < 3; k++) {
+          bb(darkMetal, bx + 0.03, 0.4 + (ay - 0.8) * (k / 3), az + 0.24, 0.1, 0.05, 0.09, [0.34, 0.35, 0.4], 1.0);
+        }
       }
 
-      // 背面的落水管
-      cylAt(darkMetal, side * (bx + 0.07), 0.03, cz + fw * 0.44, 0.05, 0.045, H, 5, [0.45, 0.45, 0.5], true);
+      // 背面的落水管：漏斗接檐口、管身到墙脚、弯头出水、套管卡
+      const pbz = cz + fw * 0.44;
+      const bpipeH = Math.max(1.2, H - 0.45);
+      cylAt(darkMetal, side * (bx + 0.07), 0.03, pbz, 0.05, 0.045, bpipeH, 6, [0.45, 0.45, 0.5], true);
+      cylAt(darkMetal, side * (bx + 0.07), 0.03 + bpipeH, pbz,
+        0.13, 0.05, Math.min(0.3, Math.max(0.1, H - 0.1 - bpipeH)), 8, [0.4, 0.41, 0.45], true);
+      tubeAt(darkMetal, [
+        [side * (bx + 0.07), 0.12, pbz],
+        [side * (bx + 0.1), 0.045, pbz - 0.12],
+        [side * (bx + 0.16), 0.03, pbz - 0.24]
+      ], 0.044, 6, [0.42, 0.42, 0.47]);
+      const nbCl = Math.max(2, Math.floor(bpipeH / 1.4));
+      for (let k = 0; k <= nbCl; k++) {
+        bb(darkMetal, bx + 0.03, 0.35 + (k / nbCl) * (bpipeH - 0.5), pbz, 0.1, 0.055, 0.13, [0.35, 0.36, 0.4], 1.0);
+      }
 
       // 墙上贴的小海报 / 电表箱
       if (r() < 0.55) {
@@ -538,12 +875,21 @@ const A3DWorldGithub = (() => {
         }
       }
 
-      // 后巷杂物：纸箱 / 垃圾桶
+      // 后巷杂物：纸箱（落地）+ 带盖垃圾桶
       if (r() < 0.55) {
-        P.crate(wood.raw, dm(side * (bx + 0.55), 0.2, cz + (r() - 0.5) * fw * 0.6, 0, r() * TAU, 0), 0.32, [0.55, 0.42, 0.3]);
+        const cs = 0.32;
+        P.crate(wood.raw, dm(side * (bx + 0.55), 0.03 + cs / 2, cz + (r() - 0.5) * fw * 0.6,
+          0, r() * TAU, 0), cs, [0.55, 0.42, 0.3]);
       }
       if (r() < 0.4) {
-        cylAt(darkMetal, side * (bx + 0.5), 0.03, cz - fw * 0.26, 0.22, 0.2, 0.62, 10, [0.42, 0.45, 0.52], true);
+        const bz2 = cz - fw * 0.26;
+        cylAt(darkMetal, side * (bx + 0.5), 0.03, bz2, 0.22, 0.2, 0.62, 10, [0.42, 0.45, 0.52], true);
+        cylAt(darkMetal, side * (bx + 0.5), 0.65, bz2, 0.23, 0.12, 0.06, 10, [0.46, 0.49, 0.56], true);
+      }
+      // 后巷墙脚的排水口 + 地面格栅
+      bb(darkMetal, bx + 0.04, 0.24, cz + fw * 0.05, 0.1, 0.16, 0.3, [0.3, 0.32, 0.36], 1.1);
+      for (let k = 0; k < 3; k++) {
+        bb(darkMetal, bx + 0.09, 0.03, cz + fw * 0.05 - 0.09 + k * 0.09, 0.18, 0.02, 0.03, [0.2, 0.21, 0.24], 1.0);
       }
     }
 
@@ -553,11 +899,16 @@ const A3DWorldGithub = (() => {
     /* ============================================================
      *  灯笼 / 吊牌小工具
      * ============================================================ */
-    function lanternAt(x, y, z, rad, tint) {
+    /** 纸灯笼：吊绳按实际挂点 hangY 算长度，正好接到线缆，不穿过线缆。 */
+    function lanternAt(x, y, z, rad, hangY, tint) {
       rad = rad || 0.2;
       P.paperLantern(lanternPaper.raw, lanternMetal.raw, md(m4(x, y, z)), rad, tint || [1, 1, 1]);
-      // 吊绳
-      cylAt(cable, x, y + rad * 1.15, z, 0.008, 0.008, 0.4, 3, [0.08, 0.08, 0.09], false);
+      // 吊绳：从灯笼顶接到线缆
+      const topY = y + rad * 1.15;
+      const cordLen = Math.max(0.08, (hangY === undefined ? topY + 0.32 : hangY) - topY);
+      cylAt(cable, x, topY, z, 0.008, 0.008, cordLen, 3, [0.08, 0.08, 0.09], false);
+      // 线缆上的吊环（夹住电线）
+      cylAt(darkMetal, x, topY + cordLen, z, 0.022, 0.018, 0.035, 6, [0.4, 0.34, 0.26], true);
       cylAt(darkMetal, x, y - rad * 1.35, z, 0.022, 0.012, 0.22, 4, [0.45, 0.3, 0.18], false);
       gLamp.quad.call(gLamp, m4(x, y, z + 0.06), rad * 8, rad * 8, [1, 1, 1], [0, 0, 1, 1]);
       // 灯笼暖光顺手抹在旁边的墙上
@@ -567,50 +918,108 @@ const A3DWorldGithub = (() => {
       }
     }
 
-    /** 便宜的小纸灯笼：山珍海味版（P.paperLantern）留给主灯笼，这些用来补密度 */
-    function cheapLantern(x, y, z, rad) {
+    /** 便宜的小纸灯笼：山珍海味版（P.paperLantern）留给主灯笼，这些用来补密度。
+     *  hangY 给了就把吊绳接到杆/梁上，不给就留一截短绳头。 */
+    function cheapLantern(x, y, z, rad, hangY) {
       lanternPaper.sphere.call(lanternPaper, m4(x, y, z, 0, 0, 0, 1, 1.15, 1), rad, 10, 7, [1, 1, 1]);
-      cylAt(cable, x, y + rad * 1.15, z, 0.008, 0.008, 0.38, 3, [0.08, 0.08, 0.09], false);
-      cylAt(darkMetal, x, y + rad * 1.1, z, rad * 0.36, rad * 0.36, 0.03, 6, [0.2, 0.15, 0.1], true);
+      const topY = y + rad * 1.15;
+      const cordLen = Math.max(0.06, (hangY === undefined ? topY + 0.3 : hangY) - topY);
+      cylAt(cable, x, topY, z, 0.008, 0.008, cordLen, 3, [0.08, 0.08, 0.09], false);
+      cylAt(darkMetal, x, topY + cordLen, z, 0.02, 0.016, 0.03, 6, [0.3, 0.24, 0.17], true);
+      cylAt(darkMetal, x, topY, z, rad * 0.36, rad * 0.36, 0.03, 6, [0.2, 0.15, 0.1], true);
       cylAt(darkMetal, x, y - rad * 1.15, z, rad * 0.3, rad * 0.3, 0.02, 6, [0.2, 0.15, 0.1], true);
       gLamp.quad.call(gLamp, m4(x, y, z + 0.05), rad * 7, rad * 7, [1, 1, 1], [0, 0, 1, 1]);
     }
 
-    /** 吊牌：从墙里伸出两根横杆，牌子朝街口（+Z），走过时正好读到 */
+    /** 吊牌：两根横杆从墙面伸到牌子（杆尾入墙 0.3m），再加两根斜拉链 +
+     *  墙面固定铁板。牌子朝街口（+Z），走过时正好读到；背面补一整块封板，
+     *  从街里回头看不至于只剩一个空框。 */
     function bladeSign(p, side, y, z, w, h) {
-      const wallDist = 6.62;
-      const sx = side * (wallDist - 1.28);
-      quadAt(p, m4(sx, y, z, 0, side < 0 ? 0.05 : -0.05, 0), w, h, [1, 1, 1], [0, 0, 1, 1]);
-      GboxM(woodDark, m4(sx, y, z - 0.035, 0, side < 0 ? 0.05 : -0.05, 0),
+      const wx = wallXAt(side, z);                     // 该处临街墙面（带符号）
+      const dist = Math.abs(wx);
+      const sx = side * (dist - 1.28);                 // 牌子中面：沿用原来的离墙 1.28m
+      const tilt = side < 0 ? 0.05 : -0.05;
+      // 牌子本体：正面贴 repo 图，背面深色封板（单面 quad 从街里看是空的）
+      quadAt(p, m4(sx, y, z, 0, tilt, 0), w, h, [1, 1, 1], [0, 0, 1, 1]);
+      GboxM(darkMetal, m4(sx, y, z - 0.045, 0, tilt, 0),
+        w + 0.1, h + 0.1, 0.03, [0.12, 0.13, 0.16], 1.2);
+      GboxM(woodDark, m4(sx, y, z - 0.07, 0, tilt, 0),
         w + 0.14, h + 0.14, 0.07, [0.6, 0.48, 0.36], 1.2);
-      for (const sgn of [-1, 1]) {
-        cylAt(metal, sx, y + h / 2 + 0.05, z + sgn * w * 0.35,
-          0.016, 0.016, 1.22, 4, [0.5, 0.5, 0.55], false, 0, 0, side < 0 ? HPI : -HPI);
+      // 边框四角的铆钉
+      for (const cz of [-1, 1]) for (const cy of [-1, 1]) {
+        Gbox(metal, sx, y + cy * (h / 2 + 0.045), z + cz * (w / 2 + 0.045),
+          0.05, 0.05, 0.05, [0.7, 0.72, 0.78], 1);
       }
-      // 牌子下沿掉一颗小灯泡
-      sphAt(bulb, sx, y - h / 2 - 0.1, z + 0.04, 0.05, 5, 4, [1, 1, 1]);
-      gLamp.quad.call(gLamp, m4(sx, y - h / 2 - 0.1, z + 0.06), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
+      // 两根水平横杆：杆底从牌子背面起，一路伸进墙里 0.3m
+      const rodLen = Math.abs(wx - sx) + 0.3;
+      const rodX = sx + side * 0.06;
+      for (const sgn of [-1, 1]) {
+        const zz = z + sgn * w * 0.35;
+        cylAt(metal, rodX, y + h / 2 + 0.05, zz,
+          0.018, 0.016, rodLen, 5, [0.5, 0.5, 0.55], true, 0, 0, side < 0 ? HPI : -HPI);
+        // 墙面固定铁板 + 螺栓
+        wallBox(darkMetal, side, dist - 0.03, y + h / 2 + 0.05, zz,
+          0.07, 0.3, 0.22, [0.3, 0.31, 0.35], 1.2);
+        wallBox(metal, side, dist - 0.07, y + h / 2 + 0.05, zz,
+          0.03, 0.06, 0.06, [0.7, 0.72, 0.78], 1.0);
+      }
+      // 两根斜拉链：从墙上方斜拉到牌子上沿，让牌子像是「吊」在墙上
+      for (const sgn of [-1, 1]) {
+        const zz = z + sgn * w * 0.35;
+        const a = [sx + side * 0.02, y + h / 2 + 0.02, zz];
+        const b = [side * (dist - 0.02), y + h / 2 + 0.92, zz];
+        tubeAt(metal, [a, [a[0] + side * 0.02, (a[1] + b[1]) / 2, zz], b],
+          0.009, 4, [0.62, 0.63, 0.68]);
+        metal.torus.call(metal, m4(side * (dist - 0.07), y + h / 2 + 0.92, zz, 0, HPI, 0),
+          0.045, 0.01, 8, 4, [0.55, 0.56, 0.6]);
+      }
+      // 牌子下沿两盏小灯泡，短链挂在牌框上
+      for (const sgn of [-1, 1]) {
+        const zz = z + sgn * w * 0.3;
+        const by = y - h / 2 - 0.1;
+        cylAt(cable, sx, by + 0.02, zz, 0.006, 0.006, 0.14, 3, [0.08, 0.08, 0.09], false);
+        sphAt(bulb, sx, by - 0.02, zz, 0.05, 5, 4, [1, 1, 1]);
+        gLamp.quad.call(gLamp, m4(sx, by - 0.02, zz + 0.06), 0.9, 0.9, [1, 1, 1], [0, 0, 1, 1]);
+      }
     }
 
-    /** 街口 / 街中两块竖向 GITHUB 霓虹 */
+    /** 街口 / 街中两块竖向 GITHUB 霓虹：
+     *  上下两根横杆从牌背面伸进墙 0.3m，外加两根斜撑把牌子顶上，
+     *  墙面再压一块铁板和四颗螺栓——牌子不再像贴在空气里。 */
     function buildMouthNeon() {
       const signSpecs = [
         { side: -1, y: 3.62, z: -4.5, w: 0.84, h: 3.36 },
         { side: 1, y: 3.38, z: -13.4, w: 0.6, h: 2.4 }
       ];
       for (const s of signSpecs) {
-        const sx = s.side * (6.62 - 1.15);
-        // 牌子本体
-        quadAt(sgVert, m4(sx, s.y, s.z, 0, s.side < 0 ? 0.03 : -0.03, 0),
-          s.w, s.h, [1, 1, 1], [0, 0, 1, 1]);
-        GboxM(darkMetal, m4(sx, s.y, s.z - 0.05, 0, s.side < 0 ? 0.03 : -0.03, 0),
+        const dist = wallFxAt(s.side, s.z);
+        const sx = s.side * (dist - 1.15);
+        const tilt = s.side < 0 ? 0.03 : -0.03;
+        // 牌子本体：正面霓虹，背面封板
+        quadAt(sgVert, m4(sx, s.y, s.z, 0, tilt, 0), s.w, s.h, [1, 1, 1], [0, 0, 1, 1]);
+        GboxM(darkMetal, m4(sx, s.y, s.z - 0.05, 0, tilt, 0),
           s.w + 0.12, s.h + 0.12, 0.08, [0.12, 0.15, 0.2], 1.2);
-        // 蓝色辉光
-        gNeon.quad.call(gNeon, m4(sx, s.y, s.z + 0.08), s.w * 2.6, s.h * 1.25, [1, 1, 1], [0, 0, 1, 1]);
-        // 上下横杆固定到墙
+        // 蓝色辉光：贴着牌面，跟着牌子走
+        gNeon.quad.call(gNeon, m4(sx, s.y, s.z + 0.06), s.w * 2.6, s.h * 1.2, [1, 1, 1], [0, 0, 1, 1]);
+        // 上下两根长横杆：从牌背一直到墙里 0.3m
+        const rodLen = Math.abs(dist - Math.abs(sx)) + 0.3;
+        const rodX = sx + s.side * 0.06;
         for (const yy of [s.y - s.h * 0.42, s.y + s.h * 0.42]) {
-          cylAt(metal, sx, yy, s.z, 0.02, 0.02, 1.15, 4, [0.5, 0.52, 0.58], false, 0, 0, s.side < 0 ? HPI : -HPI);
+          cylAt(metal, rodX, yy, s.z, 0.022, 0.02, rodLen, 5, [0.5, 0.52, 0.58], true,
+            0, 0, s.side < 0 ? HPI : -HPI);
+          // 墙面固定铁板 + 螺栓
+          wallBox(darkMetal, s.side, dist - 0.03, yy, s.z, 0.08, 0.3, 0.3, [0.28, 0.3, 0.35], 1.2);
+          wallBox(metal, s.side, dist - 0.08, yy, s.z, 0.04, 0.07, 0.07, [0.72, 0.74, 0.8], 1.0);
         }
+        // 两根斜撑：墙上方 → 牌子上沿，撑住整块牌子的重量
+        for (const yy of [s.y + s.h * 0.42, s.y - s.h * 0.42]) {
+          const a = [sx + s.side * 0.02, yy, s.z + 0.04];
+          const b = [s.side * (dist - 0.02), yy + (yy > s.y ? 0.62 : -0.62), s.z + 0.04];
+          tubeAt(metal, [a, b], 0.014, 4, [0.55, 0.56, 0.62]);
+        }
+        // 牌顶吊环 + 链
+        metal.torus.call(metal, m4(sx, s.y + s.h / 2 + 0.1, s.z, 0, HPI, 0),
+          0.04, 0.009, 8, 4, [0.55, 0.56, 0.6]);
       }
     }
     buildMouthNeon();
@@ -647,6 +1056,30 @@ const A3DWorldGithub = (() => {
       // 摊主
       P.figure(vendor.raw, FD(0.15, 0, -0.92, 0, -0.4, 0), [0.16, 0.15, 0.18], { h: 1.62 });
       bladeSign(sgHello, side, 3.04, z, 1.7, 0.42);
+      // 摊位背后：两根落地立柱 + 挂布木框 + 绳子，不是只做正面
+      for (const fx2 of [-1, 1]) {
+        woodDark.cyl.call(woodDark, F(fx2, 0, -1.02), 0.045, 0.04, 2.12, 5, [0.52, 0.4, 0.29], true);
+        // 斜撑：从立柱顶斜到摊位后柱脚
+        const pa = M.xf(sm, [fx2, 1.9, -1.02]);
+        const pb = M.xf(sm, [fx2, 0.12, -0.74]);
+        tubeAt(woodDark, [pa, pb], 0.02, 4, [0.5, 0.38, 0.27]);
+        GboxM(darkMetal, F(fx2, 0.03, -1.02), 0.16, 0.06, 0.16, [0.36, 0.37, 0.42], 1.1);
+      }
+      GboxM(woodDark, F(0, 2.02, -1.02), 2.14, 0.08, 0.07, [0.5, 0.38, 0.27], 1.3);
+      quadAt(cloth, F(0, 1.52, -0.98), 1.96, 0.94, [0.72, 0.32, 0.3], [0, 0, 1, 1], 0.35);
+      quadAt(cloth, F(0.62, 1.0, -0.98), 0.36, 0.62, [0.85, 0.8, 0.7], [0, 0, 1, 1], 0.4);
+      // 绳子上挂的纸袋 / 包装（绳从横杆垂下来）
+      for (let i = 0; i < 3; i++) {
+        const lx = -0.6 + i * 0.6;
+        const q = M.xf(sm, [lx, 1.85, -0.99]);
+        cylAt(cable, q[0], q[1], q[2], 0.007, 0.007, 0.17, 3, [0.1, 0.1, 0.11], false);
+        GboxM(cloth, F(lx, 1.7, -0.98), 0.24, 0.3, 0.1,
+          [0.85 + r() * 0.3, 0.55 + r() * 0.3, 0.4 + r() * 0.3], 1.2);
+      }
+      // 背后堆的货箱
+      P.crate(wood.raw, dm(-5.85, 0.23, -0.3, 0, 0.7, 0), 0.4, [0.54, 0.42, 0.3]);
+      P.crate(wood.raw, dm(-5.6, 0.17, -1.55, 0, 1.25, 0), 0.28, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(-5.9, 0.14, -2.05, 0, 0.2, 0), 0.24, [0.46, 0.36, 0.26]);
       // 旁边两箱货
       P.crate(wood.raw, dm(-5.55, 0.23, 0.9, 0, 0.4, 0), 0.4, [0.56, 0.43, 0.3]);
       P.crate(wood.raw, dm(-5.15, 0.18, 1.35, 0, 1.1, 0), 0.3, [0.5, 0.39, 0.28]);
@@ -700,8 +1133,26 @@ const A3DWorldGithub = (() => {
       }
       P.figure(vendor.raw, FD(0.1, 0, -0.5, 0, 0.3, 0), [0.18, 0.16, 0.2], { h: 1.58 });
       bladeSign(sgDots, side, 3.0, z, 1.65, 0.41);
-      P.crate(wood.raw, dm(5.7, 0.2, -2.2, 0, 0.7, 0), 0.36, [0.55, 0.42, 0.3]);
-      P.crate(wood.raw, dm(5.5, 0.15, -2.7, 0, 1.4, 0), 0.28, [0.5, 0.38, 0.27]);
+      // 背板加固横档 + 背后两根斜撑落地，木亭不是四根柱子插在空气里
+      GboxM(woodDark, F(0, 1.98, -0.82), 2.56, 0.08, 0.06, [0.48, 0.36, 0.26], 1.3);
+      for (const fx2 of [-1.1, 1.1]) {
+        const pa = M.xf(sm, [fx2, 1.92, -0.8]);
+        const pb = M.xf(sm, [fx2, 0.03, -1.35]);
+        tubeAt(woodDark, [pa, pb], 0.022, 4, [0.5, 0.38, 0.27]);
+      }
+      // 绳子垂下来挂几卷贴纸
+      for (let i = 0; i < 3; i++) {
+        const lx = -0.7 + i * 0.7;
+        const q = M.xf(sm, [lx, 1.78, -0.7]);
+        cylAt(cable, q[0], q[1], q[2], 0.006, 0.006, 0.18, 3, [0.1, 0.1, 0.11], false);
+        cloth.cyl.call(cloth, F(lx, 1.68, -0.7), 0.055, 0.055, 0.12, 8,
+          [0.8 + r() * 0.5, 0.55 + r() * 0.4, 0.45 + r() * 0.4], true);
+      }
+      // 背后的货箱
+      P.crate(wood.raw, dm(5.55, 0.21, -2.2, 0, 0.7, 0), 0.36, [0.55, 0.42, 0.3]);
+      P.crate(wood.raw, dm(5.35, 0.15, -2.7, 0, 1.4, 0), 0.28, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(5.8, 0.18, -4.35, 0, 0.3, 0), 0.3, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(5.5, 0.13, -4.75, 0, 1.1, 0), 0.22, [0.46, 0.35, 0.25]);
     }
     stallKiosk();
 
@@ -752,6 +1203,22 @@ const A3DWorldGithub = (() => {
       // 旁边的桶与箱
       cylAt(darkMetal, -5.55, 0.03, -5.6, 0.24, 0.24, 0.62, 12, [0.4, 0.43, 0.5], true);
       P.crate(wood.raw, dm(-5.5, 0.19, -7.7, 0, 0.3, 0), 0.34, [0.55, 0.42, 0.3]);
+      // 推把上挂的布袋：绳子连着把手，袋子自然垂着
+      const ph = M.xf(sm, [-1.28, 1.5, 0]);
+      tubeAt(cable, [ph, [ph[0], ph[1] - 0.34, ph[2]]], 0.009, 3, [0.12, 0.12, 0.13]);
+      P.crate(bag.raw, dm(ph[0], ph[1] - 0.52, ph[2], 0, 0.4, 0.05), 0.26, [0.3, 0.34, 0.26]);
+      // 靠墙的菜单立牌：两条腿落地，板子挂在腿上
+      for (const sz of [-0.32, 0.32]) {
+        cylAt(woodDark, -5.7, 0.03, -8.25 + sz, 0.024, 0.02, 1.28, 4, [0.5, 0.38, 0.27], true);
+      }
+      GboxM(woodDark, m4(-5.7, 1.02, -8.25, 0, 0.42, 0.06), 0.86, 0.7, 0.05, [0.42, 0.31, 0.22], 1.3);
+      quadAt(paper, m4(-5.64, 1.02, -8.25, 0, 0.42 - HPI, 0), 0.7, 0.56, [0.95, 0.9, 0.78], [0, 0, 1, 1]);
+      // 背后的货箱
+      P.crate(wood.raw, dm(-5.9, 0.2, -6.1, 0, 0.5, 0), 0.34, [0.52, 0.4, 0.29]);
+      P.crate(wood.raw, dm(-5.6, 0.14, -6.6, 0, 1.2, 0), 0.22, [0.46, 0.35, 0.25]);
+      // 推车背后的备用竹筐
+      bag.sphere.call(bag, m4(-5.35, 0.22, -5.15, 0, 0.4, 0), 0.22, 7, 5, [0.32, 0.3, 0.22]);
+      bag.sphere.call(bag, m4(-5.55, 0.2, -4.85, 0, 0.9, 0.2), 0.18, 7, 5, [0.3, 0.28, 0.2]);
     }
     stallCart();
 
@@ -819,6 +1286,33 @@ const A3DWorldGithub = (() => {
       }
       bladeSign(sgTiny, side, 3.12, z, 1.7, 0.42);
       cylAt(metal, 5.55, 0.03, -8.4, 0.16, 0.16, 0.7, 10, [0.5, 0.52, 0.58], true);
+      /* 摊位背后：煤气罐 + 水桶 + 排烟管 + 后架挂绳。
+       * 摊位局部坐标：世界 x = 4.4 − lz，世界 z = -9.2 + lx。 */
+      // 煤气罐：罐身落地、顶部阀、橡胶管拉到灶台
+      cylAt(metal, 5.72, 0.03, -9.62, 0.19, 0.19, 0.58, 12, [0.62, 0.64, 0.7], true);
+      cylAt(darkMetal, 5.72, 0.61, -9.62, 0.2, 0.14, 0.08, 12, [0.42, 0.44, 0.5], true);
+      cylAt(brass, 5.72, 0.69, -9.62, 0.05, 0.04, 0.12, 6, [0.8, 0.7, 0.45], true);
+      tubeAt(cable, [
+        [5.72, 0.78, -9.62], [5.55, 0.86, -9.5], [5.2, 0.7, -9.35], [4.95, 0.5, -9.3]
+      ], 0.016, 5, [0.18, 0.18, 0.2]);
+      // 备用水桶 + 桶盖
+      cylAt(darkMetal, 5.78, 0.03, -8.72, 0.21, 0.19, 0.5, 12, [0.4, 0.43, 0.5], true);
+      cylAt(darkMetal, 5.78, 0.53, -8.72, 0.2, 0.15, 0.06, 12, [0.46, 0.49, 0.56], true);
+      // 排烟管：炉灶上方先接一个烟罩，再弯到墙上
+      cylAt(darkMetal, 4.32, 1.36, -10.05, 0.4, 0.16, 0.32, 10, [0.38, 0.39, 0.44], true);
+      tubeAt(darkMetal, [
+        [4.32, 1.5, -10.05], [4.32, 2.55, -10.05], [4.32, 3.1, -10.05],
+        [5.0, 3.36, -10.0], [6.2, 3.5, -9.95]
+      ], 0.13, 8, [0.42, 0.43, 0.48]);
+      // 后架上的挂绳：几包干货吊着
+      for (let i = 0; i < 3; i++) {
+        const lx = -0.7 + i * 0.7;
+        const q = M.xf(sm, [lx, 2.04, -0.72]);
+        cylAt(cable, q[0], q[1], q[2], 0.006, 0.006, 0.2, 3, [0.1, 0.1, 0.11], false);
+        GboxM(cloth, F(lx, 1.94, -0.7), 0.2, 0.24, 0.1,
+          [0.7 + r() * 0.3, 0.5 + r() * 0.3, 0.35 + r() * 0.2], 1.2);
+      }
+      P.crate(wood.raw, dm(5.85, 0.2, -10.0, 0, 0.4, 0), 0.34, [0.5, 0.39, 0.28]);
     }
     stallFood();
 
@@ -869,9 +1363,29 @@ const A3DWorldGithub = (() => {
       }
       P.figure(vendor.raw, FD(1.45, 0, -0.15, 0, -1.1, 0), [0.19, 0.16, 0.18], { h: 1.64 });
       bladeSign(sgAwe, side, 3.3, z, 2.25, 0.55);
+      // 书架背后：两根斜撑顶到墙，书架不是靠一块薄板立着
+      for (const lx of [-1.05, 1.05]) {
+        const pa = M.xf(sm, [lx, 2.0, -0.5]);
+        const pb = [side * (wallFxAt(side, z - lx) - 0.06), 1.4, z - lx];
+        tubeAt(woodDark, [pa, pb], 0.026, 4, [0.52, 0.4, 0.29]);
+      }
+      // 书架侧面的书堆（摞在地上）
+      for (let i = 0; i < 4; i++) {
+        GboxM(cloth, m4(-5.5, 0.06 + i * 0.055, -13.05 + (i % 2) * 0.03, 0, (r() - 0.5) * 0.4, 0),
+          0.3, 0.05, 0.22, [0.5 + r() * 0.4, 0.28 + r() * 0.3, 0.24 + r() * 0.3], 1.2);
+      }
+      // 绳子上夹的几本旧书
+      for (let i = 0; i < 3; i++) {
+        const lx = -0.75 + i * 0.75;
+        const q = M.xf(sm, [lx, 1.84, -0.42]);
+        cylAt(cable, q[0], q[1], q[2], 0.006, 0.006, 0.16, 3, [0.1, 0.1, 0.11], false);
+        GboxM(cloth, F(lx, 1.66, -0.42, 0, 0, 0.08), 0.2, 0.26, 0.05,
+          [0.5 + r() * 0.4, 0.3 + r() * 0.3, 0.25 + r() * 0.3], 1.2);
+      }
       // 一摞纸箱
       P.crate(wood.raw, dm(-5.65, 0.19, -11.0, 0, 0.5, 0), 0.34, [0.56, 0.43, 0.3]);
       P.crate(wood.raw, dm(-5.45, 0.14, -12.0, 0, 1.2, 0), 0.25, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(-5.9, 0.18, -12.7, 0, 0.8, 0), 0.3, [0.48, 0.37, 0.26]);
     }
     stallBooks();
 
@@ -932,6 +1446,31 @@ const A3DWorldGithub = (() => {
       cylAt(darkMetal, x + 1.55, 0.03, z - 0.5, 0.06, 0.05, 1.55, 5, [0.4, 0.42, 0.47], true);
       sphAt(bulb, x + 1.55, 1.62, z - 0.5, 0.09, 6, 4, [1, 1, 1]);
       gLamp.quad.call(gLamp, m4(x + 1.55, 1.62, z - 0.48), 1.5, 1.5, [1, 1, 1], [0, 0, 1, 1]);
+      // 立灯底座的石盘 + 三根拉线稳定
+      cylAt(bldD, x + 1.55, 0.03, z - 0.5, 0.2, 0.16, 0.1, 8, [0.5, 0.52, 0.56], true);
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * TAU + 0.5;
+        tubeAt(cable, [
+          [x + 1.55, 1.3, z - 0.5],
+          [x + 1.55 + Math.cos(a) * 0.5, 0.03, z - 0.5 + Math.sin(a) * 0.5]
+        ], 0.007, 3, [0.3, 0.3, 0.34]);
+      }
+      /* 摊位背后：折叠椅 + 纸箱 + 灯杆旁的工具箱。
+       * 摊位局部坐标：世界 x = 4.15 − lz，世界 z = -15.2 + lx。 */
+      // 折叠椅：四腿落地 + 座板 + 靠背
+      for (const sx of [-0.18, 0.18]) for (const sz of [-0.16, 0.16]) {
+        cylAt(darkMetal, 5.95 + sx, 0.03, -16.15 + sz, 0.018, 0.016, 0.44, 4, [0.4, 0.41, 0.46], true);
+      }
+      GboxM(darkMetal, m4(5.95, 0.45, -16.15, 0, 0.1, 0), 0.46, 0.04, 0.38, [0.36, 0.37, 0.42], 1.2);
+      GboxM(darkMetal, m4(5.95, 0.76, -16.32, -0.14, 0.1, 0), 0.46, 0.55, 0.04, [0.34, 0.35, 0.4], 1.2);
+      // 背后的纸箱
+      P.crate(wood.raw, dm(5.95, 0.2, -14.6, 0, 0.6, 0), 0.34, [0.52, 0.4, 0.29]);
+      P.crate(wood.raw, dm(5.65, 0.14, -14.2, 0, 1.3, 0), 0.22, [0.46, 0.35, 0.25]);
+      GboxM(darkMetal, m4(5.9, 0.1, -15.45, 0, 0.3, 0), 0.42, 0.14, 0.26, [0.32, 0.33, 0.38], 1.2);
+      // 挂绳上的一盒显卡配件
+      const gq = M.xf(sm, [1.0, 2.1, -0.7]);
+      cylAt(cable, gq[0], gq[1], gq[2], 0.006, 0.006, 0.16, 3, [0.1, 0.1, 0.11], false);
+      GboxM(cloth, F(1.0, 1.92, -0.7), 0.26, 0.18, 0.12, [0.5, 0.55, 0.6], 1.2);
     }
 
     /** 坐着的人影：大腿 + 小腿 + 身体 + 头，比 P.figure 的坐姿更好认 */
@@ -993,6 +1532,29 @@ const A3DWorldGithub = (() => {
       gLamp.quad.call(gLamp, m4(x - 0.9, 1.56, z + 0.52), 1.2, 1.2, [1, 1, 1], [0, 0, 1, 1]);
       P.figure(vendor.raw, FD(0.4, 0, -0.85, 0, -0.2, 0), [0.18, 0.17, 0.16], { h: 1.6 });
       bladeSign(sgLlama, side, 3.08, z, 1.7, 0.42);
+      /* 摊位背后：一根横跨的木架 + 斜挂的防雨布，摊主背后不再空着。
+       * 摊位局部坐标：世界 x = -4.35 + lz，世界 z = -18.2 − lx。 */
+      for (const lx of [-1.25, 1.25]) {
+        cylAt(woodDark, -5.55, 0.03, -18.2 - lx, 0.045, 0.04, 2.2, 5, [0.5, 0.38, 0.27], true);
+        // 立柱斜撑到地
+        tubeAt(woodDark, [
+          [-5.55, 1.95, -18.2 - lx], [-5.95, 0.04, -18.2 - lx - 0.35]
+        ], 0.02, 4, [0.48, 0.36, 0.26]);
+      }
+      cylAt(woodDark, -5.55, 2.22, -19.45, 0.035, 0.03, 2.5, 4, [0.5, 0.38, 0.27],
+        true, HPI, 0);
+      // 横杆下挂的挡布 + 上沿卷边
+      quadAt(cloth, m4(-5.6, 1.78, -18.2, 0, HPI, 0), 2.5, 0.86, [0.55, 0.5, 0.42], [0, 0, 1, 1], 0.3);
+      quadAt(cloth, m4(-5.62, 2.12, -18.2, 0, HPI, 0), 2.4, 0.18, [0.62, 0.56, 0.48], [0, 0, 1, 1]);
+      // 背后堆的旧屏 + 纸箱
+      GboxM(darkMetal, m4(-5.9, 0.32, -17.3, 0.08, 0.3, 0), 0.6, 0.5, 0.45, [0.28, 0.28, 0.31], 1.2);
+      quadAt(winDark, m4(-5.88, 0.34, -17.02, 0.08, 0.3, 0), 0.44, 0.32, [0.4, 0.42, 0.46], [0, 0, 1, 1]);
+      P.crate(wood.raw, dm(-6.0, 0.2, -19.3, 0, 0.7, 0), 0.34, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(-5.75, 0.14, -19.7, 0, 1.1, 0), 0.22, [0.45, 0.34, 0.24]);
+      // 线缆从木架垂到地上
+      tubeAt(cable, [
+        [-5.55, 2.2, -18.9], [-5.62, 1.4, -19.05], [-5.72, 0.06, -19.2]
+      ], 0.012, 3, [0.22, 0.22, 0.25]);
     }
     stallScreens();
 
@@ -1037,8 +1599,24 @@ const A3DWorldGithub = (() => {
       // 翻键帽的路人
       P.figure(vendor.raw, dm(2.55, 0.03, -20.55, 0, 0.75, 0), [0.24, 0.18, 0.15], { h: 1.66 });
       bladeSign(sgRust, side, 3.02, z, 1.62, 0.4);
+      /* 摊位背后：一张矮木桌放键帽盒 + 挂绳 + 货箱。
+       * 摊位局部坐标：世界 x = 4.3 − lz，世界 z = -21.2 + lx。 */
+      GboxM(wood, m4(5.55, 0.82, -22.25, 0, 0, 0), 0.72, 0.08, 1.4, [0.6, 0.46, 0.33], 1.3);
+      for (const dx of [-0.28, 0.28]) for (const dz of [-0.58, 0.58]) {
+        cylAt(woodDark, 5.55 + dx, 0.03, -22.25 + dz, 0.03, 0.026, 0.78, 4, [0.5, 0.38, 0.27], true);
+      }
+      // 桌上叠着的键帽盒
+      for (let i = 0; i < 4; i++) {
+        GboxM(cloth, m4(5.5, 0.9 + i * 0.07, -22.1 + (i % 2) * 0.06, 0, 0.1 + i * 0.1, 0),
+          0.34, 0.06, 0.24, [0.55 + r() * 0.3, 0.4 + r() * 0.3, 0.38 + r() * 0.3], 1.2);
+      }
+      // 绳子上挂的键帽袋
+      const kq = M.xf(sm, [-1.0, 1.9, -0.48]);
+      cylAt(cable, kq[0], kq[1], kq[2], 0.006, 0.006, 0.18, 3, [0.1, 0.1, 0.11], false);
+      GboxM(cloth, F(-1.0, 1.7, -0.48), 0.22, 0.2, 0.1, [0.62, 0.55, 0.5], 1.2);
       P.crate(wood.raw, dm(5.6, 0.19, -20.2, 0, 0.5, 0), 0.34, [0.55, 0.42, 0.3]);
       P.crate(wood.raw, dm(5.4, 0.14, -22.3, 0, 1.3, 0), 0.25, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(5.85, 0.16, -21.9, 0, 0.2, 0), 0.26, [0.47, 0.36, 0.26]);
     }
     stallKeys();
 
@@ -1089,6 +1667,21 @@ const A3DWorldGithub = (() => {
       P.crate(wood.raw, dm(-5.65, 0.19, -23.1, 0, 0.4, 0), 0.34, [0.55, 0.42, 0.3]);
       P.crate(wood.raw, dm(-5.55, 0.14, -25.2, 0, 1.1, 0), 0.25, [0.48, 0.37, 0.26]);
       cylAt(darkMetal, -5.6, 0.03, -22.4, 0.24, 0.24, 0.6, 12, [0.42, 0.45, 0.52], true);
+      /* 衣架背后：两根立柱撑起一块挂布，衣架不是凭空立在街边。
+       * 摊位局部坐标：世界 x = -4.45 + lz，世界 z = -24.0 − lx。 */
+      for (const lz of [-1.5, -2.15]) {
+        cylAt(woodDark, -4.45 + lz, 0.03, -24.0 - 1.35, 0.045, 0.04, 2.05, 5, [0.52, 0.4, 0.29], true);
+        tubeAt(woodDark, [
+          [-4.45 + lz, 1.9, -24.0 - 1.35], [-4.45 + lz - 0.42, 0.04, -24.0 - 1.35]
+        ], 0.02, 4, [0.48, 0.36, 0.26]);
+      }
+      cylAt(woodDark, -5.32, 2.06, -24.0 - 1.35, 0.03, 0.026, 1.62, 4, [0.5, 0.38, 0.27],
+        true, HPI, 0);
+      quadAt(cloth, m4(-5.33, 1.5, -25.35, 0, HPI, 0), 1.6, 1.0, [0.62, 0.32, 0.3], [0, 0, 1, 1], 0.35);
+      // 衣架柱脚的小石块
+      for (const lx of [-1.35, 1.35]) {
+        cylAt(bldD, -4.45, 0.03, -24.0 - lx, 0.16, 0.14, 0.1, 6, [0.5, 0.52, 0.56], true);
+      }
     }
     stallMerch();
 
@@ -1126,13 +1719,32 @@ const A3DWorldGithub = (() => {
         bag.sphere.call(bag, m4(bx + 0.05, 0.86, bz - 0.02, 0, r() * TAU, 0.3), 0.18, 7, 5, [0.16, 0.2, 0.14]);
         bag.sphere.call(bag, m4(bx - 0.16, 0.83, bz + 0.12, 0, r() * TAU, 0.2), 0.13, 6, 4, [0.18, 0.22, 0.15]);
       }
-      // 电线杆 + 变压器 + 电线
-      cylAt(woodDark, -3.35, 0.03, -20.6, 0.13, 0.1, 6.6, 6, [0.45, 0.34, 0.25], true);
+      // 电线杆 + 变压器 + 电线：杆脚混凝土基座、横担斜撑、三根落地拉线
+      cylAt(bldD, -3.35, 0.03, -20.6, 0.22, 0.16, 0.28, 8, [0.5, 0.52, 0.56], true);
+      cylAt(woodDark, -3.35, 0.28, -20.6, 0.13, 0.1, 6.35, 6, [0.45, 0.34, 0.25], true);
       Gbox(darkMetal, -3.35, 5.95, -20.6, 2.2, 0.1, 0.14, [0.3, 0.31, 0.34], 1.2);
+      for (const sx of [-1, 1]) {
+        tubeAt(darkMetal, [[-3.35, 5.38, -20.6], [-3.35 + sx * 0.98, 5.9, -20.6]], 0.02, 4, [0.3, 0.31, 0.34]);
+      }
       for (let i = 0; i < 3; i++) {
         cylAt(brass, -4.2 + i * 0.85, 6.06, -20.6, 0.05, 0.04, 0.16, 6, [0.5, 0.45, 0.3], true);
       }
+      // 变压器：两道抱箍 + 散热片，抱在杆身上
       Gbox(darkMetal, -3.35, 4.6, -20.6, 0.52, 0.78, 0.44, [0.28, 0.3, 0.34], 1.3);
+      for (const sy of [4.3, 4.9]) {
+        metal.torus.call(metal, m4(-3.35, sy, -20.6), 0.34, 0.03, 10, 4, [0.45, 0.46, 0.5]);
+      }
+      for (const sz of [-1, 1]) {
+        Gbox(darkMetal, -3.35, 4.6, -20.6 + sz * 0.26, 0.4, 0.6, 0.08, [0.32, 0.34, 0.38], 1.2);
+      }
+      // 拉线：杆身 → 地锚
+      for (const sx of [-1, 1]) {
+        tubeAt(cable, [
+          [-3.35, 6.4, -20.6],
+          [-3.35 + sx * 1.55, 0.08, -20.6 + sx * 0.85]
+        ], 0.012, 3, [0.28, 0.28, 0.32]);
+        cylAt(darkMetal, -3.35 + sx * 1.55, 0.03, -20.6 + sx * 0.85, 0.09, 0.06, 0.24, 5, [0.4, 0.4, 0.45], true);
+      }
       for (let k = 0; k < 3; k++) {
         const pts = [
           [-3.35, 5.95 + k * 0.1, -20.6],
@@ -1142,32 +1754,48 @@ const A3DWorldGithub = (() => {
         ];
         cable.tube.call(cable, M.ident(), pts, 0.012, 4, [1, 1, 1]);
       }
-      // 自行车（靠墙停）
+      // 自行车（靠墙停）：轮辐、脚撑落地、车筐、车锁
       const bm = m4(5.7, 0.03, -10.8, 0, 0.12, 0.07);
       for (const sz of [-0.52, 0.52]) {
         metal.torus.call(metal, M.mul(bm, m4(0, 0.34, sz, 0, 0, HPI)), 0.32, 0.026, 12, 4, [0.35, 0.36, 0.4]);
+        for (let k = 0; k < 4; k++) {
+          metal.cyl.call(metal, M.mul(bm, m4(0, 0.34, sz, 0, 0, HPI + k * 0.42)),
+            0.006, 0.006, 0.62, 3, [0.5, 0.5, 0.55], false);
+        }
       }
       metal.tube.call(metal, bm, [[0, 0.34, -0.52], [0, 0.62, -0.18], [0, 0.34, 0.52]], 0.018, 4, [0.55, 0.4, 0.3]);
       metal.tube.call(metal, bm, [[0, 0.62, -0.18], [0, 0.72, 0.15], [0, 0.55, 0.32]], 0.016, 4, [0.6, 0.6, 0.64]);
       metal.cyl.call(metal, M.mul(bm, m4(0.23, 0.72, 0.15, 0, 0, HPI)), 0.012, 0.012, 0.46, 4, [0.6, 0.6, 0.64], true);
       GboxM(darkMetal, M.mul(bm, m4(0, 0.62, 0.5)), 0.1, 0.05, 0.24, [0.12, 0.12, 0.13], 1.2);
+      // 脚撑：从后轴斜到地面
+      tubeAt(metal, [
+        [5.66, 0.4, -11.2],
+        [5.78, 0.035, -10.92]
+      ], 0.013, 4, [0.38, 0.38, 0.42]);
+      // 前车筐
+      GboxM(metal, M.mul(bm, m4(-0.22, 0.66, -0.44, 0, 0, 0)), 0.3, 0.22, 0.28, [0.4, 0.4, 0.44], 1.3);
+      // 车锁：绕到墙上的锁扣（墙在 6.76）
+      tubeAt(cable, [
+        [5.84, 0.5, -10.62], [6.3, 0.54, -10.56], [6.7, 0.34, -10.5]
+      ], 0.012, 3, [0.3, 0.3, 0.34]);
+      wallBox(darkMetal, 1, 6.74, 0.34, -10.5, 0.08, 0.16, 0.14, [0.35, 0.36, 0.4], 1.0);
       // 盆栽
       for (const pl of [[-5.95, 1.8, 3], [5.95, -3.3, 5], [-5.95, -11.0, 7], [5.95, -18.8, 9]]) {
         P.pot(bldD.raw, dm(pl[0], 0.03, pl[1]), 0.2, 0.3, [0.5, 0.36, 0.26]);
         P.grass(leafB.raw, dm(pl[0], 0.33, pl[1], 0, r() * TAU, 0), 6, 0.34, [0.7, 0.95, 0.65], pl[2], 0.16);
       }
-      // 地上的纸屑、易拉罐
+      // 地上的纸屑、易拉罐（贴在石板 y=0.03 上）
       for (let i = 0; i < 10; i++) {
-        floorQ(paper, (r() - 0.5) * 11, 0.048, -2 - r() * 27, r() * TAU,
+        floorQ(paper, (r() - 0.5) * 11, 0.0325, -2 - r() * 27, r() * TAU,
           0.16 + r() * 0.14, 0.22 + r() * 0.16, [1, 0.95, 0.8], [0, 0, 1, 1]);
       }
       for (let i = 0; i < 6; i++) {
         const cx2 = (r() - 0.5) * 9, cz2 = -1 - r() * 28;
-        metal.cyl.call(metal, m4(cx2, 0.07, cz2, 0, r() * TAU, HPI), 0.035, 0.035, 0.12, 7, [0.5, 0.45, 0.4], true);
+        metal.cyl.call(metal, m4(cx2, 0.065, cz2, 0, r() * TAU, HPI), 0.035, 0.035, 0.12, 7, [0.5, 0.45, 0.4], true);
       }
       // 地垫
       for (const mat of [[-3.6, -0.9, 1.8, 1.2], [3.45, -9.3, 1.7, 1.1], [-3.7, -18.4, 1.6, 1.0]]) {
-        floorQ(cloth, mat[0], 0.052, mat[1], 0, mat[2], mat[3], [0.65, 0.35, 0.3], [0, 0, 2, 1]);
+        floorQ(cloth, mat[0], 0.033, mat[1], 0, mat[2], mat[3], [0.65, 0.35, 0.3], [0, 0, 2, 1]);
       }
       // 收摊后盖着布的手推车
       GboxM(woodDark, m4(-4.35, 0.55, -27.4, 0, 0.35, 0), 1.4, 0.75, 0.9, [0.35, 0.26, 0.2], 1.2);
@@ -1184,29 +1812,46 @@ const A3DWorldGithub = (() => {
       const strands = [-1.6, -6.2, -11.4, -17.2, -23.0];
       const lanternPts = [];
       strands.forEach((sz, si) => {
+        /* 串灯两端必须落在这一 z 处的楼立面上：
+         * 先查该侧墙的 x（楼栋表），再各往墙里送 0.24m。 */
+        const xL = wallXAt(-1, sz) - 0.24;
+        const xR = wallXAt(1, sz) + 0.24;
         const n = 16;
         const pts = [];
         for (let i = 0; i <= n; i++) {
           const u = i / n;
-          pts.push([-7.0 + u * 14.0, 4.55 - Math.sin(u * PI) * 0.72,
+          pts.push([xL + (xR - xL) * u, 4.55 - Math.sin(u * PI) * 0.72,
             sz + Math.sin(u * PI * 1.5 + si) * 0.16]);
         }
         cable.tube.call(cable, M.ident(), pts, 0.011, 4, [1, 1, 1]);
+        // 两端墙上的瓷瓶挂钩：线缆真的挂在墙上
+        for (const s of [-1, 1]) {
+          const wx = s < 0 ? xL + 0.24 : xR - 0.24;
+          cylAt(brass, wx, 4.52, sz, 0.05, 0.038, 0.15, 6, [0.5, 0.45, 0.3], true,
+            0, 0, s < 0 ? HPI : -HPI);
+          wallBox(darkMetal, s, Math.abs(wx) - 0.02, 4.6, sz, 0.06, 0.15, 0.15, [0.34, 0.35, 0.4], 1.0);
+        }
         for (let i = 2; i < n; i += 4) {
           const p = pts[i];
+          // 灯泡用一小截吊线挂在电缆下面
+          cylAt(cable, p[0], p[1] - 0.05, p[2], 0.006, 0.006, 0.06, 3, [0.08, 0.08, 0.09], false);
           bulb.sphere.call(bulb, m4(p[0], p[1] - 0.1, p[2]), 0.055, 6, 4, [1, 1, 1]);
           gLamp.quad.call(gLamp, m4(p[0], p[1] - 0.1, p[2] + 0.02), 0.72, 0.72, [1, 1, 1], [0, 0, 1, 1]);
         }
-        // 前四条串灯各挂一只纸灯笼（挂在街心，正好照亮走道）
-        if (si < 4) lanternPts.push([pts[8][0], pts[8][1] - 0.55, pts[8][2], 0.19]);
+        // 前四条串灯各挂一只纸灯笼（挂在街心，正好照亮走道）；吊绳接到电缆
+        if (si < 4) lanternPts.push([pts[8][0], pts[8][1] - 0.55, pts[8][2], 0.19, pts[8][1]]);
       });
-      lanternPts.forEach(l => lanternAt(l[0], l[1], l[2], l[3]));
-      // 街口两根带灯的小木杆
+      lanternPts.forEach(l => lanternAt(l[0], l[1], l[2], l[3], l[4]));
+      // 街口两根带灯的小木杆：石墩底座 + 斜撑 + 横杆挂灯笼
       for (const side of [-1, 1]) {
         const px = side * 5.5, pz = side < 0 ? 0.9 : -1.8;
-        cylAt(woodDark, px, 0.03, pz, 0.065, 0.05, 3.3, 5, [0.5, 0.38, 0.27], true);
-        cylAt(woodDark, px, 3.12, pz, 0.035, 0.03, 0.55, 4, [0.5, 0.38, 0.27], false, 0, 0, side < 0 ? -HPI : HPI);
-        cheapLantern(px - side * 0.5, 2.62, pz, 0.15);
+        cylAt(bldD, px, 0.03, pz, 0.2, 0.16, 0.3, 8, [0.52, 0.54, 0.58], true);
+        cylAt(woodDark, px, 0.3, pz, 0.065, 0.05, 3.05, 5, [0.5, 0.38, 0.27], true);
+        // 横杆：从杆身伸出，末端挂灯笼
+        cylAt(woodDark, px, 3.12, pz, 0.035, 0.03, 0.55, 4, [0.5, 0.38, 0.27], false,
+          0, 0, side < 0 ? -HPI : HPI);
+        tubeAt(woodDark, [[px, 2.8, pz], [px - side * 0.28, 3.1, pz]], 0.018, 4, [0.52, 0.4, 0.29]);
+        cheapLantern(px - side * 0.5, 2.58, pz, 0.15, 3.12);
       }
 
       // 沿街两侧墙面的暖光（灯笼 / 棚灯的余光），加法片，便宜又出气氛
@@ -1216,24 +1861,83 @@ const A3DWorldGithub = (() => {
         }
       }
 
-      // 横跨街道的布幡
+      /* 横跨街道的布幡：两端铁件钉在墙上，布面挂在缆线上。
+       * 布不能是一块平板（从街口看会像横梁），所以：
+       *  - 缆线改成 8 段抛物线，布顶贴着这条下垂曲线走；
+       *  - 每片布再拆成 8 条窄竖条，条间留细缝当褶皱；
+       *  - 布条长短按正弦错开，下缘就是波浪，每三条再挂一个垂角；
+       *  - 每条布花一点深浅，形成竖向条纹；正反两面都画（背面压暗）。 */
       for (const b of [[-8.3, 5.05, [0.8, 0.32, 0.28]], [-20.2, 5.25, [0.3, 0.45, 0.72]]]) {
-        for (let i = 0; i < 3; i++) {
-          quadAt(cloth, m4(-3.7 + i * 3.7, b[1], b[0], 0, 0, 0), 3.55, 0.55,
-            [b[2][0] + i * 0.06, b[2][1] + i * 0.06, b[2][2] + i * 0.04], [0, 0, 1, 1], 0.4);
+        const zz0 = b[0], cy0 = b[1], bk = b[2];
+        const bxL = wallXAt(-1, zz0) - 0.18;
+        const bxR = wallXAt(1, zz0) + 0.18;
+        const halfSpan = (Math.abs(bxL) + Math.abs(bxR)) / 2;
+        // 缆线：两端高 0.42、中间下垂 0.17，布顶就贴在这条线下面
+        const cableY = x => cy0 + 0.25 + 0.17 * Math.pow(x / halfSpan, 2);
+        const cpts = [];
+        for (let k = 0; k <= 8; k++) {
+          const x = bxL + (bxR - bxL) * (k / 8);
+          cpts.push([x, cableY(x), zz0]);
         }
-        cable.tube.call(cable, M.ident(), [[-7.0, b[1] + 0.42, b[0]], [0, b[1] + 0.25, b[0]], [7.0, b[1] + 0.42, b[0]]], 0.01, 4, [1, 1, 1]);
+        cable.tube.call(cable, M.ident(), cpts, 0.01, 4, [1, 1, 1]);
+        // 两端墙上的铁件
+        for (const s of [-1, 1]) {
+          const wxx = Math.abs(s < 0 ? bxL : bxR);
+          wallBox(darkMetal, s, wxx - 0.02, cy0 + 0.42, zz0, 0.08, 0.16, 0.16, [0.34, 0.35, 0.4], 1.0);
+        }
+        // 三片布，每片拆 8 条窄竖条
+        const pieces = 3, NP = 8, pieceW = 3.55, step = 3.7;
+        for (let i = 0; i < pieces; i++) {
+          const cx = -step + i * step;
+          for (let k = 0; k < NP; k++) {
+            const u = (k + 0.5) / NP;
+            const lx = cx - pieceW / 2 + u * pieceW;
+            const yTop = cableY(lx) - 0.018;
+            // 布条长短：中段长、两端略短，再加正弦起伏 → 下缘成为波浪
+            const hh = 0.5 + Math.sin(lx * 1.35 + i * 1.9) * 0.06 + (k % 3 === 0 ? 0.035 : 0);
+            const sw = 0.8 + i * 0.035 + 0.24 * (0.5 + 0.5 * Math.sin(lx * 2.2 + i * 0.8));
+            const cc = [bk[0] * sw, bk[1] * sw, bk[2] * sw];
+            const wEach = pieceW / NP * 0.94;
+            // 正面（朝街口）+ 背面（朝街里，压暗）
+            quadAt(cloth, m4(lx, yTop - hh / 2, zz0, 0, 0, 0), wEach, hh, cc, [0, 0, 1, 1], 0.4);
+            quadAt(cloth, m4(lx, yTop - hh / 2, zz0 - 0.007, 0, PI, 0), wEach, hh,
+              [cc[0] * 0.8, cc[1] * 0.8, cc[2] * 0.8], [0, 0, 1, 1], 0.4);
+            // 下缘垂角：每三条挂一个，长短错开
+            if (k % 3 === 1) {
+              const drop = 0.1 + (i % 2) * 0.04;
+              quadAt(cloth, m4(lx, yTop - hh - drop / 2, zz0 - 0.003, 0, 0, 0),
+                wEach * 0.7, drop, [cc[0] * 0.9, cc[1] * 0.9, cc[2] * 0.9], [0, 0, 1, 1], 0.5);
+            }
+          }
+          // 每片布两端的绳结：绳圈套在缆线上 + 垂下来的绳头
+          for (const ex of [cx - pieceW / 2, cx + pieceW / 2]) {
+            const ey = cableY(ex);
+            cable.torus.call(cable, m4(ex, ey, zz0, 0, 0, HPI), 0.045, 0.012, 8, 4, [0.5, 0.42, 0.3]);
+            cylAt(cable, ex, ey - 0.15, zz0, 0.009, 0.006, 0.13, 3, [0.4, 0.32, 0.22], false);
+            sphAt(cable, ex, ey - 0.17, zz0, 0.02, 5, 4, [0.45, 0.36, 0.25]);
+          }
+        }
       }
 
-      // 高处的晾衣绳：两栋楼之间挂几件衣服
+      // 高处的晾衣绳：两端钩在墙上，衣服对称挂在绳下
       const lines = [
         { z: -14.6, y: 5.7, cols: [[0.65, 0.3, 0.28], [0.35, 0.4, 0.6], [0.8, 0.7, 0.5], [0.4, 0.55, 0.4]] },
         { z: -26.2, y: 5.5, cols: [[0.5, 0.45, 0.6], [0.75, 0.5, 0.4], [0.35, 0.55, 0.55]] }
       ];
       for (const ln of lines) {
-        cable.tube.call(cable, M.ident(), [[-6.8, ln.y, ln.z], [0, ln.y - 0.25, ln.z], [6.8, ln.y, ln.z]], 0.008, 4, [1, 1, 1]);
+        const lx = wallXAt(-1, ln.z) - 0.14;
+        const rx = wallXAt(1, ln.z) + 0.14;
+        cable.tube.call(cable, M.ident(),
+          [[lx, ln.y, ln.z], [0, ln.y - 0.25, ln.z], [rx, ln.y, ln.z]], 0.008, 4, [1, 1, 1]);
+        for (const s of [-1, 1]) {
+          const wxx = Math.abs(s < 0 ? lx : rx);
+          wallBox(darkMetal, s, wxx - 0.02, ln.y, ln.z, 0.07, 0.1, 0.09, [0.36, 0.37, 0.42], 1.0);
+        }
+        const nc = ln.cols.length;
         ln.cols.forEach((cc, i) => {
-          const px = -5.2 + i * 2.6;
+          const px = (i - (nc - 1) / 2) * 2.6;
+          // 挂钩：从衣服顶到晾衣绳
+          cylAt(darkMetal, px, ln.y - 0.19, ln.z, 0.008, 0.008, 0.13, 3, [0.5, 0.5, 0.55], false);
           quadAt(cloth, m4(px, ln.y - 0.42, ln.z, 0, 0, (r() - 0.5) * 0.15), 0.46, 0.58, cc, [0, 0, 1, 1], 0.7);
           quadAt(cloth, m4(px - 0.3, ln.y - 0.28, ln.z, 0, 0, 0.5), 0.18, 0.12, cc, [0, 0, 1, 1], 0.7);
           quadAt(cloth, m4(px + 0.3, ln.y - 0.28, ln.z, 0, 0, -0.5), 0.18, 0.12, cc, [0, 0, 1, 1], 0.7);
@@ -1247,16 +1951,28 @@ const A3DWorldGithub = (() => {
      * ============================================================ */
     function buildGate() {
       const gz = -30.7;
-      // 柱与底座
+      // 柱子：两级石基座 → 石柱础 → 木柱身，全部从地面一层层叠上来
       for (const sx of [-1, 1]) {
-        Gbox(bldD, sx * 5.7, 0.36, gz, 1.5, 0.72, 1.9, [0.58, 0.6, 0.64], 1.4);
-        Gbox(woodDark, sx * 5.7, 4.1, gz, 0.62, 7.3, 0.72, [0.78, 0.34, 0.24], 1.6);
+        Gbox(bldD, sx * 5.7, 0.11, gz, 2.4, 0.22, 2.8, [0.5, 0.52, 0.56], 1.4);
+        Gbox(bldD, sx * 5.7, 0.47, gz, 1.72, 0.5, 2.1, [0.58, 0.6, 0.64], 1.4);
+        Gbox(darkMetal, sx * 5.7, 0.735, gz, 1.5, 0.05, 1.9, [0.4, 0.42, 0.46], 1.2);
+        Gbox(woodDark, sx * 5.7, 4.19, gz, 0.62, 6.86, 0.72, [0.78, 0.34, 0.24], 1.6);
+        // 柱身上下的铜箍
         Gbox(brass, sx * 5.7, 0.98, gz, 0.72, 0.1, 0.82, [1, 0.9, 0.62], 1.2);
         Gbox(brass, sx * 5.7, 7.3, gz, 0.72, 0.1, 0.82, [1, 0.9, 0.62], 1.2);
-        // 柱脚的小灯和杂物
-        cylAt(darkMetal, sx * 5.7, 0.72, gz + 0.45, 0.12, 0.12, 0.18, 8, [0.3, 0.26, 0.22], true);
-        sphAt(bulb, sx * 5.7, 0.96, gz + 0.45, 0.09, 6, 4, [1, 1, 1]);
-        gLamp.quad.call(gLamp, m4(sx * 5.7, 0.96, gz + 0.5), 1.8, 1.8, [1, 1, 1], [0, 0, 1, 1]);
+        Gbox(brass, sx * 5.7, 4.1, gz, 0.68, 0.07, 0.78, [0.95, 0.82, 0.55], 1.2);
+        // 柱础四角的包角铁
+        for (const cx of [-1, 1]) for (const cz of [-1, 1]) {
+          Gbox(darkMetal, sx * 5.7 + cx * 0.54, 0.52, gz + cz * 0.62, 0.14, 0.5, 0.14, [0.36, 0.38, 0.43], 1.1);
+        }
+        // 柱脚的灯 + 灯座（灯座贴柱）
+        Gbox(darkMetal, sx * 5.7, 0.95, gz + 0.44, 0.16, 0.2, 0.14, [0.3, 0.26, 0.22], 1.2);
+        cylAt(darkMetal, sx * 5.7, 1.02, gz + 0.5, 0.1, 0.09, 0.14, 8, [0.3, 0.26, 0.22], true);
+        sphAt(bulb, sx * 5.7, 1.16, gz + 0.5, 0.09, 6, 4, [1, 1, 1]);
+        gLamp.quad.call(gLamp, m4(sx * 5.7, 1.16, gz + 0.55), 1.8, 1.8, [1, 1, 1], [0, 0, 1, 1]);
+        // 柱身与楼墙之间的矮墙段：把牌坊两侧的缝收住
+        Gbox(bldD, sx * 6.6, 0.55, gz, 0.56, 1.1, 1.9, [0.44, 0.46, 0.5], 1.4);
+        Gbox(darkMetal, sx * 6.6, 1.14, gz, 0.62, 0.08, 2.0, [0.36, 0.38, 0.42], 1.2);
       }
       // 横梁 / 牌匾底
       Gbox(woodDark, 0, 7.55, gz, 11.9, 0.7, 0.92, [0.72, 0.34, 0.26], 1.5);
@@ -1270,49 +1986,83 @@ const A3DWorldGithub = (() => {
       for (const sx of [-3.2, 3.2]) {
         gNeon.quad.call(gNeon, m4(sx, 6.14, gz + 0.2), 0.07, 1.7, [1, 1, 1], [0, 0, 1, 1]);
       }
+      // 牌匾上的铆钉
+      for (const sx of [-2.9, -1.45, 0, 1.45, 2.9]) {
+        for (const sy of [5.36, 6.92]) {
+          Gbox(brass, sx, sy, gz + 0.15, 0.07, 0.07, 0.05, [0.9, 0.78, 0.5], 1.0);
+        }
+      }
       // 屋檐 + 小庑殿顶
       W.gableRoof(woodDark, m4(0, 8.0, gz, 0, HPI, 0), 2.8, 12.9, 1.15, [0.66, 0.31, 0.22], 1.4);
       Gbox(woodDark, 0, 8.02, gz, 13.3, 0.16, 2.9, [0.55, 0.3, 0.22], 1.4);
       Gbox(darkMetal, 0, 9.2, gz, 13.0, 0.12, 0.22, [0.4, 0.42, 0.46], 1.2);
-      // 檐下两盏灯笼，挂在牌匾两边（街尾太远，用便宜版就够看）
-      cheapLantern(-4.35, 6.7, gz + 0.25, 0.2);
-      cheapLantern(4.35, 6.7, gz + 0.25, 0.2);
+      // 檐下两盏灯笼：吊绳挂在横梁下沿（y=7.2），不再插进牌匾
+      cheapLantern(-4.35, 6.4, gz + 0.4, 0.2, 7.2);
+      cheapLantern(4.35, 6.4, gz + 0.4, 0.2, 7.2);
       // 门洞下面的门槛与地面光
       Gbox(wood, 0, 0.15, gz, 11.2, 0.24, 1.3, [0.4, 0.28, 0.2], 1.4);
       gWall.quad.call(gWall, m4(0, 0.065, gz + 0.9, -HPI, 0, 0), 11, 2.6, [1, 1, 1], [0, 0, 3, 1]);
-      // 柱子上的竖布幡
-      for (const sx of [-6.35, 6.35]) {
-        quadAt(cloth, m4(sx, 3.4, gz + 0.65, 0, 0, 0), 0.62, 2.6,
+      // 柱子上的竖布幡：顶部横杆从柱身伸出来挂，不再凭空飘在柱前
+      for (const sx of [-1, 1]) {
+        const px = sx * 5.7;
+        cylAt(woodDark, px, 4.74, gz + 0.36, 0.028, 0.024, 0.34, 4, [0.6, 0.46, 0.33], true, HPI, 0);
+        cylAt(brass, px, 4.7, gz + 0.66, 0.035, 0.03, 0.06, 6, [0.85, 0.72, 0.45], true);
+        quadAt(cloth, m4(px, 3.4, gz + 0.68, 0, 0, 0), 0.62, 2.6,
           [0.8, 0.38, 0.3], [0, 0, 1, 1], 0.45);
+        // 布幡底端的小坠子
+        cylAt(brass, px, 2.08, gz + 0.68, 0.045, 0.03, 0.07, 6, [0.8, 0.68, 0.42], true);
       }
     }
     buildGate();
 
     function buildEndJunk() {
+      /* 街尾的碎石过渡带：石板路到 z=-32.7（世界 x=-14.7）就结束，
+       * 再往前是骨架地形 y=0。铺一段实心碎石（0.024 高）接住路口，
+       * 边缘从地面起、不悬空，比石板低 6mm 让水往街外流。 */
+      Gbox(dirt, 0, 0.012, -34.3, 14.8, 0.024, 3.4, [0.52, 0.44, 0.34], 1.3);
+      Gbox(dirt, 0, 0.008, -36.1, 12.2, 0.016, 0.8, [0.46, 0.4, 0.31], 1.2);
+      // 石板路末端的收边条 + 过渡带两侧的路缘
+      Gbox(gutter, 0, 0.045, -32.74, 14.4, 0.09, 0.22, [0.5, 0.53, 0.6], 1.4);
+      for (const sx of [-1, 1]) {
+        Gbox(gutter, sx * 7.15, 0.06, -34.3, 0.28, 0.12, 3.4, [0.46, 0.49, 0.55], 1.4);
+        // 断掉的木栅栏：斜靠在路缘上，栏杆一端落地
+        GboxM(woodDark, m4(sx * 6.8, 0.2, -33.5, 0, 0.12 * sx, 1.3), 1.5, 0.1, 0.1, [0.42, 0.32, 0.23], 1.4);
+        GboxM(woodDark, m4(sx * 6.8, 0.42, -33.5, 0, 0.12 * sx, 1.3), 1.5, 0.1, 0.1, [0.4, 0.3, 0.22], 1.4);
+        cylAt(woodDark, sx * 6.55, 0.03, -33.1, 0.07, 0.06, 0.9, 5, [0.45, 0.34, 0.25], true);
+        cylAt(woodDark, sx * 7.05, 0.03, -34.0, 0.06, 0.05, 0.62, 5, [0.42, 0.32, 0.23], true);
+      }
       // 只铺牌坊后一小段：更远处已经进了 world_shit.js 的过渡区
       P.garbagePile(junk.raw, bag.raw, dm(-2.2, 0.03, -32.6, 0, 0.4, 0), 1.05, 51);
-      P.garbagePile(junk.raw, bag.raw, dm(2.1, 0.03, -32.9, 0, 1.1, 0), 0.9, 57);
-      P.crate(wood.raw, dm(-4.0, 0.22, -31.9, 0, 0.3, 0), 0.42, [0.5, 0.38, 0.27]);
-      P.crate(wood.raw, dm(-3.5, 0.16, -32.5, 0, 1.0, 0), 0.3, [0.46, 0.35, 0.25]);
-      P.crate(wood.raw, dm(3.8, 0.2, -31.6, 0, 1.4, 0), 0.38, [0.48, 0.36, 0.26]);
-      P.crate(wood.raw, dm(4.2, 0.14, -32.2, 0, 0.2, 0), 0.26, [0.44, 0.33, 0.24]);
-      P.crate(wood.raw, dm(4.6, 0.22, -33.2, 0, 0.4, 0), 0.4, [0.46, 0.35, 0.25]);
-      // 从街里爬出去的电缆
+      P.garbagePile(junk.raw, bag.raw, dm(2.1, 0.02, -32.9, 0, 1.1, 0), 0.9, 57);
+      P.crate(wood.raw, dm(-4.0, 0.24, -31.9, 0, 0.3, 0), 0.42, [0.5, 0.38, 0.27]);
+      P.crate(wood.raw, dm(-3.5, 0.18, -32.5, 0, 1.0, 0), 0.3, [0.46, 0.35, 0.25]);
+      P.crate(wood.raw, dm(3.8, 0.22, -31.6, 0, 1.4, 0), 0.38, [0.48, 0.36, 0.26]);
+      P.crate(wood.raw, dm(4.2, 0.16, -32.2, 0, 0.2, 0), 0.26, [0.44, 0.33, 0.24]);
+      P.crate(wood.raw, dm(4.6, 0.224, -33.2, 0, 0.4, 0), 0.4, [0.46, 0.35, 0.25]);
+      P.crate(wood.raw, dm(-5.9, 0.204, -33.6, 0, 0.7, 0), 0.36, [0.44, 0.34, 0.25]);
+      // 从街里爬出去的电缆：全部压到路面 / 泥地上
       cable.tube.call(cable, M.ident(), [
-        [-5.0, 0.06, -30.6], [-2.2, 0.05, -31.6], [1.0, 0.07, -32.4], [3.6, 0.05, -33.3], [4.4, 0.09, -34.2]
+        [-5.0, 0.035, -30.6], [-2.2, 0.03, -31.6], [1.0, 0.04, -32.4], [3.6, 0.03, -33.3], [4.4, 0.045, -34.2]
       ], 0.035, 5, [1, 1, 1]);
       cable.tube.call(cable, M.ident(), [
-        [4.8, 0.06, -30.9], [2.0, 0.04, -31.8], [-1.0, 0.06, -32.6], [-3.4, 0.04, -33.4], [-4.6, 0.08, -34.4]
+        [4.8, 0.035, -30.9], [2.0, 0.03, -31.8], [-1.0, 0.035, -32.6], [-3.4, 0.028, -33.4], [-4.6, 0.04, -34.4]
       ], 0.028, 4, [1, 1, 1]);
       // 后面山那头透来的绿光
       for (let i = 0; i < 4; i++) {
         gGreen.quad.call(gGreen, m4((r() - 0.5) * 6, 1.2 + i * 1.1, -34.8 - i * 0.7),
           7 + i * 1.5, 2.2 + i * 0.6, [1, 1, 1], [0, 0, 1, 1]);
       }
-      // 牌坊后堆的几袋垃圾
+      // 牌坊后堆的几袋垃圾：底面贴着泥地
       for (let i = 0; i < 5; i++) {
-        bag.sphere.call(bag, m4(-4.6 + r() * 9.2, 0.18 + r() * 0.12, -32.2 - r() * 1.6,
-          0, r() * TAU, 0.25), 0.16 + r() * 0.1, 7, 5, [0.12 + r() * 0.06, 0.15, 0.11]);
+        const rr = 0.16 + r() * 0.1;
+        bag.sphere.call(bag, m4(-4.6 + r() * 9.2, 0.02 + rr * 0.82, -32.2 - r() * 1.6,
+          0, r() * TAU, 0.25), rr, 7, 5, [0.12 + r() * 0.06, 0.15, 0.11]);
+      }
+      // 过渡带上散落的碎石块
+      for (let i = 0; i < 12; i++) {
+        const rr = 0.06 + r() * 0.1;
+        bldD.sphere.call(bldD, m4((r() - 0.5) * 12.4, 0.024 + rr * 0.5, -32.9 - r() * 2.8,
+          0, r() * TAU, 0.3), rr, 5, 4, [0.5 + r() * 0.12, 0.48 + r() * 0.12, 0.45 + r() * 0.1]);
       }
     }
     buildEndJunk();

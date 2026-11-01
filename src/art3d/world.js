@@ -61,6 +61,70 @@ const A3DWorld = (() => {
   };
 
   /* ============================================================
+   *  地面细节：连续噪声 / 土路 / 沙地
+   *
+   *  以前地面的明暗是「每个 5m 格子一个随机值」，远看像棋盘。
+   *  现在颜色全部走连续噪声 + 逐顶点插值，土路和沙滩也直接烘进顶点色里，
+   *  不需要额外铺一层地面片（就不会有悬空 / z-fighting）。
+   * ============================================================ */
+  /** 平滑值噪声（双线性 + smoothstep），连续、无格子感 */
+  function vnoise(x, z) {
+    const xi = Math.floor(x), zi = Math.floor(z);
+    const xf = x - xi, zf = z - zi;
+    const u = smooth(xf), v = smooth(zf);
+    const a = HASH(xi, zi), b = HASH(xi + 1, zi);
+    const c = HASH(xi, zi + 1), d = HASH(xi + 1, zi + 1);
+    return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+  }
+  /* 土路中线（世界坐标），w = 半宽。
+   * 廊道：街尾牌坊 → 屎山北脚 → HF 营地东入口（营地内部有自己的铺装，
+   * 不再把土路画进篝火/串灯杆中间）；灯塔沙滩一条；崖脚 → 街口。 */
+  const PATHS = [
+    { w: 2.7, pts: [[-12.6, -70.2], [-18.5, -70.6], [-24.0, -73.6], [-29.5, -77.6],
+      [-35.5, -81.4], [-43.0, -84.2], [-46.5, -84.8]] },
+    { w: 2.5, pts: [[-78.6, -100.6], [-63.0, -101.2], [-48.0, -101.6], [-37.0, -103.0]] },
+    { w: 3.2, pts: [[20.5, 1.5], [21.5, -10.0], [24.5, -24.0], [27.5, -40.0],
+      [28.0, -56.0], [26.4, -68.4]] }
+  ];
+  /** HF 营地下面这片是沙地，不是草地（营地本来就是沙滩上的） */
+  const CAMP_SAND = { x0: -104, z0: -101, x1: -36, z1: -63, feather: 22 };
+  const PATH_SEGS = (() => {
+    const out = [];
+    for (const p of PATHS) {
+      for (let i = 0; i < p.pts.length - 1; i++) {
+        const a = p.pts[i], b = p.pts[i + 1];
+        out.push({ ax: a[0], az: a[1], bx: b[0], bz: b[1], w: p.w });
+      }
+    }
+    return out;
+  })();
+  /** 点到土路中线的最近距离（米） + 这条路的半宽 */
+  function pathInfo(x, z) {
+    let best = Infinity, w = 0;
+    for (let i = 0; i < PATH_SEGS.length; i++) {
+      const s = PATH_SEGS[i];
+      const dx = s.bx - s.ax, dz = s.bz - s.az;
+      const l2 = dx * dx + dz * dz || 1;
+      let t = ((x - s.ax) * dx + (z - s.az) * dz) / l2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const d = Math.hypot(x - (s.ax + dx * t), z - (s.az + dz * t));
+      if (d < best) { best = d; w = s.w; }
+    }
+    return { d: best, w };
+  }
+  /** 点到矩形区域的距离（在内部为 0），用来做沙地羽化边 */
+  function rectDist(x, z, r) {
+    const dx = Math.max(r.x0 - x, 0, x - r.x1);
+    const dz = Math.max(r.z0 - z, 0, z - r.z1);
+    return Math.hypot(dx, dz);
+  }
+  /** 地面是不是土路（给路边的小石子 / 车辙用） */
+  function onPath(x, z, pad) {
+    const p = pathInfo(x, z);
+    return p.d < p.w + (pad || 0);
+  }
+
+  /* ============================================================
    *  地形
    * ============================================================ */
   /** 地面高度：海岸平原 = 0，北边沙滩下沉，南边是高台（北面陡坡） */
@@ -83,51 +147,105 @@ const A3DWorld = (() => {
     return h;
   }
 
-  /** 地面颜色：草 / 沙（带过渡）/ 岩（陡坡自动变岩石，悬崖才有“崖”的样子） */
+  /** 地面颜色：草 / 沙（带过渡）/ 岩（陡坡自动变岩石，悬崖才有“崖”的样子）
+   *  逐顶点算：噪声连续，土路和营地沙地直接混进来。 */
   function groundCol(x, z) {
     const h = groundH(x, z);
-    const n = HASH(x * 0.31, z * 0.29);
-    const slope = Math.abs(groundH(x + 2, z) - h) + Math.abs(groundH(x, z + 2) - h);
-    if (slope > 3.2) {
-      const g = 0.6 + n * 0.28;
-      return [0.6 * g, 0.62 * g, 0.68 * g];
+    const slope = Math.hypot(groundH(x + 1.6, z) - h, groundH(x, z + 1.6) - h) / 1.6;
+    const n1 = vnoise(x * 0.07, z * 0.07);
+    const n2 = vnoise(x * 0.23 + 13.7, z * 0.23 - 6.1);
+    const n3 = vnoise(x * 0.9 - 4.3, z * 0.9 + 9.2);
+    /* 陡坡 / 悬崖：岩石，别让 30m 落差的侧面看起来像一块绿布 */
+    if (slope > 1.75) {
+      const g = 0.58 + n1 * 0.17 + n3 * 0.12;
+      return [0.62 * g, 0.63 * g, 0.68 * g];
     }
-    if (h > 23) {
-      const g = 0.72 + n * 0.2;
-      return [0.62 * g, 0.66 * g, 0.7 * g];
+    /* 草地：低频明暗 + 一点干黄斑，别再逐格跳明暗 */
+    const g = 0.82 + n1 * 0.18 + n2 * 0.09;
+    const dry = (n2 - 0.3) * 0.12;
+    let c = [g * (1.0 + dry), g * (1.03 + dry * 0.35), g * (0.92 - dry * 0.55)];
+    /* 沙：水线附近全沙；HF 营地整片羽化成沙地（营地本来就该在沙上） */
+    const wob = (n2 - 0.5) * 0.28 + (n3 - 0.5) * 0.08;
+    const tBeach = clamp((L.beachZ + 6 - z) / 11.5 + wob, 0, 1);
+    const tCamp = clamp(1 - rectDist(x, z, CAMP_SAND) / CAMP_SAND.feather + (n1 - 0.5) * 0.16, 0, 1);
+    const tSand = Math.max(tBeach, tCamp * 0.97);
+    if (tSand > 0.002) {
+      const wet = clamp((-z - 104) / 6, 0, 1) * 0.16;
+      const s = (0.9 + n2 * 0.22) * (1 - wet);
+      const sand = [2.12 * s, 1.62 * s, 1.04 * s];
+      c = [
+        c[0] + (sand[0] - c[0]) * tSand,
+        c[1] + (sand[1] - c[1]) * tSand,
+        c[2] + (sand[2] - c[2]) * tSand
+      ];
     }
-    // 草地
-    const g = 0.82 + n * 0.36;
-    const grass = [g, g * (1.02 + n * 0.1), g * (0.94 + n * 0.08)];
-    /* 沙：水线附近全沙，往内陆 ~10m 内用噪声混到草地（边缘毛毛的，不是一条直边） */
-    const wobble = (HASH(x * 0.6 + 11.3, z * 0.6 - 4.7) - 0.5) * 0.34;
-    const t = clamp((L.beachZ + 4 - z) / 10 + wobble, 0, 1);
-    if (t <= 0.002) return grass;
-    // 近水的湿沙压暗一点，干沙偏暖
-    const wet = clamp((-z - 104) / 6, 0, 1) * 0.16;
-    const s = (0.92 + n * 0.2) * (1 - wet);
-    const sand = [2.55 * s, 1.62 * s, 0.9 * s];
-    return [
-      grass[0] + (sand[0] - grass[0]) * t,
-      grass[1] + (sand[1] - grass[1]) * t,
-      grass[2] + (sand[2] - grass[2]) * t
-    ];
+    /* 土路：中间踩实 + 两条车辙，边缘用噪声羽化 */
+    const pi = pathInfo(x, z);
+    if (pi.d < pi.w + 3.4) {
+      const inPath = clamp(1 - (pi.d - pi.w * 0.45) / (pi.w * 0.55), 0, 1);
+      const edge = clamp(1 - (pi.d - pi.w) / 3.4, 0, 1);
+      const dirt = [1.5 + n3 * 0.18, 1.16 + n2 * 0.12, 0.8 + n1 * 0.1];
+      const k = Math.max(inPath, edge * 0.42) * (0.88 + n2 * 0.1);
+      c = [
+        c[0] + (dirt[0] - c[0]) * k,
+        c[1] + (dirt[1] - c[1]) * k,
+        c[2] + (dirt[2] - c[2]) * k
+      ];
+      const rut = Math.abs(pi.d - pi.w * 0.44);
+      if (rut < 0.24) {
+        const rk = (1 - rut / 0.24) * 0.34;
+        c = [c[0] * (1 - rk), c[1] * (1 - rk * 0.9), c[2] * (1 - rk * 0.76)];
+      }
+    }
+    /* 台地上草更干一点，远看和下面的草地有层次 */
+    if (h > 21) {
+      const t = clamp((h - 21) / 9, 0, 1) * 0.16;
+      c = [c[0] * (1 - t * 0.25) + 0.46 * t, c[1] * (1 - t * 0.12) + 0.44 * t, c[2] * (1 - t * 0.1) + 0.4 * t];
+    }
+    return c;
   }
 
-  /** 用三角形铺一张高度场地形（每个格子两个三角形，法线逐面算） */
-  function terrainMesh(b, x0, x1, z0, z1, nx, nz, uvScale) {
-    const I = M.ident();
-    for (let i = 0; i < nx; i++) {
-      for (let j = 0; j < nz; j++) {
-        const xa = x0 + (x1 - x0) * i / nx, xb = x0 + (x1 - x0) * (i + 1) / nx;
-        const za = z0 + (z1 - z0) * j / nz, zb = z0 + (z1 - z0) * (j + 1) / nz;
-        const ya = groundH(xa, za), yb = groundH(xb, za), yc = groundH(xb, zb), yd = groundH(xa, zb);
-        const A = [xa, ya, za], B = [xb, yb, za], C = [xb, yc, zb], D = [xa, yd, zb];
-        const u = p => [p[0] * uvScale, p[2] * uvScale];
-        const c = groundCol((xa + xb) / 2, (za + zb) / 2);
-        const c2 = [c[0] * (0.94 + HASH(i, j) * 0.12), c[1] * (0.94 + HASH(i + 7, j) * 0.12), c[2] * 0.96];
-        b.tri(I, A, C, B, [u(A), u(C), u(B)], c2);
-        b.tri(I, A, D, C, [u(A), u(D), u(C)], c2);
+  /** 高度场地形：一次算完整张高度/法线/顶点色网格，再展开成三角形。
+   *  逐顶点法线 + 逐顶点颜色 → 没有 5m 一格的棋盘和硬折面。 */
+  function terrainMesh(pen, x0, x1, z0, z1, nx, nz, uvScale) {
+    const I = M.ident(), NM = M.normalMat(I);
+    const W = nx + 1, Hn = nz + 1, N = W * Hn;
+    const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);
+    const nX = new Float32Array(N), nY = new Float32Array(N), nZ = new Float32Array(N);
+    const cr = new Float32Array(N), cg = new Float32Array(N), cb = new Float32Array(N);
+    for (let j = 0; j < Hn; j++) {
+      const z = z0 + (z1 - z0) * j / nz;
+      for (let i = 0; i < W; i++) {
+        const k = j * W + i, x = x0 + (x1 - x0) * i / nx;
+        const y = groundH(x, z);
+        px[k] = x; py[k] = y; pz[k] = z;
+        const c = groundCol(x, z);
+        cr[k] = c[0]; cg[k] = c[1]; cb[k] = c[2];
+      }
+    }
+    const dx = (x1 - x0) / nx, dz = (z1 - z0) / nz;
+    for (let j = 0; j < Hn; j++) {
+      for (let i = 0; i < W; i++) {
+        const k = j * W + i;
+        const il = i > 0 ? k - 1 : k, ir = i < nx ? k + 1 : k;
+        const jd = j > 0 ? k - W : k, ju = j < nz ? k + W : k;
+        const sx = (i > 0 && i < nx) ? 2 * dx : dx;
+        const sz = (j > 0 && j < nz) ? 2 * dz : dz;
+        const gx = (py[ir] - py[il]) / sx;
+        const gz = (py[ju] - py[jd]) / sz;
+        const len = Math.hypot(gx, 1, gz) || 1;
+        nX[k] = -gx / len; nY[k] = 1 / len; nZ[k] = -gz / len;
+      }
+    }
+    const push = k => pen._v(pen.d, I, NM, px[k], py[k], pz[k],
+      nX[k], nY[k], nZ[k], px[k] * uvScale, pz[k] * uvScale,
+      [cr[k], cg[k], cb[k]], 0);
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const A = j * W + i, B = A + 1, C = A + W + 1, D = A + W;
+        /* 绕序沿用原来的 (A,C,B) + (A,D,C)：法线朝上 */
+        push(A); push(C); push(B);
+        push(A); push(D); push(C);
       }
     }
   }
@@ -138,35 +256,65 @@ const A3DWorld = (() => {
   function Gbox(b, x, y, z, sx, sy, sz, col, uv) {
     b.box.call(b, m4(x, y, z), sx, sy, sz, col, uv === undefined ? 1.1 : uv);
   }
-  /** 人字屋顶：脊线沿 Z，屋脊在中心高一格 */
-  function gableRoof(b, m, w, d, h, col, uv) {
-    const hw = w / 2, hd = d / 2;
+  /** 人字屋顶：脊线沿 Z，屋脊在中心高一格。带 UV，木瓦 / 石板贴图能看见。
+   *  bGable：山墙三角用哪支画笔；传 false 表示不画（让下面的石山墙自己收口）。 */
+  function gableRoof(b, m, w, d, h, col, uvScale, bGable) {
+    const hw = w / 2, hd = d / 2, us = uvScale || 1;
     const A = [-hw, 0, -hd], B = [hw, 0, -hd], C = [hw, 0, hd], D = [-hw, 0, hd];
     const E = [0, h, -hd], F = [0, h, hd];
-    const t = (p, q, r) => b.tri.call(b, m, p, q, r, null, col);
-    const u = (p, q, r, s) => {
-      t(p, q, r); t(p, r, s);
-    };
-    void uv;
-    // 左坡（法线朝左上）与右坡（朝右上）
-    u(A, F, E, D);
-    u(E, F, C, B);
-    // 前后山墙
-    t(A, E, B);
-    t(D, C, F);
+    const UV = [0, 0, d * us, w * 0.55 * us];
+    /* 四个角必须按「沿坡面走一圈」的顺序连，不能是 A-F-E-D 交叉序；
+       以前那样会把两个三角铺成蝴蝶结，屋面只剩两片三角。 */
+    P.quad4(b, m, A, D, F, E, col, UV);
+    P.quad4(b, m, B, E, F, C, col, UV);
+    if (bGable === false) return;
+    const gb = bGable || b;
+    gb.tri.call(gb, m, A, E, B, [[0, 0], [w * 0.5 * us, h * us], [w * us, 0]], col);
+    gb.tri.call(gb, m, D, C, F, [[w * us, 0], [w * 0.5 * us, h * us], [0, 0]], col);
   }
-  /** 松树：一根树干 + 三层锥形 */
+  const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
+  /** 松树：6 层重叠锥 + 露出的树干 + 顶部尖梢，从任何角度看都不是「分开的三段」 */
   function pine(bTrunk, bLeaf, x, z, h, seed, col) {
     const r = rng(seed);
     const y0 = groundH(x, z);
-    bTrunk.cyl.call(bTrunk, m4(x, y0, z), 0.16 * h / 6, 0.1 * h / 6, h * 0.42, 5, [1, 1, 1], true);
-    const leafCol = col || [0.55, 0.75, 0.6];
+    const lean = (r() - 0.5) * 0.05;
+    const trunkH = h * 0.58;
+    bTrunk.cyl.call(bTrunk, m4(x, y0, z, lean, r() * TAU, lean * 0.7),
+      0.022 * h + 0.03, 0.012 * h + 0.015, trunkH, 6, [1, 1, 1], true);
+    // 几根露出来的侧枝，让树干不是一根直棍
     for (let k = 0; k < 3; k++) {
-      const t = k / 3;
-      const rad = (1.5 - t * 0.55) * h / 8 * (0.9 + r() * 0.2);
-      const yy = y0 + h * (0.3 + t * 0.25);
-      bLeaf.cyl.call(bLeaf, m4(x, yy, z, 0, r() * TAU, 0), rad, 0.04, h * 0.3, 7, leafCol, false);
+      const a = r() * TAU, yy = y0 + h * (0.18 + k * 0.09);
+      bTrunk.cyl.call(bTrunk, m4(x, yy, z, 0.9, a, 0),
+        0.022 * h, 0.006 * h, 0.2 * h, 4, [1, 1, 1], false);
     }
+    const base = col || [0.55, 0.75, 0.6];
+    for (let k = 0; k < 6; k++) {
+      const t = k / 5;
+      const rad = (1.95 - t * 1.6) * h / 8 * (0.88 + r() * 0.24);
+      const yy = y0 + h * (0.17 + t * 0.27);
+      const hh = h * (0.27 - t * 0.06);
+      const kk = 0.78 + t * 0.3 + (r() - 0.5) * 0.08;
+      bLeaf.cyl.call(bLeaf, m4(x, yy, z, 0, r() * TAU, 0), rad, Math.max(0.02, rad * 0.1),
+        hh, 8, [base[0] * kk, base[1] * kk, base[2] * kk], true);
+    }
+    bLeaf.cyl.call(bLeaf, m4(x, y0 + h * 0.73, z), h * 0.075, 0.012, h * 0.22, 6,
+      [base[0] * 1.05, base[1] * 1.08, base[2] * 1.02], true);
+  }
+  /** 柏树 / 龙柏：三段重叠的细长锥 + 圆顶，墓园里当配角 */
+  function cypressTree(bTrunk, bLeaf, x, z, h, seed, col) {
+    const r = rng(seed || 7);
+    const y0 = groundH(x, z);
+    bTrunk.cyl.call(bTrunk, m4(x, y0, z), 0.035, 0.02, h * 0.35, 5, [1, 1, 1], true);
+    const base = col || [0.85, 1.0, 0.82];
+    const segs = [[0.0, 0.34, 0.5], [0.28, 0.27, 0.42], [0.55, 0.18, 0.34]];
+    for (const s of segs) {
+      const kk = 0.82 + r() * 0.3;
+      bLeaf.cyl.call(bLeaf, m4(x, y0 + h * s[0], z, 0, r() * TAU, (r() - 0.5) * 0.05),
+        h * s[1] * 0.55, Math.max(0.012, h * s[1] * 0.05), h * s[2], 7,
+        [base[0] * kk, base[1] * kk, base[2] * kk], true);
+    }
+    bLeaf.sphere.call(bLeaf, m4(x, y0 + h * 0.86, z, 0, 0, 0, 0.7, 0.9, 0.7),
+      h * 0.095, 7, 5, [base[0] * 1.02, base[1] * 1.05, base[2]], false);
   }
   /** 石头矮墙（沿 X 方向） */
   function stoneWall(b, x0, z0, x1, z1, h) {
@@ -191,49 +339,271 @@ const A3DWorld = (() => {
   }
 
   /* ============================================================
+   *  大世界专用材质（都在本地用 A3DTex.get 生成，不碰 textures.js）
+   * ============================================================ */
+  const WTex = (() => {
+    let ashlar = null, slate = null, stained = null, rose = null, sea = null, pine = null;
+    /** 大块料石：交界清楚、颜色别太跳，教堂才不是「锈铁皮」 */
+    function makeAshlar() {
+      return A3DTex.get("w.ashlar", 256, 256, (x, w, h) => {
+        const r = A3DTex.rnd(311);
+        x.fillStyle = "#3a3833"; x.fillRect(0, 0, w, h);
+        const rows = 3, cols = 2;
+        for (let j = 0; j < rows; j++) {
+          const bh = h / rows;
+          const off = (j % 2) * (w / cols) * 0.5;
+          for (let i = -1; i <= cols; i++) {
+            const bx = (i * w / cols + off) % w;
+            const t = 0.9 + r() * 0.16;
+            const warm = 0.02 + r() * 0.05;
+            x.fillStyle = "rgb(" + Math.round(156 * t * (1 + warm)) + "," +
+              Math.round(150 * t) + "," + Math.round(136 * t * (1 - warm * 0.4)) + ")";
+            x.fillRect(bx + 2.5, j * bh + 2.5, w / cols - 5, bh - 5);
+            // 上沿受光、下沿积灰
+            x.fillStyle = "rgba(255,246,222,.10)";
+            x.fillRect(bx + 2.5, j * bh + 2.5, w / cols - 5, 2);
+            x.fillStyle = "rgba(20,18,14,.22)";
+            x.fillRect(bx + 2.5, j * bh + bh - 5, w / cols - 5, 2.5);
+            // 一点点风化斑
+            for (let k = 0; k < 7; k++) {
+              x.fillStyle = "rgba(" + (60 + r() * 40) + "," + (56 + r() * 38) + "," + (48 + r() * 30) + "," + (0.04 + r() * 0.09) + ")";
+              x.fillRect(bx + 4 + r() * (w / cols - 12), j * bh + 4 + r() * (bh - 12), 1 + r() * 5, 1 + r() * 3);
+            }
+          }
+        }
+        A3DTex.grain(x, w, h, { freq: 4, oct: 3, strength: 0.14, seed: 313 });
+      });
+    }
+    /** 石板瓦：一行行叠瓦，屋脊附近有青苔 */
+    function makeSlate() {
+      return A3DTex.get("w.slate", 256, 256, (x, w, h) => {
+        const r = A3DTex.rnd(417);
+        x.fillStyle = "#20242a"; x.fillRect(0, 0, w, h);
+        const rows = 8, rh = h / rows;
+        for (let j = 0; j < rows; j++) {
+          const off = (j % 2) * 16;
+          for (let i = -1; i <= w / 32 + 1; i++) {
+            const bx = i * 32 + off;
+            const t = 0.78 + r() * 0.42;
+            x.fillStyle = "rgb(" + Math.round(64 * t) + "," + Math.round(72 * t) + "," + Math.round(84 * t) + ")";
+            x.fillRect(bx + 1, j * rh + 0.5, 30, rh - 1.5);
+            x.fillStyle = "rgba(190,210,230,.13)";
+            x.fillRect(bx + 1, j * rh + 0.5, 30, 1.4);
+            x.fillStyle = "rgba(0,0,0,.34)";
+            x.fillRect(bx + 1, j * rh + rh - 2.2, 30, 2);
+          }
+        }
+        // 青苔：往低处和缝里长
+        for (let i = 0; i < 30; i++) {
+          const g = x.createRadialGradient(r() * w, r() * h, 1, r() * w, r() * h, 6 + r() * 14);
+          g.addColorStop(0, "rgba(70,96,52,.26)"); g.addColorStop(1, "rgba(70,96,52,0)");
+          x.fillStyle = g; x.fillRect(0, 0, w, h);
+        }
+        A3DTex.grain(x, w, h, { freq: 5, oct: 3, strength: 0.18, seed: 419 });
+      });
+    }
+    /** 竖长条彩窗：蓝金为主，铅条分明 */
+    function makeStained() {
+      return A3DTex.get("w.stained", 128, 256, (x, w, h) => {
+        const r = A3DTex.rnd(523);
+        x.fillStyle = "#0b1016"; x.fillRect(0, 0, w, h);
+        const cols = 4, cw = w / cols;
+        const palette = ["#284a78", "#3d6a9a", "#7fa8cc", "#d9a13c", "#a8483c", "#4c7a52", "#c9c2a4"];
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < 8; j++) {
+            const c = palette[Math.floor(r() * palette.length)];
+            x.fillStyle = c; x.globalAlpha = 0.55 + r() * 0.4;
+            x.fillRect(i * cw + 2, j * (h / 8) + 2, cw - 4, h / 8 - 4);
+          }
+        }
+        x.globalAlpha = 1;
+        x.strokeStyle = "rgba(8,10,12,.85)"; x.lineWidth = 3;
+        for (let i = 1; i < cols; i++) { x.beginPath(); x.moveTo(i * cw, 0); x.lineTo(i * cw, h); x.stroke(); }
+        for (let j = 1; j < 8; j++) { x.beginPath(); x.moveTo(0, j * h / 8); x.lineTo(w, j * h / 8); x.stroke(); }
+        x.strokeStyle = "rgba(240,220,180,.35)"; x.lineWidth = 1.5;
+        x.strokeRect(2, 2, w - 4, h - 4);
+        A3DTex.grain(x, w, h, { freq: 6, oct: 2, strength: 0.1, seed: 527 });
+      });
+    }
+    /** 玫瑰窗：放射状彩玻璃 + 中心圆 */
+    function makeRose() {
+      return A3DTex.get("w.rose", 256, 256, (x, w, h) => {
+        const cx = w / 2, cy = h / 2, R = w * 0.48;
+        const r = A3DTex.rnd(631);
+        const cols = ["#2a4f80", "#4b7cae", "#8fb6d6", "#d8a23f", "#a94b3f", "#4f8058", "#d8cfae"];
+        for (let k = 0; k < 12; k++) {
+          const a0 = k / 12 * Math.PI * 2, a1 = (k + 1) / 12 * Math.PI * 2;
+          x.beginPath(); x.moveTo(cx, cy); x.arc(cx, cy, R, a0, a1); x.closePath();
+          x.fillStyle = cols[k % cols.length]; x.globalAlpha = 0.7 + r() * 0.3; x.fill();
+        }
+        x.globalAlpha = 1;
+        x.strokeStyle = "rgba(10,12,14,.9)"; x.lineWidth = 6;
+        for (let k = 0; k < 12; k++) {
+          const a = k / 12 * Math.PI * 2;
+          x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); x.stroke();
+        }
+        x.beginPath(); x.arc(cx, cy, R * 0.42, 0, Math.PI * 2); x.stroke();
+        x.beginPath(); x.arc(cx, cy, R * 0.72, 0, Math.PI * 2); x.stroke();
+        x.fillStyle = "rgba(240,205,120,.85)";
+        x.beginPath(); x.arc(cx, cy, R * 0.16, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = "rgba(240,220,180,.5)"; x.lineWidth = 3;
+        x.beginPath(); x.arc(cx, cy, R - 2, 0, Math.PI * 2); x.stroke();
+        A3DTex.grain(x, w, h, { freq: 6, oct: 2, strength: 0.08, seed: 633 });
+      });
+    }
+    /** 针叶 / 树冠：深绿底 + 竖向枝条纹理，让锥体近看不只是一块纯色 */
+    function makePine() {
+      return A3DTex.get("w.pineTex", 256, 256, (x, w, h) => {
+        const r = A3DTex.rnd(811);
+        x.fillStyle = "#24382a"; x.fillRect(0, 0, w, h);
+        // 竖向的枝条 / 针叶簇
+        for (let i = 0; i < 340; i++) {
+          const px = r() * w, py = r() * h;
+          const len = 8 + r() * 46, sway = (r() - 0.5) * 10;
+          const g = 0.55 + r() * 0.55;
+          x.strokeStyle = "rgba(" + Math.round(58 * g) + "," + Math.round(96 * g) + "," +
+            Math.round(64 * g) + "," + (0.18 + r() * 0.34) + ")";
+          x.lineWidth = 0.8 + r() * 2.2;
+          x.beginPath();
+          x.moveTo(px, py);
+          x.quadraticCurveTo(px + sway * 0.5, py + len * 0.5, px + sway, py + len);
+          x.stroke();
+        }
+        // 枝条间的暗缝
+        for (let i = 0; i < 46; i++) {
+          const px = r() * w;
+          x.strokeStyle = "rgba(8,16,10," + (0.12 + r() * 0.18) + ")";
+          x.lineWidth = 1 + r() * 3;
+          x.beginPath(); x.moveTo(px, r() * h * 0.4); x.lineTo(px + (r() - 0.5) * 6, h); x.stroke();
+        }
+        A3DTex.grain(x, w, h, { freq: 5, oct: 3, strength: 0.12, seed: 813 });
+      });
+    }
+    /** 海水：低频横向波纹 + 极弱噪点。高对比度的 caustic 贴图在掠射角下会出摩尔纹。 */
+    function makeSea() {
+      return A3DTex.get("w.seaTex", 256, 256, (x, w, h) => {
+        const r = A3DTex.rnd(733);
+        // 深蓝底，带一点从北（上）到南（下）的明暗
+        const g = x.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, "#16283e"); g.addColorStop(0.55, "#0d1b2b"); g.addColorStop(1, "#0a1522");
+        x.fillStyle = g; x.fillRect(0, 0, w, h);
+        // 横向的长波纹：不同频率的正弦叠一点，低对比
+        for (let k = 0; k < 9; k++) {
+          const y0 = r() * h, amp = 1.2 + r() * 3.6, len = 18 + r() * 54;
+          x.strokeStyle = "rgba(120,170,220," + (0.025 + r() * 0.045) + ")";
+          x.lineWidth = 0.8 + r() * 1.4;
+          x.beginPath();
+          for (let px = -4; px <= w + 4; px += 4) {
+            const py = y0 + Math.sin((px / len) * Math.PI * 2 + r() * 6) * amp;
+            if (px < 0) x.moveTo(px, py); else x.lineTo(px, py);
+          }
+          x.stroke();
+        }
+        // 少量亮点（月光碎屑），不许太密
+        for (let i = 0; i < 26; i++) {
+          const px = r() * w, py = r() * h, rr = 1 + r() * 3;
+          const g2 = x.createRadialGradient(px, py, 0, px, py, rr);
+          g2.addColorStop(0, "rgba(190,215,245,.22)");
+          g2.addColorStop(1, "rgba(190,215,245,0)");
+          x.fillStyle = g2; x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
+        }
+        A3DTex.grain(x, w, h, { freq: 5, oct: 3, strength: 0.06, seed: 737 });
+      });
+    }
+    return {
+      ashlar() { return ashlar || (ashlar = makeAshlar()); },
+      slate() { return slate || (slate = makeSlate()); },
+      stained() { return stained || (stained = makeStained()); },
+      rose() { return rose || (rose = makeRose()); },
+      sea() { return sea || (sea = makeSea()); },
+      pine() { return pine || (pine = makePine()); }
+    };
+  })();
+
+  /* ============================================================
    *  地面 / 沙滩 / 海
    * ============================================================ */
   function buildGround(st) {
-    const ground = st.pen("w.ground", T.dirt(), { tint: [0.72, 0.9, 0.8], spec: 0.08, rim: 0.22, sway: 0 });
-    terrainMesh(ground, -250, 250, -110, 176, 100, 72, 0.12);
+    /* 逐顶点色承担草/沙/土路，贴图只出细节（脏点、颗粒），所以 tint 接近中性、
+       UV 比原来密一点，2m 网格下不会糊成一片。 */
+    const ground = st.pen("w.ground", T.dirt(), { tint: [0.92, 1.02, 0.9], spec: 0.08, rim: 0.22, sway: 0 });
+    terrainMesh(ground, -250, 250, -110, 176, 240, 137, 0.46);
 
-    // 沙滩边缘的碎石与草，别让水线是一条数学直线
-    const rock = st.pen("w.rock", T.stone(), { tint: [0.42, 0.45, 0.5], spec: 0.18 });
+    /* ---- 水线碎石：贴着真正的水线（groundH = waterY ≈ z -103），不是数学直线 ---- */
+    const rock = st.pen("w.rock", T.stone(), { tint: [0.5, 0.53, 0.58], spec: 0.2, rim: 0.16 });
     const r = rng(19);
-    for (let i = 0; i < 90; i++) {
-      const x = -150 + r() * 300;
-      const z = L.shoreZ - 5 + r() * 10;
-      const s = 0.25 + r() * 1.1;
-      rock.sphere.call(rock, m4(x, groundH(x, z) - 0.1, z, r(), r() * TAU, r(), s, s * 0.5, s * 0.8),
-        1, 6, 4, [0.9, 0.92, 0.95]);
+    for (let i = 0; i < 130; i++) {
+      const x = -160 + r() * 330;
+      const z = -104.4 + r() * 4.2 + Math.sin(x * 0.09) * 0.9;
+      const s = 0.18 + r() * r() * 1.35;
+      rock.sphere.call(rock, m4(x, groundH(x, z) - 0.06, z, r() * 0.4, r() * TAU, r() * 0.4,
+        s, s * (0.42 + r() * 0.22), s * 0.82), 1, 7, 5, [0.82 + r() * 0.3, 0.84, 0.92]);
     }
-    // 岸边的芦苇 / 海草
-    const grass = st.pen("w.shoreGrass", T.leaf(), { cutout: true, tint: [0.45, 0.6, 0.42], sway: 1, spec: 0.05 });
-    for (let i = 0; i < 34; i++) {
-      const x = -140 + r() * 280;
-      const z = L.beachZ - 2 + r() * 7;
-      P.grass(grass, m4(x, groundH(x, z), z, 0, 0, 0), 4 + Math.floor(r() * 4), 0.35 + r() * 0.5,
-        [0.7, 0.95, 0.7], Math.floor(r() * 99), 0.4);
+    // 沙滩上零星的卵石 / 贝壳，给近处的沙面一点尺度
+    const pebble = st.pen("w.pebble", T.stone(), { tint: [0.9, 0.86, 0.8], spec: 0.25, rim: 0.2 });
+    for (let i = 0; i < 90; i++) {
+      const z = -101.6 + r() * 20;
+      const x = -150 + r() * 300;
+      const s = 0.04 + r() * 0.14;
+      pebble.sphere.call(pebble, m4(x, groundH(x, z) + 0.01, z, r(), r() * TAU, r() * 0.3,
+        s, s * 0.36, s * 0.8), 1, 5, 3, [1, 0.92 + r() * 0.12, 0.84]);
+    }
+    // 冲上岸的浮木 + 海带
+    const drift = st.pen("w.drift", T.woodPale(), { tint: [0.86, 0.78, 0.68], spec: 0.05 });
+    const kelp = st.pen("w.kelp", T.leaf(), { cutout: true, tint: [0.28, 0.34, 0.22], sway: 1, spec: 0.02 });
+    for (let i = 0; i < 14; i++) {
+      const x = -120 + r() * 250, z = -101.2 + r() * 1.6;
+      drift.cyl.call(drift, m4(x, groundH(x, z) + 0.08, z, Math.PI / 2, r() * TAU, 0.12),
+        0.07 + r() * 0.06, 0.05, 1.1 + r() * 1.6, 6, [1, 1, 1], true);
+    }
+    for (let i = 0; i < 18; i++) {
+      const x = -140 + r() * 290, z = -102.4 + r() * 2.2;
+      kelp.quad.call(kelp, m4(x, groundH(x, z) + 0.03, z, -Math.PI / 2, r() * TAU, 0),
+        0.22 + r() * 0.3, 0.6 + r() * 0.8, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 岸边的芦苇 / 海草（沙地边缘 + 营地外缘，别长到路中间）
+    const grass = st.pen("w.shoreGrass", T.leaf(), { cutout: true, tint: [0.62, 0.72, 0.5], sway: 1, spec: 0.05 });
+    for (let i = 0; i < 90; i++) {
+      const x = -145 + r() * 290;
+      const z = -101 + r() * 14;
+      if (onPath(x, z, 2.2)) continue;
+      P.grass(grass, m4(x, groundH(x, z), z, 0, r() * TAU, 0), 4 + Math.floor(r() * 4), 0.3 + r() * 0.55,
+        [0.78, 1.0, 0.72], Math.floor(r() * 99), 0.4);
+    }
+    // 土路两侧踩出来的碎草 / 石子：让路径和地形咬在一起
+    const verge = st.pen("w.verge", T.leaf(), { cutout: true, tint: [0.72, 0.78, 0.5], sway: 1, spec: 0.04 });
+    for (let i = 0; i < 220; i++) {
+      const p = PATHS[i % PATHS.length];
+      const seg = Math.floor(r() * (p.pts.length - 1));
+      const a = p.pts[seg], b = p.pts[seg + 1];
+      const u = r();
+      const x = a[0] + (b[0] - a[0]) * u + (r() - 0.5) * 1.2;
+      const z = a[1] + (b[1] - a[1]) * u + (r() - 0.5) * 1.2;
+      const pi = pathInfo(x, z);
+      const off = p.w + 0.15 + r() * 1.6;
+      if (Math.abs(pi.d - off) > 0.5) continue;
+      P.grass(verge, m4(x, groundH(x, z), z, 0, r() * TAU, 0), 2 + Math.floor(r() * 3),
+        0.16 + r() * 0.22, [0.85, 0.95, 0.62], Math.floor(r() * 99), 0.5);
     }
 
-    // 海面：一块巨大的平板，靠雾接到天边
-    const sea = st.pen("w.sea", T.causticSoft(), { tint: [0.34, 0.5, 0.7], spec: 1.35, rim: 0.12, uvAnim: t => [t * 0.006, t * 0.0035] });
-    const I = M.ident();
-    const seaQuad = (cx, cz, w, d, c) => {
-      sea.quad.call(sea, m4(cx, L.waterY, cz, -Math.PI / 2, 0, 0), w, d, c, [0, 0, 26, 16]);
-    };
-    // 近处一格一格里给一点明暗，远处靠雾接到天边
+    // 海面：一块巨大的平板，靠雾接到天边。纹理是低对比度的深海水，掠射角下不会闪成马赛克
+    const sea = st.pen("w.sea", WTex.sea(), { tint: [1.05, 1.02, 0.98], spec: 1.35, rim: 0.12, uvAnim: t => [t * 0.006, t * 0.0035] });
+    /* 海面明暗走连续噪声；每格仍然是 40m，但相邻格子不再跳变，
+       45° 掠射角下看不到棋盘。 */
     const sr = rng(71);
     for (let j = 0; j < 20; j++) {
       for (let i = 0; i < 24; i++) {
         const w = 40, d = 40;
         const cx = -480 + i * w + w / 2;
         const cz = -102 - j * d - d / 2;
-        const k = 0.82 + sr() * 0.3;
-        seaQuad(cx, cz, w, d, [k, k * (0.98 + sr() * 0.05), k * (1.02 + sr() * 0.05)]);
+        const n = vnoise(cx * 0.026 + 4.1, cz * 0.026 - 7.3);
+        const k = 0.96 + n * 0.08;
+        // 世界空间 UV：纹理跨格子连续，掠射角下不再看到 40m 接缝
+        const uv = [cx * 0.22, cz * 0.22, (cx + w) * 0.22, (cz + d) * 0.22];
+        sea.quad.call(sea, m4(cx, L.waterY, cz, -Math.PI / 2, 0, 0), w, d,
+          [k, k * (0.985 + sr() * 0.02), k * (1.02 + sr() * 0.03)], uv);
       }
     }
-    void I;
 
     // 月光在水面上的碎光：从近处一直铺到月亮那个方向
     const moonPath = st.pen("w.moonPath", T.glow(), { unlit: true, blend: "add", tint: [0.62, 0.7, 0.95], opacity: 0.075 });
@@ -258,33 +628,58 @@ const A3DWorld = (() => {
         2 + u * 2, 4 + u * 4, [1, 1, 1], [0, 0, 1, 2]);
     }
 
-    // 岸线浪花
-    const foam = st.pen("w.foam", T.glow(), { unlit: true, blend: "add", tint: [0.75, 0.85, 1.0], opacity: 0.10 });
-    for (let i = 0; i < 14; i++) {
-      const x = -160 + i * 24;
-      foam.quad.call(foam, m4(x, L.waterY + 0.03, L.shoreZ + 1.5, -Math.PI / 2, 0.06, 0), 22, 2.6,
+    /* 岸线浪花：贴着 actual 水线（z≈-103），两条，
+       外圈泡沫压在水面上，内圈很淡地漫上湿沙。 */
+    const foam = st.pen("w.foam", T.glow(), { unlit: true, blend: "add", tint: [0.75, 0.85, 1.0], opacity: 0.11 });
+    for (let i = 0; i < 26; i++) {
+      const x = -165 + i * 12.8;
+      const z = -103.1 + Math.sin(x * 0.11) * 0.5;
+      const k = 0.55 + vnoise(x * 0.05, 2.7) * 0.8;
+      foam.quad.call(foam, m4(x, L.waterY + 0.03, z, -Math.PI / 2, 0.05, 0), 13.5 * k, 1.9,
         [1, 1, 1], [0, 0, 5, 1]);
+      if (i % 2 === 0) {
+        foam.quad.call(foam, m4(x + 3, L.waterY + 0.025, z - 1.6, -Math.PI / 2, 0.05, 0), 5.5 * k, 0.9,
+          [1, 1, 1], [0, 0, 3, 1]);
+      }
     }
   }
 
   /* ============================================================
    *  南边的悬崖台地：松树、草、崖沿的碎石
    * ============================================================ */
+  /** 主标题镜头 → 教堂正面的视线通道：这一段里不种高树，别挡住主体 */
+  function blocksChurchView(x, z) {
+    const ax = L.titleCam.eye[0], az = L.titleCam.eye[2];
+    const bx = L.church.x, bz = L.church.z + 6;
+    const dx = bx - ax, dz = bz - az;
+    const l2 = dx * dx + dz * dz || 1;
+    let t = ((x - ax) * dx + (z - az) * dz) / l2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+    return d < 9.5 || (Math.abs(x - 2) < 8 && z > 26 && z < 62);
+  }
+  /** 教堂门前甬道 / 台地小路的走廊，别在路中间种树 */
+  function onChurchPath(x, z) {
+    if (z < 30 || z > 72) return false;
+    const px = 18.9 + (z - 39) * 0.16;
+    return Math.abs(x - px) < 7.0;
+  }
+
   function buildHill(st) {
     const trunk = st.pen("w.trunk", T.woodDark(), { tint: [0.42, 0.34, 0.3] });
-    const leaf = st.pen("w.pine", null, { tint: [0.24, 0.36, 0.3], spec: 0.05, rim: 0.15, sway: 1 });
+    const leaf = st.pen("w.pine", WTex.pine(), { tint: [1.55, 1.55, 1.45], spec: 0.05, rim: 0.15, sway: 1 });
     const r = rng(23);
-    // 台地上的松树：给教堂周围留一圈空地
-    for (let i = 0; i < 56; i++) {
+    // 台地上的松树：给教堂、镜头通道、甬道留空
+    for (let i = 0; i < 64; i++) {
       const x = L.ridge.x0 + (r() - 0.5) * 2 * L.ridge.wide * 0.95;
-      const z = 18 + r() * 62;
-      if (Math.hypot(x - L.church.x, z - L.church.z) < 15) continue;
-      if (Math.abs(x - 2) < 10 && z > 24 && z < 56) continue;
+      const z = 16 + r() * 66;
+      if (Math.hypot(x - L.church.x, z - L.church.z) < 16) continue;
+      if (blocksChurchView(x, z) || onChurchPath(x, z)) continue;
       pine(trunk, leaf, x, z, 5 + r() * 7, Math.floor(r() * 999), [0.9, 1.1, 0.95]);
     }
     // 崖脚的一排树，从上往下看能看出垂直落差
-    for (let i = 0; i < 14; i++) {
-      const x = -46 + i * 7 + (r() - 0.5) * 3;
+    for (let i = 0; i < 16; i++) {
+      const x = -52 + i * 7 + (r() - 0.5) * 3;
       const z = -2 + (r() - 0.5) * 5;
       pine(trunk, leaf, x, z, 6 + r() * 5, Math.floor(r() * 999), [0.9, 1.05, 0.95]);
     }
@@ -292,120 +687,715 @@ const A3DWorld = (() => {
     // 草：台地上，sway 让风有存在感
     const grass = st.pen("w.hillGrass", T.leaf(), { cutout: true, tint: [0.52, 0.66, 0.46], sway: 1, spec: 0.04 });
     const gr = rng(31);
-    for (let i = 0; i < 170; i++) {
+    for (let i = 0; i < 320; i++) {
       const x = L.ridge.x0 + (gr() - 0.5) * 2 * L.ridge.wide * 0.9;
-      const z = 16 + gr() * 52;
-      if (Math.hypot(x - L.church.x, z - L.church.z) < 12) continue;
+      const z = 16 + gr() * 72;
+      if (Math.hypot(x - L.church.x, z - L.church.z) < 11) continue;
       const y = groundH(x, z);
-      P.grass(grass, m4(x, y, z, 0, gr() * TAU, 0), 4 + Math.floor(gr() * 4), 0.3 + gr() * 0.35,
+      P.grass(grass, m4(x, y, z, 0, gr() * TAU, 0), 4 + Math.floor(gr() * 4), 0.28 + gr() * 0.34,
         [0.75, 1.0, 0.8], Math.floor(gr() * 999), 0.3);
+    }
+    // 台地上的灌木 / 小石头
+    const shrub = st.pen("w.shrub", T.leaf(), { cutout: true, tint: [0.36, 0.52, 0.32], sway: 1, rim: 0.1 });
+    const bush = st.pen("w.bush", null, { tint: [0.2, 0.3, 0.22], spec: 0.04, rim: 0.12 });
+    for (let i = 0; i < 46; i++) {
+      const x = L.ridge.x0 + (gr() - 0.5) * 2 * L.ridge.wide * 0.85;
+      const z = 15 + gr() * 74;
+      if (Math.hypot(x - L.church.x, z - L.church.z) < 12) continue;
+      if (blocksChurchView(x, z) || onChurchPath(x, z)) continue;
+      const y = groundH(x, z);
+      const s = 0.5 + gr() * 0.9;
+      bush.sphere.call(bush, m4(x, y + s * 0.35, z, 0, gr() * TAU, 0, 1, 0.7, 1), s, 7, 5,
+        [1, 1, 1]);
+      for (let k = 0; k < 4; k++) {
+        shrub.quad.call(shrub, m4(x + (gr() - 0.5) * s, y + s * 0.5 + gr() * s * 0.4,
+          z + (gr() - 0.5) * s, -0.3, gr() * TAU, 0), 0.3, 0.4, [1, 1, 1], [0, 0, 1, 1]);
+      }
     }
 
     // 崖沿的碎石：标出悬崖边缘，从上往下看不会像一块平草地突然断掉
     const rimRock = st.pen("w.rimRock", T.stone(), { tint: [0.42, 0.43, 0.46], spec: 0.12 });
     const rr = rng(57);
-    for (let i = 0; i < 46; i++) {
-      const x = -60 + rr() * 120;
-      const z = L.ridge.z1 - 0.6 + rr() * 2.4;
-      const s = 0.35 + rr() * 1.25;
+    for (let i = 0; i < 110; i++) {
+      const x = -64 + rr() * 128;
+      const z = L.ridge.z1 - 1.2 + rr() * 3.6;
+      const s = 0.28 + rr() * 1.35;
       const y = groundH(x, z);
-      rimRock.sphere.call(rimRock, m4(x, y + s * 0.15, z, rr(), rr() * TAU, rr(), s, s * 0.55, s * 0.8),
+      rimRock.sphere.call(rimRock, m4(x, y + s * 0.1, z, rr(), rr() * TAU, rr(), s, s * 0.5, s * 0.8),
         1, 7, 5, [0.85 + rr() * 0.3, 0.86, 0.9]);
     }
   }
 
   /* ============================================================
-   *  教堂 + 墓园（主标题的近景）
+   *  海岸平原：草甸 / 碎石 / 灌木 / 教堂路两侧的木栅栏与电线杆
+   * ============================================================ */
+  function buildPlain(st) {
+    const r = rng(29);
+    const grass = st.pen("w.plainGrass", T.leaf(), { cutout: true, tint: [0.5, 0.62, 0.4], sway: 1, spec: 0.04 });
+    const shrub = st.pen("w.plainShrub", T.leaf(), { cutout: true, tint: [0.32, 0.46, 0.3], sway: 1 });
+    const bush = st.pen("w.plainBush", null, { tint: [0.18, 0.28, 0.2], spec: 0.04, rim: 0.1 });
+    const rock = st.pen("w.plainRock", T.stone(), { tint: [0.46, 0.47, 0.5], spec: 0.14 });
+    const flower = st.pen("w.plainFlower", T.petal(), { cutout: true, tint: [1.3, 1.0, 0.6], sway: 1 });
+    const inCity = (x, z) => x > L.city.x0 - 6 && z > L.city.z0 - 6 && z < L.city.z1 + 8;
+    const onStreet = (x, z) => x > -18 && x < 28 && z > -86 && z < -56;
+    const nearCamp = (x, z) => rectDist(x, z, { x0: -108, x1: -33, z0: -104, z1: -62 }) < 4;
+    const nearLh = (x, z) => Math.hypot(x - L.lighthouse.x, z - L.lighthouse.z) < 12;
+    const skip = (x, z, pad) => onPath(x, z, pad || 1.6) || inCity(x, z) || onStreet(x, z) ||
+      nearCamp(x, z) || nearLh(x, z) || z < -98;
+
+    // 平原草甸：成簇，不要均匀撒点
+    for (let i = 0; i < 2400; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * 104;
+      if (skip(x, z, 1.2)) continue;
+      const y = groundH(x, z);
+      P.grass(grass, m4(x, y, z, 0, r() * TAU, 0), 3 + Math.floor(r() * 4), 0.2 + r() * 0.3,
+        [0.8, 0.98, 0.7], Math.floor(r() * 999), 0.35);
+    }
+    // 灌木丛 / 石头
+    for (let i = 0; i < 190; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * 104;
+      if (skip(x, z, 2)) continue;
+      const y = groundH(x, z);
+      const s = 0.45 + r() * 0.8;
+      bush.sphere.call(bush, m4(x, y + s * 0.3, z, 0, r() * TAU, 0, 1, 0.62, 1), s, 7, 5, [1, 1, 1]);
+      for (let k = 0; k < 3; k++) {
+        shrub.quad.call(shrub, m4(x + (r() - 0.5) * s, y + s * 0.45 + r() * s * 0.35,
+          z + (r() - 0.5) * s, -0.3, r() * TAU, 0), 0.26, 0.36, [1, 1, 1], [0, 0, 1, 1]);
+      }
+    }
+    for (let i = 0; i < 420; i++) {
+      const x = -185 + r() * 265, z = -96 + r() * 104;
+      if (skip(x, z, 1)) continue;
+      const y = groundH(x, z);
+      const s = 0.16 + r() * r() * 0.8;
+      rock.sphere.call(rock, m4(x, y + s * 0.12, z, r(), r() * TAU, r(), s, s * 0.5, s * 0.8),
+        1, 6, 4, [0.9 + r() * 0.25, 0.92, 1]);
+    }
+    // 草木花：只长在教堂路与营地入口土路两侧
+    for (let i = 0; i < 120; i++) {
+      const p = PATHS[i % 2 === 0 ? 2 : 0];
+      const seg = Math.floor(r() * (p.pts.length - 1));
+      const a = p.pts[seg], b = p.pts[seg + 1];
+      const u = r();
+      const x = a[0] + (b[0] - a[0]) * u + (r() - 0.5) * 7;
+      const z = a[1] + (b[1] - a[1]) * u + (r() - 0.5) * 7;
+      const pi = pathInfo(x, z);
+      if (Math.abs(pi.d - pi.w) > 1.5) continue;
+      const y = groundH(x, z);
+      for (let k = 0; k < 2; k++) {
+        flower.quad.call(flower, m4(x + (r() - 0.5) * 0.4, y + 0.08 + r() * 0.1,
+          z + (r() - 0.5) * 0.4, -0.3, r() * TAU, 0), 0.11, 0.14, [1, 1, 1], [0, 0, 1, 1]);
+      }
+    }
+
+    /* ---- 教堂路两侧的木栅栏：一路从崖脚接到街口 ---- */
+    const postP = st.pen("w.fencePost", T.woodDark(), { tint: [0.95, 0.82, 0.64], spec: 0.08, rim: 0.12 });
+    const railP = st.pen("w.fenceRail", T.woodPale(), { tint: [0.82, 0.76, 0.64], spec: 0.06 });
+    const road = PATHS[2].pts;
+    const fenceSide = (sgn) => {
+      for (let i = 0; i < road.length - 1; i++) {
+        const a = road[i], b = road[i + 1];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const n = Math.max(1, Math.round(len / 3.2));
+        const ry = Math.atan2(b[0] - a[0], b[1] - a[1]);
+        for (let k = 0; k < n; k++) {
+          const u = (k + 0.5) / n;
+          const px = a[0] + (b[0] - a[0]) * u + Math.cos(ry) * sgn * 4.4;
+          const pz = a[1] + (b[1] - a[1]) * u - Math.sin(ry) * sgn * 4.4;
+          const py = groundH(px, pz);
+          postP.box.call(postP, m4(px, py + 0.5, pz, 0, ry, 0), 0.12, 1.0, 0.12, [1, 1, 1], 1.2);
+          // 每根柱子之间的两道横杆（按地面起伏倾斜）
+          if (k > 0) {
+            const qx = a[0] + (b[0] - a[0]) * ((k - 0.5) / n) + Math.cos(ry) * sgn * 4.4;
+            const qz = a[1] + (b[1] - a[1]) * ((k - 0.5) / n) - Math.sin(ry) * sgn * 4.4;
+            const qy = groundH(qx, qz);
+            const seglen = Math.hypot(px - qx, pz - qz);
+            for (const hh of [0.38, 0.72]) {
+              railP.box.call(railP, m4((px + qx) / 2, (py + qy) / 2 + hh, (pz + qz) / 2,
+                0, Math.atan2(px - qx, pz - qz) + Math.PI / 2, Math.atan2(py - qy, seglen) * 0.9),
+                seglen, 0.07, 0.05, [1, 1, 1], 1.4);
+            }
+          }
+        }
+      }
+    };
+    fenceSide(-1);
+    fenceSide(1);
+
+    /* ---- 沿教堂路的电线杆 + 电线：给平原一条「人住在附近」的线索 ---- */
+    const pole = st.pen("w.pole", T.woodDark(), { tint: [0.8, 0.68, 0.54], spec: 0.06 });
+    const cable = st.pen("w.cable", null, { tint: [0.06, 0.065, 0.07], spec: 0.2 });
+    const poleTops = [];
+    for (let i = 0; i < 6; i++) {
+      const t = i / 5;
+      const px = 21.0 + t * 5.0 + 4.2;
+      const pz = 0.5 - t * 66.0 - 1.2;
+      const py = groundH(px, pz);
+      pole.cyl.call(pole, m4(px, py, pz), 0.11, 0.08, 7.2, 6, [1, 1, 1], true);
+      pole.box.call(pole, m4(px, py + 6.7, pz, 0, 0, 0), 1.5, 0.11, 0.12, [1, 1, 1], 1.2);
+      poleTops.push([px, py + 6.72, pz]);
+    }
+    for (let i = 0; i < poleTops.length - 1; i++) {
+      const a = poleTops[i], b = poleTops[i + 1];
+      const pts = [];
+      for (let k = 0; k <= 8; k++) {
+        const u = k / 8;
+        pts.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * 0.7,
+          a[2] + (b[2] - a[2]) * u]);
+      }
+      cable.tube.call(cable, M.ident(), pts, 0.018, 4, [1, 1, 1]);
+    }
+
+    /* ---- 教堂路的路灯：从主标题看是一条从城市爬到崖脚的暖光路 ---- */
+    const roadLampPole = st.pen("w.roadLampPole", T.darkMetal(), { tint: [0.34, 0.34, 0.38], spec: 0.3 });
+    const roadLampGlow = st.pen("w.roadLampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.4], opacity: 0.34 });
+    const roadLampGlass = st.pen("w.roadLampGlass", null, { unlit: true, tint: [1.0, 0.84, 0.55] });
+    for (let i = 0; i < 6; i++) {
+      const sp = samplePath(PATHS[2].pts, (i + 0.5) / 6);
+      const lx = sp.x - 5.4, lz = sp.z;
+      const ly = groundH(lx, lz);
+      roadLampPole.cyl.call(roadLampPole, m4(lx, ly, lz), 0.07, 0.055, 3.4, 5, [1, 1, 1], true);
+      roadLampPole.box.call(roadLampPole, m4(lx, ly + 3.45, lz), 0.34, 0.12, 0.34, [1, 1, 1], 1.2);
+      roadLampGlass.quad.call(roadLampGlass, m4(lx, ly + 3.42, lz + 0.18), 0.3, 0.3, [1, 1, 1], [0, 0, 1, 1]);
+      roadLampGlow.quad.call(roadLampGlow, m4(lx, ly + 3.4, lz + 0.24), 3.2, 3.2, [1, 1, 1], [0, 0, 1, 1]);
+    }
+  }
+
+  /* ============================================================
+   *  教堂 + 墓园 + 门前步道（主标题的近景）
+   *
+   *  以前：黑色平屋顶、门埋在台基里、侧窗比墙还高、墓园是一排黑方块。
+   *  现在：大块料石 + 石板瓦 + 彩窗，门窗全部按墙体高度定位，
+   *  台基根据地形四角抬高，门前有台阶、墓园有院墙/门柱/墓碑/甬道。
    * ============================================================ */
   function buildChurch(st) {
     const C = L.church;
     const y0 = groundH(C.x, C.z);
     const D = m4(C.x, y0, C.z, 0, C.rot, 0);
-    const stone = st.pen("w.church", T.stone(), { tint: [0.62, 0.6, 0.56], spec: 0.1 });
-    const dark = st.pen("w.churchDark", T.stone(), { tint: [0.32, 0.32, 0.33], spec: 0.06 });
-    const roof = st.pen("w.churchRoof", T.darkMetal(), { tint: [0.26, 0.24, 0.28], spec: 0.28 });
-    const warm = st.pen("w.churchWin", null, { unlit: true, tint: [1.0, 0.72, 0.36] });
-    const warmGlow = st.pen("w.churchWinGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.6, 0.24], opacity: 0.20 });
-    const B = (x, y, z, sx, sy, sz, col) => stone.box.call(stone, M.mul(D, m4(x, y, z)), sx, sy, sz, col || [1, 1, 1], 1.25);
+    const stone = st.pen("w.church", WTex.ashlar(), { tint: [1.0, 0.97, 0.9], spec: 0.06, rim: 0.2 });
+    const trim = st.pen("w.churchTrim", WTex.ashlar(), { tint: [1.22, 1.16, 1.05], spec: 0.05, rim: 0.2 });    const dark = st.pen("w.churchDark", T.stone(), { tint: [0.34, 0.34, 0.37], spec: 0.05 });
+    const roofP = st.pen("w.churchRoof", WTex.slate(), { tint: [1.02, 1.08, 1.16], spec: 0.24, rim: 0.18 });
+    const glass = st.pen("w.churchGlass", WTex.stained(), { unlit: true, tint: [1, 1, 1] });
+    const roseP = st.pen("w.churchRose", WTex.rose(), { unlit: true, tint: [1, 1, 1] });
+    const glowP = st.pen("w.churchGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.6, 0.24], opacity: 0.24 });
+    const doorP = st.pen("w.churchDoor", T.woodDark(), { tint: [1.18, 0.86, 0.62], spec: 0.08, rim: 0.12 });
+    const iron = st.pen("w.churchIron", T.darkMetal(), { tint: [0.32, 0.32, 0.36], spec: 0.5 });
+    const goldP = st.pen("w.churchGold", T.brass(), { tint: [1.15, 0.98, 0.6], spec: 0.62 });
+    const lampGlass = st.pen("w.churchLamp", null, { unlit: true, tint: [1.0, 0.78, 0.42] });
+    const hedge = st.pen("w.churchHedge", T.fabric(), { tint: [0.38, 0.56, 0.36], spec: 0.03, rim: 0.1 });
+    const flowerP = st.pen("w.churchFlower", T.petal(), { cutout: true, tint: [1.35, 0.9, 0.55], sway: 1 });
+    const pave = st.pen("w.churchPave", T.paving(), { tint: [0.82, 0.8, 0.76], spec: 0.1, rim: 0.12 });
 
-    // 台基
-    B(0, 0.2, 0, 11, 0.5, 16, [0.85, 0.85, 0.8]);
-    // 中殿
-    B(0, 1.55, 0, 7.4, 2.4, 12, [0.95, 0.95, 0.9]);
-    // 山墙 + 屋顶
-    gableRoof(roof, M.mul(D, m4(0, 2.75, 0)), 8.6, 12.8, 2.6, [1, 1, 1], 1.4);
-    // 侧面的扶壁
+    const mul = m => M.mul(D, m);
+    const B = (p, x, y, z, sx, sy, sz, col, uv) =>
+      p.box.call(p, mul(m4(x, y, z)), sx, sy, sz, col || [1, 1, 1], uv === undefined ? 0.42 : uv);
+    const BR = (p, x, y, z, rx, ry, rz, sx, sy, sz, col, uv) =>
+      p.box.call(p, mul(m4(x, y, z, rx, ry, rz)), sx, sy, sz, col || [1, 1, 1], uv === undefined ? 0.42 : uv);
+    const Q = (p, x, y, z, rx, ry, rz, w, h, col, uv) =>
+      p.quad.call(p, mul(m4(x, y, z, rx, ry, rz)), w, h, col || [1, 1, 1], uv || [0, 0, 1, 1]);
+    const cyl = (p, x, y, z, r0, r1, hh, seg, col, rx, ry, rz, cap) =>
+      p.cyl.call(p, mul(m4(x, y, z, rx || 0, ry || 0, rz || 0)), r0, r1, hh, seg, col || [1, 1, 1],
+        cap === undefined ? true : cap);
+
+    /* ---- 台基高度：按四角地形抬高，别让门一半埋进土里 ---- */
+    let lift = -Infinity;
+    for (const [lx, lz] of [[-5.5, -8], [5.5, -8], [5.5, 8], [-5.5, 8]]) {
+      const p = M.xf(D, [lx, 0, lz]);
+      lift = Math.max(lift, groundH(p[0], p[2]) - y0);
+    }
+    const PT = lift + 0.3;          // 台基顶面（局部 y）
+    const PB = PT - 0.95;
+    const NT = PT + 2.62;           // 墙顶
+    const EAVE = PT + 2.5;          // 檐口
+    const RIDGE = PT + 5.16;        // 屋脊
+
+    /* ---- 台基 + 压顶 ---- */
+    B(stone, 0, (PB + PT) / 2, 0, 11.4, PT - PB, 16.4, [1, 1, 1]);
+    B(trim, 0, PT - 0.06, 0, 11.7, 0.14, 16.7, [1, 1, 1]);
+
+    /* ---- 中殿：墙 + 线脚 + 转角石 ---- */
+    B(stone, 0, (PT + NT) / 2, 0, 7.4, NT - PT, 12, [1, 1, 1]);
+    B(trim, 0, PT + 0.16, 0, 7.62, 0.16, 12.2, [1, 1, 1]);          // 勒脚线
+    B(trim, 0, NT - 0.16, 0, 7.62, 0.18, 12.2, [1, 1, 1]);          // 檐下串线
     for (const sx of [-1, 1]) {
-      for (let i = 0; i < 4; i++) {
-        B(sx * 3.9, 1.3, -4.4 + i * 2.9, 0.5, 2.1, 0.9, [0.9, 0.9, 0.86]);
+      for (const sz of [-1, 1]) {
+        // 转角石：一高一低交错，远看能看出砌筑感
+        for (let k = 0; k < 7; k++) {
+          const yy = PT + 0.3 + k * 0.34;
+          const w = k % 2 ? 0.55 : 0.78;
+          B(trim, sx * 3.72, yy, sz * (6.0 - w / 2), 0.16, 0.32, w, [1, 1, 1]);
+        }
       }
-      // 侧窗：两扇高的拱窗（用发光片近似）
+    }
+
+    /* ---- 屋顶：两坡石板 + 底面 + 屋脊 + 封檐板 ---- */
+    const roofHalf = 4.32, roofZ = 6.35;
+    const eaveL = [-roofHalf, EAVE, -roofZ], eaveR = [roofHalf, EAVE, -roofZ];
+    const eaveLf = [-roofHalf, EAVE, roofZ], eaveRf = [roofHalf, EAVE, roofZ];
+    const ridgeB = [0, RIDGE, -roofZ], ridgeF = [0, RIDGE, roofZ];
+    // 用通用人字屋顶来铺两坡（角度 / 绕序已修正，四角按坡面顺序连）；
+    // 山墙三角留 false，由下面的石砌山墙收口，屋面外挑 0.72m 露在石山墙外面。
+    gableRoof(roofP, mul(m4(0, EAVE, 0)), roofHalf * 2, roofZ * 2, RIDGE - EAVE,
+      [1, 1, 1], 0.42, false);
+    // 屋顶底面：从下面仰视时不能看穿（教堂立在崖边，贴近看得到檐下）
+    const underY = -0.16;
+    const uL = [eaveL[0], eaveL[1] + underY, eaveL[2]], uLF = [eaveLf[0], eaveLf[1] + underY, eaveLf[2]];
+    const uRB = [ridgeB[0], ridgeB[1] + underY, ridgeB[2]], uRF = [ridgeF[0], ridgeF[1] + underY, ridgeF[2]];
+    const uR = [eaveR[0], eaveR[1] + underY, eaveR[2]], uRF2 = [eaveRf[0], eaveRf[1] + underY, eaveRf[2]];
+    P.quad4(dark, D, uL, uRB, uRF, uLF, [0.72, 0.7, 0.66], [0, 0, 1, 1], 0);
+    P.quad4(dark, D, uRB, uR, uRF2, uRF, [0.72, 0.7, 0.66], [0, 0, 1, 1], 0);
+    // 屋脊：一根压脊 + 几个脊饰
+    BR(trim, 0, RIDGE + 0.02, 0, 0, 0, Math.PI / 2, 0.16, 0.9, 13.5, [1, 1, 1], 0.5);
+    for (let z = -6.2; z <= 6.2; z += 1.55) {
+      B(trim, 0, RIDGE + 0.13, z, 0.26, 0.16, 0.26, [1, 1, 1]);
+    }
+    // 封檐板 / 博风板：深色木头，别用浅色石材在屋面上打叉
+    const barge = st.pen("w.churchBarge", T.woodDark(), { tint: [1.0, 0.82, 0.62], spec: 0.08, rim: 0.1 });
+    const bargeL = Math.hypot(roofHalf, RIDGE - EAVE);
+    for (const sz of [-1, 1]) {
+      for (const sx of [-1, 1]) {
+        // 屋面从屋脊往檐口是「往下走」的：+X 侧斜率为负，-X 侧为正
+        const ang = Math.atan2(RIDGE - EAVE, roofHalf) * (sx > 0 ? -1 : 1);
+        BR(barge, sx * roofHalf / 2, EAVE + (RIDGE - EAVE) / 2, sz * roofZ,
+          0, 0, ang, bargeL + 0.16, 0.24, 0.12, [1, 1, 1], 0.8);
+      }
+    }
+    for (let z = -6.3; z <= 6.3; z += 0.62) {
+      for (const sx of [-1, 1]) {
+        B(barge, sx * (roofHalf - 0.12), EAVE + 0.02, z, 0.2, 0.18, 0.1, [0.92, 0.9, 0.84]);
+      }
+    }
+    // 山墙三角（正面 + 背面）：把屋顶下面的三角空档堵上
+    const gableA = [-3.7, NT, 6.0], gableB = [3.7, NT, 6.0], gableC = [0, RIDGE, 6.0];
+    stone.tri.call(stone, D, gableA, gableB, gableC, [[0, 0], [3, 0], [1.5, 1.2]], [1, 1, 1]);
+    const gableA2 = [3.7, NT, -6.0], gableB2 = [-3.7, NT, -6.0], gableC2 = [0, RIDGE, -6.0];
+    stone.tri.call(stone, D, gableA2, gableB2, gableC2, [[0, 0], [3, 0], [1.5, 1.2]], [1, 1, 1]);
+
+    /* ---- 侧窗（尖拱窗）：位置压在墙内，外面有石框、窗台、竖棂 ---- */
+    const winY = PT + 1.52, winH = 1.35, winW = 0.64, winTop = winY + winH / 2;
+    for (const sx of [-1, 1]) {
       for (let i = 0; i < 3; i++) {
-        /* 注意：这里的 y 是**局部**高度，D 已经把台地高度加过一次了；
-         * 之前写成 y0 + 2.3，侧窗被抬到塔顶，远看就是一排浮空的黄板子。 */
-        const wy = 2.3;
-        warm.quad.call(warm, M.mul(D, m4(sx * 3.72, wy, -3.6 + i * 3.6, 0, sx > 0 ? Math.PI / 2 : -Math.PI / 2, 0)),
-          0.75, 1.5, [1, 1, 1], [0, 0, 1, 1]);
-        warmGlow.quad.call(warmGlow, M.mul(D, m4(sx * 3.8, wy, -3.6 + i * 3.6, 0, sx > 0 ? Math.PI / 2 : -Math.PI / 2, 0)),
-          3.2, 3.6, [1, 1, 1], [0, 0, 1, 1]);
+        const wz = -3.55 + i * 3.55;
+        const ry = sx > 0 ? Math.PI / 2 : -Math.PI / 2;
+        const fx = sx * 3.715;
+        // 凹进去的窗洞（暗底）
+        Q(dark, fx, winY, wz, 0, ry, 0, winW + 0.18, winH + 0.32, [0.3, 0.3, 0.33]);
+        // 彩玻璃：矩形 + 尖拱顶
+        Q(glass, fx + sx * 0.02, winY, wz, 0, ry, 0, winW, winH, [1, 1, 1]);
+        const m2 = mul(m4(fx + sx * 0.02, winTop, wz, 0, ry, 0));
+        glass.tri.call(glass, m2, [-winW / 2, 0, 0], [winW / 2, 0, 0], [0, 0.42, 0],
+          [[0, 0], [1, 0], [0.5, 0.7]], [1, 1, 1]);
+        // 外框：两侧壁柱 + 尖拱石框（两段斜的）
+        B(trim, sx * 3.77, winY, wz - winW / 2 - 0.09, 0.16, winH + 0.06, 0.16, [1, 1, 1]);
+        B(trim, sx * 3.77, winY, wz + winW / 2 + 0.09, 0.16, winH + 0.06, 0.16, [1, 1, 1]);
+        const archMat = mul(m4(sx * 3.78, winTop, wz, 0, ry, 0));
+        for (const s2 of [-1, 1]) {
+          const am = M.mul(archMat, m4(s2 * winW * 0.25, 0.16, 0, 0, 0, s2 * 0.62));
+          trim.box.call(trim, am, winW * 0.78, 0.13, 0.18, [1, 1, 1], 0.5);
+        }
+        // 窗台 + 中棂 + 横档
+        B(trim, sx * 3.8, winY - winH / 2 - 0.09, wz, 0.3, 0.14, winW + 0.44, [1, 1, 1]);
+        B(dark, sx * 3.73, winY, wz, 0.06, winH, 0.045, [0.06, 0.06, 0.07]);
+        B(dark, sx * 3.73, winY + 0.22, wz, 0.06, 0.045, winW, [0.06, 0.06, 0.07]);
+        // 窗后透出的光
+        glowP.quad.call(glowP, mul(m4(sx * 3.74, winY, wz, 0, ry, 0)), 2.4, 2.8, [1, 1, 1], [0, 0, 1, 1]);
+      }
+      // 扶壁：两级 + 斜压顶
+      for (const wz of [-4.45, -1.5, 1.45, 4.4]) {
+        B(stone, sx * 4.0, PT + 0.85, wz, 0.62, 1.7, 0.95, [0.97, 0.95, 0.9]);
+        B(stone, sx * 4.02, PT + 2.05, wz, 0.5, 0.7, 0.78, [0.93, 0.91, 0.86]);
+        BR(trim, sx * 4.02, PT + 2.44, wz, 0, 0, sx * -0.32, 0.62, 0.2, 0.84, [1, 1, 1]);
       }
     }
-    // 正面的玫瑰窗与门
-    warm.quad.call(warm, M.mul(D, m4(0, 2.5, 6.03)), 1.5, 1.5, [1, 1, 1], [0, 0, 1, 1]);
-    warmGlow.quad.call(warmGlow, M.mul(D, m4(0, 2.5, 6.1)), 4.4, 4.4, [1, 1, 1], [0, 0, 1, 1]);
-    B(0, 1.0, 6.06, 1.7, 2.0, 0.16, [0.22, 0.16, 0.12]);
 
-    // 钟楼：方塔 + 尖顶
+    /* ---- 正门：台基上的门廊 + 尖拱门套 + 双开木门 + 台阶 ---- */
+    const dz = 6.0;
+    // 门洞（向内凹）
+    B(dark, 0, PT + 1.12, dz - 0.12, 2.0, 2.24, 0.36, [0.08, 0.07, 0.06]);
+    // 两扇木门 + 铁箍 + 门环
+    for (const s2 of [-1, 1]) {
+      B(doorP, s2 * 0.43, PT + 1.0, dz - 0.02, 0.82, 1.9, 0.1, [1, 1, 1], 1.2);
+      // 门板上的凹格：让木门在暗处也读得出是两扇门
+      B(doorP, s2 * 0.43, PT + 1.28, dz + 0.035, 0.6, 0.82, 0.04, [1.25, 1.02, 0.78], 1.1);
+      B(doorP, s2 * 0.43, PT + 0.42, dz + 0.035, 0.6, 0.5, 0.04, [1.25, 1.02, 0.78], 1.1);
+      for (const yy of [PT + 0.45, PT + 1.6]) {
+        B(iron, s2 * 0.43, yy, dz + 0.04, 0.74, 0.07, 0.03, [1, 1, 1]);
+      }
+      cyl(iron, s2 * 0.2, PT + 1.02, dz + 0.08, 0.06, 0.06, 0.02, 10, [1, 1, 1], Math.PI / 2, 0, 0, true);
+      // 门板上的小玻璃窗
+      lampGlass.quad.call(lampGlass, mul(m4(s2 * 0.43, PT + 1.6, dz + 0.06)), 0.2, 0.3,
+        [0.95, 0.8, 0.5], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(s2 * 0.43, PT + 1.6, dz + 0.1)), 0.7, 0.8, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 门缝 / 门槛下的暖光：远看门洞不是一块黑
+    lampGlass.quad.call(lampGlass, mul(m4(0, PT + 1.0, dz + 0.055)), 0.035, 1.85, [0.9, 0.75, 0.5], [0, 0, 1, 1]);
+    lampGlass.quad.call(lampGlass, mul(m4(0, PT + 0.05, dz + 0.18)), 2.1, 0.08, [0.8, 0.6, 0.35], [0, 0, 1, 1]);
+    glowP.quad.call(glowP, mul(m4(0, PT + 0.35, dz + 0.2)), 3.0, 1.1, [1, 1, 1], [0, 0, 1, 1]);
+    // 门套：两侧石柱 + 尖拱（沿曲线分段，别只是两根斜梁）
+    for (const s2 of [-1, 1]) {
+      B(trim, s2 * 1.12, PT + 1.1, dz + 0.06, 0.3, 2.3, 0.3, [1, 1, 1]);
+    }
+    for (const s2 of [-1, 1]) {
+      const arch = [[1.1, 2.25], [0.94, 2.5], [0.68, 2.74], [0.34, 2.93], [0.0, 3.0]];
+      for (let i = 0; i < arch.length - 1; i++) {
+        const a0 = arch[i], a1 = arch[i + 1];
+        const x0 = s2 * a0[0], x1 = s2 * a1[0];
+        const y0 = PT + a0[1], y1 = PT + a1[1];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        const ang = Math.atan2(y1 - y0, x1 - x0);
+        BR(trim, (x0 + x1) / 2, (y0 + y1) / 2, dz + 0.06, 0, 0, ang,
+          len + 0.08, 0.24, 0.32, [1, 1, 1], 0.5);
+      }
+    }
+    B(trim, 0, PT + 3.04, dz + 0.06, 0.28, 0.3, 0.36, [1, 1, 1]);   // 拱心石
+    // 门楣上的小圆窗
+    cyl(glass, 0, PT + 2.86, dz + 0.02, 0.24, 0.24, 0.03, 12, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    cyl(trim, 0, PT + 2.86, dz, 0.31, 0.31, 0.06, 12, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    glowP.quad.call(glowP, mul(m4(0, PT + 1.1, dz + 0.18)), 3.4, 3.6, [1, 1, 1], [0, 0, 1, 1]);
+
+    // 门头提灯：远处看正门要有两个暖点，别是一块黑洞
+    for (const s2 of [-1, 1]) {
+      const lantern = st.pen("w.churchLantern", T.darkMetal(), { tint: [0.32, 0.28, 0.24], spec: 0.4 });
+      const lx = s2 * 1.55;
+      lantern.box.call(lantern, mul(m4(lx, PT + 2.72, dz + 0.3)), 0.12, 0.12, 0.34, [1, 1, 1], 1.2);
+      lantern.box.call(lantern, mul(m4(lx, PT + 2.55, dz + 0.5)), 0.26, 0.3, 0.26, [1, 1, 1], 1.1);
+      lantern.cyl.call(lantern, mul(m4(lx, PT + 2.88, dz + 0.5)), 0.02, 0.02, 0.22, 4, [1, 1, 1], false);
+      lampGlass.quad.call(lampGlass, mul(m4(lx, PT + 2.55, dz + 0.65)), 0.2, 0.24, [1, 1, 1], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(lx, PT + 2.55, dz + 0.72)), 2.4, 2.6, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    // 门前台阶：按台基与地面的高差自动分 1~5 级
+    const pFront = M.xf(D, [0, 0, 10]);
+    const gFront = Math.max(0, groundH(pFront[0], pFront[2]) - y0);
+    const stepN = Math.max(1, Math.min(5, Math.round((PT - gFront) / 0.16)));
+    for (let i = 0; i < stepN; i++) {
+      const yy = PT - (PT - gFront) * (i + 0.6) / stepN;
+      B(trim, 0, yy, 8.1 + i * 0.36, 3.8, 0.17, 0.42, [1, 1, 1]);
+    }
+    // 门前小广场
+    const terY = gFront + 0.035;
+    pave.grid.call(pave, mul(m4(0, terY, 9.9)), 8.4, 2.2, 7, 2,
+      [0.92, 0.9, 0.86], 0.55, 0.1, 0);
+
+    /* ---- 玫瑰窗：圆盘彩窗 + 石环 + 放射窗棂 ---- */
+    const roseY = PT + 4.0, roseZ = dz + 0.03;
+    // 背板要退到玻璃后面（以前背板比玻璃厚，把整块彩窗盖成了一块石饼）
+    cyl(trim, 0, roseY, roseZ - 0.14, 1.16, 1.16, 0.12, 24, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    cyl(roseP, 0, roseY, roseZ - 0.015, 0.98, 0.98, 0.05, 24, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    // 石环压在玻璃外圈
+    const ringM = mul(m4(0, roseY, roseZ + 0.02, Math.PI / 2, 0, 0));
+    trim.torus.call(trim, ringM, 1.02, 0.1, 24, 6, [1, 1, 1]);
+    // 8 根放射石棂
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 8;
+      BR(trim, 0, roseY, roseZ + 0.045, 0, 0, a, 0.055, 1.92, 0.06, [1, 1, 1], 0.5);
+    }
+    BR(trim, 0, roseY, roseZ + 0.055, 0, 0, 0, 0.22, 0.22, 0.08, [1, 1, 1], 0.5);
+    glowP.quad.call(glowP, mul(m4(0, roseY, roseZ + 0.1)), 2.6, 2.6, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---- 钟楼：塔身 + 钟室 + 石板尖顶 + 十字 ---- */
     const TX = -4.9, TZ = 0;
-    B(TX, 4.0, TZ, 4.4, 7.4, 4.4, [0.98, 0.96, 0.9]);
-    B(TX, 7.85, TZ, 5.0, 0.35, 5.0, [0.85, 0.84, 0.8]);   // 檐口
-    // 钟室开口（黑）
-    for (const [dx, dz, ry] of [[0, 2.24, 0], [0, -2.24, Math.PI], [2.24, 0, Math.PI / 2], [-2.24, 0, -Math.PI / 2]]) {
-      B(TX + dx, 6.5, TZ + dz, Math.abs(dz) > 0 ? 1.5 : 0.12, 2.2, Math.abs(dz) > 0 ? 0.12 : 1.5, [0.05, 0.05, 0.06]);
-      void ry;
+    const TT = PT + 8.0;              // 塔身顶
+    B(stone, TX, (PT + TT) / 2, TZ, 4.4, TT - PT, 4.4, [1, 1, 1]);
+    B(trim, TX, PT + 0.18, TZ, 4.62, 0.18, 4.62, [1, 1, 1]);
+    B(trim, TX, PT + 3.1, TZ, 4.56, 0.14, 4.56, [1, 1, 1]);
+    // 塔身转角石
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      for (let k = 0; k < 11; k++) {
+        const yy = PT + 0.42 + k * 0.68;
+        if (yy > TT - 0.4) break;
+        B(trim, TX + sx * 2.21, yy, TZ + sz * 2.21, 0.2, 0.6, 0.42, [1, 1, 1]);
+      }
     }
-    // 尖顶
-    stone.cyl.call(stone, M.mul(D, m4(TX, 8.0, TZ)), 3.1, 0.05, 6.4, 4, [0.92, 0.9, 0.86], false);
-    // 塔尖十字
-    stone.box.call(stone, M.mul(D, m4(TX, 14.9, TZ)), 0.12, 1.1, 0.12, [0.9, 0.85, 0.6], 1);
-    stone.box.call(stone, M.mul(D, m4(TX, 15.1, TZ)), 0.62, 0.12, 0.12, [0.9, 0.85, 0.6], 1);
-    // 塔上小窗
-    warm.quad.call(warm, M.mul(D, m4(TX, 4.8, TZ + 2.22)), 0.7, 1.3, [1, 1, 1], [0, 0, 1, 1]);
-    warmGlow.quad.call(warmGlow, M.mul(D, m4(TX, 4.8, TZ + 2.32)), 2.8, 3.2, [1, 1, 1], [0, 0, 1, 1]);
-    warm.quad.call(warm, M.mul(D, m4(TX - 2.22, 4.8, TZ, 0, -Math.PI / 2, 0)), 0.7, 1.3, [1, 1, 1], [0, 0, 1, 1]);
+    // 塔基门（朝西）
+    B(dark, TX - 2.22, PT + 1.02, TZ, 0.16, 2.04, 1.3, [0.08, 0.07, 0.06]);
+    B(doorP, TX - 2.2, PT + 0.98, TZ, 0.1, 1.84, 1.08, [1, 1, 1], 1.1);
+    B(trim, TX - 2.26, PT + 2.02, TZ, 0.2, 0.16, 1.5, [1, 1, 1]);
+    for (const sz of [-1, 1]) B(trim, TX - 2.24, PT + 1.0, TZ + sz * 0.66, 0.2, 2.0, 0.2, [1, 1, 1]);
+    // 西侧小窗
+    Q(glass, TX - 2.215, PT + 4.2, TZ, 0, -Math.PI / 2, 0, 0.56, 1.12, [1, 1, 1]);
+    B(trim, TX - 2.26, PT + 3.6, TZ, 0.2, 0.12, 0.9, [1, 1, 1]);
+    glowP.quad.call(glowP, mul(m4(TX - 2.24, PT + 4.2, TZ, 0, -Math.PI / 2, 0)), 2.0, 2.4, [1, 1, 1], [0, 0, 1, 1]);
 
-    // 教堂前的石灯
-    stone.cyl.call(stone, M.mul(D, m4(2.6, 0, 8.2)), 0.16, 0.13, 1.9, 6, [0.9, 0.88, 0.84], true);
-    stone.box.call(stone, M.mul(D, m4(2.6, 2.1, 8.2)), 0.5, 0.55, 0.5, [0.85, 0.83, 0.78], 1.2);
-    warm.quad.call(warm, M.mul(D, m4(2.6, 2.1, 8.48)), 0.32, 0.36, [1, 1, 1], [0, 0, 1, 1]);
-
-    // 墓园：矮墙 + 一排排墓碑 + 一棵歪柏树（都收在土丘的平顶范围内）
-    const wallY = (x, z) => groundH(x, z);
-    for (let i = 0; i < 16; i++) {
-      const a = -1.15 + (i / 15) * 2.3;
-      const wx = C.x + Math.sin(a) * 9.5;
-      const wz = C.z + Math.cos(a) * 10.8;
-      const y = wallY(wx, wz);
-      dark.box.call(dark, m4(wx, y + 0.45, wz, 0, a, 0), 1.35, 1.0, 0.4, [0.7, 0.72, 0.72], 1.5);
+    // 钟室：四面尖拱开口 + 百叶 + 石框
+    const bellY = PT + 5.55, bellW = 1.24, bellH = 1.9;
+    const faces = [
+      [0, 2.24, 0], [0, -2.24, Math.PI], [2.24, 0, Math.PI / 2], [-2.24, 0, -Math.PI / 2]
+    ];
+    for (const [dx, dz2, ry] of faces) {
+      const fx = TX + dx, fz = TZ + dz2;
+      Q(dark, fx, bellY, fz, 0, ry, 0, bellW, bellH, [0.05, 0.05, 0.06]);
+      // 百叶
+      for (let k = 0; k < 5; k++) {
+        const yy = bellY - bellH / 2 + 0.24 + k * 0.34;
+        Q(trim, fx + Math.sin(ry) * 0.03, yy, fz + Math.cos(ry) * 0.03, 0, ry, 0,
+          bellW * 0.9, 0.08, [0.34, 0.34, 0.34]);
+      }
+      // 尖拱框
+      const fm = mul(m4(fx, bellY + bellH / 2, fz, 0, ry, 0));
+      for (const s2 of [-1, 1]) {
+        trim.box.call(trim, M.mul(fm, m4(s2 * 0.52, 0.1, 0.04, 0, 0, s2 * 0.62)), 0.9, 0.14, 0.16, [1, 1, 1], 0.5);
+        trim.box.call(trim, M.mul(fm, m4(s2 * 0.72, -bellH / 2, 0.04)), 0.18, bellH, 0.16, [1, 1, 1], 0.5);
+      }
     }
-    const gr = rng(47);
-    for (let i = 0; i < 22; i++) {
-      const a = (gr() - 0.5) * 2.2;
-      const d = 4.5 + gr() * 5.0;
-      const gx = C.x + Math.sin(a) * d;
-      const gz = C.z + Math.cos(a) * d;
+    // 钟：从开口里能看到一点点铜钟
+    cyl(goldP, TX, PT + 4.7, TZ, 0.34, 0.5, 0.55, 12, [1, 1, 1], 0, 0, 0, true);
+    // 檐口 + 托石
+    B(trim, TX, TT + 0.16, TZ, 5.0, 0.32, 5.0, [1, 1, 1]);
+    for (let k = 0; k < 5; k++) {
+      const off = -2.05 + k * 1.02;
+      B(trim, TX + off, TT - 0.06, TZ + 2.4, 0.34, 0.28, 0.34, [1, 1, 1]);
+      B(trim, TX + off, TT - 0.06, TZ - 2.4, 0.34, 0.28, 0.34, [1, 1, 1]);
+    }
+    // 尖顶（四棱锥，面对齐塔身）
+    roofP.cyl.call(roofP, mul(m4(TX, TT + 0.32, TZ, 0, Math.PI / 4, 0)),
+      3.15, 0.04, 6.3, 4, [1, 1, 1], false);
+    // 顶角小尖饰
+    for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+      trim.cyl.call(trim, mul(m4(TX + sx * 2.2, TT + 0.34, TZ + sz * 2.2)), 0.14, 0.02, 0.9, 5, [1, 1, 1], false);
+    }
+    // 十字
+    goldP.box.call(goldP, mul(m4(TX, TT + 7.2, TZ)), 0.14, 1.3, 0.14, [1, 1, 1], 0.8);
+    goldP.box.call(goldP, mul(m4(TX, TT + 7.45, TZ)), 0.78, 0.14, 0.14, [1, 1, 1], 0.8);
+    goldP.sphere.call(goldP, mul(m4(TX, TT + 6.62, TZ)), 0.13, 8, 6, [1, 1, 1]);
+
+    // 塔身时钟（朝南，主标题能看见）
+    cyl(trim, TX, PT + 4.35, TZ + 2.245, 0.62, 0.62, 0.1, 20, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    cyl(st.pen("w.clockFace", null, { unlit: true, tint: [0.86, 0.82, 0.7] }),
+      TX, PT + 4.35, TZ + 2.3, 0.52, 0.52, 0.025, 20, [1, 1, 1], Math.PI / 2, 0, 0, true);
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * TAU;
+      BR(iron, TX + Math.cos(a) * 0.42, PT + 4.35 + Math.sin(a) * 0.42, TZ + 2.33,
+        0, 0, a, 0.05, k % 3 ? 0.03 : 0.07, 0.02, [1, 1, 1]);
+    }
+    BR(iron, TX, PT + 4.35 + 0.16, TZ + 2.35, 0, 0, 0.12, 0.045, 0.34, 0.02, [1, 1, 1]);
+    BR(iron, TX + 0.14, PT + 4.35, TZ + 2.35, 0, 0, Math.PI / 2, 0.045, 0.3, 0.02, [1, 1, 1]);
+
+    /* ---- 教堂前的石灯 ---- */
+    const lampAt = (lx, lz, s) => {
+      const wx = M.xf(D, [lx, 0, lz]);
+      const gy = groundH(wx[0], wx[2]) - y0;
+      B(stone, lx, gy + 0.06, lz, 0.52, 0.16, 0.52, [1, 1, 1]);
+      cyl(stone, lx, gy + 0.1, lz, 0.14 * s, 0.11 * s, 1.9 * s, 6, [1, 1, 1], 0, 0, 0, true);
+      B(trim, lx, gy + 2.02 * s, lz, 0.42 * s, 0.5 * s, 0.42 * s, [1, 1, 1]);
+      lampGlass.quad.call(lampGlass, mul(m4(lx, gy + 2.02 * s, lz + 0.22 * s)), 0.28 * s, 0.32 * s, [1, 1, 1], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(lx, gy + 2.02 * s, lz + 0.3 * s)), 2.2 * s, 2.4 * s, [1, 1, 1], [0, 0, 1, 1]);
+    };
+    lampAt(-2.6, 8.3, 1.0);
+
+    /* ============================================================
+     *  墓园：连续院墙 + 门柱 + 墓碑 + 甬道 + 门前小路（世界坐标）
+     * ============================================================ */
+    const wallStone = st.pen("w.churchWall", WTex.ashlar(), { tint: [0.86, 0.84, 0.78], spec: 0.06 });
+    const wallCap = st.pen("w.churchWallCap", T.stone(), { tint: [0.78, 0.78, 0.76], spec: 0.12 });
+    const gateIron = st.pen("w.churchGate", T.darkMetal(), { tint: [0.26, 0.28, 0.3], spec: 0.45 });
+    const RAD = 13.0, RADX = 11.5;
+    const gateA = 0.104;            // 门洞中心角（正对教堂门的中线）
+    const gapHalf = 0.085;
+    const segStep = 0.043;
+    for (let a = -1.42; a <= 1.42; a += segStep) {
+      if (Math.abs(a - gateA) < gapHalf) continue;
+      const wx = C.x + Math.sin(a) * RADX;
+      const wz = C.z + Math.cos(a) * RAD;
+      const gy = groundH(wx, wz);
+      const g = HASH(a * 13.1, 3.7);
+      wallStone.box.call(wallStone, m4(wx, gy + 0.32, wz, 0, a, 0), 0.92, 0.66 + g * 0.06, 0.42,
+        [0.92 + g * 0.12, 0.9, 0.84], 0.45);
+      wallCap.box.call(wallCap, m4(wx, gy + 0.7, wz, 0, a, 0), 1.02, 0.12, 0.52, [1, 1, 1], 1.2);
+    }
+    // 门柱 + 铁门
+    const gateSpots = [gateA - gapHalf * 1.35, gateA + gapHalf * 1.35];
+    const gateWorld = gateSpots.map(a => {
+      const wx = C.x + Math.sin(a) * RADX, wz = C.z + Math.cos(a) * RAD;
+      return [wx, wz, groundH(wx, wz), a];
+    });
+    for (const g of gateWorld) {
+      wallStone.box.call(wallStone, m4(g[0], g[2] + 0.9, g[1], 0, g[3], 0), 0.66, 1.8, 0.66, [1, 1, 1], 0.45);
+      wallCap.box.call(wallCap, m4(g[0], g[2] + 1.86, g[1], 0, g[3], 0), 0.82, 0.16, 0.82, [1, 1, 1], 1.2);
+      goldP.sphere.call(goldP, m4(g[0], g[2] + 2.0, g[1]), 0.11, 7, 5, [1, 1, 1]);
+    }
+    // 铁门两扇（半开，朝里）
+    for (const s2 of [-1, 1]) {
+      const hingeX = gateWorld[s2 > 0 ? 1 : 0][0], hingeZ = gateWorld[s2 > 0 ? 1 : 0][1];
+      const gy = gateWorld[s2 > 0 ? 1 : 0][2];
+      const w = 0.72;
+      const dir = s2 > 0 ? -1 : 1;
+      for (let k = 0; k < 4; k++) {
+        gateIron.box.call(gateIron, m4(hingeX + dir * w * 0.5, gy + 0.72, hingeZ + dir * 0.28,
+          0, 0, 0), 0.05, 1.35, 0.05, [1, 1, 1], 0.8);
+      }
+      for (const yy of [gy + 0.35, gy + 0.75, gy + 1.15]) {
+        gateIron.box.call(gateIron, m4(hingeX + dir * w * 0.46, yy, hingeZ + dir * 0.28, 0, 0, 0),
+          w * 0.95, 0.05, 0.05, [1, 1, 1], 0.8);
+      }
+    }
+
+    // 墓碑：几种形状 + 苔痕 + 小土丘；给甬道让路
+    const tomb = st.pen("w.tomb", T.stone(), { tint: [0.78, 0.78, 0.74], spec: 0.12, rim: 0.14 });
+    const tombDark = st.pen("w.tombDark", T.stone(), { tint: [0.42, 0.43, 0.42], spec: 0.05 });
+    const tr = rng(47);
+    const tombSpots = [];
+    for (let i = 0; i < 42; i++) {
+      const a = (tr() - 0.5) * 2.55;
+      const u = 0.66 + tr() * 0.3;
+      const gx = C.x + Math.sin(a) * RADX * u;
+      const gz = C.z + Math.cos(a) * RAD * u;
+      // 台基范围里不放（不能把墓碑砌进教堂）
+      if (Math.abs(gx - C.x) < 6.5 && Math.abs(gz - C.z) < 9.4) continue;
+      // 甬道两侧留空
+      if (Math.abs(gx - (18.9 + (gz - 39) * 0.24)) < 1.8) continue;
       const gy = groundH(gx, gz);
       if (gy < 4) continue;
-      const h = 0.55 + gr() * 0.7;
-      const lean = (gr() - 0.5) * 0.25;
-      dark.box.call(dark, m4(gx, gy + h / 2, gz, lean, (gr() - 0.5) * 0.5, lean * 0.5), 0.34 + gr() * 0.2, h, 0.14,
-        [0.55 + gr() * 0.2, 0.56 + gr() * 0.2, 0.54 + gr() * 0.16], 1.6);
+      const h = 0.5 + tr() * 0.78;
+      const lean = (tr() - 0.5) * 0.2;
+      const kind = tr();
+      tombSpots.push([gx, gz, gy, h, lean, kind]);
     }
-    // 柏树
-    const cypress = st.pen("w.cypress", null, { tint: [0.2, 0.3, 0.22], sway: 1, rim: 0.2 });
-    for (const [dx, dz, h] of [[7.2, 4.0, 5.2], [-7.0, 4.6, 4.4], [6.4, -4.6, 4.8]]) {
+    for (const [gx, gz, gy, h, lean, kind] of tombSpots) {
+      const ry = (HASH(gx, gz) - 0.5) * 0.4;
+      // 土丘
+      tombDark.sphere.call(tombDark, m4(gx, gy + 0.02, gz, 0, 0, 0, 1.2, 0.16, 0.7), 0.34, 6, 4,
+        [0.7, 0.72, 0.62]);
+      if (kind < 0.22) {
+        // 十字碑
+        tomb.box.call(tomb, m4(gx, gy + h / 2, gz, lean, ry, lean * 0.5), 0.16, h, 0.16, [1, 1, 1], 1.2);
+        tomb.box.call(tomb, m4(gx, gy + h * 0.72, gz, lean, ry, lean * 0.5), 0.6, 0.14, 0.14, [1, 1, 1], 1.2);
+        tomb.box.call(tomb, m4(gx, gy + 0.09, gz, 0, ry, 0), 0.52, 0.18, 0.4, [0.9, 0.9, 0.86], 1.2);
+      } else if (kind < 0.55) {
+        // 圆顶碑
+        tomb.box.call(tomb, m4(gx, gy + h / 2, gz, lean, ry, lean * 0.4), 0.46, h, 0.14, [1, 1, 1], 1.2);
+        tomb.sphere.call(tomb, m4(gx, gy + h, gz, 0, ry, 0, 1, 0.6, 0.32), 0.23, 8, 5, [1, 1, 1]);
+        tomb.box.call(tomb, m4(gx, gy + 0.08, gz, 0, ry, 0), 0.6, 0.16, 0.34, [0.92, 0.92, 0.88], 1.2);
+      } else {
+        // 斜靠的石板 + 刻痕
+        tomb.box.call(tomb, m4(gx, gy + h * 0.44, gz, -0.24 + lean, ry, lean * 0.6), 0.5, h * 0.9, 0.12,
+          [1, 1, 1], 1.2);
+        tombDark.quad.call(tombDark, m4(gx + Math.sin(ry) * 0.07, gy + h * 0.5, gz + Math.cos(ry) * 0.07,
+          0, ry, 0), 0.3, 0.04, [1, 1, 1], [0, 0, 1, 1]);
+      }
+    }
+    // 一座小家族墓室：矮方室 + 石顶 + 铁门
+    {
+      const mx = C.x - 7.0, mz = C.z + 8.6;
+      const gy = groundH(mx, mz);
+      wallStone.box.call(wallStone, m4(mx, gy + 0.85, mz), 2.2, 1.7, 1.6, [0.94, 0.92, 0.88], 0.45);
+      wallCap.box.call(wallCap, m4(mx, gy + 1.82, mz), 2.5, 0.18, 1.9, [1, 1, 1], 1.2);
+      gateIron.box.call(gateIron, m4(mx, gy + 0.8, mz + 0.82), 0.9, 1.3, 0.06, [1, 1, 1], 0.8);
+      for (let k = 0; k < 3; k++) {
+        gateIron.box.call(gateIron, m4(mx - 0.3 + k * 0.3, gy + 0.8, mz + 0.86), 0.04, 1.3, 0.03, [1, 1, 1], 0.8);
+      }
+    }
+
+    /* ---- 甬道：从教堂门到墓园门，再往南接到台地上的小路 ---- */
+    const pathPts = [[18.9, 34.2], [18.95, 39.0], [19.7, 42.8], [20.7, 46.6],
+      [21.3, 51.2], [21.0, 56.2], [20.2, 61.0], [19.4, 66.0]];
+    const slabW = 1.5, slabD = 0.7;
+    for (let i = 0; i < pathPts.length - 1; i++) {
+      const a = pathPts[i], b = pathPts[i + 1];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const n = Math.max(1, Math.round(len / slabD));
+      const ry = Math.atan2(b[0] - a[0], b[1] - a[1]);
+      for (let k = 0; k < n; k++) {
+        const u = (k + 0.5) / n;
+        const px = a[0] + (b[0] - a[0]) * u, pz = a[1] + (b[1] - a[1]) * u;
+        const py = groundH(px, pz) + 0.035;
+        pave.box.call(pave, m4(px, py, pz, 0, ry + (HASH(i, k) - 0.5) * 0.05, 0),
+          slabW * 0.92, 0.07, slabD * 0.86, [0.94, 0.92, 0.88], 1.1);
+        // 路缘石
+        for (const s of [-1, 1]) {
+          const ex = px + Math.cos(ry) * s * (slabW * 0.55), ez = pz - Math.sin(ry) * s * (slabW * 0.55);
+          pave.box.call(pave, m4(ex, groundH(ex, ez) + 0.04, ez, 0, ry, 0),
+            0.14, 0.09, slabD * 0.96, [0.72, 0.7, 0.66], 1.2);
+        }
+      }
+    }
+    // 甬道两旁的低矮黄杨 + 花
+    for (let i = 0; i < 22; i++) {
+      const u = i / 21;
+      const px = 19.6 + Math.sin(u * 2.4) * 1.3;
+      const pz = 40.5 + u * 24;
+      const py = groundH(px, pz);
+      for (const s of [-1, 1]) {
+        hedge.box.call(hedge, m4(px + s * 1.42, py + 0.22, pz), 0.55, 0.44, 0.9, [1, 1, 1], 1.2);
+      }
+      if (i % 3 === 0) {
+        for (const s of [-1, 1]) {
+          for (let k = 0; k < 3; k++) {
+            flowerP.quad.call(flowerP, m4(px + s * 1.22 + (HASH(i, k) - 0.5) * 0.24,
+              py + 0.4 + 0.05, pz + (k - 1) * 0.16, -0.9, HASH(k, i) * TAU, 0),
+              0.1, 0.13, [0.9, 0.82, 0.62], [0, 0, 1, 1]);
+          }
+        }
+      }
+    }
+    // 石灯：沿甬道（灯室四角有石柱，玻璃不再悬在座子上）
+    for (const [lx, lz, s] of [[17.0, 42.5, 0.9], [23.4, 51.5, 0.85], [22.2, 61.0, 0.8]]) {
+      const wx = lx, wz = lz;
+      const gy = groundH(wx, wz);
+      wallStone.box.call(wallStone, m4(wx, gy + 0.35, wz), 0.44, 0.7, 0.44, [1, 1, 1], 1.0);
+      wallStone.box.call(wallStone, m4(wx, gy + 0.78, wz), 0.5, 0.16, 0.5, [1, 1, 1], 1.0);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        wallStone.box.call(wallStone, m4(wx + sx * 0.19, gy + 1.0, wz + sz * 0.19),
+          0.08, 0.34, 0.08, [1, 1, 1], 1.0);
+      }
+      lampGlass.quad.call(lampGlass, m4(wx, gy + 1.0, wz + 0.2), 0.26, 0.3, [1, 1, 1], [0, 0, 1, 1]);
+      wallCap.box.call(wallCap, m4(wx, gy + 1.25, wz), 0.56, 0.14, 0.56, [1, 1, 1], 1.1);
+      glowP.quad.call(glowP, m4(wx, gy + 1.0, wz + 0.26), 1.9 * s, 1.9 * s, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    // 长椅两张
+    for (const [bx, bz, br] of [[16.4, 47.0, 0.1], [24.3, 57.0, -0.15]]) {
+      const gy = groundH(bx, bz);
+      for (const s of [-1, 1]) {
+        wallStone.box.call(wallStone, m4(bx, gy + 0.2, bz + s * 0.66), 0.5, 0.4, 0.2, [1, 1, 1], 1.0);
+      }
+      wallStone.box.call(wallStone, m4(bx, gy + 0.42, bz, 0, br, 0), 1.5, 0.14, 0.72, [1, 1, 1], 1.0);
+    }
+    // 甬道尽头的林地山门（lynch gate：四柱 + 小两坡顶 + 吊钟 + 两扇半开的木门）
+    {
+      const gx = 19.4, gz = 66.0, gy = groundH(gx, gz);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        hedgedPost(gx + sx * 1.55, gz + sz * 0.95, gy, 2.35);
+      }
+      const gateWood = st.pen("w.churchGateWood", T.woodDark(), { tint: [1.05, 0.84, 0.62], spec: 0.08 });
+      for (const sz of [-1, 1]) {
+        gateWood.box.call(gateWood, m4(gx, gy + 2.3, gz + sz * 0.95), 3.34, 0.2, 0.2, [1, 1, 1], 1.3);
+      }
+      for (const sx of [-1, 1]) {
+        gateWood.box.call(gateWood, m4(gx + sx * 1.55, gy + 2.3, gz), 0.2, 0.18, 1.9, [1, 1, 1], 1.3);
+      }
+      gableRoof(roofP, m4(gx, gy + 2.4, gz), 3.7, 2.4, 0.82, [1, 1, 1], 0.55, false);
+      gateWood.box.call(gateWood, m4(gx, gy + 3.22, gz), 0.16, 0.12, 2.5, [1, 1, 1], 1.2);
+      // 吊钟
+      goldP.cyl.call(goldP, m4(gx, gy + 2.62, gz), 0.11, 0.16, 0.2, 10, [1, 1, 1], true);
+      goldP.sphere.call(goldP, m4(gx, gy + 2.6, gz), 0.08, 7, 5, [1, 1, 1]);
+      cableTube(st, [[gx, gy + 2.86, gz], [gx, gy + 3.18, gz]]);
+      // 两扇半开的木门（铰链在柱上）
+      for (const s of [-1, 1]) {
+        const hx = gx + s * 1.42;
+        const open = s * 1.05;
+        const dm = m4(hx - s * 0.42, gy + 0.88, gz + 0.85, 0, open, 0);
+        gateWood.box.call(gateWood, dm, 0.84, 1.72, 0.08, [1, 1, 1], 1.2);
+        for (const yy of [-0.55, 0.0, 0.55]) {
+          iron.box.call(iron, M.mul(dm, m4(0, yy, 0.05, 0, 0, 0)), 0.7, 0.05, 0.03, [1, 1, 1], 1.0);
+        }
+      }
+    }
+    function cableTube(stage, pts) {
+      const p = stage.pen("w.churchRope", null, { tint: [0.3, 0.26, 0.2], spec: 0.02 });
+      p.tube.call(p, M.ident(), pts, 0.012, 4, [1, 1, 1]);
+    }
+    function hedgedPost(x, z, y, h) {
+      const p = st.pen("w.churchPost", T.woodDark(), { tint: [0.9, 0.75, 0.58], spec: 0.12 });
+      p.box.call(p, m4(x, y + h / 2, z), 0.24, h, 0.24, [1, 1, 1], 1.4);
+      p.box.call(p, m4(x, y + 0.12, z), 0.4, 0.24, 0.4, [0.8, 0.8, 0.76], 1.2);
+    }
+
+    /* ---- 墓园里的柏树 / 教堂旁的松树由 buildHill 负责 ---- */
+    const cypressPen = st.pen("w.cypress", WTex.pine(), { tint: [1.2, 1.3, 1.15], sway: 1, rim: 0.2 });
+    const cypressTrunk = st.pen("w.cypressTrunk", T.woodDark(), { tint: [0.4, 0.32, 0.28] });
+    for (const [dx, dz, hh] of [[7.3, 3.3, 5.6], [-7.0, 4.4, 4.8], [5.2, -5.2, 5.0], [-6.4, -4.8, 4.6]]) {
       const x = C.x + dx, z = C.z + dz;
-      cypress.cyl.call(cypress, m4(x, groundH(x, z), z, 0, 0, 0), 1.15, 0.05, h, 6, [1, 1, 1], false);
+      cypressTree(cypressTrunk, cypressPen, x, z, hh, Math.round(x * 7 + z), [0.9, 1.02, 0.88]);
     }
   }
 
@@ -426,6 +1416,8 @@ const A3DWorld = (() => {
     const quay = st.pen("w.cityQuay", T.stone(), { tint: [0.36, 0.37, 0.4], spec: 0.06 });
     const lampPost = st.pen("w.cityLamp", T.darkMetal(), { tint: [0.3, 0.3, 0.33], spec: 0.2 });
     const lampGlow = st.pen("w.cityLampGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.7, 0.36], opacity: 0.24 });
+    const wood = st.pen("w.cityWood", T.woodDark(), { tint: [1.0, 0.8, 0.58], spec: 0.08 });
+    const stone = st.pen("w.cityStone", T.stone(), { tint: [0.52, 0.53, 0.57], spec: 0.1, rim: 0.12 });
     const crown = st.pen("w.cityCrown", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.72, 0.42], opacity: 0.2 });
     const hull = st.pen("w.cityBoat", T.darkMetal(), { tint: [0.15, 0.17, 0.2], spec: 0.25 });
     const boatLamp = st.pen("w.cityBoatLamp", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.8, 0.45], opacity: 0.5 });
@@ -483,6 +1475,9 @@ const A3DWorld = (() => {
       const z = C.z1 - 6 - r() * (C.z1 - C.z0 - 14);
       if (landmarks.some(l => Math.hypot(x - l[0], z - l[1]) < l[2])) continue;
       const w = 5 + r() * 9, d = 5 + r() * 8;
+      /* 给 GitHub 街口和西侧广场让出一块空地：
+       * 楼体能随机长到 x≈29，以前会压住街口 / 广场，甚至和街上的牌坊碰头。 */
+      if (x - w / 2 < 38.5 && z + d / 2 > -85 && z - d / 2 < -60) continue;
       const h = 6 + r() * r() * 34;
       const tone = 0.75 + r() * 0.5;
       const pod = r() < 0.55 ? 1.1 : 0;
@@ -590,6 +1585,82 @@ const A3DWorld = (() => {
       boatLamp.quad.call(boatLamp, m4(bx, L.waterY + 1.6, bz + 0.8), 1.0, 1.0, [1, 1, 1], [0, 0, 1, 1]);
     }
 
+    /* ---- 街口广场：把 GitHub 街的石板路和城市铺装接上 ----
+     *  这里过去是「街道尽头 + 城市边缘」的一条硬缝，现在补一个带
+     *  方尖碑、路灯、长椅、行道树的小广场，从主标题和街口都看得到。 */
+    const plazaX = 30.5, plazaZ = -71.5;
+    pave.grid.call(pave, m4(plazaX, 0.06, plazaZ), 11.5, 15.5, 9, 12,
+      [0.9, 0.92, 1.0], 0.5, 0.16, 0);
+    // 广场边缘一圈石带
+    for (const sz of [-1, 1]) {
+      pave.box.call(pave, m4(plazaX, 0.08, plazaZ + sz * 7.75), 11.5, 0.16, 0.42, [0.7, 0.72, 0.78], 0.8);
+    }
+    // 方尖碑：基座 + 碑身 + 金顶
+    const mono = st.pen("w.cityMono", T.stone(), { tint: [0.5, 0.52, 0.58], spec: 0.12 });
+    const monoGold = st.pen("w.cityMonoGold", T.brass(), { tint: [1.1, 0.92, 0.58], spec: 0.6 });
+    mono.cyl.call(mono, m4(plazaX, 0.1, plazaZ), 1.3, 1.2, 0.42, 8, [1, 1, 1], true);
+    mono.cyl.call(mono, m4(plazaX, 0.52, plazaZ), 0.95, 0.82, 0.28, 8, [1, 1, 1], true);
+    mono.cyl.call(mono, m4(plazaX, 0.8, plazaZ), 0.62, 0.14, 4.2, 4, [1, 1, 1], true);
+    monoGold.cyl.call(monoGold, m4(plazaX, 5.0, plazaZ), 0.15, 0.02, 0.5, 4, [1, 1, 1], true);
+    // 纪念碑四周的灯与长椅（广场从街口方向看也看得到，光晕做成交叉双片）
+    for (const [dx, dz] of [[-3.2, -2.6], [3.2, -2.6], [-3.2, 2.6], [3.2, 2.6]]) {
+      const lx = plazaX + dx, lz = plazaZ + dz;
+      lampPost.cyl.call(lampPost, m4(lx, 0.06, lz), 0.07, 0.055, 3.1, 5, [1, 1, 1], true);
+      lampPost.box.call(lampPost, m4(lx, 3.15, lz), 0.34, 0.12, 0.34, [1, 1, 1], 1.2);
+      lampGlow.quad.call(lampGlow, m4(lx, 3.12, lz + 0.16), 2.6, 2.6, [1, 1, 1], [0, 0, 1, 1]);
+      lampGlow.quad.call(lampGlow, m4(lx + 0.16, 3.12, lz, 0, Math.PI / 2, 0), 2.6, 2.6, [1, 1, 1], [0, 0, 1, 1]);
+    }
+    for (const [dx, dz] of [[-4.4, 0], [4.4, 0]]) {
+      const bx = plazaX + dx, bz = plazaZ + dz;
+      wood.box.call(wood, m4(bx, 0.48, bz), 2.0, 0.1, 0.5, [0.62, 0.48, 0.34], 1.2);
+      for (const s of [-1, 1]) {
+        wood.box.call(wood, m4(bx + s * 0.8, 0.24, bz), 0.14, 0.48, 0.44, [0.55, 0.42, 0.3], 1.2);
+      }
+    }
+    // 广场行道树 / 花坛
+    const cityLeaf = st.pen("w.cityLeaf", null, { tint: [0.2, 0.34, 0.22], spec: 0.04, rim: 0.1, sway: 0.6 });
+    const treeAt = (tx, tz, hh) => {
+      const gy2 = 0.06;
+      wood.cyl.call(wood, m4(tx, gy2, tz), 0.18, 0.12, hh * 0.42, 6, [0.5, 0.38, 0.28], true);
+      for (let k = 0; k < 3; k++) {
+        cityLeaf.sphere.call(cityLeaf, m4(tx, gy2 + hh * (0.5 + k * 0.13), tz, 0, k * 0.7, 0,
+          1, 0.72, 1), hh * (0.3 - k * 0.06), 8, 6, [1, 1, 1]);
+      }
+      // 树池
+      stone.box.call(stone, m4(tx, gy2 + 0.16, tz), 1.2, 0.3, 1.2, [0.4, 0.4, 0.44], 0.8);
+    };
+    for (const [tx, tz] of [[plazaX - 6.6, plazaZ - 5.4], [plazaX + 6.6, plazaZ - 5.4],
+      [plazaX - 6.6, plazaZ + 5.4], [plazaX + 6.6, plazaZ + 5.4]]) {
+      treeAt(tx, tz, 4.6);
+    }
+
+    /* ---- 滨海林荫道：一排行道树 + 长椅，把城市南缘从「一排楼」变成一条街 ---- */
+    for (let x = C.x0 + 14; x < C.x1 - 6; x += 21) {
+      const tz = C.z1 - 5.6;
+      const gy2 = 0.05;
+      wood.cyl.call(wood, m4(x, gy2, tz), 0.2, 0.13, 2.6, 6, [0.5, 0.38, 0.28], true);
+      for (let k = 0; k < 3; k++) {
+        cityLeaf.sphere.call(cityLeaf, m4(x, gy2 + 3.1 + k * 0.62, tz, 0, k * 0.8, 0, 1, 0.7, 1),
+          1.15 - k * 0.18, 8, 6, [1, 1, 1]);
+      }
+      stone.box.call(stone, m4(x, 0.14, tz), 1.3, 0.24, 1.3, [0.4, 0.4, 0.44], 0.8);
+      if ((x - C.x0) % 42 < 21) {
+        // 长椅：座板 + 两条腿，别让座板浮在半空
+        const benchZ = tz - 0.4;
+        wood.box.call(wood, m4(x + 3.4, 0.46, benchZ), 2.0, 0.1, 0.5, [0.58, 0.45, 0.32], 1.2);
+        for (const s of [-0.75, 0.75]) {
+          wood.box.call(wood, m4(x + 3.4 + s, 0.21, benchZ, 0, 0, 0), 0.16, 0.42, 0.42,
+            [0.5, 0.38, 0.28], 1.2);
+        }
+      }
+    }
+
+    /* ---- 街口斑马线：城市和夜市的交界处，让人一眼看出这里能过街 ---- */
+    for (let i = 0; i < 6; i++) {
+      pave.quad.call(pave, m4(27.2, 0.075, -76.4 + i * 1.28, -Math.PI / 2, 0, 0),
+        3.6, 0.62, [1.25, 1.24, 1.16], [0, 0, 1, 1]);
+    }
+
     // 城市光晕：贴着朝镜头那侧楼群的暖色雾
     const haze = st.pen("w.cityHaze", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.66, 0.32], opacity: 0.11 });
     for (let i = 0; i < 6; i++) {
@@ -632,42 +1703,199 @@ const A3DWorld = (() => {
   function buildLighthouse(st) {
     const P0 = L.lighthouse;
     const baseY = groundH(P0.x, P0.z) + 0.3;
-    const rock = st.pen("w.lhRock", T.stone(), { tint: [0.3, 0.32, 0.36], spec: 0.1 });
+    const rock = st.pen("w.lhRock", T.stone(), { tint: [0.4, 0.42, 0.46], spec: 0.12, rim: 0.14 });
     const tower = st.pen("w.lhTower", T.plaster(), { tint: [1.0, 0.98, 0.94], spec: 0.2 });
-    const red = st.pen("w.lhRed", T.plasterWarm(), { tint: [1.35, 0.6, 0.5], spec: 0.2 });
+    const red = st.pen("w.lhRed", T.plasterWarm(), { tint: [1.4, 0.56, 0.44], spec: 0.18 });
     const metal = st.pen("w.lhMetal", T.darkMetal(), { tint: [0.35, 0.36, 0.4], spec: 0.4 });
+    const stone = st.pen("w.lhStone", WTex.ashlar(), { tint: [0.66, 0.66, 0.66], spec: 0.1, rim: 0.12 });
+    const door = st.pen("w.lhDoor", T.woodDark(), { tint: [0.95, 0.72, 0.52], spec: 0.1 });
+    const lampGlass = st.pen("w.lhLamp", null, { unlit: true, tint: [1.0, 0.86, 0.5] });
+    const winGlass = st.pen("w.lhWin", null, { unlit: true, tint: [1.0, 0.78, 0.44] });
+    const glow = st.pen("w.lhGlow", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.78, 0.42], opacity: 0.26 });
     const r = rng(61);
-    // 礁石基座
-    for (let i = 0; i < 16; i++) {
-      const a = r() * TAU;
-      const d = r() * 6;
-      const s = 1.2 + r() * 2.4;
-      rock.sphere.call(rock, m4(P0.x + Math.cos(a) * d, baseY - 0.7 + r() * 2.2, P0.z + Math.sin(a) * d * 0.8,
-        r(), a, r(), s, s * 0.7, s), 1, 7, 5, [0.8 + r() * 0.35, 0.82, 0.86]);
-    }
     const H = baseY + P0.top;
-    // 塔身：白 + 两道红箍
-    tower.cyl.call(tower, m4(P0.x, baseY, P0.z), 2.6, 1.7, H - baseY, 14, [1, 1, 1], false);
-    red.cyl.call(red, m4(P0.x, baseY + (H - baseY) * 0.38, P0.z), 2.25, 2.1, 1.6, 14, [1, 1, 1], false);
-    red.cyl.call(red, m4(P0.x, baseY + (H - baseY) * 0.66, P0.z), 1.98, 1.85, 1.5, 14, [1, 1, 1], false);
-    // 观景台
-    metal.cyl.call(metal, m4(P0.x, H, P0.z), 2.35, 2.35, 0.22, 14, [1, 1, 1], true);
-    // 灯室：玻璃（暖）+ 顶
-    const lamp = st.pen("w.lhLamp", null, { unlit: true, tint: [1.0, 0.86, 0.5] });
-    lamp.cyl.call(lamp, m4(P0.x, H + 0.22, P0.z), 1.45, 1.45, 1.5, 10, [1, 1, 1], false);
-    metal.cyl.call(metal, m4(P0.x, H + 1.72, P0.z), 1.9, 0.12, 1.5, 10, [1, 1, 1], true);
-    metal.sphere.call(metal, m4(P0.x, H + 3.3, P0.z), 0.22, 6, 4, [1, 1, 1]);
-    // 灯晕
-    const halo = st.pen("w.lhHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.85, 0.5], opacity: 0.55 });
-    halo.quad.call(halo, m4(P0.x, H + 0.95, P0.z + 1.6), 10, 10, [1, 1, 1], [0, 0, 1, 1]);
-    halo.quad.call(halo, m4(P0.x, H + 0.95, P0.z + 1.6), 34, 34, [1, 1, 1], [0, 0, 1, 1]);
+    const SHEDX = P0.x + 4.6, SHEDZ = P0.z + 4.8;
 
-    // 旋转光束：一块水平扇 + 一块竖直扇交叉，转到哪亮到哪
+    /* ---- 礁石群：贴水面铺开，湿的一面压暗；别是一圈浮球 ---- */
+    for (let i = 0; i < 30; i++) {
+      const a = r() * TAU;
+      const d = 2.0 + r() * 7.5;
+      const s = 0.7 + r() * 2.1;
+      const y = baseY - 0.55 + r() * 1.9;
+      const rx2 = P0.x + Math.cos(a) * d, rz2 = P0.z + Math.sin(a) * d * 0.82;
+      if (Math.hypot(rx2 - SHEDX, rz2 - SHEDZ) < 3.0) continue;
+      rock.sphere.call(rock, m4(rx2, y, rz2,
+        (r() - 0.5) * 0.4, a, (r() - 0.5) * 0.4, s, s * (0.4 + r() * 0.22), s * 0.86),
+        1, 7, 5, [0.72 + r() * 0.36, 0.76, 0.84]);
+    }
+    // 湿石：水线附近压暗的一圈
+    const wet = st.pen("w.lhWet", T.stone(), { tint: [0.18, 0.2, 0.22], spec: 0.5 });
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU + r() * 0.2;
+      const d = 3.6 + r() * 3.4;
+      wet.sphere.call(wet, m4(P0.x + Math.cos(a) * d, L.waterY + 0.02, P0.z + Math.sin(a) * d * 0.82,
+        0, a, 0, 1.3 + r() * 0.6, 0.16, 1.0 + r() * 0.5), 1, 6, 4, [1, 1, 1]);
+    }
+    // 礁石周围的泡沫
+    const foam = st.pen("w.lhFoam", T.glow(), { unlit: true, blend: "add", tint: [0.72, 0.84, 1.0], opacity: 0.16 });
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU + 0.2;
+      const d = 4.2 + r() * 2.2;
+      foam.quad.call(foam, m4(P0.x + Math.cos(a) * d, L.waterY + 0.04, P0.z + Math.sin(a) * d * 0.8,
+        -Math.PI / 2, r() * TAU, 0), 2.4 + r() * 2.2, 0.9 + r() * 0.5, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    /* ---- 基座平台 + 登塔台阶（朝岸一侧） ---- */
+    stone.cyl.call(stone, m4(P0.x, baseY - 0.2, P0.z), 3.5, 3.2, 0.62, 18, [1, 1, 1], true);
+    stone.cyl.call(stone, m4(P0.x, baseY + 0.4, P0.z), 3.12, 2.92, 0.28, 18, [1, 1, 1], true);
+    // 台阶：从沙滩（+Z 方向）上到平台
+    const shoreZ = 3.3;
+    for (let i = 0; i < 4; i++) {
+      stone.box.call(stone, m4(P0.x, baseY - 0.08 + i * 0.12, P0.z + shoreZ + 0.6 - i * 0.34),
+        1.5, 0.16, 0.42, [1, 1, 1], 0.8);
+    }
+
+    /* ---- 塔身：白灰 + 两道红箍（半径必须比塔身大，不然会被埋进去） ---- */
+    tower.cyl.call(tower, m4(P0.x, baseY, P0.z), 2.6, 1.66, H - baseY, 16, [1, 1, 1], false);
+    // 塔身竖向抹灰分格：几条很淡的竖向凹槽，近看不是一根光筒
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU;
+      const rr0 = 2.6, rr1 = 1.66;
+      const p0 = [P0.x + Math.cos(a) * (rr0 + 0.012), baseY, P0.z + Math.sin(a) * (rr0 + 0.012)];
+      const p1 = [P0.x + Math.cos(a) * (rr1 + 0.012), H, P0.z + Math.sin(a) * (rr1 + 0.012)];
+      // 细长条：用三角形拼一条贴在塔身上的浅色缝
+      const w = 0.035;
+      const tx = -Math.sin(a) * w, tz = Math.cos(a) * w;
+      tower.tri.call(tower, M.ident(),
+        [p0[0] + tx, p0[1], p0[2] + tz], [p0[0] - tx, p0[1], p0[2] - tz], p1, null, [0.72, 0.72, 0.72]);
+      tower.tri.call(tower, M.ident(),
+        [p1[0] - tx, p1[1], p1[2] - tz], [p1[0] + tx, p1[1], p1[2] + tz], p1, null, [0.72, 0.72, 0.72]);
+    }
+    // 红箍：按塔身半径插值，略胖 0.04~0.06
+    const bandAt = (t, hh) => {
+      const y = baseY + (H - baseY) * t;
+      const rr = 2.6 + (1.66 - 2.6) * t;
+      red.cyl.call(red, m4(P0.x, y - hh / 2, P0.z), rr + 0.06, rr + 0.05, hh, 16, [1, 1, 1], false);
+      metal.cyl.call(metal, m4(P0.x, y + hh / 2, P0.z), rr + 0.1, rr + 0.06, 0.09, 16, [1, 1, 1], true);
+      metal.cyl.call(metal, m4(P0.x, y - hh / 2 - 0.09, P0.z), rr + 0.06, rr + 0.1, 0.09, 16, [1, 1, 1], true);
+    };
+    bandAt(0.36, 1.9);
+    bandAt(0.64, 1.7);
+
+    /* ---- 门：朝岸（+Z），带门套、雨棚、台阶、门灯 ---- */
+    const dY = baseY + 0.5;
+    const dZ = P0.z + 2.48;
+    const dn = st.pen("w.lhDoorDark", null, { tint: [0.05, 0.05, 0.06] });
+    dn.quad.call(dn, m4(P0.x, dY + 1.0, dZ + 0.02), 1.1, 1.92, [1, 1, 1], [0, 0, 1, 1]);
+    door.quad.call(door, m4(P0.x, dY + 0.94, dZ + 0.05), 0.98, 1.72, [1, 1, 1], [0, 0, 1, 1]);
+    for (const yy of [dY + 0.42, dY + 1.36]) {
+      metal.box.call(metal, m4(P0.x, yy, dZ + 0.08), 0.9, 0.05, 0.025, [1, 1, 1], 1.0);
+    }
+    metal.sphere.call(metal, m4(P0.x + 0.34, dY + 0.92, dZ + 0.11), 0.055, 7, 5, [1, 1, 1]);
+    // 门套
+    for (const sx of [-1, 1]) {
+      stone.box.call(stone, m4(P0.x + sx * 0.66, dY + 1.0, dZ + 0.02), 0.24, 2.1, 0.26, [1, 1, 1], 0.8);
+    }
+    stone.box.call(stone, m4(P0.x, dY + 2.08, dZ + 0.02), 1.52, 0.22, 0.3, [1, 1, 1], 0.8);
+    stone.cyl.call(stone, m4(P0.x, dY + 2.2, dZ + 0.02), 0.76, 0.76, 0.22, 12, [1, 1, 1], true);
+    // 门灯
+    metal.box.call(metal, m4(P0.x, dY + 2.42, dZ + 0.3), 0.16, 0.2, 0.16, [1, 1, 1], 1.0);
+    glow.quad.call(glow, m4(P0.x, dY + 2.3, dZ + 0.36), 1.4, 1.4, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---- 塔身小窗：螺旋上升，朝不同方向 ---- */
+    for (let k = 0; k < 5; k++) {
+      const t = 0.16 + k * 0.15;
+      const y = baseY + (H - baseY) * t;
+      const rr = 2.6 + (1.66 - 2.6) * t + 0.02;
+      const a = 0.35 + k * 1.25;
+      const wx = P0.x + Math.cos(a) * rr, wz = P0.z + Math.sin(a) * rr;
+      const ry = Math.atan2(Math.cos(a), Math.sin(a));
+      const lit = k % 2 === 0;
+      winGlass.quad.call(winGlass, m4(wx, y, wz, 0, ry, 0), 0.34, 0.54, [1, 1, 1], [0, 0, 1, 1]);
+      stone.box.call(stone, m4(wx, y - 0.32, wz, 0, ry, 0), 0.5, 0.08, 0.14, [1, 1, 1], 1.0);
+      if (lit) glow.quad.call(glow, m4(wx + Math.sin(ry) * 0.03, y, wz + Math.cos(ry) * 0.03, 0, ry, 0),
+        1.1, 1.3, [1, 1, 1], [0, 0, 1, 1]);
+    }
+
+    /* ---- 观景台 + 栏杆 ---- */
+    metal.cyl.call(metal, m4(P0.x, H, P0.z), 2.55, 2.55, 0.22, 18, [1, 1, 1], true);
+    metal.cyl.call(metal, m4(P0.x, H + 0.22, P0.z), 2.25, 2.2, 0.12, 18, [1, 1, 1], true);
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * TAU;
+      metal.box.call(metal, m4(P0.x + Math.cos(a) * 2.36, H + 0.75, P0.z + Math.sin(a) * 2.36, 0, -a, 0),
+        0.05, 1.05, 0.05, [1, 1, 1], 1.0);
+    }
+    for (const yy of [H + 0.72, H + 1.24]) {
+      metal.torus.call(metal, m4(P0.x, yy, P0.z), 2.36, 0.035, 24, 4, [1, 1, 1]);
+    }
+
+    /* ---- 灯室：玻璃笼 + 竖棂 + 穹顶 + 通风球 + 避雷针 ---- */
+    const LY = H + 0.34;
+    lampGlass.cyl.call(lampGlass, m4(P0.x, LY, P0.z), 1.5, 1.5, 1.5, 12, [1, 1, 1], false);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU;
+      metal.box.call(metal, m4(P0.x + Math.cos(a) * 1.52, LY + 0.75, P0.z + Math.sin(a) * 1.52, 0, -a, 0),
+        0.05, 1.54, 0.05, [1, 1, 1], 1.0);
+    }
+    for (const yy of [LY + 0.15, LY + 0.75, LY + 1.38]) {
+      metal.torus.call(metal, m4(P0.x, yy, P0.z), 1.53, 0.03, 20, 4, [1, 1, 1]);
+    }
+    metal.cyl.call(metal, m4(P0.x, LY + 1.52, P0.z), 1.78, 0.3, 1.35, 12, [1, 1, 1], true);
+    metal.cyl.call(metal, m4(P0.x, LY + 2.87, P0.z), 0.3, 0.22, 0.2, 10, [1, 1, 1], true);
+    metal.sphere.call(metal, m4(P0.x, LY + 3.16, P0.z), 0.2, 8, 6, [1, 1, 1]);
+    metal.cyl.call(metal, m4(P0.x, LY + 3.3, P0.z), 0.02, 0.012, 0.7, 4, [1, 1, 1], true);
+    // 灯芯：一颗亮点 + 光柱
+    const core = st.pen("w.lhCore", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.92, 0.6], opacity: 0.9 });
+    core.sphere.call(core, m4(P0.x, LY + 0.78, P0.z), 0.26, 10, 7, [1, 1, 1]);
+    const halo = st.pen("w.lhHalo", T.glow(), { unlit: true, blend: "add", tint: [1.0, 0.85, 0.5], opacity: 0.55 });
+    halo.quad.call(halo, m4(P0.x, LY + 0.78, P0.z + 1.6), 10, 10, [1, 1, 1], [0, 0, 1, 1]);
+    halo.quad.call(halo, m4(P0.x, LY + 0.78, P0.z + 1.6), 34, 34, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* ---- 守塔人小屋：靠岸一侧，木门 + 暖窗 + 烟囱 + 木栅栏 ---- */
+    const sx = SHEDX, sz = SHEDZ;
+    const gy = groundH(sx, sz);
+    const shed = st.pen("w.lhShed", T.plasterPale(), { tint: [0.86, 0.82, 0.74], spec: 0.08 });
+    const shedRoof = st.pen("w.lhShedRoof", WTex.slate(), { tint: [1.0, 1.02, 1.06], spec: 0.16 });
+    // 先垫一块石台，免得礁石从地板里穿出来
+    stone.box.call(stone, m4(sx, gy - 0.06, sz), 3.0, 0.2, 2.7, [1, 1, 1], 0.8);
+    shed.box.call(shed, m4(sx, gy + 1.05, sz), 2.4, 2.1, 2.1, [1, 1, 1], 0.5);
+    gableRoof(shedRoof, m4(sx, gy + 2.1, sz), 2.9, 2.7, 1.0, [1, 1, 1], 0.55);
+    stone.cyl.call(stone, m4(sx + 0.7, gy + 2.5, sz - 0.4), 0.16, 0.13, 1.1, 6, [1, 1, 1], true);
+    // 窗
+    winGlass.quad.call(winGlass, m4(sx - 0.2, gy + 1.1, sz + 1.07, 0, 0, 0), 0.6, 0.58, [1, 1, 1], [0, 0, 1, 1]);
+    metal.box.call(metal, m4(sx - 0.2, gy + 1.1, sz + 1.04), 0.72, 0.68, 0.05, [1, 1, 1], 1.0);
+    stone.box.call(stone, m4(sx - 0.2, gy + 0.75, sz + 1.08), 0.78, 0.08, 0.18, [1, 1, 1], 1.0);
+    glow.quad.call(glow, m4(sx - 0.2, gy + 1.1, sz + 1.16), 2.0, 2.2, [1, 1, 1], [0, 0, 1, 1]);
+    // 门
+    door.quad.call(door, m4(sx + 0.85, gy + 0.9, sz + 1.06), 0.62, 1.7, [1, 1, 1], [0, 0, 1, 1]);
+    // 招牌
+    const signTex = A3DTex.sign({
+      text: "BAY LIGHT", w: 384, h: 96, bg: "#241d14", fg: "#ffe2b0", size: 46,
+      border: "#7a5c33", borderW: 5, glow: "rgba(255,200,120,.35)", glowBlur: 8
+    });
+    const signP = st.pen("w.lhSign", signTex, { unlit: true, tint: [1, 1, 1] });
+    signP.quad.call(signP, m4(sx, gy + 1.9, sz + 1.09), 1.5, 0.38, [1, 1, 1], [0, 0, 1, 1]);
+    // 小屋前的石板 + 木栅栏
+    for (let i = 0; i < 6; i++) {
+      stone.box.call(stone, m4(sx - 1.6 + i * 0.62, groundH(sx - 1.6 + i * 0.62, sz + 1.6) + 0.03,
+        sz + 1.6, 0, 0.1 * i, 0), 0.58, 0.06, 0.5, [1, 1, 1], 0.8);
+    }
+    const fence = st.pen("w.lhFence", T.woodDark(), { tint: [0.9, 0.76, 0.6], spec: 0.08 });
+    for (let i = 0; i < 5; i++) {
+      const fx = sx - 2.6 + i * 1.3;
+      fence.cyl.call(fence, m4(fx, groundH(fx, sz + 2.6), sz + 2.6), 0.06, 0.045, 0.9, 5, [1, 1, 1], true);
+      if (i > 0) {
+        const px = fx - 1.3, py = groundH(px, sz + 2.6);
+        fence.box.call(fence, m4((fx + px) / 2, (py + groundH(fx, sz + 2.6)) / 2 + 0.55, sz + 2.6,
+          0, 0, 0), 1.3, 0.05, 0.05, [1, 1, 1], 1.2);
+      }
+    }
+
+    /* ---- 旋转光束：水平扇 + 竖直扇交叉 ---- */
     const beam = st.glow("w.lhBeam", T.shaft(), {
       unlit: true, blend: "add", tint: [1.0, 0.88, 0.55], opacity: 0.12,
       matrix: t => m4(P0.x, H + 0.9, P0.z, 0, t * 0.22, 0)
     });
-    // 水平扇（贴在海面高度）与竖直扇（从灯室往外推）
     beam.tri.call(beam, M.ident(), [0, 0, 0], [6, 0, 44], [-6, 0, 44], null, [1, 1, 1]);
     beam.tri.call(beam, M.ident(), [0, 0, 0], [-6, 0, 44], [6, 0, 44], null, [1, 1, 1]);
     beam.tri.call(beam, M.ident(), [0, 0, 0], [0, 3.2, 46], [0, -2.4, 46], null, [1, 1, 1]);
@@ -723,6 +1951,10 @@ const A3DWorld = (() => {
     moonB.quad.call(moonB, m4(L.moon.x, L.moon.y, L.moon.z), 13, 13, [1, 1, 1], [0, 0, 1, 1]);
     const halo = st.pen("w.moonHalo", T.glow(), { unlit: true, blend: "add", tint: [0.6, 0.72, 0.95], opacity: 0.16 });
     halo.quad.call(halo, m4(L.moon.x, L.moon.y, L.moon.z), 70, 70, [1, 1, 1], [0, 0, 1, 1]);
+
+    /* 夜空不再撒星星：点精灵在 1~3px 时会被钳成小方块，
+     * 近看像坏点、远看像脏噪点。夜空只留月亮和城市灯火，
+     * 星星要加也应该做成大体量的 glow 面片而不是 point sprite。 */
 
     // 山间的萤火虫
     const pts = [];
@@ -806,6 +2038,32 @@ const A3DWorld = (() => {
     st.points.push(Object.assign({ mesh: A3D.pointMesh(out) }, opts || {}));
   }
 
+  /** 按弧长在折线上取点（路灯 / 路牌 / 栅栏对齐用） */
+  function samplePath(pts, u) {
+    const segs = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      segs.push({ a, b, len });
+      total += len;
+    }
+    let d = clamp(u, 0, 1) * total;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (d <= s.len || i === segs.length - 1) {
+        const t = s.len > 0 ? clamp(d / s.len, 0, 1) : 0;
+        return {
+          x: s.a[0] + (s.b[0] - s.a[0]) * t,
+          z: s.a[1] + (s.b[1] - s.a[1]) * t,
+          ry: Math.atan2(s.b[0] - s.a[0], s.b[1] - s.a[1])
+        };
+      }
+      d -= s.len;
+    }
+    return { x: pts[0][0], z: pts[0][1], ry: 0 };
+  }
+
   /** 分区的局部 → 世界矩阵（分区子文件用它来摆局部坐标） */
   function frameOf(part) {
     return m4(part.x, 0, part.z, 0, part.rot || 0, 0);
@@ -854,6 +2112,7 @@ const A3DWorld = (() => {
     const st = P.stage();
     buildGround(st);
     buildHill(st);
+    buildPlain(st);
     buildChurch(st);
     buildCity(st);
     buildLighthouse(st);
@@ -915,7 +2174,10 @@ const A3DWorld = (() => {
           { pos: [L.github.x - 22, 7, L.github.z], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 },
           /* HF 营地两头也是：远远看过去两团暖光，别让两端黑掉 */
           { pos: [-96.5, 4, -85.0], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 },
-          { pos: [-43.5, 4, -84.6], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 }
+          { pos: [-43.5, 4, -84.6], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 },
+          /* 街口广场和教堂路上的暖光：把城市、夜市、教堂串成一条线 */
+          { pos: [30.5, 4.2, -71.5], col: [1.0, 0.68, 0.38], range: 30, inten: 1.15 },
+          { pos: [25.5, 3.0, -32.0], col: [1.0, 0.66, 0.34], range: 26, inten: 0.8 }
         ]
       },
       tone: [1.02, 1.06, 1.12],
