@@ -545,8 +545,18 @@ const A3D = (() => {
   uniform vec3 uPointPos[10], uPointCol[10];
   uniform float uPointRange[10];
   uniform vec2 uUVOff, uUVScale;
+  uniform float uUVAlt;
   uniform samplerCubeShadow uShadowMap;
   uniform int uShadowIdx, uShadowTaps;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  /** 值噪声：只用来给第二层贴图划分大区，不需要多好 */
+  float vnoise(vec2 p){
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i), b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
   uniform float uShadowOn, uShadowFar, uShadowBias;
   float pointShadow(vec3 wp, vec3 n, vec3 lp) {
     vec3 d = wp - lp;
@@ -575,7 +585,18 @@ const A3D = (() => {
   }
   void main(){
     vec2 uv = vUV * uUVScale + uUVOff;
-    vec4 tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
+    vec4 tx;
+    /* 一张贴图只靠平移平铺，远处总能看出「同一块」在重复（横着排成一条条）。
+       这里再采一层：旋转 90°、翻个方向、缩放也差一点，然后用低频噪声按大区选边——
+       两层周期对不上，重复的节奏就被打散了。只有 uvAlt: true 的大面积材质走这条，
+       别的地方还是单次采样。 */
+    if (uUseTex > 0.5 && uUVAlt > 0.5) {
+      vec2 uvB = vec2(-uv.y, uv.x) * 1.137 + vec2(3.7, 8.1);
+      float mA = smoothstep(0.32, 0.68, vnoise(vWorld.xz * 0.031));
+      tx = mix(texture(uTex, uv), texture(uTex, uvB), mA);
+    } else {
+      tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
+    }
     float a = tx.a * uOpacity;
     /* 镂空材质（树叶 / 海带 / 藤蔓）的边缘抗锯齿：
      *   · 有 MSAA 且支持 alpha-to-coverage 时不 discard，把贴图 alpha 交给覆盖度，
@@ -1024,6 +1045,7 @@ const A3D = (() => {
     gl.uniform1f(u.uRim, b.rim === undefined ? 0.35 : b.rim);
     gl.uniform1f(u.uEmisBoost, b.emisBoost === undefined ? 1 : b.emisBoost);
     gl.uniform1f(u.uCutout, b.cutout ? 1 : 0);
+    gl.uniform1f(u.uUVAlt, b.uvAlt ? 1 : 0);
     gl.uniform3fv(u.uTint, b.tint || [1, 1, 1]);
     gl.uniform3fv(u.uEmissive, b.emissive || [0, 0, 0]);
     const off = b.uvAnim ? b.uvAnim(t) : (b.uvOff || [0, 0]);
