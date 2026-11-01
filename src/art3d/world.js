@@ -31,6 +31,11 @@ const A3DWorld = (() => {
   /* ============================================================
    *  布局 —— 改这里就等于改世界地图，分区文件只认自己的 origin
    * ============================================================ */
+  /* 教堂那座台地整体南移的量（世界 +Z = 远离海岸）。
+   * 台地、教堂、墓园、甬道、台地松林和主标题机位一起走，崖脚到海岸的平地会变宽。
+   * 改这个数就等于「把山往后挪」，别单独挪教堂。 */
+  const HILL_SHIFT = 8;
+
   const L = {
     waterY: -0.5,
     shoreZ: -108,          // 地形在这条线沉进水里
@@ -43,16 +48,16 @@ const A3DWorld = (() => {
     hf:     { x: -70, z: -102, rot: 0 },   // 局部 +Z = 往岸上，-Z = 往海
     shit:   { x: -22, z: -70, rot: Math.PI / 2 },  // 局部 -Z = 屎山（世界 -X）
     // 南边：一块 30m 高的台地，北面是一道陡崖（教堂就立在崖沿上）
-    ridge:  { z0: 2, z1: 14, h: 30, x0: 8, wide: 96 },
-    church: { x: 18, z: 26, rot: 0.15 },
+    ridge:  { z0: 2 + HILL_SHIFT, z1: 14 + HILL_SHIFT, h: 30, x0: 8, wide: 96 },
+    church: { x: 18, z: 26 + HILL_SHIFT, rot: 0.15 },
     // 城市就在近岸，对岸留空（海湾直接开到天边）
     // 近岸城市：GitHub 街以东的海岸（z0 = 靠海一侧，z1 = 靠内陆一侧）
     city:   { x0: 30, x1: 250, z0: -100, z1: -62 },
     // 灯塔：GitHub 与 HF 营地之间的岸边，top = 塔身高度（相对基座）
     lighthouse: { x: -33, z: -104.5, top: 22 },
     moon: { x: -78, y: 95, z: -230 },
-    // 主标题视角：升到台地上空，能同时看到教堂和下方街区
-    titleCam: { eye: [2, 62, 76], target: [-6, 21, -100], fov: 50, far: 900 }
+    // 主标题视角：升到台地上空，能同时看到教堂和下方街区；跟山一起后退
+    titleCam: { eye: [2, 62, 76 + HILL_SHIFT], target: [-6, 21, -100 + HILL_SHIFT], fov: 50, far: 900 }
   };
   /** 主标题视角下的四个分区在画面里的大致方向（只给调试/注释用） */
   const HASH = (a, b) => {
@@ -83,7 +88,7 @@ const A3DWorld = (() => {
     { w: 2.7, pts: [[-12.6, -70.2], [-18.5, -70.6], [-24.0, -73.6], [-29.5, -77.6],
       [-35.5, -81.4], [-43.0, -84.2], [-46.5, -84.8]] },
     { w: 2.5, pts: [[-78.6, -100.6], [-63.0, -101.2], [-48.0, -101.6], [-37.0, -103.0]] },
-    { w: 3.2, pts: [[20.5, 1.5], [21.5, -10.0], [24.5, -24.0], [27.5, -40.0],
+    { w: 3.2, pts: [[20.5, 1.5 + HILL_SHIFT], [21.5, -10.0], [24.5, -24.0], [27.5, -40.0],
       [28.0, -56.0], [26.4, -68.4]] }
   ];
   /** HF 营地下面这片是沙地，不是草地（营地本来就是沙滩上的） */
@@ -656,12 +661,12 @@ const A3DWorld = (() => {
     let t = ((x - ax) * dx + (z - az) * dz) / l2;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
-    return d < 9.5 || (Math.abs(x - 2) < 8 && z > 26 && z < 62);
+    return d < 9.5 || (Math.abs(x - 2) < 8 && z > 26 + HILL_SHIFT && z < 62 + HILL_SHIFT);
   }
   /** 教堂门前甬道 / 台地小路的走廊，别在路中间种树 */
   function onChurchPath(x, z) {
-    if (z < 30 || z > 72) return false;
-    const px = 18.9 + (z - 39) * 0.16;
+    if (z < 30 + HILL_SHIFT || z > 72 + HILL_SHIFT) return false;
+    const px = 18.9 + (z - (39 + HILL_SHIFT)) * 0.16;
     return Math.abs(x - px) < 7.0;
   }
 
@@ -672,7 +677,7 @@ const A3DWorld = (() => {
     // 台地上的松树：给教堂、镜头通道、甬道留空
     for (let i = 0; i < 64; i++) {
       const x = L.ridge.x0 + (r() - 0.5) * 2 * L.ridge.wide * 0.95;
-      const z = 16 + r() * 66;
+      const z = 16 + HILL_SHIFT + r() * 66;
       if (Math.hypot(x - L.church.x, z - L.church.z) < 16) continue;
       if (blocksChurchView(x, z) || onChurchPath(x, z)) continue;
       pine(trunk, leaf, x, z, 5 + r() * 7, Math.floor(r() * 999), [0.9, 1.1, 0.95]);
@@ -680,7 +685,7 @@ const A3DWorld = (() => {
     // 崖脚的一排树，从上往下看能看出垂直落差
     for (let i = 0; i < 16; i++) {
       const x = -52 + i * 7 + (r() - 0.5) * 3;
-      const z = -2 + (r() - 0.5) * 5;
+      const z = -2 + HILL_SHIFT + (r() - 0.5) * 5;
       pine(trunk, leaf, x, z, 6 + r() * 5, Math.floor(r() * 999), [0.9, 1.05, 0.95]);
     }
 
@@ -689,7 +694,7 @@ const A3DWorld = (() => {
     const gr = rng(31);
     for (let i = 0; i < 320; i++) {
       const x = L.ridge.x0 + (gr() - 0.5) * 2 * L.ridge.wide * 0.9;
-      const z = 16 + gr() * 72;
+      const z = 16 + HILL_SHIFT + gr() * 72;
       if (Math.hypot(x - L.church.x, z - L.church.z) < 11) continue;
       const y = groundH(x, z);
       P.grass(grass, m4(x, y, z, 0, gr() * TAU, 0), 4 + Math.floor(gr() * 4), 0.28 + gr() * 0.34,
@@ -700,7 +705,7 @@ const A3DWorld = (() => {
     const bush = st.pen("w.bush", null, { tint: [0.2, 0.3, 0.22], spec: 0.04, rim: 0.12 });
     for (let i = 0; i < 46; i++) {
       const x = L.ridge.x0 + (gr() - 0.5) * 2 * L.ridge.wide * 0.85;
-      const z = 15 + gr() * 74;
+      const z = 15 + HILL_SHIFT + gr() * 74;
       if (Math.hypot(x - L.church.x, z - L.church.z) < 12) continue;
       if (blocksChurchView(x, z) || onChurchPath(x, z)) continue;
       const y = groundH(x, z);
@@ -1242,8 +1247,8 @@ const A3DWorld = (() => {
       const gz = C.z + Math.cos(a) * RAD * u;
       // 台基范围里不放（不能把墓碑砌进教堂）
       if (Math.abs(gx - C.x) < 6.5 && Math.abs(gz - C.z) < 9.4) continue;
-      // 甬道两侧留空
-      if (Math.abs(gx - (18.9 + (gz - 39) * 0.24)) < 1.8) continue;
+      // 甬道两侧留空（甬道随教堂一起南移）
+      if (Math.abs(gx - (18.9 + (gz - (39 + HILL_SHIFT)) * 0.24)) < 1.8) continue;
       const gy = groundH(gx, gz);
       if (gy < 4) continue;
       const h = 0.5 + tr() * 0.78;
@@ -1286,9 +1291,10 @@ const A3DWorld = (() => {
       }
     }
 
-    /* ---- 甬道：从教堂门到墓园门，再往南接到台地上的小路 ---- */
+    /* ---- 甬道：从教堂门到墓园门，再往南接到台地上的小路（整体随山南移） ---- */
     const pathPts = [[18.9, 34.2], [18.95, 39.0], [19.7, 42.8], [20.7, 46.6],
-      [21.3, 51.2], [21.0, 56.2], [20.2, 61.0], [19.4, 66.0]];
+      [21.3, 51.2], [21.0, 56.2], [20.2, 61.0], [19.4, 66.0]]
+      .map(p => [p[0], p[1] + HILL_SHIFT]);
     const slabW = 1.5, slabD = 0.7;
     for (let i = 0; i < pathPts.length - 1; i++) {
       const a = pathPts[i], b = pathPts[i + 1];
@@ -1313,7 +1319,7 @@ const A3DWorld = (() => {
     for (let i = 0; i < 22; i++) {
       const u = i / 21;
       const px = 19.6 + Math.sin(u * 2.4) * 1.3;
-      const pz = 40.5 + u * 24;
+      const pz = 40.5 + HILL_SHIFT + u * 24;
       const py = groundH(px, pz);
       for (const s of [-1, 1]) {
         hedge.box.call(hedge, m4(px + s * 1.42, py + 0.22, pz), 0.55, 0.44, 0.9, [1, 1, 1], 1.2);
@@ -1330,7 +1336,7 @@ const A3DWorld = (() => {
     }
     // 石灯：沿甬道（灯室四角有石柱，玻璃不再悬在座子上）
     for (const [lx, lz, s] of [[17.0, 42.5, 0.9], [23.4, 51.5, 0.85], [22.2, 61.0, 0.8]]) {
-      const wx = lx, wz = lz;
+      const wx = lx, wz = lz + HILL_SHIFT;
       const gy = groundH(wx, wz);
       wallStone.box.call(wallStone, m4(wx, gy + 0.35, wz), 0.44, 0.7, 0.44, [1, 1, 1], 1.0);
       wallStone.box.call(wallStone, m4(wx, gy + 0.78, wz), 0.5, 0.16, 0.5, [1, 1, 1], 1.0);
@@ -1344,15 +1350,16 @@ const A3DWorld = (() => {
     }
     // 长椅两张
     for (const [bx, bz, br] of [[16.4, 47.0, 0.1], [24.3, 57.0, -0.15]]) {
-      const gy = groundH(bx, bz);
+      const wz = bz + HILL_SHIFT;
+      const gy = groundH(bx, wz);
       for (const s of [-1, 1]) {
-        wallStone.box.call(wallStone, m4(bx, gy + 0.2, bz + s * 0.66), 0.5, 0.4, 0.2, [1, 1, 1], 1.0);
+        wallStone.box.call(wallStone, m4(bx, gy + 0.2, wz + s * 0.66), 0.5, 0.4, 0.2, [1, 1, 1], 1.0);
       }
-      wallStone.box.call(wallStone, m4(bx, gy + 0.42, bz, 0, br, 0), 1.5, 0.14, 0.72, [1, 1, 1], 1.0);
+      wallStone.box.call(wallStone, m4(bx, gy + 0.42, wz, 0, br, 0), 1.5, 0.14, 0.72, [1, 1, 1], 1.0);
     }
     // 甬道尽头的林地山门（lynch gate：四柱 + 小两坡顶 + 吊钟 + 两扇半开的木门）
     {
-      const gx = 19.4, gz = 66.0, gy = groundH(gx, gz);
+      const gx = 19.4, gz = 66.0 + HILL_SHIFT, gy = groundH(gx, gz);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
         hedgedPost(gx + sx * 1.55, gz + sz * 0.95, gy, 2.35);
       }
@@ -1961,7 +1968,7 @@ const A3DWorld = (() => {
     const r = rng(37);
     for (let i = 0; i < 110; i++) {
       const x = L.ridge.x0 + (r() - 0.5) * 150;
-      const z = 2 + r() * 44;
+      const z = 2 + HILL_SHIFT + r() * 44;
       const y = groundH(x, z) + 0.6 + r() * 4.5;
       pts.push({
         x, y, z, r: 0.75, g: 1.0, b: 0.45, a: 0.35 + r() * 0.5,
@@ -2183,7 +2190,8 @@ const A3DWorld = (() => {
       tone: [1.02, 1.06, 1.12],
       swayAmp: 0.8,
       update(t, sc) {
-        sc.cam.eye = [2 + Math.sin(t * 0.08) * 0.4, L.titleCam.eye[1] + Math.sin(t * 0.13) * 0.12, 76 + Math.cos(t * 0.06) * 0.4];
+        sc.cam.eye = [2 + Math.sin(t * 0.08) * 0.4, L.titleCam.eye[1] + Math.sin(t * 0.13) * 0.12,
+          L.titleCam.eye[2] + Math.cos(t * 0.06) * 0.4];
       }
     },
 
