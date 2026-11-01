@@ -57,8 +57,8 @@ const A3DWorld = (() => {
     // 灯塔：GitHub 与 HF 营地之间的岸边，top = 塔身高度（相对基座）
     lighthouse: { x: -33, z: -104.5, top: 22 },
     moon: { x: -78, y: 95, z: -230 },
-    // 主标题视角：升到台地上空，能同时看到教堂和下方街区；跟山一起后退
-    titleCam: { eye: [2, 62, 76 + HILL_SHIFT], target: [-6, 21, -100 + HILL_SHIFT], fov: 50, far: 900 }
+    // 主标题视角：主人调好的长焦机位；HILL_SHIFT 再动的话这个机位要重新对
+    titleCam: { eye: [4.9, 53.7, 144.9], target: [0.2, 35.6, 46.7], fov: 24.3, far: 900 }
   };
   /** 主标题视角下的四个分区在画面里的大致方向（只给调试/注释用） */
   const HASH = (a, b) => {
@@ -2169,7 +2169,7 @@ const A3DWorld = (() => {
    *  四个视角
    * ============================================================ */
   const VIEWS = {
-    /* 视角 1：主标题 —— 台地上空的鸟瞰，教堂在崖沿，下面是 GitHub / HF */
+    /* 视角 1：主标题 —— 主人调好的长焦机位和灯光（直接照抄调参面板） */
     world_title: {
       cam: L.titleCam,
       sky: {
@@ -2177,28 +2177,26 @@ const A3DWorld = (() => {
         glow: [0.34, 0.42, 0.58], sun: [0.342, 1.173, 0], horizon: 0.747
       },
       lights: {
-        sun: A3D.norm3([-0.28, 0.2, -0.94]), sunCol: [0.86, 0.92, 1.12],
-        skyCol: [0.36, 0.42, 0.56], groundCol: [0.12, 0.13, 0.16],
+        sun: A3D.norm3([-0.28, 0.2, -0.939]), sunCol: [0.086, 0.092, 0.112],
+        skyCol: [0.148, 0.172, 0.23], groundCol: [0, 0, 0],
         fog: { col: [0.06, 0.082, 0.122], near: 160, far: 820 }, fogAmt: 0.95,
         points: [
-          { pos: [L.church.x, groundH(L.church.x, L.church.z) + 4, L.church.z + 2], col: [1.0, 0.7, 0.36], range: 36, inten: 2.4 },
-          { pos: [L.city.x0 + 70, 12, L.city.z0 + 6], col: [1.0, 0.62, 0.32], range: 150, inten: 0.30 },
-          { pos: [L.lighthouse.x, groundH(L.lighthouse.x, L.lighthouse.z) + 0.3 + L.lighthouse.top, L.lighthouse.z], col: [1.0, 0.85, 0.55], range: 90, inten: 0.5 },
-          { pos: [L.github.x - 22, 7, L.github.z], col: [1.0, 0.6, 0.3], range: 46, inten: 0.9 },
-          /* HF 营地两头也是：远远看过去两团暖光，别让两端黑掉 */
-          { pos: [-96.5, 4, -85.0], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 },
-          { pos: [-43.5, 4, -84.6], col: [1.0, 0.62, 0.3], range: 34, inten: 0.55 },
-          /* 街口广场和教堂路上的暖光：把城市、夜市、教堂串成一条线 */
-          { pos: [30.5, 4.2, -71.5], col: [1.0, 0.68, 0.38], range: 30, inten: 1.15 },
-          { pos: [25.5, 3.0, -32.0], col: [1.0, 0.66, 0.34], range: 26, inten: 0.8 }
+          /* 1 教堂门口 */ { pos: [18, 36.369, 88], col: [1.0, 0.584, 0.0], inten: 0.19, range: 36 },
+          /* 2 城市 */ { pos: [100, 12, -94], col: [1.0, 0.62, 0.32], inten: 0.3, range: 150 },
+          /* 3 灯塔 */ { pos: [-33, 21.513, -104.5], col: [1.0, 0.85, 0.55], inten: 3, range: 90 },
+          /* 4 GitHub 街口 */ { pos: [-4, 7, -70], col: [1.0, 0.6, 0.3], inten: 3, range: 46 },
+          /* 5/6 HF 营地两头 */ { pos: [-96.5, 4, -85], col: [1.0, 0.62, 0.3], inten: 3, range: 34 },
+          { pos: [-43.5, 4, -84.6], col: [1.0, 0.62, 0.3], inten: 0.69, range: 34 },
+          /* 7 街口广场 */ { pos: [30.5, 4.2, -71.5], col: [1.0, 0.68, 0.38], inten: 3, range: 30 },
+          /* 8 教堂路（主人暂时关了） */ { pos: [25.5, 3, -32], col: [1.0, 0.66, 0.34], inten: 0, range: 26 },
+          /* 9/10 城市南侧新加的补光：让主标题里那片楼不至于黑成剪影 */
+          { pos: [55, 18, -56], col: [1.0, 0.66, 0.36], inten: 1.6, range: 90 },
+          { pos: [115, 20, -56], col: [1.0, 0.64, 0.34], inten: 1.6, range: 90 }
         ]
       },
       tone: [1.02, 1.06, 1.12],
-      swayAmp: 0.8,
-      update(t, sc) {
-        sc.cam.eye = [2 + Math.sin(t * 0.08) * 0.4, L.titleCam.eye[1] + Math.sin(t * 0.13) * 0.12,
-          L.titleCam.eye[2] + Math.cos(t * 0.06) * 0.4];
-      }
+      swayAmp: 0.8
+      /* 固定长焦机位：不再做原来自动的 eye 漂移（会覆盖主人给的 cam） */
     },
 
     /* 视角 2：GitHub 夜市街 —— 从街口往西看，左右两边是摊位，尽头是屎山 */
