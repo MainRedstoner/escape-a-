@@ -295,7 +295,10 @@ const A3DTex = (() => {
             }
           }
         }
-        grain(x, w, w, { freq: 3, oct: 4, strength: 0.3, seed: 44 });
+        /* 颗粒噪声必须从高频起步：value noise 的 smoothstep 插值天然是「平顶格子」，
+           freq 3 就是每格 0.7m 的一块块方斑，铺到地面上远看就是棋盘。
+           大块的明暗交给地形顶点色，贴图只留细颗粒。 */
+        grain(x, w, w, { freq: 16, oct: 3, strength: 0.18, seed: 44 });
       });
     },
 
