@@ -574,8 +574,8 @@ const A3DWorld = (() => {
   function buildGround(st) {
     /* 逐顶点色承担草/沙/土路，贴图只出细节（脏点、颗粒），所以 tint 接近中性、
        UV 比原来密一点，2m 网格下不会糊成一片。 */
-    /* uvAlt：再叠一层旋转 90°、缩放略不同的采样，专治「一整片都是同一块平移」的条纹 */
-    const ground = st.pen("w.ground", T.dirt(), { tint: [0.92, 1.02, 0.9], spec: 0.08, rim: 0.22, sway: 0, uvAlt: true });
+    /* uvRand：每格随机转 90° / 翻转，相邻两块地皮不再长得一模一样 */
+    const ground = st.pen("w.ground", T.dirt(), { tint: [0.92, 1.02, 0.9], spec: 0.08, rim: 0.22, sway: 0, uvRand: true });
     terrainMesh(ground, -250, 250, -110, 176, 240, 137, 0.46);
 
     /* ---- 水线碎石：贴着真正的水线（groundH = waterY ≈ z -103），不是数学直线 ---- */
