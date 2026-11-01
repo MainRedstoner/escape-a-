@@ -256,6 +256,37 @@ const A3DWorld = (() => {
     }
   }
 
+  /** 海面：一整张格网、逐顶点上色。
+   *  以前是 24×20 块各自着色，40m 一块的色阶在掠射角下变成一道道横带（越远越薄的百叶窗）；
+   *  现在顶点共享、颜色插值，相邻格之间没有台阶，面数还少一大半。 */
+  function seaSurface(pen, x0, x1, z0, z1, nx, nz, uvScale) {
+    const I = M.ident(), NM = M.normalMat(I);
+    const W = nx + 1, Hn = nz + 1, N = W * Hn;
+    const px = new Float32Array(N), pz = new Float32Array(N);
+    const cr = new Float32Array(N), cg = new Float32Array(N), cb = new Float32Array(N);
+    for (let j = 0; j < Hn; j++) {
+      const z = z0 + (z1 - z0) * j / nz;
+      for (let i = 0; i < W; i++) {
+        const k = j * W + i, x = x0 + (x1 - x0) * i / nx;
+        px[k] = x; pz[k] = z;
+        /* 两层低频噪声：大块的深浅 + 一点细碎的涌浪，都跨格连续 */
+        const n = vnoise(x * 0.026 + 4.1, z * 0.026 - 7.3) * 0.72
+          + vnoise(x * 0.0085 - 2.7, z * 0.0085 + 5.3) * 0.28;
+        const kk = 0.945 + n * 0.11;
+        cr[k] = kk; cg[k] = kk * 0.995; cb[k] = kk * 1.02;
+      }
+    }
+    const push = k => pen._v(pen.d, I, NM, px[k], L.waterY, pz[k], 0, 1, 0,
+      px[k] * uvScale, pz[k] * uvScale, [cr[k], cg[k], cb[k]], 0);
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const A = j * W + i, B = A + 1, C = A + W + 1, D = A + W;
+        push(A); push(C); push(B);
+        push(A); push(D); push(C);
+      }
+    }
+  }
+
   /* ============================================================
    *  通用小构件
    * ============================================================ */
@@ -485,35 +516,46 @@ const A3DWorld = (() => {
         A3DTex.grain(x, w, h, { freq: 5, oct: 3, strength: 0.12, seed: 813 });
       });
     }
-    /** 海水：低频横向波纹 + 极弱噪点。高对比度的 caustic 贴图在掠射角下会出摩尔纹。 */
+    /** 海水：低频横向波纹 + 极弱噪点，整张必须能无缝平铺。
+     *  平铺的贴图最怕两件事：上下方向的明暗渐变（每一格都是一道横带）、
+     *  花纹/亮点头尾不接（每一格重复同一串波纹和同一颗星子 → 点阵感）。
+     *  对比度也要压住：掠射角下高对比的 caustic 会出摩尔纹。 */
     function makeSea() {
       return A3DTex.get("w.seaTex", 256, 256, (x, w, h) => {
         const r = A3DTex.rnd(733);
-        // 深蓝底，带一点从北（上）到南（下）的明暗
-        const g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, "#16283e"); g.addColorStop(0.55, "#0d1b2b"); g.addColorStop(1, "#0a1522");
-        x.fillStyle = g; x.fillRect(0, 0, w, h);
-        // 横向的长波纹：不同频率的正弦叠一点，低对比
-        for (let k = 0; k < 9; k++) {
-          const y0 = r() * h, amp = 1.2 + r() * 3.6, len = 18 + r() * 54;
-          x.strokeStyle = "rgba(120,170,220," + (0.025 + r() * 0.045) + ")";
+        /* 统一深蓝底，上下不做渐变：渐变一旦平铺就是一道道横带，
+           掠射角下整片海看着像百叶窗。 */
+        x.fillStyle = "#101d2e"; x.fillRect(0, 0, w, h);
+        // 横向长波纹：x 方向整周期（首尾对得上），纵向留在瓦片内，低对比
+        for (let k = 0; k < 12; k++) {
+          const cyc = 1 + Math.floor(r() * 2);
+          const amp = 1.0 + r() * 3.2, ph = r() * TAU;
+          const y0 = amp + 4 + r() * (h - 2 * amp - 8);
+          x.strokeStyle = "rgba(120,170,220," + (0.018 + r() * 0.028) + ")";
           x.lineWidth = 0.8 + r() * 1.4;
           x.beginPath();
-          for (let px = -4; px <= w + 4; px += 4) {
-            const py = y0 + Math.sin((px / len) * Math.PI * 2 + r() * 6) * amp;
-            if (px < 0) x.moveTo(px, py); else x.lineTo(px, py);
+          for (let px = 0; px <= w; px += 4) {
+            const py = y0 + Math.sin((px / w) * TAU * cyc + ph) * amp;
+            if (px === 0) x.moveTo(px, py); else x.lineTo(px, py);
           }
           x.stroke();
         }
         // 少量亮点（月光碎屑），不许太密
-        for (let i = 0; i < 26; i++) {
-          const px = r() * w, py = r() * h, rr = 1 + r() * 3;
-          const g2 = x.createRadialGradient(px, py, 0, px, py, rr);
-          g2.addColorStop(0, "rgba(190,215,245,.22)");
-          g2.addColorStop(1, "rgba(190,215,245,0)");
-          x.fillStyle = g2; x.beginPath(); x.arc(px, py, rr, 0, Math.PI * 2); x.fill();
+        for (let i = 0; i < 18; i++) {
+          const px = r() * w, py = r() * h, rr = 0.9 + r() * 2.2;
+          /* 跨边界的亮点按 3×3 复制补齐，否则平铺后每格都挂着同一颗，排成点阵 */
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx0 = px + dx * w, cy0 = py + dy * h;
+              if (cx0 < -rr || cx0 > w + rr || cy0 < -rr || cy0 > h + rr) continue;
+              const g2 = x.createRadialGradient(cx0, cy0, 0, cx0, cy0, rr);
+              g2.addColorStop(0, "rgba(190,215,245,.16)");
+              g2.addColorStop(1, "rgba(190,215,245,0)");
+              x.fillStyle = g2; x.beginPath(); x.arc(cx0, cy0, rr, 0, TAU); x.fill();
+            }
+          }
         }
-        A3DTex.grain(x, w, h, { freq: 5, oct: 3, strength: 0.06, seed: 737 });
+        A3DTex.grain(x, w, h, { freq: 2, oct: 3, strength: 0.09, seed: 737 });
       });
     }
     return {
@@ -594,22 +636,10 @@ const A3DWorld = (() => {
 
     // 海面：一块巨大的平板，靠雾接到天边。纹理是低对比度的深海水，掠射角下不会闪成马赛克
     const sea = st.pen("w.sea", WTex.sea(), { tint: [1.05, 1.02, 0.98], spec: 1.35, rim: 0.12, uvAnim: t => [t * 0.006, t * 0.0035] });
-    /* 海面明暗走连续噪声；每格仍然是 40m，但相邻格子不再跳变，
-       45° 掠射角下看不到棋盘。 */
-    const sr = rng(71);
-    for (let j = 0; j < 20; j++) {
-      for (let i = 0; i < 24; i++) {
-        const w = 40, d = 40;
-        const cx = -480 + i * w + w / 2;
-        const cz = -102 - j * d - d / 2;
-        const n = vnoise(cx * 0.026 + 4.1, cz * 0.026 - 7.3);
-        const k = 0.96 + n * 0.08;
-        // 世界空间 UV：纹理跨格子连续，掠射角下不再看到 40m 接缝
-        const uv = [cx * 0.22, cz * 0.22, (cx + w) * 0.22, (cz + d) * 0.22];
-        sea.quad.call(sea, m4(cx, L.waterY, cz, -Math.PI / 2, 0, 0), w, d,
-          [k, k * (0.985 + sr() * 0.02), k * (1.02 + sr() * 0.03)], uv);
-      }
-    }
+    /* 海面明暗逐顶点插值，40m 一格不再有台阶；UV 走世界坐标，贴图跨格子连续。
+       0.11 → 一张 256px 的浪纹铺 9m：比原来（4.5m）疏一半，
+       掠射角下重复的节奏不那么像梯子，近处仍看得到水纹。 */
+    seaSurface(sea, -480, 480, -902, -102, 24, 20, 0.11);
 
     // 月光在水面上的碎光：从近处一直铺到月亮那个方向
     const moonPath = st.pen("w.moonPath", T.glow(), { unlit: true, blend: "add", tint: [0.62, 0.7, 0.95], opacity: 0.075 });

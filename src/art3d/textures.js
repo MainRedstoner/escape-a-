@@ -280,11 +280,20 @@ const A3DTex = (() => {
       return get("dirt", 256, 256, (x, w, h) => {
         const r = rnd(61);
         x.fillStyle = "#2e2a24"; x.fillRect(0, 0, w, h);
+        /* 土粒要跨边界补画：不补的话每个瓦片边缘都切开一颗，2m 一平铺，
+           整片草地远看就是一层接缝网格（夜晚尤其明显，像铺了地砖）。 */
         for (let i = 0; i < 900; i++) {
           const t = r();
-          x.fillStyle = "rgba(" + (50 + t * 50) + "," + (45 + t * 40) + "," + (36 + t * 30) + "," + (0.15 + r() * 0.5) + ")";
+          x.fillStyle = "rgba(" + (50 + t * 50) + "," + (45 + t * 40) + "," + (36 + t * 30) + "," + (0.12 + r() * 0.42) + ")";
           const s = 0.8 + r() * 2.6;
-          x.beginPath(); x.arc(r() * w, r() * h, s, 0, 7); x.fill();
+          const bx = r() * w, by = r() * h;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx0 = bx + dx * w, cy0 = by + dy * h;
+              if (cx0 < -s || cx0 > w + s || cy0 < -s || cy0 > h + s) continue;
+              x.beginPath(); x.arc(cx0, cy0, s, 0, 7); x.fill();
+            }
+          }
         }
         grain(x, w, w, { freq: 3, oct: 4, strength: 0.3, seed: 44 });
       });
