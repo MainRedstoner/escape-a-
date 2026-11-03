@@ -4,6 +4,13 @@
  * ============================================================ */
 "use strict";
 
+/* 运行期追踪：core/diagnostics.js 先于本文件加载；缺失时静默降级。 */
+const DIAG = (window.EA && window.EA.core && window.EA.core.diag) || {
+  trace() {},
+  error() {},
+  registerProbe() {}
+};
+
 const ENGINE = (() => {
   const $ = id => document.getElementById(id);
   const cv = $("cv"), ctx = cv.getContext("2d");
@@ -368,6 +375,7 @@ const ENGINE = (() => {
     clearTimeout(chatAutoTimer);
     if (!SCRIPT.scenes[scene]) { console.error("无此场景:", scene); return; }
     cur = { scene, idx };
+    DIAG.trace("scene:goto", { scene, index: idx });
     pump();
   }
 
@@ -388,6 +396,19 @@ const ENGINE = (() => {
   }
 
   function applyNode(nd) {
+    const tag = cur.scene + "#" + cur.idx;
+    DIAG.trace("node:start", { tag, type: nd.t });
+    try {
+      const stop = applyNodeInner(nd);
+      DIAG.trace("node:done", { tag, type: nd.t, stop: !!stop });
+      return stop;
+    } catch (e) {
+      DIAG.error("node:error", e, { tag, type: nd.t });
+      throw e;
+    }
+  }
+
+  function applyNodeInner(nd) {
     switch (nd.t) {
       case "say": {
         if (nd.face) setFace(nd.who, nd.face);
@@ -2371,6 +2392,14 @@ const ENGINE = (() => {
   function boot() {
     if (booted) return;
     booted = true;
+    DIAG.trace("boot", { readyState: document.readyState });
+    DIAG.registerProbe("engine", () => ({
+      scene: cur.scene,
+      idx: cur.idx,
+      pending: pending ? pending.t : null,
+      typing,
+      started
+    }));
     fit();
     bindSettings();
     bindWorkUI();

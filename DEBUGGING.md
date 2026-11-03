@@ -47,6 +47,9 @@
 | `SYS.fragCount()` / `SYS.eggCount()` | 碎片 / 彩蛋数量 |
 | `SYS.unlockedEndings()` | 跨周目已解锁的结局（存在 localStorage） |
 | `SAVE.label` | 当前存档后端：`浏览器本地` / `本机存档服务` |
+| `EA.diag.dump()` | 导出最近 300 条运行追踪（场景切换 / 节点执行 / 异常），可直接贴 Issue |
+| `EA.diag.copyDump()` | 复制同上（`file://` 下自动回退到临时文本框） |
+| `EA.diag.snapshot()` | 返回可读对象：探针 + 最近事件 |
 | `SAVE.backend` | `local` / `server` |
 | `SAVE.hasAny()` / `SAVE.latest()` | 有没有档 / 最新的是哪个槽 |
 | `SAVE.meta("1")` | 槽位摘要（同步，读的是缓存） |
@@ -87,6 +90,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 | `bg` | 标题画面上直接预览某个 3D 背景（美术调试用，如 `?bg=nvidia`），不开始剧情 |
 | `q` | 强制 3D 画质：`?q=low` / `mid` / `high` / `auto`，覆盖设置里的档位 |
 | `perf` | 打开左下角的性能面板（存在即生效，如 `?perf=1`），详见 3.5.1 |
+| `debug` / `diag` | 打开右下角运行追踪面板（存在即生效，如 `?debug=1`）；最近 300 条事件可用 `EA.diag.dump()` 导出 |
 
 注意：**`tokens` 参数已经移除**（Token 数值机制已删）。
 
@@ -328,6 +332,7 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 | 服务端（`server.py` / `SAVE_API.md`） | `python tools/test_save_server.py`，必须「全部通过」 |
 | 素材（`assets/`） | 重新生成 `manifest.js`，检查占位卡是否消失 |
 | 工具自身（`tools/*.py`） | 三个命令都要能跑通，输出与改动前一致或按预期变化 |
+| 分层 / 新模块（`src/core` / `domain` / `app` / `presentation`） | `python tools/check_architecture.py` → 0 违规（阶段 0–3 report-only；阶段 4 起加 `--strict`） |
 
 ---
 
