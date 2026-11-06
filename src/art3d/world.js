@@ -1218,7 +1218,7 @@ const A3DWorld = (() => {
     for (let i = 0; i < stepN; i++) {
       const yy = PT - (PT - gFront) * (i + 0.55) / stepN;
       B(trim, 0, yy, HL + 0.55 + i * 0.44, 7.2, 0.18, 0.5, [1, 1, 1]);
-      B(pave, 0, yy + 0.092, HL + 0.55 + i * 0.44, 1.0, 0.012, 0.52, [0.6, 0.58, 0.54]);
+      B(pave, 0, yy + 0.095, HL + 0.55 + i * 0.44, 1.7, 0.02, 0.54, [0.5, 0.48, 0.45]);
     }
     // 台阶两侧的石栏杆：望柱 + 扶手，别让台阶像一块光板
     for (const s2 of [-1, 1]) {
@@ -1254,7 +1254,7 @@ const A3DWorld = (() => {
         const pz = plazaZ0 + 0.7 + i * 1.25;
         const w = M.xf(D, [s2 * 5.6, 0, pz]);
         const gy = groundH(w[0], w[2]) - y0;
-        pave.box.call(pave, mul(m4(s2 * 5.6, gy + 0.045, pz)), 0.7, 0.06, 1.3, [0.66, 0.64, 0.6], 1.0);
+        pave.box.call(pave, mul(m4(s2 * 5.6, gy + 0.045, pz)), 0.95, 0.06, 1.3, [0.6, 0.58, 0.55], 1.0);
       }
     }
     // 广场中心的圆盘：两圈石环 + 中心石
