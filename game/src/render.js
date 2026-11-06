@@ -639,7 +639,7 @@ window.RENDER = (() => {
     ctx.globalAlpha = p.dead ? 0.2 : (groundedLook ? 0.42 : 0.24);
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, down * (r * 1.32 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, down * (r * 1.16 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -654,25 +654,26 @@ window.RENDER = (() => {
     const swing = run ? Math.sin(runPhase) * 0.34 : 0;
     ctx.strokeStyle = "#173748"; ctx.lineWidth = Math.max(2, TS * 0.06); ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(-r * 0.26, r * 0.7); ctx.lineTo(-r * 0.28 + swing * r, r * 1.16);
-    ctx.moveTo(r * 0.26, r * 0.7); ctx.lineTo(r * 0.28 - swing * r, r * 1.16);
+    ctx.moveTo(-r * 0.26, r * 0.7); ctx.lineTo(-r * 0.28 + swing * r, r * 1.07);
+    ctx.moveTo(r * 0.26, r * 0.7); ctx.lineTo(r * 0.28 - swing * r, r * 1.07);
     ctx.stroke();
     ctx.lineCap = "butt";
 
-    /* 身体：一件带兜帽的外套 + 一台抱在怀里的笔记本 */
+    /* 身体：一件带兜帽的外套 + 一台抱在怀里的笔记本
+     * 视觉上下沿要严格落在 AABB（±0.43 格）里，否则看着会「脚陷进地板」或「碰撞箱偏下」 */
     ctx.fillStyle = "#2f6f8f";
     ctx.beginPath();
-    ctx.moveTo(-r * 0.85, r * 0.82); ctx.quadraticCurveTo(-r * 1.02, -r * 0.3, 0, -r * 0.88);
-    ctx.quadraticCurveTo(r * 1.02, -r * 0.3, r * 0.85, r * 0.82); ctx.closePath(); ctx.fill();
+    ctx.moveTo(-r * 0.85, r * 0.82); ctx.quadraticCurveTo(-r * 1.02, -r * 0.28, 0, -r * 0.82);
+    ctx.quadraticCurveTo(r * 1.02, -r * 0.28, r * 0.85, r * 0.82); ctx.closePath(); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.07)";
     ctx.beginPath(); ctx.moveTo(-r * 0.7, -r * 0.1); ctx.quadraticCurveTo(0, -r * 0.55, r * 0.7, -r * 0.1); ctx.closePath(); ctx.fill();
-    /* 兜帽 + 脸 */
+    /* 兜帽 + 脸：兜帽顶 = -1.16r ≈ -0.43 格，正好贴住 AABB 顶 */
     ctx.fillStyle = "#1b3f52";
-    ctx.beginPath(); ctx.arc(0, -r * 0.68, r * 0.58, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -r * 0.62, r * 0.54, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#f0d0a8";
-    ctx.beginPath(); ctx.arc(p.dir * r * 0.14, -r * 0.64, r * 0.32, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.dir * r * 0.13, -r * 0.58, r * 0.3, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#1a2028";
-    ctx.fillRect(p.dir * r * 0.06 - 1, -r * 0.72, 2, 2);
+    ctx.fillRect(p.dir * r * 0.06 - 1, -r * 0.66, 2, 2);
     /* 笔记本屏幕 */
     ctx.fillStyle = "#0d1a12";
     ctx.fillRect(-r * 0.7, r * 0.1, r * 1.4, r * 0.72);
@@ -685,7 +686,7 @@ window.RENDER = (() => {
     if (!p.dead) {
       ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(time * 3));
       ctx.fillStyle = "#7cf3b0";
-      ctx.fillRect(px - 3, py - r * 2.2, 6, 3);
+      ctx.fillRect(px - 3, py - r * 1.5, 6, 3);
       ctx.globalAlpha = 1;
     }
     /* 施法进度 */
