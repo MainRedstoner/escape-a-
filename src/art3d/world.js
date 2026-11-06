@@ -1488,16 +1488,7 @@ const A3DWorld = (() => {
     BR(iron, TX, PT + 8.96, TZ + TXW + 0.125, 0, 0, 0.12, 0.045, 0.37, 0.02, [1, 1, 1]);
     BR(iron, TX + 0.15, PT + 8.8, TZ + TXW + 0.125, 0, 0, Math.PI / 2, 0.045, 0.32, 0.02, [1, 1, 1]);
 
-    /* ---- 教堂前的石灯 ---- */
-    const lampAt = (lx, lz, s) => {
-      const wx = M.xf(D, [lx, 0, lz]);
-      const gy = groundH(wx[0], wx[2]) - y0;
-      B(stone, lx, gy + 0.06, lz, 0.56, 0.18, 0.56, [1, 1, 1]);
-      cyl(stone, lx, gy + 0.14, lz, 0.15 * s, 0.12 * s, 2.0 * s, 6, [1, 1, 1], 0, 0, 0, true);
-      B(trim, lx, gy + 2.2 * s, lz, 0.46 * s, 0.54 * s, 0.46 * s, [1, 1, 1]);
-      lampGlass.quad.call(lampGlass, mul(m4(lx, gy + 2.2 * s, lz + 0.24 * s)), 0.3 * s, 0.34 * s, [1, 1, 1], [0, 0, 1, 1]);
-      glowP.quad.call(glowP, mul(m4(lx, gy + 2.2 * s, lz + 0.32 * s)), 2.6 * s, 2.8 * s, [1, 1, 1], [0, 0, 1, 1]);
-    };
+
 
     /* ============================================================
      *  前院：石院墙（内圈）+ 铁栅栏（外圈）+ 大门 + 墓园 + 甬道
