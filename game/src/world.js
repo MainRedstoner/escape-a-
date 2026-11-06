@@ -1074,7 +1074,7 @@ window.WORLD = (() => {
     }
     if (ch === "j") {
       const down = W.gravity > 0 ? 1 : -1;
-      p.vy = -down * Math.sqrt(2 * GRAV * (W.jump + 1));
+      p.vy = -down * Math.sqrt(2 * GRAV * (W.jump + 2.2));   // 跳板比普通跳高 2 格多，够穿过单杠落上去
       p.grounded = false; p.coyote = 0; p.jumpBuf = 0;
       sfx("jump");
     }
