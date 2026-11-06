@@ -24,13 +24,11 @@ window.WORLD = (() => {
    * 坐标单位是格：格 tx 占据 [tx, tx+1)，格中心是 tx+0.5。
    * 玩家 p.x / p.y 是**中心点**的连续坐标，渲染时直接乘 TS。
    * 判定箱是扁长方形，上下沿不对称、跟着重力翻：
-   *   阴影侧 P_S=0.533 —— 判定箱的几何下/上沿，正好是渲染阴影的下缘切线（1.44r，r=0.37）；
-   *   站在地面时这条沿会扎进地面砖 0.103 格 —— 那是阴影本来就渗进地板的部分，渲染不动它。
-   *   胸口侧 P_H=0.12 —— 头不参与判定（矮顶下能多升 0.31 格才磕到）。
-   * 支撑沿 P_F=0.43（= 旧版 PH/2）单列一个常量：落地 / 站立 / 下穿用的是它，
-   * 不用判定箱的阴影侧 —— 否则落地位置被拖低 0.103 格，整个角色和影子都会挪（渲染就动了）。
-   * 墙壁的左右排格（moveX 的行跨度）也用支撑沿：阴影贴地，不撞墙。 */
-  const PW = 0.66, P_H = 0.12, P_F = 0.43, P_S = 0.533;
+   *   重力侧 P_F=0.43（= 旧版 PH/2）—— 落地 / 站立 / 坑判定的世界位置与旧版一致；
+   *     渲染层的阴影按「下缘切线 = P_F」反推圆心，贴墙 / 落地时阴影不再渗进方块。
+   *   背重力侧 P_H=0.12 —— 压到胸口，头不参与判定（矮顶下能多升 0.31 格才磕到）。
+   * 判定箱的下边 = 支撑沿 = 阴影切线，三者合一。 */
+  const PW = 0.66, P_H = 0.12, P_F = 0.43;
   const GRAV = 40;                    // 格/秒²
   const RUN_SIDE = 5.0;               // 横版水平速度
   const RUN_TOP = 5.4;                // 俯视速度
@@ -77,17 +75,14 @@ window.WORLD = (() => {
 
   /* ---------------- 玩家 AABB ---------------- */
   function syncCell(p) { p.cx = Math.floor(p.x); p.cy = Math.floor(p.y); }
-  /** 判定箱上下沿（格）：跟着重力翻 —— 阴影侧永远是 P_S（阴影下缘切线），胸口侧永远是 P_H */
-  function yTop(W, p) { return p.y - (W.gravity > 0 ? P_H : P_S); }
-  function yBot(W, p) { return p.y + (W.gravity > 0 ? P_S : P_H); }
-  /** 移动 / 支撑用的上下沿：底边落在支撑沿 P_F（渲染锚点不动的前提），不是阴影切线 */
-  function mTop(W, p) { return p.y - (W.gravity > 0 ? P_H : P_F); }
-  function mBot(W, p) { return p.y + (W.gravity > 0 ? P_F : P_H); }
+  /** 判定箱上下沿（格）：跟着重力翻 —— 重力侧永远是 P_F（支撑 / 阴影切线），胸口侧是 P_H */
+  function yTop(W, p) { return p.y - (W.gravity > 0 ? P_H : P_F); }
+  function yBot(W, p) { return p.y + (W.gravity > 0 ? P_F : P_H); }
   function boxOf(W, p) { return { l: p.x - PW / 2, r: p.x + PW / 2, t: yTop(W, p), b: yBot(W, p) }; }
   function cellX0(p) { return Math.floor(p.x - PW / 2 + EPS); }
   function cellX1(p) { return Math.floor(p.x + PW / 2 - EPS); }
-  function cellY0(W, p) { return Math.floor(mTop(W, p) + EPS); }
-  function cellY1(W, p) { return Math.floor(mBot(W, p) - EPS); }
+  function cellY0(W, p) { return Math.floor(yTop(W, p) + EPS); }
+  function cellY1(W, p) { return Math.floor(yBot(W, p) - EPS); }
   /** 玩家能不能站上去（横版支撑：实体格 + 单向平台） */
   function standable(W, x, y) {
     if (!inb(W, x, y)) return false;
@@ -941,7 +936,7 @@ window.WORLD = (() => {
     if (!dy) return;
     p.y += dy;
     const down = W.gravity > 0 ? 1 : -1;
-    const bh = down > 0 ? P_F : P_H;      // 底侧半高：支撑沿（跟着重力翻）
+    const bh = down > 0 ? P_F : P_H;      // 底侧半高（跟着重力翻）
     const th = down > 0 ? P_H : P_F;      // 顶侧半高
     const x0 = cellX0(p), x1 = cellX1(p);
     if (dy > 0) {
@@ -1107,12 +1102,12 @@ window.WORLD = (() => {
       return true;
     }
     const down = W.gravity > 0 ? 1 : -1;
-    const bot = p.y + down * P_S;                     // 判定沿 = 阴影下缘切线：影子悬进坑里也算数
-    const fy = Math.floor(bot);
+    const foot = p.y + down * P_F;
+    const fy = Math.floor(foot);
     const fx = Math.floor(p.x);
     if (!inb(W, fx, fy)) return false;
     if (!isPitAt(W, fx, fy)) return false;
-    const depth = down > 0 ? bot - fy : (fy + 1) - bot;
+    const depth = down > 0 ? foot - fy : (fy + 1) - foot;
     if (depth <= 0.30) return false;
     const ch = tile(W, fx, fy);
     die(W, ch === "&" ? "那是块假地板，下面是空的" : "掉进深坑（一个没人测过的接口）");
@@ -1276,9 +1271,7 @@ window.WORLD = (() => {
   }
 
   function boxHitsCell(W, p, x, y) {
-    /* 压块用移动 / 支撑箱而不是判定箱：判定箱的阴影侧会扎进地面砖，
-     * 俯视里锚点在格中心时还会探进下一格 0.033 格 —— 隔着一格误判被压 */
-    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && mBot(W, p) > y && mTop(W, p) < y + 1;
+    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && yBot(W, p) > y && yTop(W, p) < y + 1;
   }
 
   function sweepBug(W, b) {
