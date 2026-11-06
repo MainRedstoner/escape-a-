@@ -700,10 +700,10 @@ const A3DWorld = (() => {
     const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
     return d < 11 || (Math.abs(x - 2) < 9 && z > 26 + HILL_SHIFT && z < 62 + HILL_SHIFT);
   }
-  /** 教堂台基 + 前院：这一片不种树（矩形留空，比圆形贴得住加长后的教堂） */
+  /** 教堂地块：台基 + 前院 + 一圈铁栅栏围起来的整块，这一片不撒野树野草 */
   function inChurchYard(x, z, pad) {
-    return Math.abs(x - L.church.x) < CHURCH.platHW + (pad || 0) &&
-      Math.abs(z - L.church.z) < CHURCH.platHL + (pad || 0);
+    const p = pad || 0;
+    return x > -8 - p && x < 44 + p && z > 74.6 - p && z < 116 + p;
   }
   /** 教堂门前甬道 / 台地小路的走廊，别在路中间种树 */
   function onChurchPath(x, z) {
@@ -1270,7 +1270,7 @@ const A3DWorld = (() => {
 
     /* ---- 前院草坪：教堂前是一整片草地，不然近景会露出深褐色的地形。
      * 用局部坐标铺（教堂局部 +Z = 南），逐格取世界高度贴地。 ---- */
-    const lawn = st.pen("w.churchLawn", T.dirt(), { tint: [1.05, 1.3, 0.72], spec: 0.02, rim: 0.08 });
+    const lawn = st.pen("w.churchLawn", T.dirt(), { tint: [0.66, 1.0, 0.46], spec: 0.02, rim: 0.08 });
     for (let ix = 0; ix < 27; ix++) {
       for (let iz = 0; iz < 21; iz++) {
         const lx = -26 + ix * 2.0 + 1.0;
