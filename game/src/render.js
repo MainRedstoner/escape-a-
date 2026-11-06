@@ -21,7 +21,7 @@ window.RENDER = (() => {
   let bgCache = null, bgSeed = -1;
   const parts = [];
   let runPhase = 0, landK = 0, prevGrounded = true;
-  const PW = 0.66, P_G = 0.43, P_H = 0.12;   // 和 world.js 的判定箱保持一致（扁长方形：重力侧 0.43 / 背重力侧 0.12）
+  const PW = 0.66, P_F = 0.43;               // 和 world.js 的判定箱宽 / 支撑沿保持一致（渲染位置以此为准）
 
   function attach(canvas) {
     cv = canvas; ctx = cv.getContext("2d");
@@ -614,7 +614,7 @@ window.RENDER = (() => {
     /* 落地反馈：压扁、尘土、轻震屏 */
     if (!prevGrounded && p.grounded) {
       landK = 1;
-      spawnDust(px, py + down * P_G * TS);
+      spawnDust(px, py + down * P_F * TS);
       kick(2.2);
     }
     prevGrounded = p.grounded;
