@@ -1412,6 +1412,14 @@ const A3DWorld = (() => {
         gateIron.cyl.call(gateIron, m4(wx, gy + 1.2, wz), 0.05, 0.01, 0.12, 4, [1, 1, 1], false);
       }
     }
+    // 院墙两端收口柱
+    for (const a of [-1.43, 1.43]) {
+      const wx = C.x + Math.sin(a) * RADX, wz = C.z + Math.cos(a) * RAD;
+      const gy = groundH(wx, wz);
+      wallStone.box.call(wallStone, m4(wx, gy + 0.62, wz, 0, a, 0), 0.62, 1.24, 0.62, [1, 1, 1], 0.45);
+      wallCap.box.call(wallCap, m4(wx, gy + 1.32, wz, 0, a, 0), 0.78, 0.16, 0.78, [1, 1, 1], 1.2);
+      goldP.sphere.call(goldP, m4(wx, gy + 1.48, wz), 0.1, 7, 5, [1, 1, 1]);
+    }
     // 内圈门柱 + 木门（保留原来的铁门样式）
     const gateSpots = [gateA - gapHalf * 1.4, gateA + gapHalf * 1.4];
     const gateWorld = gateSpots.map(a => {
@@ -1472,6 +1480,14 @@ const A3DWorld = (() => {
       fenceStone.box.call(fenceStone, m4(p[0], gy + 0.86, p[1], 0, a, 0), 0.36, 1.72, 0.36, [1, 1, 1], 0.6);
       fenceStone.box.call(fenceStone, m4(p[0], gy + 1.76, p[1], 0, a, 0), 0.48, 0.12, 0.48, [1, 1, 1], 1.2);
       goldP.sphere.call(goldP, m4(p[0], gy + 1.9, p[1]), 0.1, 7, 5, [1, 1, 1]);
+    }
+    // 栅栏两端收口：两根方端柱，别让铁艺在半路突然断掉
+    for (const a of [-1.43, 1.43]) {
+      const p = fenceAt(a, FMR, FMRX);
+      const gy = groundH(p[0], p[1]);
+      fenceStone.box.call(fenceStone, m4(p[0], gy + 1.02, p[1], 0, a, 0), 0.52, 2.04, 0.52, [1, 1, 1], 0.6);
+      fenceStone.box.call(fenceStone, m4(p[0], gy + 2.1, p[1], 0, a, 0), 0.68, 0.16, 0.68, [1, 1, 1], 1.2);
+      goldP.sphere.call(goldP, m4(p[0], gy + 2.26, p[1]), 0.13, 7, 5, [1, 1, 1]);
     }
     // 外围大门：两扇半开的铁艺门，铰链在石柱上
     const fGate = [gateA - fgapHalf * 2.6, gateA + fgapHalf * 2.6];
