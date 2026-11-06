@@ -622,22 +622,24 @@ window.RENDER = (() => {
     const speed = Math.abs(p.vx);
     runPhase += (p.grounded ? Math.min(speed, 5.4) * 2.4 : 1.2) * dt * 3.2;
 
+    const side = W.mode === "side";
     let sx = 1, sy = 1;
-    if (!p.grounded) {
+    if (side && !p.grounded) {
       const k = Math.min(1, Math.abs(p.vy) / 13);
       sy = 1 + k * 0.14; sx = 1 - k * 0.09;
-    } else if (landK > 0) {
+    } else if (side && landK > 0) {
       sy = 1 - landK * 0.16; sx = 1 + landK * 0.2;
     }
 
-    /* 影子：离地越高越小越淡 */
-    const lift = p.grounded ? 0 : Math.min(TS * 1.4, Math.abs(p.vy) * TS * 0.07);
+    /* 影子：横版离地越高越小越淡；俯视没有高度，固定画在脚下 */
+    const groundedLook = side ? p.grounded : true;
+    const lift = side && !p.grounded ? Math.min(TS * 1.4, Math.abs(p.vy) * TS * 0.07) : 0;
     ctx.save();
     ctx.translate(px, py);
-    ctx.globalAlpha = p.dead ? 0.2 : (p.grounded ? 0.42 : 0.24);
+    ctx.globalAlpha = p.dead ? 0.2 : (groundedLook ? 0.42 : 0.24);
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, down * (r * 1.32 + lift), r * (p.grounded ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, down * (r * 1.32 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
