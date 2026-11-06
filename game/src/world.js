@@ -6,8 +6,9 @@
  *   1. 整份状态可以 JSON 快照 —— commit 存档与回档就是 JSON.parse/stringify；
  *   2. 无头模拟（node 里跑 bot 通关）能直接调它，不用起浏览器。
  *
- * 逻辑按 tick 推进（STEP_HZ 次/秒）：玩家每 tick 最多走一格，虫子按自己的 speed 走，
- * 于是所有陷阱都是确定性的 —— 同一个 commit 回档两次，结果一定相同。
+ * 逻辑按 tick 推进（STEP_HZ 次/秒）：世界是 60Hz 实时，玩家位置是连续坐标，
+ * 虫子和机关仍以格为单位移动（按各自的秒数节奏）。同一个 commit 回档两次，
+ * 世界状态仍然一致 —— 玩家在 tick 之间的输入才会改变结果。
  *
  * W 是纯数据；W.api 是给 bugs.js 用的窄接口（不进快照）。
  * ============================================================ */
@@ -15,8 +16,25 @@
 
 window.WORLD = (() => {
 
-  const STEP_HZ = 8;
+  const STEP_HZ = 60;
   const DT = 1 / STEP_HZ;
+  const S = STEP_HZ / 8;              // 旧 8Hz 时代的 tick 数 → 现在的 tick 数
+
+  /* ---------------- 玩家物理 ----------------
+   * 坐标单位是格：格 tx 占据 [tx, tx+1)，格中心是 tx+0.5。
+   * 玩家 p.x / p.y 是**中心点**的连续坐标，渲染时直接乘 TS。 */
+  const PW = 0.62, PH = 0.86;         // AABB 宽高
+  const GRAV = 40;                    // 格/秒²
+  const RUN_SIDE = 5.0;               // 横版水平速度
+  const RUN_TOP = 5.4;                // 俯视速度
+  const ACC_SIDE = 55, AIR_ACC = 45;  // 横版地面 / 空中加速度
+  const ACC_TOP = 70;                 // 俯视加速度（快响应，但仍是连续速度）
+  const JUMP_H = 2.15;                // 起跳最高点（格）—— 刚好能上 2 格台阶，上不了 3 格
+  const JUMP_V0 = Math.sqrt(2 * GRAV * JUMP_H);
+  const COYOTE = 0.14;                // 土狼时间（离开平台边缘后还能补救）
+  const JUMP_BUF = 0.14;              // 跳跃缓冲（落地前按也算数）
+  const MAX_FALL = 16;                // 最大下落速度
+  const EPS = 1e-4;
 
   let LEVELS = null;
   function bindLevels(ref) { LEVELS = ref; }
@@ -50,6 +68,24 @@ window.WORLD = (() => {
     return out;
   }
 
+  /* ---------------- 玩家 AABB ---------------- */
+  function syncCell(p) { p.cx = Math.floor(p.x); p.cy = Math.floor(p.y); }
+  function boxOf(p) { return { l: p.x - PW / 2, r: p.x + PW / 2, t: p.y - PH / 2, b: p.y + PH / 2 }; }
+  function cellX0(p) { return Math.floor(p.x - PW / 2 + EPS); }
+  function cellX1(p) { return Math.floor(p.x + PW / 2 - EPS); }
+  function cellY0(p) { return Math.floor(p.y - PH / 2 + EPS); }
+  function cellY1(p) { return Math.floor(p.y + PH / 2 - EPS); }
+  /** 玩家能不能站上去（横版支撑：实体格 + 单向平台） */
+  function standable(W, x, y) {
+    if (!inb(W, x, y)) return false;
+    if (moverAt(W, x, y)) return true;
+    const ch = tile(W, x, y);
+    if (ch === "|") return true;
+    if (ch === "+") return true;
+    return solidAt(W, x, y);
+  }
+  function onewayAt(W, x, y) { return tile(W, x, y) === "+"; }
+
   /* ================= 阻挡判定 ================= */
   function moverAt(W, x, y) { for (const m of W.movers) if (m.x === x && m.y === y) return m; return null; }
   function isDoorOpen(W, x, y) { const k = keyOf(W.layer, x, y); return !!(W.dyn[k] && W.dyn[k].open); }
@@ -57,6 +93,7 @@ window.WORLD = (() => {
     if (!inb(W, x, y)) return true;
     if (moverAt(W, x, y)) return true;
     const ch = tile(W, x, y);
+    if (ch === "@") return false;                    // 起点只是地板上的记号，不是墙
     if (ch === "|") return !isDoorOpen(W, x, y);
     if (ch === "w") return false;                    // w 只是轨道，实体在 movers 里
     return !!TILES.def(ch).solid;
@@ -96,40 +133,34 @@ window.WORLD = (() => {
   }
 
   /* ================= 照明 / 记忆 ================= */
+  /** 某格中心到玩家中心的距离（玩家是连续坐标，灯和探针仍按格中心） */
+  function cellDist(W, x, y) { return U.dist(x + 0.5, y + 0.5, W.player.x, W.player.y); }
+  function lightCircle(W, cx, cy, r, probeTicks) {
+    const rr = Math.ceil(r + 1);
+    const L = W.layer;
+    for (let y = Math.floor(cy - rr); y <= Math.ceil(cy + rr); y++) for (let x = Math.floor(cx - rr); x <= Math.ceil(cx + rr); x++) {
+      if (!inb(W, x, y)) continue;
+      if (U.dist(x + 0.5, y + 0.5, cx, cy) > r + 0.35) continue;
+      const i = idx(W, L, x, y);
+      W.lit[i] = W.tick; W.seen[i] = 1;
+      if (probeTicks) W.reveal[i] = Math.max(W.reveal[i], probeTicks);
+    }
+  }
   function light(W) {
-    const t = W.tick, L = W.layer;
     const r = W.cfg.r;
-    if (r > 0) {
-      const rr = Math.ceil(r);
-      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
-        const x = W.player.x + dx, y = W.player.y + dy;
-        if (!inb(W, x, y)) continue;
-        if (Math.sqrt(dx * dx + dy * dy) > r + 0.35) continue;
-        const i = idx(W, L, x, y);
-        W.lit[i] = t; W.seen[i] = 1;
-      }
-    } else {                                          // 全图常亮（教学关）
-      for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, L, x, y); W.lit[i] = t; W.seen[i] = 1; }
+    if (r > 0) lightCircle(W, W.player.x, W.player.y, r, 0);
+    else {                                            // 全图常亮（教学关）
+      for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, W.layer, x, y); W.lit[i] = W.tick; W.seen[i] = 1; }
     }
-    for (const cov of W.lampCov) for (const i of cov) { W.lit[i] = t; W.seen[i] = 1; }
-    for (const f of W.flashes) {
-      const rr = Math.ceil(f.r);
-      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
-        const x = f.x + dx, y = f.y + dy;
-        if (!inb(W, x, y)) continue;
-        if (Math.sqrt(dx * dx + dy * dy) > f.r + 0.35) continue;
-        const i = idx(W, W.layer, x, y);
-        W.lit[i] = t; W.seen[i] = 1;
-        if (f.probe) W.reveal[i] = Math.max(W.reveal[i], f.ticks);
-      }
-    }
+    for (const l of W.lamps) lightCircle(W, l.x + 0.5, l.y + 0.5, l.r, 0);
+    for (const f of W.flashes) lightCircle(W, f.x + 0.5, f.y + 0.5, f.r, f.probe ? f.ticks : 0);
   }
   /** 此刻是否被「观测」——只算实时光源，记忆不算 */
   function observed(W, x, y) {
     if (W.cfg.r <= 0) return true;
-    if (U.dist(x, y, W.player.x, W.player.y) <= W.cfg.r + 0.35) return true;
-    for (const f of W.flashes) if (U.dist(x, y, f.x, f.y) <= f.r + 0.35) return true;
-    for (const l of W.lamps) if (U.dist(x, y, l.x, l.y) <= l.r + 0.35) return true;
+    if (cellDist(W, x, y) <= W.cfg.r + 0.35) return true;
+    for (const f of W.flashes) if (U.dist(x + 0.5, y + 0.5, f.x + 0.5, f.y + 0.5) <= f.r + 0.35) return true;
+    for (const l of W.lamps) if (U.dist(x + 0.5, y + 0.5, l.x + 0.5, l.y + 0.5) <= l.r + 0.35) return true;
     return false;
   }
   /** 渲染亮度：1 实时可见 · 0 全黑 · 中间是「还记得但已经模糊」 */
@@ -169,9 +200,11 @@ window.WORLD = (() => {
       seen: new Array(layers.length * lv.w * lv.h).fill(0),
       reveal: new Array(layers.length * lv.w * lv.h).fill(0),
       flashes: [],
-      player: { x: st.x, y: st.y, ax: st.x, ay: st.y, px: st.x, py: st.y,
-                dir: 1, lastDx: 1, lastDy: 0, grounded: true, airUp: 0,
-                cast: null, dead: false, inv: 0, stun: 0, logCd: 0 },
+      player: { x: st.x + 0.5, y: st.y + 0.5, cx: st.x, cy: st.y,
+                px: st.x + 0.5, py: st.y + 0.5,
+                vx: 0, vy: 0, dir: 1, lastDx: 1, lastDy: 0,
+                grounded: false, coyote: 0, jumpBuf: 0, dropT: 0, landT: 0,
+                cast: null, dead: false, inv: 0, stun: 0, logCd: 0, doorCd: 0 },
       bugs: [], movers: [], bands: [], leaks: [], ghosts: [], trail: [],
       tools: { test: (lv.tools && lv.tools.test) || 0 },
       commitLog: [], entropy: 0, reverted: 0, kills: 0, seenKinds: {},
@@ -188,7 +221,8 @@ window.WORLD = (() => {
 
     /* 给 bugs.js 的窄接口：只暴露它需要的动作，闭包在 W 上，快照/回档后依然有效 */
     W.api = {
-      get player() { return W.player; },
+      /* 虫子只认识格子：给它一个中心格代理，免得 AI 拿浮点坐标去算邻格 */
+      get player() { return { x: W.player.cx, y: W.player.cy }; },
       get gravity() { return W.gravity; },
       tile: (x, y) => tile(W, x, y),
       bugBlock: (b, x, y) => bugBlock(W, b, x, y),
@@ -229,14 +263,15 @@ window.WORLD = (() => {
       const b = spawn(W, s.kind, s.at[0], s.at[1]);
       if (b) {
         if (s.dir === "v") { b.dx = 0; b.dy = 1; } else if (s.dir === "h") { b.dx = 1; b.dy = 0; }
-        if (s.speed) b.cd = s.speed;
+        if (s.speed) b.cd = Math.round(s.speed * S);
         if (s.range) b.range = s.range;
       }
     }
     for (const m of (lv.movers || [])) {
       W.movers.push({ x: m.at[0], y: m.at[1], ox: m.at[0], oy: m.at[1],
                       axis: m.axis || "x", span: m.span || 3, step: m.step || 1,
-                      cd: m.delay || 0, rate: m.rate || 8, dir: m.dir === "n" || m.dir === "w" ? -1 : 1 });
+                      cd: Math.round((m.delay || 0) * S), rate: Math.round((m.rate || 8) * S),
+                      dir: m.dir === "n" || m.dir === "w" ? -1 : 1 });
     }
     for (const c of (lv.ci || [])) W.bands.push(mkBand(c));
     for (const l of (lv.leak || [])) W.leaks.push({ x: l.at[0], y: l.at[1], r: l.r0 || 0.5, rate: l.rate || 8, grow: l.grow || 1, cap: l.cap || null, ticks: 0, on: true });
@@ -256,7 +291,8 @@ window.WORLD = (() => {
    * 全部由 bd.t 推出来，纯数据进快照，回档后节奏一模一样。 */
   function mkBand(c) {
     const axis = c.axis || (c.dir === "n" || c.dir === "s" ? "y" : "x");
-    const onT = c.onT || 10, offT = c.offT || 6;
+    /* 关卡里的 onT/offT 是旧 8Hz tick 数（缺省 10/6 = 亮 1.25s / 熄 0.75s） */
+    const onT = Math.round((c.onT || 10) * S), offT = Math.round((c.offT || 6) * S);
     return { axis, pos: axis === "y" ? c.at[1] : c.at[0], dir: (c.dir === "w" || c.dir === "n") ? -1 : 1,
              speed: c.speed || 0.5, thick: 0.5, on: true,
              onT, offT, cyc: onT + offT, t: 0, lit: true, justLit: false };
@@ -274,10 +310,10 @@ window.WORLD = (() => {
   function makeBug(W, kind, x, y) {
     const k = BUGS.get(kind);
     const b = {
-      id: nextIdFor(W), kind, x, y, cd: kind === "egg" ? BUGS.KINDS.egg.hatch * STEP_HZ : (k.speed || 0),
+      id: nextIdFor(W), kind, x, y, cd: kind === "egg" ? BUGS.KINDS.egg.hatch * STEP_HZ : Math.round((k.speed || 0) * S),
       hp: k.hp || 1, tested: false, frozen: 0, stun: 0,
       dx: k.chase ? 0 : (x % 2 ? 1 : -1), dy: 0,
-      attached: kind === "crawler", jumpCd: k.jump || null, fuse: k.fuse ? k.fuse * STEP_HZ : null,
+      attached: kind === "crawler", jumpCd: k.jump ? Math.round(k.jump * S) : null, fuse: k.fuse ? k.fuse * STEP_HZ : null,
       justJumped: 0, range: null,
       px: x, py: y
     };
@@ -321,8 +357,8 @@ window.WORLD = (() => {
   function explode(W, x, y, r, why) {
     sfx("boom");
     note(W, why || "爆炸");
-    if (W.player.x === x || W.player.y === y) {
-      const d = Math.abs(W.player.x - x) + Math.abs(W.player.y - y);
+    if (W.player.cx === x || W.player.cy === y) {
+      const d = Math.abs(W.player.cx - x) + Math.abs(W.player.cy - y);
       if (d <= r) die(W, why || "定时虫在十字范围内炸了");
     }
     for (const b of W.bugs.slice()) {
@@ -345,7 +381,7 @@ window.WORLD = (() => {
   function adjacentBug(W) {
     let best = null, bd = 99;
     for (const b of W.bugs) {
-      const d = Math.abs(b.x - W.player.x) + Math.abs(b.y - W.player.y);
+      const d = Math.abs(b.x - W.player.cx) + Math.abs(b.y - W.player.cy);
       if (d <= 1 && d < bd) { bd = d; best = b; }
     }
     return best;
@@ -365,11 +401,11 @@ window.WORLD = (() => {
     };
     if (name === "fix") {
       const b = pickTarget("修"); if (!b) return;
-      p.cast = { type: "fix", turns: 3, bug: b.id }; sfx("cast"); flag(W, "wantKill");
+      p.cast = { type: "fix", turns: 0.375, bug: b.id }; sfx("cast"); flag(W, "wantKill");
     } else if (name === "test") {
       if (W.tools.test <= 0) { toast(W, "测试配额用完了，剩下的祖传虫只能绕", "bad"); return; }
       const b = pickTarget("盖测试"); if (!b) return;
-      p.cast = { type: "test", turns: 4, bug: b.id }; sfx("cast");
+      p.cast = { type: "test", turns: 0.5, bug: b.id }; sfx("cast");
     }
   }
 
@@ -379,7 +415,7 @@ window.WORLD = (() => {
     let bug = null;
     for (const b of W.bugs) if (b.id === c.bug) bug = b;
     if (!bug) { toast(W, "目标跑了", "warn"); return; }
-    if (Math.abs(bug.x - W.player.x) + Math.abs(bug.y - W.player.y) > 1) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
+    if (Math.abs(bug.x - W.player.cx) + Math.abs(bug.y - W.player.cy) > 1) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
     if (c.type === "test") {
       W.tools.test--; bug.tested = true; sfx("test");
       toast(W, "给「" + BUGS.get(bug.kind).label + "」盖了测试，现在删它不会复发", "good");
@@ -407,7 +443,7 @@ window.WORLD = (() => {
       return;
     }
     if (bug.kind === "boss" && bug.hp > 1) {
-      bug.hp--; bug.frozen = 6; sfx("alarm");
+      bug.hp--; bug.frozen = Math.round(6 * S); sfx("alarm");
       if (!bug.tested) for (let i = 0; i < 2; i++) { const s = randomTileNear(W, bug.x, bug.y, 4); if (s) spawn(W, "chase", s.x, s.y); }
       toast(W, "祖传本体掉了一管血，还剩 " + bug.hp + " 管", "warn");
       return;
@@ -431,7 +467,7 @@ window.WORLD = (() => {
     for (let tries = 0; tries < 26; tries++) {
       const x = cx + U.rint(W.rng, rad * 2 + 1) - rad, y = cy + U.rint(W.rng, rad * 2 + 1) - rad;
       if (!inb(W, x, y) || solidAt(W, x, y) || isPitAt(W, x, y)) continue;
-      if (x === W.player.x && y === W.player.y) continue;
+      if (x === W.player.cx && y === W.player.cy) continue;
       if (min && U.dist(x, y, cx, cy) < min) continue;     // 摘到"附近"不该等于贴脸
       if (bugAt(W, x, y)) continue;
       return { x, y };
@@ -442,8 +478,8 @@ window.WORLD = (() => {
     for (let tries = 0; tries < 44; tries++) {
       const x = U.rint(W.rng, W.w), y = U.rint(W.rng, W.h);
       if (solidAt(W, x, y) || isPitAt(W, x, y)) continue;
-      if (x === W.player.x && y === W.player.y) continue;
-      if (U.dist(x, y, W.player.x, W.player.y) < 2.5) continue;
+      if (x === W.player.cx && y === W.player.cy) continue;
+      if (U.dist(x, y, W.player.cx, W.player.cy) < 2.5) continue;
       if (bugAt(W, x, y)) continue;
       return { x, y };
     }
@@ -456,14 +492,14 @@ window.WORLD = (() => {
     let dx = p.dir, dy = 0;
     if (W.mode === "top") { dx = p.lastDx || 1; dy = p.lastDy || 0; }
     else if (p.lastDy === -1) { dx = 0; dy = -1; }
-    let tx = p.x, ty = p.y;
+    let tx = p.cx, ty = p.cy;
     for (let i = 1; i <= 6; i++) {
-      const nx = p.x + dx * i, ny = p.y + dy * i;
+      const nx = p.cx + dx * i, ny = p.cy + dy * i;
       if (!inb(W, nx, ny) || solidAt(W, nx, ny)) break;
       tx = nx; ty = ny;
     }
     W.flashes.push({ x: tx, y: ty, r: 3.6, ticks: 5 * STEP_HZ, probe: true });
-    p.logCd = 11;
+    p.logCd = 1.375;
     sfx("log");
     flag(W, "log");
     for (const b of W.bugs) if (U.dist(b.x, b.y, tx, ty) <= 3.9) b.stun = 6 * STEP_HZ;
@@ -471,10 +507,14 @@ window.WORLD = (() => {
   }
 
   /* ================= commit / 回档 ================= */
+  const SNAP_V = 2;
+  /* commitLog 里每个 entry 自己带 snap；trail 在 60Hz 下会涨到几万点。
+   * 这两样都不进快照，否则快照会自我嵌套、把 localStorage 撑爆。 */
   const SNAP_SKIP = { api: 1, lampCov: 1, toasts: 1, tutStep: 1, tutFlags: 1,
+                      commitLog: 1, trail: 1, sv: 1,
                       onCommit: 1, onDeath: 1, onWin: 1, onToast: 1 };
   function snap(W) {
-    const copy = {};
+    const copy = { sv: SNAP_V };
     for (const k in W) {
       if (SNAP_SKIP[k]) continue;
       if (typeof W[k] === "function") continue;
@@ -484,25 +524,97 @@ window.WORLD = (() => {
     copy.toasts = [];
     return JSON.stringify(copy);
   }
+
+  /** 旧 8Hz 快照 → 60Hz + 连续坐标。只在目标快照没有 sv 时跑一次。 */
+  function retime(o) {
+    const mul = S, sec = 1 / 8;          // 旧 tick 数 → 新 tick 数 / 秒
+    const p = o.player;
+    o.tick = (o.tick || 0) * mul;
+    if (p) {
+      p.x = (p.x || 0) + 0.5;
+      p.y = (p.y || 0) + 0.5;
+      p.px = (p.px != null ? p.px : p.x - 0.5) + 0.5;
+      p.py = (p.py != null ? p.py : p.y - 0.5) + 0.5;
+      p.vx = 0; p.vy = 0; p.airUp = 0;
+      p.grounded = false; p.coyote = 0; p.jumpBuf = 0; p.dropT = 0; p.doorCd = 0;
+      p.logCd = (p.logCd || 0) * sec;
+      p.inv = (p.inv || 0) * sec;
+      p.stun = (p.stun || 0) * sec;
+      if (p.cast) p.cast.turns = (p.cast.turns || 0) * sec;
+      p.cx = Math.floor(p.x); p.cy = Math.floor(p.y);
+    }
+    if (o.lit) for (let i = 0; i < o.lit.length; i++) if (o.lit[i] > 0) o.lit[i] *= mul;
+    if (o.reveal) for (let i = 0; i < o.reveal.length; i++) if (o.reveal[i] > 0) o.reveal[i] *= mul;
+    if (o.dyn) for (const k in o.dyn) {
+      const d = o.dyn[k];
+      if (d.todoT != null) d.todoT *= mul;
+      if (d.crumbleT != null) d.crumbleT *= mul;
+    }
+    if (o.bugs) for (const b of o.bugs) {
+      b.cd = (b.cd || 0) * mul;
+      if (b.jumpCd != null) b.jumpCd *= mul;
+      if (b.fuse != null) b.fuse *= mul;
+      b.frozen = (b.frozen || 0) * mul;
+      b.stun = (b.stun || 0) * mul;
+      b.justJumped = (b.justJumped || 0) * mul;
+      b.px = b.x; b.py = b.y;
+    }
+    if (o.movers) for (const m of o.movers) {
+      m.cd = (m.cd || 0) * mul;
+      m.rate = (m.rate || 0) * mul;
+      if (m.delay != null) m.delay *= mul;
+    }
+    if (o.bands) for (const bd of o.bands) {
+      bd.t = (bd.t || 0) * mul;
+      bd.onT = (bd.onT || 0) * mul;
+      bd.offT = (bd.offT || 0) * mul;
+      bd.cyc = (bd.cyc || 0) * mul;
+    }
+    if (o.leaks) for (const lk of o.leaks) lk.ticks = (lk.ticks || 0) * mul;
+    if (o.flashes) for (const f of o.flashes) f.ticks = (f.ticks || 0) * mul;
+    if (o.flags) {
+      if (o.flags.scrambled) o.flags.scrambled *= mul;
+      if (o.flags.rush) o.flags.rush *= mul;
+      if (o.flags.o2) o.flags.o2 *= sec;
+    }
+    if (o.ghosts) for (const g of o.ghosts) {
+      g.lag = (g.lag || 0) * mul; g.i = 0;
+      g.x = (g.x || 0) + 0.5; g.y = (g.y || 0) + 0.5;
+    }
+    if (o.commitLog) for (const c of o.commitLog) {
+      c.turn = (c.turn || 0) * mul;
+      if (c.x != null) c.x += 0.5;
+      if (c.y != null) c.y += 0.5;
+      c.cx = Math.floor(c.x); c.cy = Math.floor(c.y);
+    }
+    o.trail = [];
+    o.modeBase = o.modeBase || o.mode;
+    o.sv = SNAP_V;
+  }
+
   function restore(W, text) {
     const obj = JSON.parse(text);
-    const keep = { api: W.api, lampCov: W.lampCov, toasts: W.toasts,
+    if (obj.sv !== SNAP_V) retime(obj);
+    const keep = { api: W.api, lampCov: W.lampCov, toasts: W.toasts, commitLog: W.commitLog,
                    onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast };
     for (const k in obj) W[k] = obj[k];
     for (const k in keep) if (keep[k] !== undefined) W[k] = keep[k];
+    syncCell(W.player);
+    W.trail = [];
+    for (const g of W.ghosts) g.i = 0;
     U.Input.unscramble();
     U.Input.clear();
     return W;
   }
 
   function atCommitTile(W) {
-    for (const c of W.mapCommits) if (c.x === W.player.x && c.y === W.player.y) return c;
+    for (const c of W.mapCommits) if (c.x === W.player.cx && c.y === W.player.cy) return c;
     return null;
   }
   function doCommit(W) {
     if (!atCommitTile(W)) { toast(W, "这里没有 -o- ，先去找一个", "warn"); return; }
     const last = W.commitLog[W.commitLog.length - 1];
-    if (last && last.x === W.player.x && last.y === W.player.y && last.tag !== "init") { toast(W, "已经在这个 commit 上了", "warn"); return; }
+    if (last && last.cx === W.player.cx && last.cy === W.player.cy && last.tag !== "init") { toast(W, "已经在这个 commit 上了", "warn"); return; }
     pushCommit(W, "第 " + (W.li + 1) + " 关 · 已修 " + W.kills + " 只 · 剩 " + W.bugs.length + " 只");
     sfx("commit");
     toast(W, "commit 落好：" + W.commitLog[W.commitLog.length - 1].hash, "good");
@@ -512,6 +624,7 @@ window.WORLD = (() => {
     const n = W.commitLog.length;
     const entry = { hash: U.shortHash(W.seed, n), msg, tag: isInit ? "init" : "manual",
                     turn: W.tick, x: W.player.x, y: W.player.y,
+                    cx: W.player.cx, cy: W.player.cy,
                     kills: W.kills, bugs: W.bugs.length, snap: snap(W) };
     W.commitLog.push(entry);
     if (W.commitLog.length > 16) W.commitLog.splice(1, 1);
@@ -558,9 +671,9 @@ window.WORLD = (() => {
     if (lv.mutateWall && W.entropy > 2 && U.rnd(W.rng) < 0.7) {
       for (let tries = 0; tries < 40; tries++) {
         const x = U.rint(W.rng, W.w), y = U.rint(W.rng, W.h);
-        if (x === W.player.x && y === W.player.y) continue;
+        if (x === W.player.cx && y === W.player.cy) continue;
         if (tile(W, x, y) !== ".") continue;
-        if (W.lit[idx(W, W.layer, x, y)] > W.tick - 24) continue;   // 别当着玩家的面变
+        if (W.lit[idx(W, W.layer, x, y)] > W.tick - 3 * STEP_HZ) continue;   // 别当着玩家的面变
         setTile(W, x, y, "#");
         note(W, "一块地板悄悄变成了墙");
         break;
@@ -614,7 +727,7 @@ window.WORLD = (() => {
       runActs(W, e);
     }
   }
-  function inRange(a, p) { const r = a[2] || 0; return Math.abs(p.x - a[0]) <= r && Math.abs(p.y - a[1]) <= r; }
+  function inRange(a, p) { const r = a[2] || 0; return Math.abs(p.cx - a[0]) <= r && Math.abs(p.cy - a[1]) <= r; }
   function runActs(W, e) {
     const list = e.acts || [e];               // 不带 acts 时，事件本身就是那条动作的参数
     for (const a of list) act1(W, a.act, a);
@@ -663,11 +776,14 @@ window.WORLD = (() => {
       }
       case "layerSwap": doLayer(W, a.to); sfx("glitch"); toast(W, a.text || null, "warn"); break;
       case "flipGravity":
-        W.gravity = a.to === "up" ? -1 : 1; W.player.grounded = false; W.player.airUp = 0;
+        W.gravity = a.to === "up" ? -1 : 1;
+        W.player.vy = 0; W.player.grounded = false; W.player.coyote = 0;
+        resolvePlayer(W);
         sfx("glitch"); toast(W, a.text || (W.gravity < 0 ? "重力反了：天花板才是地板" : "重力恢复正常"), "bad"); break;
       case "flipMode": {
         W.mode = a.to || (W.mode === "side" ? "top" : "side");
-        W.player.grounded = false; W.player.airUp = 0;
+        W.player.vy = 0; W.player.vx = 0; W.player.grounded = false; W.player.coyote = 0;
+        resolvePlayer(W);
         sfx("glitch"); toast(W, a.text || "有人重构了坐标系：现在是「" + (W.mode === "side" ? "横版" : "俯视") + "」视角", "bad"); break;
       }
       case "scramble":
@@ -692,7 +808,7 @@ window.WORLD = (() => {
         const live = W.bugs.filter(b => b.kind !== "egg");
         if (live.length) {
           const b = live[U.rint(W.rng, live.length)];
-          const s = randomTileNear(W, W.player.x, W.player.y, 4, a.min || 3);
+          const s = randomTileNear(W, W.player.cx, W.player.cy, 4, a.min || 3);
           if (s) { b.x = s.x; b.y = s.y; sfx("glitch"); toast(W, "cherry-pick：一只「" + BUGS.get(b.kind).label + "」被摘到你附近", "bad"); }
         }
         break;
@@ -712,73 +828,221 @@ window.WORLD = (() => {
     }
   }
 
+  /** 地图整体平移（rebase）：所有跟着格子走的东西都要一起挪，不然机关会错位 */
   function shiftLayer(W, L, dx, edge) {
     const rows = W.layers[L], w = W.w, h = W.h;
+    const nx = x => U.clamp(x + dx, 0, w - 1);
     for (let y = 0; y < h; y++) {
       const base = y * w;
       if (dx > 0) for (let x = w - 1; x >= 0; x--) rows[base + x] = x - dx >= 0 ? rows[base + x - dx] : edge;
       else for (let x = 0; x < w; x++) rows[base + x] = x - dx < w ? rows[base + x - dx] : edge;
     }
-    W.player.x = U.clamp(W.player.x + dx, 0, w - 1);
-    for (const b of W.bugs) b.x = U.clamp(b.x + dx, 0, w - 1);
-    for (const c of W.mapCommits) c.x = U.clamp(c.x + dx, 0, w - 1);
-    for (const p of W.prs) p.x = U.clamp(p.x + dx, 0, w - 1);
+    W.player.x = U.clamp(W.player.x + dx, 0.5, w - 0.5);
+    syncCell(W.player);
+    for (const b of W.bugs) b.x = nx(b.x);
+    for (const c of W.mapCommits) c.x = nx(c.x);
+    for (const p of W.prs) p.x = nx(p.x);
+    for (const p of W.fakePrs) p.x = nx(p.x);
+    for (const s of W.belts) s.x = nx(s.x);
+    for (const d of W.deps) d.x = nx(d.x);
+    for (const l of W.leaks) l.x = nx(l.x);
+    for (const m of W.movers) { m.x = nx(m.x); m.ox = nx(m.ox); }
+    for (const bd of W.bands) if (bd.axis === "x") bd.pos += dx;
     W.dyn = {};
-    W.lamps = W.lamps.map(l => ({ x: U.clamp(l.x + dx, 0, w - 1), y: l.y, r: l.r }));
+    W.lamps = W.lamps.map(l => ({ x: nx(l.x), y: l.y, r: l.r }));
+    resolvePlayer(W);
+  }
+
+  /** 把玩家从墙里挤出来：切图层 / 切模式 / rebase 之后都靠它兜底 */
+  function resolvePlayer(W) {
+    const p = W.player;
+    syncCell(p);
+    const blocked = (x, y) => solidAt(W, x, y) || isPitAt(W, x, y) || !inb(W, x, y);
+    if (!blocked(p.cx, p.cy)) { p.grounded = false; p.vy = 0; return true; }
+    for (let r = 1; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      if (blocked(p.cx + dx, p.cy + dy)) continue;
+      p.x = p.cx + dx + 0.5; p.y = p.cy + dy + 0.5;
+      p.vx = 0; p.vy = 0; p.grounded = false;
+      syncCell(p);
+      return true;
+    }
+    die(W, "重构坐标系时你被挤进了实心代码里 —— 冲突未解决");
+    return false;
   }
 
   function doLayer(W, to) {
     if (W.layers.length < 2) { toast(W, "这关只有一条分支，切不了图层", "warn"); return; }
     W.layer = to != null ? (to % W.layers.length) : (W.layer + 1) % W.layers.length;
-    let x = W.player.x, y = W.player.y;
-    if (solidAt(W, x, y) || isPitAt(W, x, y)) {
-      let found = null;
-      for (let r = 1; r < 7 && !found; r++) for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        if (!solidAt(W, x + dx, y + dy) && !isPitAt(W, x + dx, y + dy) && W.layers[W.layer][(y + dy) * W.w + (x + dx)] !== "#") found = { x: x + dx, y: y + dy };
-      }
-      if (!found) { die(W, "切分支时这一格在另一条分支上是实心的 —— 冲突未解决"); return; }
-      W.player.x = found.x; W.player.y = found.y;
-      toast(W, "切换分支：你被挤到了空位上", "warn");
+    const before = { cx: W.player.cx, cy: W.player.cy };
+    if (solidAt(W, W.player.cx, W.player.cy) || isPitAt(W, W.player.cx, W.player.cy)) {
+      if (!resolvePlayer(W)) return;
+      if (W.player.cx !== before.cx || W.player.cy !== before.cy) toast(W, "切换分支：你被挤到了空位上", "warn");
     }
     sfx("glitch");
     flag(W, "layer");
   }
 
-  /* ================= 玩家移动 ================= */
-  function movePlayer(W, dx, dy) {
+  /* ================= 玩家移动 =================
+   * 连续物理：位置是格坐标里的浮点，碰撞是 AABB 对格子。
+   * 俯视没有重力；横版按 W.gravity 积分，跳跃用固定 2 格高的初速。 */
+  function approach(v, target, step) {
+    if (v < target) return Math.min(target, v + step);
+    if (v > target) return Math.max(target, v - step);
+    return v;
+  }
+
+  function beltVec(W) {
     const p = W.player;
-    if (p.stun > 0) return false;
-    if (p.cast) p.cast = null;                    // 一动就打断施法
-    p.lastDx = dx; p.lastDy = dy;
-    if (dx) p.dir = dx > 0 ? 1 : -1;
-    const nx = p.x + dx, ny = p.y + dy;
-    if (!inb(W, nx, ny)) return false;
-    if (tile(W, nx, ny) === "|" && !isDoorOpen(W, nx, ny)) { tryDoor(W, nx, ny); return false; }
-    if (W.mode === "top") {
-      if (solidAt(W, nx, ny)) return false;
-      p.x = nx; p.y = ny;
-      onEnter(W);
-      return true;
+    for (const s of W.belts) if (s.x === p.cx && s.y === p.cy) return BELT_VEC[s.dir] || BELT_VEC.e;
+    return null;
+  }
+
+  /** 水平移动 + AABB 碰撞；撞门时顺手尝试开门 */
+  function moveX(W, dx) {
+    const p = W.player;
+    if (!dx) return;
+    p.x += dx;
+    const y0 = cellY0(p), y1 = cellY1(p);
+    if (dx > 0) {
+      const tx = Math.floor(p.x + PW / 2 - EPS);
+      for (let ty = y0; ty <= y1; ty++) {
+        if (!solidAt(W, tx, ty)) continue;
+        if (tile(W, tx, ty) === "|" && !isDoorOpen(W, tx, ty)) tryDoor(W, tx, ty);
+        p.x = Math.min(p.x, tx - PW / 2 - EPS);
+      }
+    } else {
+      const tx = Math.floor(p.x - PW / 2 + EPS);
+      for (let ty = y0; ty <= y1; ty++) {
+        if (!solidAt(W, tx, ty)) continue;
+        if (tile(W, tx, ty) === "|" && !isDoorOpen(W, tx, ty)) tryDoor(W, tx, ty);
+        p.x = Math.max(p.x, tx + 1 + PW / 2 + EPS);
+      }
     }
-    if (dy === 0) {
-      if (solidAt(W, nx, ny)) return false;
-      p.x = nx; p.y = ny;
-      onEnter(W);
-      return true;
+    syncCell(p);
+  }
+
+  /** 垂直移动 + AABB 碰撞（单向平台不在这里挡，交给 groundCheck） */
+  function moveY(W, dy) {
+    const p = W.player;
+    if (!dy) return;
+    p.y += dy;
+    const x0 = cellX0(p), x1 = cellX1(p);
+    if (dy > 0) {
+      const ty = Math.floor(p.y + PH / 2 - EPS);
+      for (let tx = x0; tx <= x1; tx++) {
+        if (!solidAt(W, tx, ty)) continue;
+        p.y = Math.min(p.y, ty - PH / 2 - EPS);
+        p.vy = Math.min(0, p.vy);
+      }
+    } else {
+      const ty = Math.floor(p.y - PH / 2 + EPS);
+      for (let tx = x0; tx <= x1; tx++) {
+        if (!solidAt(W, tx, ty)) continue;
+        p.y = Math.max(p.y, ty + 1 + PH / 2 + EPS);
+        p.vy = Math.max(0, p.vy);
+      }
     }
-    if (dy < 0) return jump(W);
-    /* ↓ 主动往下踩一格。旧规则只有「自己正站在单杠上」才允许，横版里跳上一层就成了单向牢笼
-       —— 人会踩在地板砖的头顶上「着地」，再也下不来，PR 门就在脚底下也碰不到。
-       现在只要下面进得去（不是墙、不是坑）就能下来，单杠那条特例自然被这条覆盖。 */
-    if (!solidAt(W, nx, ny) && !isPitAt(W, nx, ny)) { p.x = nx; p.y = ny; onEnter(W); return true; }
-    return false;
+    syncCell(p);
+  }
+
+  /** 脚下的支撑：实体格和单向平台（只从脚那一侧踩得住） */
+  function groundCheck(W) {
+    const p = W.player;
+    const down = W.gravity > 0 ? 1 : -1;
+    p.grounded = false;
+    if (p.dropT > 0) return;
+    const tx = p.cx;
+    const foot = p.y + down * (PH / 2);
+    const ty = down > 0 ? Math.floor(foot + 0.02) : Math.floor(foot - 0.02);
+    if (!inb(W, tx, ty)) return;
+    const ch = tile(W, tx, ty);
+    if (solidAt(W, tx, ty)) {
+      p.y = down > 0 ? ty - PH / 2 : ty + 1 + PH / 2;
+      p.vy = 0; p.grounded = true; return;
+    }
+    if (ch === "+") {
+      if (down > 0 && p.vy >= 0) { p.y = ty - PH / 2; p.vy = 0; p.grounded = true; }
+      else if (down < 0 && p.vy <= 0) { p.y = ty + 1 + PH / 2; p.vy = 0; p.grounded = true; }
+    }
+  }
+
+  function stepPlayer(W) {
+    const p = W.player;
+    if (p.dead || W.won) return;
+    const I = U.Input;
+    const top = W.mode === "top";
+    const down = W.gravity > 0 ? 1 : -1;
+
+    /* 施法时一动就打断（原版是 movePlayer 成功才打断，连续物理下按方向就算） */
+    if (p.cast && (I.down("left") || I.down("right") || I.down("up") || I.down("down"))) p.cast = null;
+
+    let ix = 0, iy = 0;
+    if (!p.cast) {
+      if (I.down("left")) ix -= 1;
+      if (I.down("right")) ix += 1;
+      if (top) { if (I.down("up")) iy -= 1; if (I.down("down")) iy += 1; }
+    }
+    if (ix && iy) { const len = Math.SQRT2; ix /= len; iy /= len; }
+    if (ix) { p.dir = ix > 0 ? 1 : -1; p.lastDx = Math.sign(ix); p.lastDy = 0; }
+    else if (iy) { p.lastDx = 0; p.lastDy = Math.sign(iy); }
+
+    let tvx = ix * (top ? RUN_TOP : RUN_SIDE);
+    let tvy = top ? iy * RUN_TOP : 0;
+    const bv = beltVec(W);
+    if (bv) { tvx += bv[0] * 3; if (top) tvy += bv[1] * 3; }
+
+    if (top) {
+      p.vx = approach(p.vx, tvx, ACC_TOP * DT);
+      p.vy = approach(p.vy, tvy, ACC_TOP * DT);
+      moveX(W, p.vx * DT);
+      moveY(W, p.vy * DT);
+      p.grounded = false;
+      return;
+    }
+
+    /* 横版 */
+    p.vx = approach(p.vx, tvx, (p.grounded ? ACC_SIDE : AIR_ACC) * DT);
+    moveX(W, p.vx * DT);
+
+    if (!p.cast && I.hit("up")) p.jumpBuf = JUMP_BUF;
+    p.jumpBuf = Math.max(0, p.jumpBuf - DT);
+    p.coyote = p.grounded ? COYOTE : Math.max(0, p.coyote - DT);
+    if (!p.cast && p.jumpBuf > 0 && p.coyote > 0) {
+      p.vy = -down * JUMP_V0;
+      if (ix) p.vx = ix * RUN_SIDE;          // 起跳直接带走方向速度，2 格坑才有稳定余量
+      p.grounded = false; p.coyote = 0; p.jumpBuf = 0;
+      sfx("jump");
+    }
+
+    /* 按住 ↓：在单向平台上往下穿，空中则加速下落 */
+    if (!p.cast && I.down("down")) {
+      const fx = p.cx, fy = down > 0 ? Math.floor(p.y + PH / 2 + 0.03) : Math.floor(p.y - PH / 2 - 0.03);
+      if (p.grounded && inb(W, fx, fy) && onewayAt(W, fx, fy)) {
+        /* 要一口气穿过整格，不然 dropT 结束后会被同一块单杠吸回去 */
+        p.dropT = 0.25; p.grounded = false; p.vy = down * 5;
+      }
+    }
+    if (p.dropT > 0) p.dropT -= DT;
+
+    p.vy += GRAV * down * DT;
+    if (!p.grounded && !p.cast && I.down("down") && p.vy * down < 6) p.vy += GRAV * 0.9 * down * DT;
+    if (down > 0) p.vy = Math.min(p.vy, MAX_FALL);
+    else p.vy = Math.max(p.vy, -MAX_FALL);
+    const wasG = p.grounded, fallVy = p.vy;
+    moveY(W, p.vy * DT);
+    groundCheck(W);
+    if (!wasG && p.grounded && Math.abs(fallVy) > 2) sfx("land");
   }
 
   function jump(W) {
     const p = W.player;
-    if (!p.grounded || p.airUp > 0) return false;
-    p.airUp = W.jump; p.grounded = false;
+    if (p.dead || W.won) return false;
+    const down = W.gravity > 0 ? 1 : -1;
+    if (W.mode === "top") { p.vy = -RUN_TOP; return true; }
+    if (!p.grounded && p.coyote <= 0) return false;
+    p.vy = -down * JUMP_V0;
+    p.grounded = false; p.coyote = 0;
     sfx("jump");
     return true;
   }
@@ -789,11 +1053,11 @@ window.WORLD = (() => {
     fire(W, "onEnter");
   }
 
+  /** 进格效果：只在中心格变化或刚落地时调用（坑和尖刺由 hazardCheck 每 tick 判） */
   function enterTile(W) {
-    const p = W.player, x = p.x, y = p.y;
+    const p = W.player, x = p.cx, y = p.cy;
+    if (!inb(W, x, y)) return;
     const ch = tile(W, x, y), d = dyn(W, x, y);
-    if (isPitAt(W, x, y)) { die(W, ch === "&" ? "那是块假地板，下面是空的" : "掉进深坑（一个没人测过的接口）"); return; }
-    if (ch === "x") { die(W, "踩在一地 undefined 上"); return; }
     if (ch === "t" && d.todoT == null) { d.todoT = Math.round(2.5 * STEP_HZ); sfx("tick"); note(W, "踩上 TODO：2.5 秒后塌"); }
     if (ch === "s" && d.crumbleT == null) { d.crumbleT = Math.round(0.5 * STEP_HZ); sfx("tick"); }
     if (ch === "d") checkDep(W);
@@ -808,11 +1072,41 @@ window.WORLD = (() => {
       if (W.pDeadly) { die(W, "PR 没解锁就提交 —— CI 当场把你挂了"); return; }
       toast(W, "PR 门还没解锁：还剩 " + W.bugs.length + " 只甲虫", "warn");
     }
-    if (ch === "j") { p.airUp = Math.max(p.airUp, 3); p.grounded = false; sfx("jump"); }
+    if (ch === "j") {
+      const down = W.gravity > 0 ? 1 : -1;
+      p.vy = -down * Math.sqrt(2 * GRAV * (W.jump + 1));
+      p.grounded = false; p.coyote = 0; p.jumpBuf = 0;
+      sfx("jump");
+    }
     if (atCommitTile(W)) { flag(W, "nearCommit"); if (!W.tutFlags.sawCommit) { W.tutFlags.sawCommit = 1; note(W, "这里有个 -o- ：按 空格 落一个 commit"); } }
   }
 
+  /** 坑 / 尖刺 / 假地板：横版看脚有没有真的踩进去，俯视看中心格 */
+  function hazardCheck(W) {
+    const p = W.player;
+    if (W.mode === "top") {
+      const ch = tile(W, p.cx, p.cy);
+      if (!isPitAt(W, p.cx, p.cy)) return false;
+      die(W, ch === "&" ? "那是块假地板，下面是空的" : ch === "x" ? "踩在一地 undefined 上" : "掉进深坑（一个没人测过的接口）");
+      return true;
+    }
+    const down = W.gravity > 0 ? 1 : -1;
+    const foot = p.y + down * (PH / 2);
+    const fy = Math.floor(foot);
+    const fx = Math.floor(p.x);
+    if (!inb(W, fx, fy)) return false;
+    if (!isPitAt(W, fx, fy)) return false;
+    const depth = down > 0 ? foot - fy : (fy + 1) - foot;
+    if (depth <= 0.30) return false;
+    const ch = tile(W, fx, fy);
+    die(W, ch === "&" ? "那是块假地板，下面是空的" : "掉进深坑（一个没人测过的接口）");
+    return true;
+  }
+
   function tryDoor(W, x, y) {
+    const p = W.player;
+    if (p.doorCd > 0) return;
+    p.doorCd = 0.5;
     if (W.tools.test > 0) {
       W.tools.test--;
       dyn(W, x, y).open = 1;
@@ -826,7 +1120,7 @@ window.WORLD = (() => {
   }
 
   function checkDep(W) {
-    const p = W.player, x = p.x, y = p.y;
+    const p = W.player, x = p.cx, y = p.cy;
     const mine = W.deps.findIndex(s => s.x === x && s.y === y);
     if (mine < 0) return;
     const d = dyn(W, x, y);
@@ -850,33 +1144,29 @@ window.WORLD = (() => {
     if (W.player.dead) return;
     const p = W.player;
     p.px = p.x; p.py = p.y;
+    syncCell(p);
+    const ocx = p.cx, ocy = p.cy, wasGrounded = p.grounded;
 
-    if (p.logCd > 0) p.logCd--;
-    if (p.inv > 0) p.inv--;
+    if (p.logCd > 0) p.logCd -= DT;
+    if (p.inv > 0) p.inv -= DT;
+    if (p.stun > 0) p.stun -= DT;
+    if (p.doorCd > 0) p.doorCd -= DT;
     if (W.flags.scrambled > 0) { W.flags.scrambled--; if (W.flags.scrambled <= 0) U.Input.unscramble(); }
     if (W.flags.rush > 0) W.flags.rush--;
     for (let i = W.flashes.length - 1; i >= 0; i--) { if (--W.flashes[i].ticks <= 0) W.flashes.splice(i, 1); }
     for (let i = 0; i < W.reveal.length; i++) if (W.reveal[i] > 0) W.reveal[i]--;
 
-    if (p.cast) { if (--p.cast.turns <= 0) finishCast(W); }
+    if (p.cast) { p.cast.turns -= DT; if (p.cast.turns <= 0) finishCast(W); if (p.dead) return; }
 
-    /* 玩家意图 */
-    if (!p.cast) {
-      const I = U.Input;
-      let moved = false;
-      if (W.mode === "top") {
-        const dirs = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
-        for (const it of dirs) if (I.down(it[0])) { if (movePlayer(W, it[1], it[2])) { moved = true; break; } }
-      } else {
-        if (I.down("left")) moved = movePlayer(W, -1, 0);
-        if (!moved && I.down("right")) moved = movePlayer(W, 1, 0);
-        if (I.hit("up")) jump(W);
-        if (!moved && I.hit("down")) moved = movePlayer(W, 0, 1);
-      }
-      if (!moved && W.mode === "side") physics(W);
-    } else if (W.mode === "side") physics(W);
-
-    if (tile(W, p.x, p.y) === "b") belt(W);
+    /* 玩家 */
+    stepPlayer(W);
+    syncCell(p);
+    if (p.cx !== ocx || p.cy !== ocy) onEnter(W);
+    else if (p.grounded && !wasGrounded) enterTile(W);
+    if (p.dead) return;
+    if (hazardCheck(W)) return;
+    collide(W);
+    if (p.dead) return;
 
     /* 虫群 */
     for (const b of W.bugs.slice()) {
@@ -896,7 +1186,7 @@ window.WORLD = (() => {
       let nx = m.x, ny = m.y;
       if (m.axis === "x") nx += m.dir * m.step; else ny += m.dir * m.step;
       if (Math.abs((m.axis === "x" ? nx : ny) - (m.axis === "x" ? m.ox : m.oy)) >= m.span) { m.dir = -m.dir; nx = m.x; ny = m.y; }
-      if (nx === p.x && ny === p.y) { die(W, "被移动的代码块压成了二维数组"); return; }
+      if (boxHitsCell(p, m.x, m.y) || boxHitsCell(p, nx, ny)) { die(W, "被移动的代码块压成了二维数组"); return; }
       m.x = nx; m.y = ny;
     }
 
@@ -910,7 +1200,9 @@ window.WORLD = (() => {
       bd.lit = (bd.t % bd.cyc) < bd.onT;
       bd.justLit = !was && bd.lit;
       if (!bd.lit) continue;
-      if (Math.abs((bd.axis === "x" ? p.x : p.y) - bd.pos) < bd.thick) {
+      const pc = (bd.axis === "x" ? p.x : p.y) - 0.5;          // 玩家中心格坐标 → 格索引空间
+      const half = bd.axis === "x" ? PW / 2 : PH / 2;
+      if (Math.abs(pc - bd.pos) < bd.thick + half) {
         die(W, bd.justLit ? "CI 重试成功，红光亮起来的时候你正好站在光里" : "被 CI 的红光扫到了");
         return;
       }
@@ -921,17 +1213,18 @@ window.WORLD = (() => {
     for (const lk of W.leaks) {
       if (!lk.on) continue;
       if (++lk.ticks % Math.round(lk.rate * STEP_HZ) === 0 && (lk.cap == null || lk.r < lk.cap)) lk.r += lk.grow;
-      if (U.dist(p.x, p.y, lk.x, lk.y) <= lk.r) {
-        W.flags.o2 = (W.flags.o2 || 0) + 1;
-        if (W.flags.o2 % STEP_HZ === 0) sfx("tick");
-        if (W.flags.o2 > 3 * STEP_HZ) { die(W, "在泄漏区里待太久，OOM"); return; }
-      } else if (W.flags.o2) W.flags.o2 = Math.max(0, W.flags.o2 - 2);
+      if (U.dist(p.x, p.y, lk.x + 0.5, lk.y + 0.5) <= lk.r + PW / 2) {
+        const was = W.flags.o2 || 0;
+        W.flags.o2 = was + DT;
+        if (Math.floor(was) !== Math.floor(W.flags.o2)) sfx("tick");
+        if (W.flags.o2 > 3) { die(W, "在泄漏区里待太久，OOM"); return; }
+      } else if (W.flags.o2) W.flags.o2 = Math.max(0, W.flags.o2 - 2 * DT);
     }
 
     /* 历史幽灵：循环重放玩家 lag 秒前走过的路 */
     if (W.flags.trailOn) {
       W.trail.push({ x: p.x, y: p.y });
-      if (W.trail.length > 6000) W.trail.splice(0, 2000);
+      if (W.trail.length > 12000) W.trail.splice(0, 4000);
       for (const g of W.ghosts) {
         if (!g.on || W.trail.length < g.lag + 2) continue;
         g.i++;
@@ -939,7 +1232,10 @@ window.WORLD = (() => {
         const span = g.lag;
         const at = start + (g.i % Math.max(1, span));
         const pt = W.trail[U.clamp(at, 0, W.trail.length - 1)];
-        if (pt) { g.x = pt.x; g.y = pt.y; if (g.x === p.x && g.y === p.y) { die(W, "被「几秒前的自己」撞上了 —— 你死于历史重演"); return; } }
+        if (pt) {
+          g.x = pt.x; g.y = pt.y;
+          if (U.dist(g.x, g.y, p.x, p.y) < 0.6) { die(W, "被「几秒前的自己」撞上了 —— 你死于历史重演"); return; }
+        }
       }
     }
 
@@ -950,19 +1246,22 @@ window.WORLD = (() => {
       if (L !== W.layer) continue;
       if (dd.todoT != null && --dd.todoT <= 0 && W.layers[L][y * W.w + x] === "t") {
         W.layers[L][y * W.w + x] = "~"; sfx("boom");
-        if (x === p.x && y === p.y) { die(W, "TODO 砖塌了，你的脚跟着塌"); return; }
+        if (x === p.cx && y === p.cy) { die(W, "TODO 砖塌了，你的脚跟着塌"); return; }
       }
       if (dd.crumbleT != null && --dd.crumbleT <= 0 && W.layers[L][y * W.w + x] === "s") {
         W.layers[L][y * W.w + x] = "~"; sfx("boom");
-        if (x === p.x && y === p.y) { die(W, "脆板碎了"); return; }
+        if (x === p.cx && y === p.cy) { die(W, "脆板碎了"); return; }
       }
     }
 
-    collide(W);
     light(W);
     W.tick++;
     fire(W, "tick");
     runTut(W);
+  }
+
+  function boxHitsCell(p, x, y) {
+    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && p.y + PH / 2 > y && p.y - PH / 2 < y + 1;
   }
 
   function sweepBug(W, b) {
@@ -982,16 +1281,17 @@ window.WORLD = (() => {
     for (const b of W.bugs) {
       if (b.kind !== "crawler" || b.attached) continue;
       if (b.cd-- > 0) continue;
-      b.cd = 2;
+      b.cd = Math.round(2 * S);
       const ny = b.y + (W.gravity > 0 ? 1 : -1);
       if (!solidAt(W, b.x, ny) && !isPitAt(W, b.x, ny)) { b.y = ny; continue; }
-      b.kind = "walk"; b.attached = false; b.cd = BUGS.get("walk").speed; b.dx = 1; b.dy = 0;
+      b.kind = "walk"; b.attached = false; b.cd = Math.round(BUGS.get("walk").speed * S); b.dx = 1; b.dy = 0;
     }
   }
 
   /** 横版里虫子也归重力管：卵、爬墙虫、海森堡虫例外；下面是坑就悬着（别把虫喂坑） */
   function bugGravity(W) {
     if (W.mode !== "side") return;
+    if (W.tick % 8 !== 0) return;                         // 保持原来的 8Hz 下落节奏，别变成 60 格/秒
     const down = W.gravity > 0 ? 1 : -1;
     for (const b of W.bugs) {
       if (b.kind === "egg" || b.kind === "crawler" || b.kind === "heisen") continue;
@@ -1004,45 +1304,18 @@ window.WORLD = (() => {
     }
   }
 
-  function belt(W) {
-    const p = W.player;
-    let dir = null;
-    for (const s of W.belts) if (s.x === p.x && s.y === p.y) dir = BELT_VEC[s.dir] || BELT_VEC.e;
-    if (!dir) return;
-    const nx = p.x + dir[0], ny = p.y + dir[1];
-    if (solidAt(W, nx, ny) || isPitAt(W, nx, ny)) return;
-    p.x = nx; p.y = ny;
-    enterTile(W);
-  }
-
-  function physics(W) {
-    const p = W.player;
-    if (W.mode !== "side") return;
-    const down = W.gravity > 0 ? 1 : -1;
-    if (p.airUp > 0) {
-      const ny = p.y - down;
-      if (!solidAt(W, p.x, ny)) { p.y = ny; p.airUp--; if (isPitAt(W, p.x, p.y)) { die(W, "跳进了坑里"); return; } enterTile(W); }
-      else p.airUp = 0;
-      return;
-    }
-    const fy = p.y + down;
-    if (!inb(W, p.x, fy)) { die(W, "掉出了仓库边界：这一层原来没有地板"); return; }
-    if (solidAt(W, p.x, fy)) { p.grounded = true; return; }
-    if (supportAt(W, p.x, fy) && !isPitAt(W, p.x, fy)) { p.grounded = true; return; }
-    p.grounded = false;
-    p.y = fy;
-    if (isPitAt(W, p.x, p.y)) { die(W, "掉进深坑（一个没人测过的接口）"); return; }
-    enterTile(W);
-  }
-
   function collide(W) {
     const p = W.player;
     if (p.inv > 0) return;
     for (const b of W.bugs) {
       if (!BUGS.isLethal(b)) continue;
-      if (b.x === p.x && b.y === p.y) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
-      /* 两人对穿（同 tick 交换格子）也算撞上 */
-      if (b.x === p.px && b.y === p.py && b.px === p.x && b.py === p.y) { die(W, "和「" + BUGS.get(b.kind).label + "」迎面撞在一起"); return; }
+      if (U.dist(p.x, p.y, b.x + 0.5, b.y + 0.5) < 0.62) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
+      /* 两人对穿（同 tick 交换位置）也算撞上 */
+      if (b.px != null &&
+          Math.abs(b.x + 0.5 - p.px) + Math.abs(b.y + 0.5 - p.py) < 0.9 &&
+          Math.abs(b.px + 0.5 - p.x) + Math.abs(b.py + 0.5 - p.y) < 0.9) {
+        die(W, "和「" + BUGS.get(b.kind).label + "」迎面撞在一起"); return;
+      }
     }
   }
 
@@ -1083,7 +1356,7 @@ window.WORLD = (() => {
   function runTut(W) {
     if (W.tutStep >= W.tut.length) {
       /* 教学走完时如果正站在 PR 门前等着，就直接放行，不用再踩一次 */
-      if (W.tutFlags.prWait && W.prReady && tile(W, W.player.x, W.player.y) === "P") win(W);
+      if (W.tutFlags.prWait && W.prReady && tile(W, W.player.cx, W.player.cy) === "P") win(W);
       return;
     }
     const st = W.tut[W.tutStep];
@@ -1114,7 +1387,7 @@ window.WORLD = (() => {
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
     tile, look, setTile, dyn, observed, brightness, memLeft, solidAt, bugBlock, isPitAt, supportAt,
     spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
-    movePlayer, doLog, doLayer, mutate, act1, fire, checkPr, jump,
+    stepPlayer, resolvePlayer, doLog, doLayer, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS
   };
 })();

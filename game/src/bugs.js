@@ -15,7 +15,8 @@
 
 window.BUGS = (() => {
 
-  const T = 8;   // 逻辑 tick / 秒（与 world.js 的 STEP_HZ 一致）
+  const T = 60;              // 逻辑 tick / 秒（与 world.js 的 STEP_HZ 一致）
+  const S = T / 8;           // 下面 speed/jump 等仍是 8Hz 时代的设计值，这里换算成 60Hz tick
 
   /* ---------------- 种类表 ---------------- */
   const KINDS = {
@@ -24,7 +25,7 @@ window.BUGS = (() => {
       speed: 10, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         const p = W.player;
         if (Math.abs(p.x - b.x) + Math.abs(p.y - b.y) > 7) {         // 太远就原地晃悠
           if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; }
@@ -39,7 +40,7 @@ window.BUGS = (() => {
       speed: 8, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; W.move(b, b.dx, b.dy); }
       }
     },
@@ -48,7 +49,7 @@ window.BUGS = (() => {
       speed: 3, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         const p = W.player;
         const d = Math.abs(p.x - b.x) + Math.abs(p.y - b.y);
         if (d > 9 || !W.observed(b.x, b.y)) {          // 看不见你时就原地瞎逛
@@ -68,7 +69,7 @@ window.BUGS = (() => {
       speed: 12, lethal: true, needsTest: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; W.move(b, b.dx, b.dy); }
       }
     },
@@ -96,18 +97,18 @@ window.BUGS = (() => {
       speed: 4, lethal: true, jump: 40,
       ai(W, b) {
         if (b.jumpCd != null) b.jumpCd--;
-        if (b.jumpCd == null) b.jumpCd = this.jump;
+        if (b.jumpCd == null) b.jumpCd = Math.round(this.jump * S);
         if (b.jumpCd <= 0) {
-          b.jumpCd = this.jump;
+          b.jumpCd = Math.round(this.jump * S);
           const p = W.player;
           for (const [dx, dy] of W.shuffle([[3, 0], [-3, 0], [0, 3], [0, -3], [2, 2], [-2, 2], [2, -2], [-2, -2], [1, 0], [-1, 0]])) {
             const tx = p.x + dx, ty = p.y + dy;
-            if (!W.bugBlock(b, tx, ty)) { W.place(b, tx, ty); W.sfx("glitch"); b.justJumped = 3; return; }
+            if (!W.bugBlock(b, tx, ty)) { W.place(b, tx, ty); W.sfx("glitch"); b.justJumped = Math.round(3 * S); return; }
           }
         }
         if (b.justJumped > 0) { b.justJumped--; return; }
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         const p = W.player, dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (!W.move(b, dx, 0) && !W.move(b, 0, dy)) W.move(b, -dx, 0);
       }
@@ -116,9 +117,9 @@ window.BUGS = (() => {
       label: "海森堡虫", hint: "只在黑暗里现形；一旦被光照到就当场卡住。观测决定它存不存在。",
       speed: 4, lethal: true, ghost: true, invisible: true,
       ai(W, b) {
-        if (W.observed(b.x, b.y)) { b.frozen = 4; return; }   // 被观测 → 停滞，此时才杀得掉
+        if (W.observed(b.x, b.y)) { b.frozen = Math.round(4 * S); return; }   // 被观测 → 停滞，此时才杀得掉
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         const p = W.player;
         const dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (Math.abs(p.x - b.x) + Math.abs(p.y - b.y) <= 10) { W.move(b, dx, 0) || W.move(b, 0, dy); return; }
@@ -134,7 +135,7 @@ window.BUGS = (() => {
         if (!b.attached) return;                 // 掉落由 world.dropCrawlers 接管
         const p = W.player;
         if (Math.abs(p.x - b.x) <= 1 && (p.y - b.y) * W.gravity > 0 && Math.abs(p.y - b.y) <= (b.range || 4)) {
-          b.attached = false; b.cd = 1;
+          b.attached = false; b.cd = Math.round(1 * S);
           W.toast("头顶上有东西掉下来了", "bad");
           W.sfx("alarm");
         }
@@ -158,7 +159,7 @@ window.BUGS = (() => {
       speed: 7, lethal: true, needsTest: true, hp: 3,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = this.speed;
+        b.cd = Math.round(this.speed * S);
         const p = W.player;
         const dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (!W.move(b, dx, 0)) W.move(b, 0, dy);

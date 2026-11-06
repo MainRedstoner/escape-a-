@@ -92,7 +92,7 @@ window.BUGFIX = (() => {
         U.Input.pressed.clear();   // 输入至少被一个 tick 看见，避免 60fps 把按键冲掉
         if (W.player.dead || W.won) break;
       }
-      if (acc > STEP * 3) acc = 0;
+      if (acc > STEP * 6) acc = 0;
       UI.hud(W);
       UI.objective(W);
       UI.log(W);
@@ -148,7 +148,7 @@ window.BUGFIX = (() => {
     for (const s of (lv.bugs || [])) {
       if (!cod[s.kind] && BUGS.get(s.kind) && out.indexOf("新甲虫：" + BUGS.get(s.kind).label) < 0) out.push("新甲虫：" + BUGS.get(s.kind).label);
     }
-    if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，W / ↑ 跳，脚下没东西会掉");
+    if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，A / D 跑、W / ↑ 跳，脚下没东西会掉");
     if (lv.rowsB) out.push("新机制：两条分支 —— 按 I 切图层");
     if (lv.fog && lv.fog.r) out.push("新黑暗：光圈只有 " + lv.fog.r + " 格，记忆只亮 " + (lv.fog.mem || 60) + " 秒");
     const foes = [];
@@ -206,6 +206,11 @@ window.BUGFIX = (() => {
       UI.logReset();
       if (saved.length) {
         WORLD.restore(W, saved[saved.length - 1].snap);
+        /* 快照不再携带 commitLog（避免自我嵌套），这里把磁盘上的 commit 接回去 */
+        for (const c of saved) {
+          if (c.cx == null) { c.cx = Math.floor(c.x || 0); c.cy = Math.floor(c.y || 0); }
+        }
+        W.commitLog = W.commitLog.slice(0, 1).concat(saved);
         UI.toast("从上一个 commit " + saved[saved.length - 1].hash + " 继续", "good");
       }
       state = "play";
@@ -281,6 +286,7 @@ window.BUGFIX = (() => {
       state = "play";
       UI.show(null);
       UI.logReset();
+      RENDER.reset();
       UI.objective(W); UI.hud(W);
     }
   }

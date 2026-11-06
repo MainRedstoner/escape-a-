@@ -74,7 +74,7 @@ window.UI = (() => {
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "WASD 移动 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
+    if (state === null) { el.hint.textContent = "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
     el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效" : "";
   }
 
@@ -150,7 +150,9 @@ window.UI = (() => {
   }
   function isHeadHere(W) {
     const last = W.commitLog[W.commitLog.length - 1];
-    return !!last && last.x === W.player.x && last.y === W.player.y && last.tag !== "init";
+    const cx = last && last.cx != null ? last.cx : last ? Math.floor(last.x) : -1;
+    const cy = last && last.cy != null ? last.cy : last ? Math.floor(last.y) : -1;
+    return !!last && cx === W.player.cx && cy === W.player.cy && last.tag !== "init";
   }
 
   /* ---------------- 飘字 ---------------- */

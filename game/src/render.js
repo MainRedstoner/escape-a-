@@ -2,7 +2,8 @@
  * Escape A÷ · game/src/render.js —— Canvas 2D 渲染层
  *
  * 全部图形都是代码画的（零素材），只用世界状态做输入，不改状态。
- * 位置用指数平滑插值：逻辑 8 tick/秒，画面 60 fps，这样虫子不会一跳一跳。
+ * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子和机关用指数平滑插值，避免格子跳变。
+ * 横版额外画视差背景、平台高光、坑的深度渐变和落地尘土；俯视保持原来的黑底。
  * 亮度 = WORLD.brightness()：1 实时观测 · 0 全黑 · 中间是「还记得」。
  * ============================================================ */
 "use strict";
@@ -16,6 +17,11 @@ window.RENDER = (() => {
   const memo = {};                   // 渲染用的平滑位置缓存（不进快照）
   let fx = { shake: 0, red: 0, white: 0, glitch: 0 };
   let time = 0;
+  /* 横版视觉：背景缓存、落地尘土、跑动相位（全是渲染层状态，不进快照） */
+  let bgCache = null, bgSeed = -1;
+  const parts = [];
+  let runPhase = 0, landK = 0, prevGrounded = true;
+  const PW = 0.62, PH = 0.86;        // 和 world.js 的玩家 AABB 保持一致
 
   function attach(canvas) {
     cv = canvas; ctx = cv.getContext("2d");
@@ -38,6 +44,8 @@ window.RENDER = (() => {
   function draw(W, dt) {
     if (!ctx) return;
     time += dt;
+    updateParticles(dt);
+    landK = Math.max(0, landK - dt * 7);
     const want = Math.max(26, Math.min(56, Math.floor(view.w / 24)));
     TS = want;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -46,8 +54,15 @@ window.RENDER = (() => {
     ctx.fillRect(0, 0, view.w, view.h);
 
     const cols = Math.ceil(view.w / TS) + 2, rowsN = Math.ceil(view.h / TS) + 2;
-    const targetX = (W.player.x + 0.5) * TS - view.w / 2;
-    const targetY = (W.player.y + 0.5) * TS - view.h / 2;
+    /* 横版给一点水平前瞻，跑起来不至于贴着屏幕中央；垂直方向留死区 */
+    const lead = W.mode === "side" ? U.clamp(W.player.vx * 0.18, -1.6, 1.6) : 0;
+    const targetX = (W.player.x + lead) * TS - view.w / 2;
+    let targetY = W.player.y * TS - view.h / 2;
+    if (W.mode === "side" && cam.init) {
+      const dy = W.player.y * TS - (cam.y + view.h / 2);
+      if (Math.abs(dy) > TS * 1.3) targetY = W.player.y * TS - view.h / 2 - Math.sign(dy) * TS * 1.3;
+      else targetY = cam.y;
+    }
     const maxX = Math.max(0, W.w * TS - view.w), maxY = Math.max(0, W.h * TS - view.h);
     const tx = U.clamp(targetX, 0, maxX), ty = U.clamp(targetY, 0, maxY);
     if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; }
@@ -62,16 +77,129 @@ window.RENDER = (() => {
     ctx.save();
     ctx.translate(Math.round(ox), Math.round(oy));
 
+    drawBackdrop(W);
     const x0 = Math.floor(cam.x / TS) - 1, y0 = Math.floor(cam.y / TS) - 1;
     drawTiles(W, x0, y0, cols, rowsN);
     drawHazardsBack(W, x0, y0, cols, rowsN);
     drawEntities(W);
-    drawPlayer(W);
+    drawPlayer(W, dt);
+    drawParticles();
     drawHazardsFront(W, dt);
     drawOverlays(W);
     ctx.restore();
 
     drawScreenFx(W);
+  }
+
+  /* ---------------- 横版背景 ----------------
+   * 三层视差：远端代码山剪影（离屏缓存）+ 中景机架 + 近景飘落的日志行。
+   * 俯视模式不画，保持原来的黑底。 */
+  function makeBackdrop(seed) {
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = 512;
+    const g = c.getContext("2d");
+    const sky = g.createLinearGradient(0, 0, 0, 512);
+    sky.addColorStop(0, "#0a111c");
+    sky.addColorStop(0.55, "#0c1320");
+    sky.addColorStop(1, "#05080e");
+    g.fillStyle = sky; g.fillRect(0, 0, 1024, 512);
+
+    /* 远山：两排锯齿，越远越暗 */
+    for (let layer = 0; layer < 2; layer++) {
+      const base = 360 + layer * 58, amp = 70 + layer * 34;
+      g.beginPath(); g.moveTo(0, 512);
+      for (let x = 0; x <= 1024; x += 16) {
+        const n = U.hash2(x / 16, layer, seed);
+        const y = base - n * amp - Math.sin(x * 0.012 + layer * 2) * 18;
+        g.lineTo(x, y);
+      }
+      g.lineTo(1024, 512); g.closePath();
+      g.fillStyle = layer === 0 ? "rgba(36,54,68,.62)" : "rgba(20,34,46,.92)";
+      g.fill();
+      /* 山脊上零零星星的窗口灯 */
+      if (layer === 1) {
+        for (let x = 8; x < 1024; x += 22) {
+          const n = U.hash2(x, 9, seed);
+          if (n > 0.86) {
+            g.fillStyle = "rgba(120,230,170," + (0.18 + n * 0.25) + ")";
+            g.fillRect(x, base - amp * U.hash2(x, 4, seed) - 30, 2, 3);
+          }
+        }
+      }
+    }
+    /* 中景：竖着的机架 / 塔吊轮廓 */
+    g.fillStyle = "rgba(10,16,22,.9)";
+    for (let i = 0; i < 18; i++) {
+      const x = U.hash2(i, 21, seed) * 1024;
+      const w = 8 + U.hash2(i, 22, seed) * 22;
+      const h = 90 + U.hash2(i, 23, seed) * 180;
+      g.fillRect(x, 512 - h, w, h);
+      g.fillStyle = "rgba(80,220,150,.10)";
+      for (let j = 0; j < 4; j++) g.fillRect(x + 2, 512 - h + 8 + j * 14, w - 4, 2);
+      g.fillStyle = "rgba(10,16,22,.9)";
+    }
+    /* 代码雨：细竖线 */
+    for (let i = 0; i < 70; i++) {
+      const x = U.hash2(i, 31, seed) * 1024;
+      const y = U.hash2(i, 32, seed) * 420;
+      const h = 10 + U.hash2(i, 33, seed) * 42;
+      g.fillStyle = "rgba(90,220,160," + (0.05 + U.hash2(i, 34, seed) * 0.12) + ")";
+      g.fillRect(x, y, 1, h);
+    }
+    return c;
+  }
+
+  function drawBackdrop(W) {
+    if (W.mode !== "side") return;
+    if (!bgCache || bgSeed !== W.seed) { bgCache = makeBackdrop(W.seed); bgSeed = W.seed; }
+    const bw = bgCache.width;
+    const off = -((cam.x * 0.12) % bw);
+    const bh = Math.max(bgCache.height, view.h);
+    const oy = -((cam.y * 0.05) % Math.max(1, bh - view.h)) * 0.4;
+    ctx.globalAlpha = 0.9;
+    for (let x = off - bw; x < view.w + bw; x += bw) ctx.drawImage(bgCache, x, oy, bw, bh);
+    ctx.globalAlpha = 1;
+    /* 近景飘落的日志行 */
+    ctx.fillStyle = "rgba(120,235,180,.07)";
+    for (let i = 0; i < 18; i++) {
+      const sp = 10 + U.hash2(i, 41, W.seed) * 26;
+      const x = (U.hash2(i, 42, W.seed) * view.w + time * sp * 0.7) % view.w;
+      const y = (U.hash2(i, 43, W.seed) * view.h + time * sp) % view.h;
+      ctx.fillRect(x, y, 1, 4 + U.hash2(i, 44, W.seed) * 8);
+    }
+  }
+
+  /* ---------------- 落地尘土 ---------------- */
+  function spawnDust(px, py) {
+    for (let i = 0; i < 8; i++) {
+      parts.push({
+        x: px / TS + (Math.random() - 0.5) * 0.28,
+        y: py / TS,
+        vx: (Math.random() - 0.5) * 2.6,
+        vy: -Math.random() * 1.5,
+        life: 0.32 + Math.random() * 0.16,
+        max: 0.48,
+        s: 1.4 + Math.random() * 2.2
+      });
+    }
+  }
+  function updateParticles(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const q = parts[i];
+      q.life -= dt;
+      if (q.life <= 0) { parts.splice(i, 1); continue; }
+      q.x += q.vx * dt; q.y += q.vy * dt;
+      q.vy += 4 * dt; q.vx *= 0.96;
+    }
+  }
+  function drawParticles() {
+    for (const q of parts) {
+      const a = Math.max(0, q.life / q.max);
+      ctx.globalAlpha = a * 0.45;
+      ctx.fillStyle = "#8b7a5a";
+      ctx.fillRect(q.x * TS, q.y * TS, q.s, q.s);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /* ---------------- 地块 ---------------- */
@@ -118,16 +246,29 @@ window.RENDER = (() => {
     const n = U.hash2(x, y, W.seed);
     switch (ch) {
       case "#": case "\"": case "w": {
-        const base = 26 + Math.floor(n * 10);
-        ctx.fillStyle = "rgb(" + (base + 12) + "," + (base + 8) + "," + (base + 2) + ")";
+        const base = 22 + Math.floor(n * 10);
+        ctx.fillStyle = "rgb(" + (base + 11) + "," + (base + 7) + "," + (base + 2) + ")";
         ctx.fillRect(px, py, TS, TS);
         ctx.fillStyle = "rgba(0,0,0,.45)";
         ctx.fillRect(px, py + TS * 0.46, TS, 2);
         ctx.fillRect(px + TS * (n > 0.5 ? 0.3 : 0.62), py, 2, TS * 0.46);
-        ctx.fillStyle = "rgba(150,180,140,.20)";
+        ctx.fillStyle = "rgba(150,180,140,.18)";
         for (let l = 0; l < 3; l++) {
           const ly = py + 4 + l * (TS - 8) / 3;
           ctx.fillRect(px + 3, ly, (TS - 8) * (0.35 + U.hash2(x, y * 3 + l, W.seed) * 0.6), 1.6);
+        }
+        /* 平台顶面高光 / 底部投影：横版里能一眼看出哪块能站 */
+        if (!WORLD.solidAt(W, x, y - 1)) {
+          ctx.fillStyle = "rgba(185,215,170,.22)";
+          ctx.fillRect(px, py, TS, 2);
+          ctx.fillStyle = "rgba(120,150,110,.10)";
+          ctx.fillRect(px, py + 2, TS, 2);
+        }
+        if (!WORLD.solidAt(W, x, y + 1)) {
+          ctx.fillStyle = "rgba(0,0,0,.42)";
+          ctx.fillRect(px, py + TS - 3, TS, 3);
+          ctx.fillStyle = "rgba(0,0,0,.18)";
+          ctx.fillRect(px, py + TS - 7, TS, 4);
         }
         if (ch === "w") { ctx.strokeStyle = "rgba(255,220,120,.5)"; ctx.lineWidth = 2; ctx.strokeRect(px + 2, py + 2, TS - 4, TS - 4); }
         break;
@@ -141,17 +282,29 @@ window.RENDER = (() => {
         break;
       }
       case "~": case "&": {
-        ctx.fillStyle = "#04060a"; ctx.fillRect(px, py, TS, TS);
-        ctx.strokeStyle = "rgba(90,70,50,.55)"; ctx.lineWidth = 2;
+        ctx.fillStyle = "#020306"; ctx.fillRect(px, py, TS, TS);
+        const abyss = ctx.createLinearGradient(0, py, 0, py + TS);
+        abyss.addColorStop(0, "rgba(80,40,110,.28)");
+        abyss.addColorStop(0.5, "rgba(30,16,48,.10)");
+        abyss.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = abyss; ctx.fillRect(px, py, TS, TS);
+        ctx.strokeStyle = "rgba(100,78,58,.6)"; ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(px, py + 3); ctx.lineTo(px + TS * 0.4, py); ctx.lineTo(px + TS, py + 4);
         ctx.stroke();
+        ctx.fillStyle = "rgba(150,100,200,.10)";
+        ctx.fillRect(px + TS * 0.2, py + TS * 0.55, TS * 0.6, 2);
         break;
       }
       case "+": {
-        ctx.fillStyle = "#07090d"; ctx.fillRect(px, py, TS, TS);
-        ctx.fillStyle = "#3a3320"; ctx.fillRect(px, py, TS, Math.max(4, TS * 0.18));
-        ctx.fillStyle = "rgba(255,230,150,.18)"; ctx.fillRect(px, py, TS, 2);
+        ctx.fillStyle = "#05070a"; ctx.fillRect(px, py, TS, TS);
+        const gy = py + TS * 0.12, gh = Math.max(4, TS * 0.16);
+        ctx.fillStyle = "#241f14";
+        ctx.fillRect(px + 2, gy + gh, 3, TS * 0.72);
+        ctx.fillRect(px + TS - 5, gy + gh, 3, TS * 0.72);
+        ctx.fillStyle = "#4a4030"; ctx.fillRect(px, gy, TS, gh);
+        ctx.fillStyle = "rgba(255,230,150,.4)"; ctx.fillRect(px, gy, TS, 2);
+        ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(px, gy + gh - 2, TS, 2);
         break;
       }
       case "x": {
@@ -451,44 +604,91 @@ window.RENDER = (() => {
     ctx.restore();
   }
 
-  function drawPlayer(W) {
+  function drawPlayer(W, dt) {
     const p = W.player;
-    const m = smooth("me", p.x, p.y, 1 / 60);
-    const px = (m.x + 0.5) * TS, py = (m.y + 0.5) * TS;
-    const r = TS * 0.3;
+    /* 玩家已经是连续坐标，不需要再插值 */
+    const px = p.x * TS, py = p.y * TS;
+    const down = W.gravity > 0 ? 1 : -1;
+    const r = TS * 0.37;
+
+    /* 落地反馈：压扁、尘土、轻震屏 */
+    if (!prevGrounded && p.grounded) {
+      landK = 1;
+      spawnDust(px, py + down * (PH * TS / 2));
+      kick(2.2);
+    }
+    prevGrounded = p.grounded;
+
+    const speed = Math.abs(p.vx);
+    runPhase += (p.grounded ? Math.min(speed, 5.4) * 2.4 : 1.2) * dt * 3.2;
+
+    let sx = 1, sy = 1;
+    if (!p.grounded) {
+      const k = Math.min(1, Math.abs(p.vy) / 13);
+      sy = 1 + k * 0.14; sx = 1 - k * 0.09;
+    } else if (landK > 0) {
+      sy = 1 - landK * 0.16; sx = 1 + landK * 0.2;
+    }
+
+    /* 影子：离地越高越小越淡 */
+    const lift = p.grounded ? 0 : Math.min(TS * 1.4, Math.abs(p.vy) * TS * 0.07);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.globalAlpha = p.dead ? 0.2 : (p.grounded ? 0.42 : 0.24);
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.ellipse(0, down * (r * 1.32 + lift), r * (p.grounded ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     ctx.save();
     ctx.translate(px, py);
     if (p.dead) ctx.globalAlpha = 0.35;
-    /* 影子 */
-    ctx.fillStyle = "rgba(0,0,0,.45)";
-    ctx.beginPath(); ctx.ellipse(0, r * 1.25, r * 0.85, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.scale(sx, sy);
+    if (W.mode === "side") ctx.rotate(p.dir * 0.03 + (p.grounded ? Math.sin(runPhase) * 0.02 : 0));
+
+    /* 腿：跑动时前后摆 */
+    const run = p.grounded && speed > 0.5;
+    const swing = run ? Math.sin(runPhase) * 0.34 : 0;
+    ctx.strokeStyle = "#173748"; ctx.lineWidth = Math.max(2, TS * 0.06); ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.26, r * 0.7); ctx.lineTo(-r * 0.28 + swing * r, r * 1.16);
+    ctx.moveTo(r * 0.26, r * 0.7); ctx.lineTo(r * 0.28 - swing * r, r * 1.16);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+
     /* 身体：一件带兜帽的外套 + 一台抱在怀里的笔记本 */
     ctx.fillStyle = "#2f6f8f";
     ctx.beginPath();
-    ctx.moveTo(-r * 0.85, r); ctx.quadraticCurveTo(-r, -r * 0.4, 0, -r * 0.9);
-    ctx.quadraticCurveTo(r, -r * 0.4, r * 0.85, r); ctx.closePath(); ctx.fill();
+    ctx.moveTo(-r * 0.85, r * 0.82); ctx.quadraticCurveTo(-r * 1.02, -r * 0.3, 0, -r * 0.88);
+    ctx.quadraticCurveTo(r * 1.02, -r * 0.3, r * 0.85, r * 0.82); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.07)";
+    ctx.beginPath(); ctx.moveTo(-r * 0.7, -r * 0.1); ctx.quadraticCurveTo(0, -r * 0.55, r * 0.7, -r * 0.1); ctx.closePath(); ctx.fill();
+    /* 兜帽 + 脸 */
     ctx.fillStyle = "#1b3f52";
-    ctx.beginPath(); ctx.arc(0, -r * 0.62, r * 0.55, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -r * 0.68, r * 0.58, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#f0d0a8";
-    ctx.beginPath(); ctx.arc(p.dir * r * 0.14, -r * 0.6, r * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.dir * r * 0.14, -r * 0.64, r * 0.32, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1a2028";
+    ctx.fillRect(p.dir * r * 0.06 - 1, -r * 0.72, 2, 2);
     /* 笔记本屏幕 */
     ctx.fillStyle = "#0d1a12";
-    ctx.fillRect(-r * 0.7, r * 0.05, r * 1.4, r * 0.75);
+    ctx.fillRect(-r * 0.7, r * 0.1, r * 1.4, r * 0.72);
     ctx.fillStyle = "#7cf3b0";
-    ctx.fillRect(-r * 0.55, r * 0.2, r * (0.5 + 0.4 * Math.abs(Math.sin(time * 4))), 2);
-    ctx.fillRect(-r * 0.55, r * 0.42, r * 0.7, 2);
+    ctx.fillRect(-r * 0.55, r * 0.24, r * (0.5 + 0.4 * Math.abs(Math.sin(time * 4))), 2);
+    ctx.fillRect(-r * 0.55, r * 0.44, r * 0.7, 2);
     ctx.restore();
 
     /* 头顶光标： blinked 表示「可以交互」 */
     if (!p.dead) {
       ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(time * 3));
       ctx.fillStyle = "#7cf3b0";
-      ctx.fillRect(px - 3, py - r * 2.1, 6, 3);
+      ctx.fillRect(px - 3, py - r * 2.2, 6, 3);
       ctx.globalAlpha = 1;
     }
     /* 施法进度 */
     if (p.cast) {
-      const total = p.cast.type === "test" ? 4 : 3;
+      const total = p.cast.type === "test" ? 0.5 : 0.375;
       const k = 1 - p.cast.turns / total;
       ctx.strokeStyle = p.cast.type === "fix" ? "#7cf3b0" : "#63c8ff";
       ctx.lineWidth = 3;
@@ -498,7 +698,7 @@ window.RENDER = (() => {
     if (W.cfg.r > 0) {
       const grd = ctx.createRadialGradient(px, py, TS * W.cfg.r * 0.55, px, py, TS * (W.cfg.r + 1.5));
       grd.addColorStop(0, "rgba(0,0,0,0)");
-      grd.addColorStop(1, "rgba(2,3,5,.92)");
+      grd.addColorStop(1, "rgba(2,3,5,.82)");
       ctx.fillStyle = grd;
       ctx.fillRect(cam.x - TS, cam.y - TS, view.w + TS * 2, view.h + TS * 2);
     }
@@ -571,7 +771,7 @@ window.RENDER = (() => {
       if (!g.on) continue;
       if (!WORLD.observed(W, g.x, g.y) && !W.seen[WORLD.idx(W, W.layer, g.x, g.y)]) continue;
       const m = smooth("gh" + gi, g.x, g.y, 1 / 60);
-      const px = (m.x + 0.5) * TS, py = (m.y + 0.5) * TS;
+      const px = m.x * TS, py = m.y * TS;
       ctx.globalAlpha = 0.4 + 0.12 * Math.sin(time * 5);
       ctx.fillStyle = "#9ec8ff";
       ctx.beginPath();
@@ -587,7 +787,7 @@ window.RENDER = (() => {
       const px = (f.x + 0.5) * TS, py = (f.y + 0.5) * TS;
       ctx.globalAlpha = Math.min(0.5, f.ticks / WORLD.STEP_HZ * 0.2);
       ctx.strokeStyle = "#7cf3b0"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(px, py, f.r * TS * (1 - (f.ticks % 8) / 24), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, py, f.r * TS * (1 - (f.ticks / (5 * WORLD.STEP_HZ))), 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.fillStyle = "rgba(124,243,176,.9)"; ctx.font = Math.floor(TS * 0.24) + "px monospace";
       ctx.textAlign = "center";
@@ -609,7 +809,7 @@ window.RENDER = (() => {
     /* 全屏暗角 */
     const g = ctx.createRadialGradient(view.w / 2, view.h / 2, Math.min(view.w, view.h) * 0.35,
                                        view.w / 2, view.h / 2, Math.max(view.w, view.h) * 0.75);
-    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.55)");
+    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.38)");
     ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, view.h);
 
     if (fx.red > 0.01) { ctx.fillStyle = "rgba(255,40,40," + (fx.red * 0.4) + ")"; ctx.fillRect(0, 0, view.w, view.h); }
@@ -635,7 +835,12 @@ window.RENDER = (() => {
     }
   }
 
-  function reset() { memoPlayerReset(); }
+  function reset() {
+    memoPlayerReset();
+    parts.length = 0;
+    landK = 0; prevGrounded = true;
+    bgCache = null; bgSeed = -1;
+  }
   function memoPlayerReset() { for (const k in memo) delete memo[k]; cam.init = false; }
 
   return { attach, resize, draw, kick, flash, reset, view: () => view };
