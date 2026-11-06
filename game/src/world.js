@@ -22,8 +22,10 @@ window.WORLD = (() => {
 
   /* ---------------- 玩家物理 ----------------
    * 坐标单位是格：格 tx 占据 [tx, tx+1)，格中心是 tx+0.5。
-   * 玩家 p.x / p.y 是**中心点**的连续坐标，渲染时直接乘 TS。 */
-  const PW = 0.62, PH = 0.86;         // AABB 宽高
+   * 玩家 p.x / p.y 是**锚点**的连续坐标（约在角色胸口），渲染时直接乘 TS。
+   * 碰撞箱是长方形：上沿贴兜帽顶（-PT），下沿贴阴影下缘切线（+PB，= 1.44r，r=0.37）。
+   * 总高 PT+PB = 0.86 与旧版一致，所以脚底/头顶的世界轨迹不变，关卡可玩性不受影响。 */
+  const PW = 0.62, PT = 0.327, PB = 0.533;
   const GRAV = 40;                    // 格/秒²
   const RUN_SIDE = 5.0;               // 横版水平速度
   const RUN_TOP = 5.4;                // 俯视速度
@@ -70,11 +72,11 @@ window.WORLD = (() => {
 
   /* ---------------- 玩家 AABB ---------------- */
   function syncCell(p) { p.cx = Math.floor(p.x); p.cy = Math.floor(p.y); }
-  function boxOf(p) { return { l: p.x - PW / 2, r: p.x + PW / 2, t: p.y - PH / 2, b: p.y + PH / 2 }; }
+  function boxOf(p) { return { l: p.x - PW / 2, r: p.x + PW / 2, t: p.y - PT, b: p.y + PB }; }
   function cellX0(p) { return Math.floor(p.x - PW / 2 + EPS); }
   function cellX1(p) { return Math.floor(p.x + PW / 2 - EPS); }
-  function cellY0(p) { return Math.floor(p.y - PH / 2 + EPS); }
-  function cellY1(p) { return Math.floor(p.y + PH / 2 - EPS); }
+  function cellY0(p) { return Math.floor(p.y - PT + EPS); }
+  function cellY1(p) { return Math.floor(p.y + PB - EPS); }
   /** 玩家能不能站上去（横版支撑：实体格 + 单向平台） */
   function standable(W, x, y) {
     if (!inb(W, x, y)) return false;
@@ -200,8 +202,8 @@ window.WORLD = (() => {
       seen: new Array(layers.length * lv.w * lv.h).fill(0),
       reveal: new Array(layers.length * lv.w * lv.h).fill(0),
       flashes: [],
-      player: { x: st.x + 0.5, y: st.y + 0.5, cx: st.x, cy: st.y,
-                px: st.x + 0.5, py: st.y + 0.5,
+      player: { x: st.x + 0.5, y: st.y + 1 - PB, cx: st.x, cy: st.y,
+                px: st.x + 0.5, py: st.y + 1 - PB,
                 vx: 0, vy: 0, dir: 1, lastDx: 1, lastDy: 0,
                 grounded: false, coyote: 0, jumpBuf: 0, dropT: 0, landT: 0,
                 cast: null, dead: false, inv: 0, stun: 0, logCd: 0, doorCd: 0 },
@@ -532,9 +534,9 @@ window.WORLD = (() => {
     o.tick = (o.tick || 0) * mul;
     if (p) {
       p.x = (p.x || 0) + 0.5;
-      p.y = (p.y || 0) + 0.5;
-      p.px = (p.px != null ? p.px : p.x - 0.5) + 0.5;
-      p.py = (p.py != null ? p.py : p.y - 0.5) + 0.5;
+      p.y = (p.y || 0) + 1 - PB;                    // 旧格坐标 → 连续坐标：锚点让碰撞箱整个落在格内
+      p.px = (p.px != null ? p.px + 0.5 : p.x);
+      p.py = (p.py != null ? p.py + 1 - PB : p.y);
       p.vx = 0; p.vy = 0; p.airUp = 0;
       p.grounded = false; p.coyote = 0; p.jumpBuf = 0; p.dropT = 0; p.doorCd = 0;
       p.logCd = (p.logCd || 0) * sec;
@@ -862,7 +864,7 @@ window.WORLD = (() => {
     for (let r = 1; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       if (blocked(p.cx + dx, p.cy + dy)) continue;
-      p.x = p.cx + dx + 0.5; p.y = p.cy + dy + 0.5;
+      p.x = p.cx + dx + 0.5; p.y = p.cy + dy + 1 - PB;
       p.vx = 0; p.vy = 0; p.grounded = false;
       syncCell(p);
       return true;
@@ -929,17 +931,17 @@ window.WORLD = (() => {
     p.y += dy;
     const x0 = cellX0(p), x1 = cellX1(p);
     if (dy > 0) {
-      const ty = Math.floor(p.y + PH / 2 - EPS);
+      const ty = Math.floor(p.y + PB - EPS);
       for (let tx = x0; tx <= x1; tx++) {
         if (!solidAt(W, tx, ty)) continue;
-        p.y = Math.min(p.y, ty - PH / 2 - EPS);
+        p.y = Math.min(p.y, ty - PB - EPS);
         p.vy = Math.min(0, p.vy);
       }
     } else {
-      const ty = Math.floor(p.y - PH / 2 + EPS);
+      const ty = Math.floor(p.y - PT + EPS);
       for (let tx = x0; tx <= x1; tx++) {
         if (!solidAt(W, tx, ty)) continue;
-        p.y = Math.max(p.y, ty + 1 + PH / 2 + EPS);
+        p.y = Math.max(p.y, ty + 1 + PT + EPS);
         p.vy = Math.max(0, p.vy);
       }
     }
@@ -953,17 +955,17 @@ window.WORLD = (() => {
     p.grounded = false;
     if (p.dropT > 0) return;
     const tx = p.cx;
-    const foot = p.y + down * (PH / 2);
+    const foot = p.y + down * (down > 0 ? PB : PT);   // 重力侧的箱边才是「脚」
     const ty = down > 0 ? Math.floor(foot + 0.02) : Math.floor(foot - 0.02);
     if (!inb(W, tx, ty)) return;
     const ch = tile(W, tx, ty);
     if (solidAt(W, tx, ty)) {
-      p.y = down > 0 ? ty - PH / 2 : ty + 1 + PH / 2;
+      p.y = down > 0 ? ty - PB : ty + 1 + PT;
       p.vy = 0; p.grounded = true; return;
     }
     if (ch === "+") {
-      if (down > 0 && p.vy >= 0) { p.y = ty - PH / 2; p.vy = 0; p.grounded = true; }
-      else if (down < 0 && p.vy <= 0) { p.y = ty + 1 + PH / 2; p.vy = 0; p.grounded = true; }
+      if (down > 0 && p.vy >= 0) { p.y = ty - PB; p.vy = 0; p.grounded = true; }
+      else if (down < 0 && p.vy <= 0) { p.y = ty + 1 + PT; p.vy = 0; p.grounded = true; }
     }
   }
 
@@ -1017,7 +1019,7 @@ window.WORLD = (() => {
 
     /* 按住 ↓：在单向平台上往下穿，空中则加速下落 */
     if (!p.cast && I.down("down")) {
-      const fx = p.cx, fy = down > 0 ? Math.floor(p.y + PH / 2 + 0.03) : Math.floor(p.y - PH / 2 - 0.03);
+      const fx = p.cx, fy = down > 0 ? Math.floor(p.y + PB + 0.03) : Math.floor(p.y - PT - 0.03);
       if (p.grounded && inb(W, fx, fy) && onewayAt(W, fx, fy)) {
         /* 要一口气穿过整格，不然 dropT 结束后会被同一块单杠吸回去 */
         p.dropT = 0.25; p.grounded = false; p.vy = down * 5;
@@ -1091,7 +1093,7 @@ window.WORLD = (() => {
       return true;
     }
     const down = W.gravity > 0 ? 1 : -1;
-    const foot = p.y + down * (PH / 2);
+    const foot = p.y + down * (down > 0 ? PB : PT);
     const fy = Math.floor(foot);
     const fx = Math.floor(p.x);
     if (!inb(W, fx, fy)) return false;
@@ -1260,7 +1262,7 @@ window.WORLD = (() => {
   }
 
   function boxHitsCell(p, x, y) {
-    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && p.y + PH / 2 > y && p.y - PH / 2 < y + 1;
+    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && p.y + PB > y && p.y - PT < y + 1;
   }
 
   function sweepBug(W, b) {

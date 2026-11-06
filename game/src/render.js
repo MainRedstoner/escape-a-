@@ -21,7 +21,7 @@ window.RENDER = (() => {
   let bgCache = null, bgSeed = -1;
   const parts = [];
   let runPhase = 0, landK = 0, prevGrounded = true;
-  const PW = 0.62, PH = 0.86;        // 和 world.js 的玩家 AABB 保持一致
+  const PW = 0.62, PT = 0.327, PB = 0.533;   // 和 world.js 的玩家 AABB 保持一致（长方形：上沿兜帽顶 / 下沿阴影下切线）
 
   function attach(canvas) {
     cv = canvas; ctx = cv.getContext("2d");
@@ -614,7 +614,7 @@ window.RENDER = (() => {
     /* 落地反馈：压扁、尘土、轻震屏 */
     if (!prevGrounded && p.grounded) {
       landK = 1;
-      spawnDust(px, py + down * (PH * TS / 2));
+      spawnDust(px, py + down * (down > 0 ? PB : PT) * TS);
       kick(2.2);
     }
     prevGrounded = p.grounded;
@@ -631,20 +631,25 @@ window.RENDER = (() => {
       sy = 1 - landK * 0.16; sx = 1 + landK * 0.2;
     }
 
-    /* 影子：横版离地越高越小越淡；俯视没有高度，固定画在脚下 */
+    /* 影子：横版离地越高越小越淡；俯视没有高度，固定画在脚下。
+     * 下缘切线严格落在碰撞箱的重力侧边上（PB·TS / 翻转重力时 PT·TS）：
+     * 落地时切线 = 箱底 = 地面线，影子不再渗进地板里。 */
     const groundedLook = side ? p.grounded : true;
     const lift = side && !p.grounded ? Math.min(TS * 1.4, Math.abs(p.vy) * TS * 0.07) : 0;
+    const gEdge = down > 0 ? PB : PT;          // 碰撞箱重力侧的半高
     ctx.save();
     ctx.translate(px, py);
     ctx.globalAlpha = p.dead ? 0.2 : (groundedLook ? 0.42 : 0.24);
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, down * (r * 1.16 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, down * (gEdge * TS - r * 0.28 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
     ctx.save();
-    ctx.translate(px, py);
+    /* 身体原点放在锚点下方（约胸口）：兜帽顶(-1.16r)正好贴住 AABB 顶(-PT)，
+     * 脚底(+1.07r)则落在箱底(+PB)上方一点，跟旧版一样留 0.03 格的小脚缝 */
+    ctx.translate(px, py + 1.16 * r - PT * TS);
     if (p.dead) ctx.globalAlpha = 0.35;
     ctx.scale(sx, sy);
     if (W.mode === "side") ctx.rotate(p.dir * 0.03 + (p.grounded ? Math.sin(runPhase) * 0.02 : 0));
@@ -660,14 +665,14 @@ window.RENDER = (() => {
     ctx.lineCap = "butt";
 
     /* 身体：一件带兜帽的外套 + 一台抱在怀里的笔记本
-     * 视觉上下沿要严格落在 AABB（±0.43 格）里，否则看着会「脚陷进地板」或「碰撞箱偏下」 */
+     * 视觉上下沿要严格落在 AABB（p.y-PT ~ p.y+PB）里，否则看着会「脚陷进地板」或「碰撞箱偏下」 */
     ctx.fillStyle = "#2f6f8f";
     ctx.beginPath();
     ctx.moveTo(-r * 0.85, r * 0.82); ctx.quadraticCurveTo(-r * 1.02, -r * 0.28, 0, -r * 0.82);
     ctx.quadraticCurveTo(r * 1.02, -r * 0.28, r * 0.85, r * 0.82); ctx.closePath(); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.07)";
     ctx.beginPath(); ctx.moveTo(-r * 0.7, -r * 0.1); ctx.quadraticCurveTo(0, -r * 0.55, r * 0.7, -r * 0.1); ctx.closePath(); ctx.fill();
-    /* 兜帽 + 脸：兜帽顶 = -1.16r ≈ -0.43 格，正好贴住 AABB 顶 */
+    /* 兜帽 + 脸：兜帽顶 = 原点上方 1.16r = p.y - PT，正好贴住 AABB 顶 */
     ctx.fillStyle = "#1b3f52";
     ctx.beginPath(); ctx.arc(0, -r * 0.62, r * 0.54, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#f0d0a8";
