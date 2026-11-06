@@ -1201,8 +1201,7 @@ window.WORLD = (() => {
       bd.justLit = !was && bd.lit;
       if (!bd.lit) continue;
       const pc = (bd.axis === "x" ? p.x : p.y) - 0.5;          // 玩家中心格坐标 → 格索引空间
-      const half = bd.axis === "x" ? PW / 2 : PH / 2;
-      if (Math.abs(pc - bd.pos) < bd.thick + half) {
+      if (Math.abs(pc - bd.pos) < bd.thick) {
         die(W, bd.justLit ? "CI 重试成功，红光亮起来的时候你正好站在光里" : "被 CI 的红光扫到了");
         return;
       }
