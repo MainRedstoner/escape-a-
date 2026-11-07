@@ -1271,10 +1271,13 @@ window.WORLD = (() => {
     runTut(W);
   }
 
+  /** 判定箱（锚点 x,y）与格子 (cx,cy) 是否重叠 */
+  function boxHitsCellAt(W, x, y, cx, cy) {
+    const bh = W.gravity > 0 ? P_S : P_H, th = W.gravity > 0 ? P_H : P_S;
+    return x + PW / 2 > cx && x - PW / 2 < cx + 1 && y + bh > cy && y - th < cy + 1;
+  }
   function boxHitsCell(W, p, x, y) {
-    /* 压块用移动 / 支撑箱而不是判定箱：判定箱的阴影侧会扎进地面砖，
-     * 俯视里锚点在格中心时还会探进下一格 0.033 格 —— 隔着一格误判被压 */
-    return p.x + PW / 2 > x && p.x - PW / 2 < x + 1 && yBot(W, p) > y && yTop(W, p) < y + 1;
+    return boxHitsCellAt(W, p.x, p.y, x, y);
   }
 
   function sweepBug(W, b) {
@@ -1322,11 +1325,12 @@ window.WORLD = (() => {
     if (p.inv > 0) return;
     for (const b of W.bugs) {
       if (!BUGS.isLethal(b)) continue;
-      if (U.dist(p.x, p.y, b.x + 0.5, b.y + 0.5) < 0.62) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
-      /* 两人对穿（同 tick 交换位置）也算撞上 */
+      /* 判定 = 判定箱碰到甲虫所在格子（与 B 键画出来的箱子同一几何） */
+      if (boxHitsCellAt(W, p.x, p.y, b.x, b.y)) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
+      /* 两人对穿（同 tick 交换格子）也算撞上 */
       if (b.px != null &&
-          Math.abs(b.x + 0.5 - p.px) + Math.abs(b.y + 0.5 - p.py) < 0.9 &&
-          Math.abs(b.px + 0.5 - p.x) + Math.abs(b.py + 0.5 - p.y) < 0.9) {
+          boxHitsCellAt(W, p.px, p.py, b.x, b.y) &&
+          boxHitsCellAt(W, p.x, p.y, b.px, b.py)) {
         die(W, "和「" + BUGS.get(b.kind).label + "」迎面撞在一起"); return;
       }
     }
