@@ -360,7 +360,7 @@
 
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
-  <span>构建 <b id="stBuild">2026-11-08a</b></span>
+  <span>构建 <b id="stBuild">2026-11-08b</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
   <span>画布 <b id="stGain">1.00x</b></span>
@@ -382,7 +382,7 @@
 <script src="src/art3d/world_github.js?v=131"></script>
 <script src="src/art3d/world_hf.js?v=131"></script>
 <script src="src/art3d/world_shit.js?v=131"></script>
-<script src="src/art3d/world.js?v=164"></script>
+<script src="src/art3d/world.js?v=170"></script>
 <!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
 <script src="src/art.js?v=36"></script>
 <script>
@@ -802,6 +802,19 @@ function buildLightPanel(s) {
       v => { mult = v; apply(); }));
   });
 
+  /* ---------------- 空气光柱（丁达尔效应） ---------------- */
+  const shafts = (s.glows || []).filter(b => b.kind === "sunshaft");
+  if (shafts.length) {
+    sec("空气光柱（丁达尔）");
+    let mult = 1;
+    const apply = () => {
+      for (const b of shafts) b.opacity = (b.baseOpacity === undefined ? 0.4 : b.baseOpacity) * mult;
+    };
+    host.appendChild(sliderRow("光柱强度", 0, 2.5, 0.02, 1, v => "×" + v.toFixed(2), v => {
+      mult = v; apply();
+    }));
+  }
+
   /* ---------------- 太阳阴影（正交深度图） ---------------- */
   sec("太阳阴影");
   const cfg = s.sunShadow;
@@ -857,11 +870,16 @@ function currentLightJson() {
   const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
   if (!s) return "{}";
   const L = s.lights || {};
+  /* 光柱强度是「相对 baseOpacity」的倍数，面板里只改 opacity，这里反算回去 */
+  const shafts = (s.glows || []).filter(b => b.kind === "sunshaft");
+  const shaftIn = shafts.length && shafts[0].baseOpacity
+    ? r3(shafts[0].opacity / shafts[0].baseOpacity) : null;
   const out = {
     scene: s.__id || (SCENES[cur] && SCENES[cur].id) || "",
     sun: vec3(L.sun || [0, 1, 0]),
     sunCol: vec3(L.sunCol || [0, 0, 0]),
     sunWrap: r3(L.sunWrap === undefined ? 1 : L.sunWrap),
+    sunShaft: shaftIn,
     skyCol: vec3(L.skyCol || [0, 0, 0]),
     groundCol: vec3(L.groundCol || [0, 0, 0]),
     sunShadow: s.sunShadow ? {
