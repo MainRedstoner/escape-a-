@@ -390,7 +390,7 @@ const A3DWorld = (() => {
    *  大世界专用材质（都在本地用 A3DTex.get 生成，不碰 textures.js）
    * ============================================================ */
   const WTex = (() => {
-    let ashlar = null, slate = null, stained = null, rose = null, sea = null, pine = null, gravel = null, petalPale = null;
+    let ashlar = null, slate = null, stained = null, rose = null, sea = null, pine = null, gravel = null, petalPale = null, hedgeTex = null;
     /** 大块料石：交界清楚、颜色别太跳，教堂才不是「锈铁皮」 */
     function makeAshlar() {
       return A3DTex.get("w.ashlar", 256, 256, (x, w, h) => {
@@ -497,6 +497,34 @@ const A3DWorld = (() => {
         x.strokeStyle = "rgba(240,220,180,.5)"; x.lineWidth = 3;
         x.beginPath(); x.arc(cx, cy, R - 2, 0, Math.PI * 2); x.stroke();
         A3DTex.grain(x, w, h, { freq: 6, oct: 2, strength: 0.08, seed: 633 });
+      });
+    }
+    /** 绿篱：小圆叶密铺，近看是修剪过的树篱，不是一块绿布 / 绿木板 */
+    function makeHedge() {
+      return A3DTex.get("w.hedgeTex", 128, 128, (x, w, h) => {
+        const r = A3DTex.rnd(641);
+        x.fillStyle = "#22331f"; x.fillRect(0, 0, w, h);
+        for (let i = 0; i < 760; i++) {
+          const px = r() * w, py = r() * h;
+          const rr = 0.8 + r() * 2.0;
+          const t = 0.6 + r() * 0.75;
+          const col = "rgba(" + Math.round(46 * t) + "," + Math.round(88 * t) + ","
+            + Math.round(44 * t) + "," + (0.55 + r() * 0.45) + ")";
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx0 = px + dx * w, cy0 = py + dy * h;
+              if (cx0 < -rr || cx0 > w + rr || cy0 < -rr || cy0 > h + rr) continue;
+              x.fillStyle = col;
+              x.beginPath(); x.arc(cx0, cy0, rr, 0, TAU); x.fill();
+            }
+          }
+        }
+        for (let i = 0; i < 120; i++) {
+          const px = r() * w, py = r() * h, rr = 0.6 + r() * 1.2;
+          x.fillStyle = "rgba(120,170,90," + (0.1 + r() * 0.2) + ")";
+          x.beginPath(); x.arc(px, py, rr, 0, TAU); x.fill();
+        }
+        A3DTex.grain(x, w, h, { freq: 20, oct: 2, strength: 0.1, seed: 643 });
       });
     }
     /** 砾石：细碎暖灰石子，整张可无缝平铺；比深色铺装亮一档，花园步道用。
@@ -627,6 +655,7 @@ const A3DWorld = (() => {
       sea() { return sea || (sea = makeSea()); },
       pine() { return pine || (pine = makePine()); },
       gravel() { return gravel || (gravel = makeGravel()); },
+      hedge() { return hedgeTex || (hedgeTex = makeHedge()); },
       petalPale() { return petalPale || (petalPale = makePetalPale()); }
     };
   })();
@@ -1024,7 +1053,7 @@ const A3DWorld = (() => {
     const iron = st.pen("w.churchIron", T.darkMetal(), { tint: [0.3, 0.31, 0.34], spec: 0.52 });
     const goldP = st.pen("w.churchGold", T.brass(), { tint: [1.15, 0.98, 0.6], spec: 0.62 });
     const lampGlass = st.pen("w.churchLamp", null, { unlit: true, tint: [1.0, 0.78, 0.42] });
-    const hedge = st.pen("w.churchHedge", T.fabric(), { tint: [0.44, 0.64, 0.4], spec: 0.03, rim: 0.1 });
+    const hedge = st.pen("w.churchHedge", WTex.hedge(), { tint: [1.0, 1.06, 0.96], spec: 0.03, rim: 0.1 });
     const flowerP = st.pen("w.churchFlower", T.petal(), { cutout: true, tint: [1.35, 0.9, 0.55], sway: 1 });
     const pave = st.pen("w.churchPave", T.paving(), { tint: [0.74, 0.72, 0.68], spec: 0.1, rim: 0.12 });
     const ironFence = st.pen("w.churchFence", T.darkMetal(), { tint: [0.3, 0.31, 0.34], spec: 0.46 });
@@ -1284,8 +1313,8 @@ const A3DWorld = (() => {
       const h = stepRise + 0.12;
       B(trim, 0, top - h / 2, stepZ0 + stepD * (i + 0.5), stepW, h, stepD + 0.02, [1, 1, 1]);
       // 踏面前缘压一条灰色石带，远看能数出台阶（别太宽太黑，近看像一块悬浮的铁条）
-      B(trim, 0, top + 0.012, stepZ0 + stepD * (i + 0.5) + stepD / 2 - 0.11,
-        stepW - 0.8, 0.024, 0.13, [0.62, 0.6, 0.55]);
+      B(trim, 0, top + 0.001, stepZ0 + stepD * (i + 0.5) + stepD / 2 - 0.11,
+        stepW - 0.8, 0.03, 0.13, [0.62, 0.6, 0.55]);
     }
     // 台阶两侧的石栏杆：望柱 + 扶手，跟着台阶一起落
     for (const s2 of [-1, 1]) {
@@ -1308,33 +1337,141 @@ const A3DWorld = (() => {
       }
     }
 
-    /* ---- 门前花园（一）：台阶前留一小块浅色落脚平台，再往南是一条砾石步道。
-     * 原来这里铺的是 2.7m 宽的深色砖道，从院门一路铺到台阶，远看像一条柏油路；
-     * 现在砖只留在台阶踏面上，步道交给浅色砾石，两侧全是花圃。 ---- */
+    /* ---- 门前花园：一条打弯的砾石步道 + 左右不对称的自然式花境 ----
+     * 以前是两片一模一样的方花圃，像复制粘贴，既占地方又不自然；
+     * 现在左边一片大花境、里面种一棵小柏树，右边一片小花境、围着石瓮，
+     * 形状是顺手画的有机轮廓，两边的花色、疏密、朝向都不一样。 ---- */
     const gyAt = (lx, lz) => {
       const w = M.xf(D, [lx, 0, lz]);
       return groundH(w[0], w[2]) - y0;
     };
-    const pathHW = 1.32;                          // 砾石步道半宽
-    const apronZ0 = stepZBot + 0.04;              // 落脚平台北缘
-    const apronZ1 = apronZ0 + 1.2;                // 落脚平台南缘
-    const gardenZ1 = 26.4;                        // 步道南端（穿出院门）
-    for (let i2 = 0; i2 < 2; i2++) {
-      const pz = apronZ0 + (i2 + 0.5) * (apronZ1 - apronZ0) / 2;
-      B(trim, 0, gyAt(0, pz) + 0.05, pz, 5.7, 0.08, (apronZ1 - apronZ0) / 2 - 0.01,
-        [0.98, 0.97, 0.93], 0.9);
-    }
-    // 砾石步道：按地形一格一格铺，贴地不悬空
+    // 这一段要用的笔统一先取好，后面写起来不跳
     const pathP = st.pen("w.gardenPath", WTex.gravel(), { tint: [1.02, 0.99, 0.92], spec: 0.02, rim: 0.1 });
-    for (let z = apronZ1; z < gardenZ1; z += 1.6) {
-      const z0 = z, z1 = Math.min(gardenZ1, z + 1.6);
-      P.quad4(pathP, D,
-        [-pathHW, gyAt(-pathHW, z1) + 0.055, z1],
-        [pathHW, gyAt(pathHW, z1) + 0.055, z1],
-        [pathHW, gyAt(pathHW, z0) + 0.055, z0],
-        [-pathHW, gyAt(-pathHW, z0) + 0.055, z0],
-        [1, 1, 1], [-pathHW * 0.8, z1 * 0.8, pathHW * 0.8, z0 * 0.8], 0);
+    const bedStone = st.pen("w.churchBedStone", WTex.ashlar(), { tint: [0.94, 0.92, 0.86], spec: 0.08, rim: 0.14 });
+    const soil = st.pen("w.churchSoil", T.dirt(), { tint: [0.95, 1.02, 0.7] });
+    const cypressPen = st.pen("w.cypress", WTex.pine(), { tint: [1.2, 1.3, 1.15], sway: 1, rim: 0.2 });
+    const cypressTrunk = st.pen("w.cypressTrunk", T.woodDark(), { tint: [0.4, 0.32, 0.28] });
+    const stemB = st.pen("w.churchStem", null, { tint: [0.28, 0.45, 0.22], sway: 0.35 });
+    const petalB = st.pen("w.churchPetal", T.petal(), { cutout: true, tint: [1.2, 0.95, 0.7], rim: 0.25 });
+    const paleB = st.pen("w.gardenPale", WTex.petalPale(), { cutout: true, tint: [1, 1, 1], rim: 0.2 });
+    const leafBed = st.pen("w.churchBedLeaf", T.leaf(), { cutout: true, tint: [0.6, 0.9, 0.5], sway: 0.7 });
+    const boxB = st.pen("w.gardenBox", WTex.hedge(), { tint: [1.08, 1.12, 0.96], spec: 0.03, rim: 0.08 });
+    const urnB = st.pen("w.gardenUrn", T.plasterPale(), { tint: [1.3, 1.25, 1.13], spec: 0.08, rim: 0.16 });
+    const benchWood = st.pen("w.gardenBench", T.woodPale(), { tint: [1.15, 0.92, 0.7], spec: 0.06, rim: 0.1 });
+    const treeLeaf = st.pen("w.gardenTree", WTex.hedge(), { tint: [1.18, 1.16, 0.95], sway: 0.6, rim: 0.15 });
+    const rockB = st.pen("w.gardenRock", T.stone(), { tint: [0.92, 0.9, 0.84], spec: 0.12, rim: 0.1 });
+
+    /* 落脚平台：台基同款浅色石。只铺一整块，两块拼缝最容易共面打架。 */
+    const apronZ0 = stepZBot + 0.04;
+    const apronZ1 = apronZ0 + 1.15;
+    B(trim, 0, gyAt(0, (apronZ0 + apronZ1) / 2) + 0.045, (apronZ0 + apronZ1) / 2,
+      5.2, 0.09, apronZ1 - apronZ0, [0.98, 0.97, 0.93], 0.9);
+
+    /* 步道中心线：从台阶前到院门，轻轻拐一道 S 弯，不是一条直尺线 */
+    const PATH_Z0 = apronZ1 - 0.18, PATH_Z1 = 26.05;
+    const PATH_N = 14;
+    const pathHalf = t => 1.28 - 0.14 * t;
+    const pathCenter = t => {
+      const z = PATH_Z0 + (PATH_Z1 - PATH_Z0) * t;
+      // sin(πt) 把两端收在 0，sin(2πt) 负责左右摆
+      const x = 0.6 * Math.sin(t * Math.PI * 2) * Math.sin(t * Math.PI);
+      return [x, z];
+    };
+    const pathPts = [], pathNorms = [], pathLen = [0];
+    for (let i = 0; i <= PATH_N; i++) pathPts.push(pathCenter(i / PATH_N));
+    for (let i = 1; i <= PATH_N; i++) {
+      pathLen.push(pathLen[i - 1] + Math.hypot(
+        pathPts[i][0] - pathPts[i - 1][0], pathPts[i][1] - pathPts[i - 1][1]));
     }
+    for (let i = 0; i <= PATH_N; i++) {
+      const a = pathPts[Math.max(0, i - 1)], b = pathPts[Math.min(PATH_N, i + 1)];
+      let dx = b[0] - a[0], dz = b[1] - a[1];
+      const l = Math.hypot(dx, dz) || 1;
+      pathNorms.push([-dz / l, dx / l]);
+    }
+    for (let i = 0; i < PATH_N; i++) {
+      const a = pathPts[i], b = pathPts[i + 1];
+      const na = pathNorms[i], nb = pathNorms[i + 1];
+      const ha = pathHalf(i / PATH_N), hb = pathHalf((i + 1) / PATH_N);
+      const p0 = [a[0] - na[0] * ha, 0, a[1] - na[1] * ha];
+      const p1 = [a[0] + na[0] * ha, 0, a[1] + na[1] * ha];
+      const p2 = [b[0] + nb[0] * hb, 0, b[1] + nb[1] * hb];
+      const p3 = [b[0] - nb[0] * hb, 0, b[1] - nb[1] * hb];
+      for (const p of [p0, p1, p2, p3]) p[1] = gyAt(p[0], p[2]) + 0.055;
+      // UV 沿路径方向排：横向 0..宽、纵向按弧长，斜着铺也不会把石子拉成条纹
+      P.quad4(pathP, D, p0, p1, p2, p3, [1, 1, 1],
+        [0, pathLen[i] * 0.8, (ha + hb) * 0.8, pathLen[i + 1] * 0.8], 0);
+    }
+    // 路缘碎石：隔一段压一块，有的地方干脆不压，边界才不是一条虚线
+    for (let i = 0; i < 15; i++) {
+      if (HASH(i, 11) < 0.24) continue;
+      const t = (i + 0.5) / 15;
+      const p = pathCenter(t);
+      const hw = pathHalf(t);
+      const n = pathNorms[Math.round(t * PATH_N)];
+      const s2 = i % 2 ? 1 : -1;
+      const off = hw + 0.1 + HASH(i, 13) * 0.18;
+      const px = p[0] + n[0] * off * s2;
+      const pz = p[1] + n[1] * off * s2;
+      const gy = gyAt(px, pz);
+      bedStone.box.call(bedStone,
+        mul(m4(px, gy + 0.03 + HASH(i, 15) * 0.02, pz,
+          (HASH(i, 17) - 0.5) * 0.08, HASH(i, 3) * TAU, (HASH(i, 19) - 0.5) * 0.08)),
+        0.22 + HASH(i, 5) * 0.2, 0.09, 0.16 + HASH(i, 7) * 0.13,
+        [0.86 - HASH(i, 9) * 0.14, 0.84, 0.78], 0.9);
+    }
+
+    /* 院门槛：横跨大门的一条浅色石门槛。内外两段砾石路各躲在门槛下面，
+     * 不在同一高度上重叠，接缝就不会闪。 */
+    {
+      const gw = M.xf(D, [0, 0, 26.25]);
+      const gx = gw[0], gz = gw[2], gy = groundH(gx, gz);
+      const sill = st.pen("w.gardenSill", WTex.ashlar(), { tint: [1.02, 1.0, 0.94], spec: 0.08, rim: 0.14 });
+      sill.box.call(sill, m4(gx, gy + 0.06, gz), 4.9, 0.14, 1.1, [1, 1, 1], 0.9);
+      for (const s2 of [-1, 1]) {
+        sill.box.call(sill, m4(gx + s2 * 2.3, gy + 0.1, gz), 0.36, 0.22, 1.16, [0.94, 0.92, 0.86], 1.0);
+      }
+    }
+
+    /* ---- 两片不一样的花境：位置、朝向、大小、花色都不同 ---- */
+    const BEDS = [
+      {
+        cx: -4.6, cz: 20.0, rx: 2.85, rz: 2.3, rot: 0.34,
+        wob: [0.11, 0.06, 1.7], seed: 71, palette: "cool", feature: "tree"
+      },
+      {
+        cx: 4.2, cz: 21.6, rx: 2.15, rz: 1.75, rot: -0.3,
+        wob: [0.09, 0.05, 3.1], seed: 73, palette: "warm", feature: "urn"
+      }
+    ];
+    const bedPoint = (bed, t) => {
+      const wob = 1 + bed.wob[0] * Math.cos(3 * t + bed.wob[2]) + bed.wob[1] * Math.cos(5 * t + 1.3);
+      const ex = Math.cos(t) * bed.rx * wob, ez = Math.sin(t) * bed.rz * wob;
+      const ca = Math.cos(bed.rot), sa = Math.sin(bed.rot);
+      return [bed.cx + ex * ca - ez * sa, bed.cz + ex * sa + ez * ca];
+    };
+    const inBed = (lx, lz, pad) => {
+      for (const bed of BEDS) {
+        const dx = lx - bed.cx, dz = lz - bed.cz;
+        if (Math.abs(dx) > bed.rx * 1.35 || Math.abs(dz) > bed.rz * 1.35) continue;
+        const ca = Math.cos(-bed.rot), sa = Math.sin(-bed.rot);
+        const ex = dx * ca - dz * sa, ez = dx * sa + dz * ca;
+        const t = Math.atan2(ez / bed.rz, ex / bed.rx);
+        const wob = 1 + bed.wob[0] * Math.cos(3 * t + bed.wob[2]) + bed.wob[1] * Math.cos(5 * t + 1.3);
+        if (Math.hypot(ex / (bed.rx * wob), ez / (bed.rz * wob)) < (pad === undefined ? 1 : pad)) return true;
+      }
+      return false;
+    };
+    const nearPath = (lx, lz, pad) => {
+      for (let i = 0; i < PATH_N; i++) {
+        const a = pathPts[i], b = pathPts[i + 1];
+        const vx = b[0] - a[0], vz = b[1] - a[1];
+        const u = Math.max(0, Math.min(1,
+          ((lx - a[0]) * vx + (lz - a[1]) * vz) / (vx * vx + vz * vz)));
+        if (Math.hypot(lx - a[0] - vx * u, lz - a[1] - vz * u) < pathHalf((i + u) / PATH_N) + pad) return true;
+      }
+      return false;
+    };
 
     /* ---- 前院草坪：按地形逐顶点贴地铺。
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
@@ -1351,11 +1488,12 @@ const A3DWorld = (() => {
           const w = M.xf(D, [lx, 0, lz]);
           // 只在栅栏内铺草
           if (w[0] < FX0 + 0.45 || w[0] > FX1 - 0.45 || w[2] < FZ0 + 0.45 || w[2] > FZ1 - 0.45) continue;
-          // 台基 / 台阶 / 落脚平台 / 步道让开（花圃自己带土面，不用留）
+          // 台基 / 台阶 / 落脚平台让开（这些几何厚，草压在下面看不见）
           if (Math.abs(lx) < 9.9 && Math.abs(lz) < 14.7) continue;
           if (Math.abs(lx) < stepW / 2 + 0.22 && lz > PLL - 0.1 && lz < stepZBot + 0.1) continue;
-          if (Math.abs(lx) < 3.0 && lz >= apronZ0 - 0.1 && lz < apronZ1 + 0.05) continue;
-          if (Math.abs(lx) < pathHW + 0.08 && lz >= apronZ1 && lz < gardenZ1) continue;
+          if (Math.abs(lx) < 2.75 && lz >= apronZ0 - 0.1 && lz < apronZ1 + 0.05) continue;
+          /* 步道和花境不再按格子挖洞：那会在边上留下 1.6m 的方块空洞，
+           * 露出下面深色地形。草整片铺，路面和花境的土面都盖在草上面。 */
           const x0 = lx - LC / 2, x1 = lx + LC / 2;
           const z0 = lz - LC / 2, z1 = lz + LC / 2;
           const c00 = M.xf(D, [x0, 0, z1]); const c10 = M.xf(D, [x1, 0, z1]);
@@ -1371,262 +1509,274 @@ const A3DWorld = (() => {
       }
     }
 
-    /* ---- 门前花园（二）：两片对称的大花圃，从台阶脚下一直铺到院门。
-     * 石缘 + 黄杨镶边 + 密密的花带 + 中央石瓮；两片花圃夹着中央步道，
-     * 从院门望过去，花把视线一路引到教堂正门。 ---- */
-    const cypressPen = st.pen("w.cypress", WTex.pine(), { tint: [1.2, 1.3, 1.15], sway: 1, rim: 0.2 });
-    const cypressTrunk = st.pen("w.cypressTrunk", T.woodDark(), { tint: [0.4, 0.32, 0.28] });
-    const stemB = st.pen("w.churchStem", null, { tint: [0.28, 0.45, 0.22], sway: 0.35 });
-    const petalB = st.pen("w.churchPetal", T.petal(), { cutout: true, tint: [1.2, 0.95, 0.7], rim: 0.25 });
-    const leafBed = st.pen("w.churchBedLeaf", T.leaf(), { cutout: true, tint: [0.6, 0.9, 0.5], sway: 0.7 });
-    const bedStone = st.pen("w.churchBedStone", WTex.ashlar(), { tint: [0.92, 0.9, 0.84], spec: 0.08, rim: 0.14 });
-    const soil = st.pen("w.churchSoil", T.dirt(), { tint: [1.2, 0.96, 0.76] });
-    const boxB = st.pen("w.gardenBox", T.fabric(), { tint: [0.5, 0.76, 0.4], spec: 0.03, rim: 0.1 });
-    const urnB = st.pen("w.gardenUrn", T.stone(), { tint: [0.96, 0.94, 0.9], spec: 0.1, rim: 0.15 });
-    const paleB = st.pen("w.gardenPale", WTex.petalPale(), { cutout: true, tint: [1, 1, 1], rim: 0.2 });
-    const daisyB = paleB;
-    const lavB = paleB;
-    /** 便宜的碎花：一片贴图 billboard，成片撒在花圃里当基底 */
-    const sprinkle = (pen, x, y, z, r, col) =>
-      pen.quad.call(pen, mul(m4(x, y, z, -0.2, HASH(x, z) * TAU, 0)), r, r, col, [0, 0, 1, 1]);
+    /* ---- 花境：有机轮廓 + 低石缘 + 高低层次的花草 ---- */
+    const COOL = [
+      [paleB, [1.0, 1.0, 0.98]],      // 白
+      [paleB, [0.78, 0.62, 1.0]],     // 紫
+      [paleB, [1.0, 0.55, 0.65]],     // 粉
+      [petalB, [1.34, 1.16, 0.94]]    // 奶油橙
+    ];
+    const WARM = [
+      [petalB, [1.36, 0.98, 0.62]],   // 橙
+      [petalB, [1.34, 0.94, 0.6]],    // 深橙
+      [paleB, [1.0, 0.58, 0.64]],     // 粉
+      [paleB, [1.0, 1.0, 0.98]]       // 白
+    ];
+    const TREE_POS = [-5.15, 19.35];   // 西花境里的柏树
+    const URN_POS = [4.2, 21.55];      // 东花境里的石瓮
+    const bedArea = bed => Math.PI * bed.rx * bed.rz;
 
-    const gardenBed = (x0, x1, z0, z1, seed) => {
-      const rr = rng(seed);
-      // 5×5 采样定高度：石缘既不会一头埋进坡里，也不会一头悬空
-      let hi = -Infinity, lo = Infinity;
-      for (let i = 0; i <= 4; i++) {
-        for (let j = 0; j <= 4; j++) {
-          const h = gyAt(x0 + (x1 - x0) * i / 4, z0 + (z1 - z0) * j / 4);
-          if (h > hi) hi = h;
-          if (h < lo) lo = h;
+    const blobBed = (bed) => {
+      const rr = rng(bed.seed);
+      const N = 34;
+      const pts = [], hts = [];
+      let maxH = -Infinity;
+      for (let i = 0; i < N; i++) {
+        const p = bedPoint(bed, i / N * TAU);
+        pts.push(p);
+        const h = gyAt(p[0], p[1]);
+        hts.push(h);
+        if (h > maxH) maxH = h;
+      }
+      const bedTop = maxH + 0.07;     // 土面做成一个平顶：三角扇不会互相打架
+      // 土面：平顶三角扇，边缘由石缘挡住，不会从草里戳出来
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N;
+        const p0 = pts[i], p1 = pts[j];
+        soil.tri.call(soil, D,
+          [bed.cx, bedTop, bed.cz],
+          [p1[0], bedTop, p1[1]],
+          [p0[0], bedTop, p0[1]],
+          [[bed.cx * 0.5, bed.cz * 0.5],
+            [p1[0] * 0.5, p1[1] * 0.5],
+            [p0[0] * 0.5, p0[1] * 0.5]],
+          [1, 1, 1]);
+      }
+      // 低石缘：一段段沿着轮廓走，段与段互相压住，接缝不共面
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N;
+        const p0 = pts[i], p1 = pts[j];
+        const mx = (p0[0] + p1[0]) / 2, mz = (p0[1] + p1[1]) / 2;
+        const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * 1.14;
+        const ry = Math.atan2(-(p1[1] - p0[1]), p1[0] - p0[0]);
+        const gly = Math.min(hts[i], hts[j]);
+        const top = bedTop + 0.05 + (HASH(i, 4) - 0.5) * 0.008;
+        const h = top - gly + 0.18;
+        bedStone.box.call(bedStone, mul(m4(mx, top - h / 2, mz, 0, ry, 0)),
+          len, h, 0.19, [0.97 - HASH(i, 2) * 0.1, 0.96, 0.9], 0.9);
+      }
+      const pal = bed.palette === "cool" ? COOL : WARM;
+      const clear = bed.feature === "urn"
+        ? [URN_POS[0], URN_POS[1], 1.2] : [TREE_POS[0], TREE_POS[1], 1.05];
+      const inside = (fx, fz) => Math.hypot(fx - clear[0], fz - clear[1]) > clear[2];
+      const flower = (fx, fz, scale, k) => {
+        const pick = pal[k % pal.length];
+        P.chrysanthemum(pick[0], stemB, mul(m4(fx, bedTop, fz)), scale, pick[1], Math.floor(rr() * 99));
+      };
+      // 沿边一圈：花 + 叶，密一点，远看才有花带
+      const edgeN = Math.max(20, Math.round(TAU * Math.sqrt((bed.rx * bed.rx + bed.rz * bed.rz) / 2) / 0.34));
+      for (let i = 0; i < edgeN; i++) {
+        const t = i / edgeN * TAU + (rr() - 0.5) * 0.16;
+        const p = bedPoint(bed, t);
+        const edgeF = 0.82 + rr() * 0.1;
+        const fx = bed.cx + (p[0] - bed.cx) * edgeF;
+        const fz = bed.cz + (p[1] - bed.cz) * edgeF;
+        if (!inside(fx, fz)) continue;
+        for (let k = 0; k < 5; k++) {
+          P.leafBlade(leafBed, mul(m4(fx + (rr() - 0.5) * 0.42, bedTop, fz + (rr() - 0.5) * 0.42,
+            0, rr() * TAU, 0.7 + rr() * 0.7, 1, 1, 1)), 0.18 + rr() * 0.14, 0.05, [0.7, 1, 0.6]);
+        }
+        flower(fx - 0.08, fz + 0.05, 0.68 + rr() * 0.26, i);
+        if (i % 2 === 0) flower(fx + 0.16, fz - 0.1, 0.5 + rr() * 0.16, i + 1);
+        if (i % 4 === 1) {
+          P.tallLeaves(paleB, mul(m4(fx + 0.1, bedTop, fz - 0.16)), 5,
+            0.3 + rr() * 0.1, pal[1][1], Math.floor(rr() * 99));
         }
       }
-      const top = hi + 0.32, tw = 0.22;
-      const curbH = top - lo + 0.26;
-      const cy = top - curbH / 2;
-      const cx2 = (x0 + x1) / 2, cz2 = (z0 + z1) / 2;
-      const wx = x1 - x0, wz = z1 - z0;
-      // 石缘：四条边，长边压住短边
-      B(bedStone, cx2, cy, z0, wx + tw, curbH, tw, [1.0, 0.98, 0.94]);
-      B(bedStone, cx2, cy, z1, wx + tw, curbH, tw, [1.0, 0.98, 0.94]);
-      B(bedStone, x0, cy, cz2, tw, curbH, wz - tw, [0.94, 0.92, 0.88]);
-      B(bedStone, x1, cy, cz2, tw, curbH, wz - tw, [0.94, 0.92, 0.88]);
-      // 压顶：一圈更亮更宽的石台，远看花圃像石砌花池而不是土坑
-      B(bedStone, cx2, top + 0.035, z0, wx + tw + 0.12, 0.07, tw + 0.12, [1.08, 1.06, 1.0]);
-      B(bedStone, cx2, top + 0.035, z1, wx + tw + 0.12, 0.07, tw + 0.12, [1.08, 1.06, 1.0]);
-      B(bedStone, x0, top + 0.035, cz2, tw + 0.12, 0.07, wz - tw, [1.04, 1.02, 0.96]);
-      B(bedStone, x1, top + 0.035, cz2, tw + 0.12, 0.07, wz - tw, [1.04, 1.02, 0.96]);
-      // 土：填到石缘内侧。花圃里是深色腐殖土，不是一片亮砾石——
-      // 否则从院门看过来只剩满地白点，花反而看不见。
-      B(soil, cx2, top - 0.31, cz2, wx - tw, 0.56, wz - tw, [1, 1, 1]);
-      // 黄杨镶边：贴着石缘内侧一圈。分小段建，每段高度 / 颜色略变，
-      // 远看才不像一圈塑料绿盒子。
-      const hx0 = x0 + 0.30, hx1 = x1 - 0.30, hz0 = z0 + 0.30, hz1 = z1 - 0.30;
-      const hb = 0.34;
-      const hSeg = 6;
-      for (let k = 0; k < hSeg; k++) {
-        const u0 = k / hSeg, u1 = (k + 1) / hSeg;
-        const hh2 = 0.25 + rr() * 0.06;
-        const g = 0.9 + rr() * 0.16;
-        const cwk = [g, g * (0.97 + rr() * 0.05), g * 0.93];
-        for (const zz of [hz0, hz1]) {
-          B(boxB, hx0 + (hx1 - hx0) * (u0 + u1) / 2, top + 0.03 + hh2 / 2, zz,
-            (hx1 - hx0) / hSeg + 0.03, hh2, hb, cwk, 1.2);
-        }
-        for (const xx of [hx0, hx1]) {
-          B(boxB, xx, top + 0.03 + hh2 / 2, hz0 + (hz1 - hz0) * (u0 + u1) / 2,
-            hb, hh2, (hz1 - hz0) / hSeg + 0.03, cwk, 1.2);
-        }
-      }
-      // 黄杨顶上冒一圈小叶子：近看不是一块光板
-      for (let i2 = 0; i2 < 54; i2++) {
-        const u = rr(), side = i2 % 4;
-        let fx, fz;
-        if (side === 0) { fx = hx0 + (hx1 - hx0) * u; fz = hz0; }
-        else if (side === 1) { fx = hx0 + (hx1 - hx0) * u; fz = hz1; }
-        else if (side === 2) { fx = hx0; fz = hz0 + (hz1 - hz0) * u; }
-        else { fx = hx1; fz = hz0 + (hz1 - hz0) * u; }
-        P.leafBlade(leafBed, mul(m4(fx + (rr() - 0.5) * 0.26, top + 0.30 + rr() * 0.05,
-          fz + (rr() - 0.5) * 0.26,
-          0, rr() * TAU, 0.45 + rr() * 0.5, 1, 1, 1)), 0.16 + rr() * 0.1, 0.05, [0.7, 1, 0.6]);
-      }
-      // 花带：贴着黄杨内侧种一圈，橙菊 / 白菊 / 粉花交替
-      const band = 0.86;
-      const bx0 = hx0 + 0.36, bx1 = hx1 - 0.36;
-      const bz0 = hz0 + 0.36, bz1 = hz1 - 0.36;
-      const spots = [];
-      const nx = Math.max(4, Math.round((bx1 - bx0) / 0.5));
-      const nz = Math.max(4, Math.round((bz1 - bz0) / 0.5));
-      for (let i2 = 0; i2 < nx; i2++) {
-        const u = (i2 + 0.5) / nx;
-        spots.push([bx0 + (bx1 - bx0) * u, bz0 + band * 0.42]);
-        spots.push([bx0 + (bx1 - bx0) * u, bz1 - band * 0.42]);
-      }
-      for (let i2 = 0; i2 < nz; i2++) {
-        const u = (i2 + 0.5) / nz;
-        spots.push([bx0 + band * 0.42, bz0 + (bz1 - bz0) * u]);
-        spots.push([bx1 - band * 0.42, bz0 + (bz1 - bz0) * u]);
-      }
-      for (let i2 = 0; i2 < spots.length; i2++) {
-        const fx = spots[i2][0], fz = spots[i2][1];
-        // 低矮叶丛
-        for (let k = 0; k < 4; k++) {
-          P.leafBlade(leafBed, mul(m4(fx + (rr() - 0.5) * 0.44, top - 0.02, fz + (rr() - 0.5) * 0.44,
-            0, rr() * TAU, 0.7 + rr() * 0.7, 1, 1, 1)), 0.18 + rr() * 0.14, 0.05 + rr() * 0.02,
-            [0.7, 1, 0.6]);
-        }
-        // 主花：橙菊、白菊、粉菊、黄菊轮流，别整条花带一个颜色
-        const kind = i2 % 5;
-        const mainPen = kind === 0 ? paleB : petalB;
-        const mainCol = kind === 0 ? [1.0, 1.0, 0.98]
-          : kind === 1 ? [1.34, 0.94, 0.6]
-            : kind === 2 ? [1.34, 1.16, 0.94]
-              : kind === 3 ? [1.0, 0.52, 0.58] : [1.36, 1.2, 0.52];
-        P.chrysanthemum(mainPen, stemB, mul(m4(fx - 0.08, top - 0.03, fz + 0.06)),
-          0.64 + rr() * 0.24, mainCol, Math.floor(rr() * 99));
-        if (i2 % 3 === 0) {
-          P.chrysanthemum(paleB, stemB, mul(m4(fx + 0.18, top - 0.03, fz - 0.12)),
-            0.44 + rr() * 0.14, i2 % 2 ? [0.78, 0.62, 1.0] : [1.0, 1.0, 0.98], Math.floor(rr() * 99));
-        }
-        if (i2 % 4 === 1) {
-          P.tallLeaves(lavB, mul(m4(fx + 0.1, top - 0.02, fz - 0.18)), 5,
-            0.3 + rr() * 0.1, [0.74, 0.6, 1.0], Math.floor(rr() * 99));
-        }
-        sprinkle(daisyB, fx + (rr() - 0.5) * 0.5, top + 0.15 + rr() * 0.1,
-          fz + (rr() - 0.5) * 0.5, 0.085 + rr() * 0.05,
-          i2 % 3 ? [1.0, 1.0, 1.0] : [1.0, 0.62, 0.68]);
-      }
-      // 内部：地被叶铺满，中间给石瓮留一块空地。
-      // 叶子带一点倾角：纯平铺的叶在视线高度几乎是侧着的一条线，远看就是一片秃土。
-      const gravR = 0.95;
-      for (let i2 = 0; i2 < 2800; i2++) {
-        const fx = x0 + tw + rr() * (wx - tw * 2);
-        const fz = z0 + tw + rr() * (wz - tw * 2);
-        if (Math.hypot(fx - cx2, fz - cz2) < gravR + 0.26) continue;
-        const small = i2 % 3 !== 0;
-        P.leafFlat(leafBed, mul(m4(fx, top - 0.012, fz, 0.3 + rr() * 0.62, rr() * TAU, 0)),
-          (small ? 0.14 : 0.22) + rr() * (small ? 0.09 : 0.15),
-          (small ? 0.06 : 0.085) + rr() * 0.05,
+      // 内部地被：叶子带倾角铺一层，密到土面只从缝里透一点
+      const area = bedArea(bed);
+      const nLeaf = Math.round(area * 52);
+      for (let i = 0; i < nLeaf; i++) {
+        const t = rr() * TAU, f = Math.sqrt(rr()) * 0.95;
+        const p = bedPoint(bed, t);
+        const fx = bed.cx + (p[0] - bed.cx) * f;
+        const fz = bed.cz + (p[1] - bed.cz) * f;
+        if (!inside(fx, fz)) continue;
+        P.leafFlat(leafBed, mul(m4(fx, bedTop + 0.012, fz, 0.45 + rr() * 0.7, rr() * TAU, 0)),
+          0.12 + rr() * 0.11, 0.05 + rr() * 0.045,
           [0.5 + rr() * 0.4, 0.8 + rr() * 0.24, 0.44]);
-        if (i2 % 9 === 0) {
-          sprinkle(daisyB, fx + (rr() - 0.5) * 0.24, top + 0.1 + rr() * 0.08,
-            fz + (rr() - 0.5) * 0.24, 0.07 + rr() * 0.03,
-            i2 % 2 ? [1.0, 1.0, 1.0] : [1.0, 0.7, 0.62]);
+        if (i % 6 === 0) {
+          P.leafBlade(leafBed, mul(m4(fx, bedTop, fz, 0, rr() * TAU, 0.8 + rr() * 0.5, 1, 1, 1)),
+            0.14 + rr() * 0.12, 0.05, [0.62 + rr() * 0.2, 0.9, 0.5]);
         }
       }
-      // 几丛稍高的叶子：花圃里要有高低，不是一张绿地毯
-      for (let i2 = 0; i2 < 260; i2++) {
-        const fx = x0 + tw + rr() * (wx - tw * 2);
-        const fz = z0 + tw + rr() * (wz - tw * 2);
-        if (Math.hypot(fx - cx2, fz - cz2) < gravR + 0.34) continue;
-        P.tallLeaves(leafBed, mul(m4(fx, top - 0.02, fz)), 4 + Math.floor(rr() * 3),
-          0.18 + rr() * 0.18, [0.62 + rr() * 0.22, 0.9 + rr() * 0.16, 0.5], Math.floor(rr() * 99));
-      }
-      // 灌木丛：一堆叶子挤在一起，比几个光溜溜的绿球自然
-      for (let i2 = 0; i2 < 70; i2++) {
-        const fx = x0 + 0.7 + rr() * (wx - 1.4);
-        const fz = z0 + 0.7 + rr() * (wz - 1.4);
-        if (Math.hypot(fx - cx2, fz - cz2) < gravR + 0.45) continue;
-        const bushH = 0.22 + rr() * 0.2;
-        P.tallLeaves(leafBed, mul(m4(fx, top - 0.02, fz)), 8 + Math.floor(rr() * 4),
-          bushH, [0.58 + rr() * 0.24, 0.84 + rr() * 0.18, 0.46], Math.floor(rr() * 99));
-        if (i2 % 3 === 0) {
-          P.chrysanthemum(i2 % 6 ? petalB : paleB, stemB,
-            mul(m4(fx + (rr() - 0.5) * 0.3, top + bushH * 0.4, fz + (rr() - 0.5) * 0.3)),
-            0.4 + rr() * 0.14, i2 % 6 ? [1.34, 1.02, 0.72] : [1.0, 1.0, 0.98], 100 + i2);
+      // 成团的花丛：别均匀撒，一簇一簇才像花境
+      const nDrift = Math.round(area * 2.6);
+      for (let c = 0; c < nDrift; c++) {
+        const t = rr() * TAU, f = 0.2 + Math.sqrt(rr()) * 0.7;
+        const p = bedPoint(bed, t);
+        const ccx = bed.cx + (p[0] - bed.cx) * f;
+        const ccz = bed.cz + (p[1] - bed.cz) * f;
+        if (!inside(ccx, ccz)) continue;
+        const cnt = 4 + Math.floor(rr() * 3);
+        for (let k = 0; k < cnt; k++) {
+          const fx = ccx + (rr() - 0.5) * 1.0, fz = ccz + (rr() - 0.5) * 1.0;
+          if (!inside(fx, fz)) continue;
+          flower(fx, fz, 0.54 + rr() * 0.22, c + k);
         }
       }
-      // 成团的花丛：别均匀撒，一簇一簇才像花境。
-      // 落点直接夹进花圃，别因为算到界外就整簇丢掉——两片花圃会一疏一密。
-      for (let c = 0; c < 40; c++) {
-        const a = rr() * TAU;
-        const rad = gravR + 0.8 + rr() * Math.min(wx, wz) * 0.26;
-        const ccx = Math.max(bx0 + 0.5, Math.min(bx1 - 0.5, cx2 + Math.cos(a) * rad * 1.18));
-        const ccz = Math.max(bz0 + 0.5, Math.min(bz1 - 0.5, cz2 + Math.sin(a) * rad * 0.9));
-        const tone = c % 4;
-        for (let k = 0; k < 4; k++) {
-          const fx = Math.max(x0 + 0.55, Math.min(x1 - 0.55, ccx + (rr() - 0.5) * 1.2));
-          const fz = Math.max(z0 + 0.55, Math.min(z1 - 0.55, ccz + (rr() - 0.5) * 1.2));
-          const usePa = tone === 0 || tone === 3;
-          P.chrysanthemum(usePa ? paleB : petalB, stemB, mul(m4(fx, top - 0.02, fz)),
-            0.5 + rr() * 0.22,
-            tone === 0 ? [1.0, 1.0, 0.98] : tone === 1 ? [1.36, 0.98, 0.62]
-              : tone === 2 ? [1.34, 1.14, 0.9] : [1.0, 0.55, 0.62],
-            Math.floor(rr() * 99));
+      // 树脚 / 瓮脚周围再围一圈花，把中间也填起来
+      if (bed.feature === "tree") {
+        for (let i = 0; i < 26; i++) {
+          const a = i / 26 * TAU + rr() * 0.1;
+          const rad = 1.15 + rr() * 0.7;
+          flower(clear[0] + Math.cos(a) * rad, clear[1] + Math.sin(a) * rad,
+            0.5 + rr() * 0.2, i);
         }
       }
-      // 中央：石瓮直接立在花丛里，不铺一圈亮砾石（那样像鸟浴盆）
-      // 瓮脚一圈矮叶和花，把底座埋进花里
-      for (let i = 0; i < 22; i++) {
-        const a = i / 22 * TAU;
-        const rad = 0.5 + (i % 3) * 0.16;
-        const fx = cx2 + Math.cos(a) * rad, fz = cz2 + Math.sin(a) * rad;
-        P.leafBlade(leafBed, mul(m4(fx, top - 0.02, fz, 0, rr() * TAU, 0.8 + rr() * 0.6, 1, 1, 1)),
-          0.2 + rr() * 0.12, 0.06, [0.66, 0.98, 0.56]);
-        if (i % 2) {
-          P.tallLeaves(lavB, mul(m4(fx, top - 0.01, fz)), 5, 0.32 + rr() * 0.1,
-            [0.74, 0.6, 1.0], 70 + i);
-        } else {
-          P.chrysanthemum(i % 4 ? petalB : paleB, stemB, mul(m4(fx, top - 0.01, fz)),
-            0.44 + rr() * 0.12, i % 4 ? [1.34, 1.02, 0.72] : [1.0, 1.0, 0.98], 80 + i);
+      // 几丛矮灌木：体积小一点、叶子多一点，别像几个绿气球
+      const nBush = Math.max(3, Math.round(area * 0.13));
+      for (let i = 0; i < nBush; i++) {
+        const t = rr() * TAU, f = 0.2 + Math.sqrt(rr()) * 0.7;
+        const p = bedPoint(bed, t);
+        const fx = bed.cx + (p[0] - bed.cx) * f;
+        const fz = bed.cz + (p[1] - bed.cz) * f;
+        if (!inside(fx, fz)) continue;
+        const bR = 0.15 + rr() * 0.13;
+        for (let q = 0; q < 2; q++) {
+          boxB.sphere.call(boxB, mul(m4(fx + (q ? 0.16 : 0), bedTop + bR * (q ? 0.7 : 0.5),
+            fz + (q ? -0.1 : 0), 0, rr() * TAU, 0, 1, 0.6 + rr() * 0.2, 1)),
+            bR * (q ? 0.72 : 1), 8, 5, [0.92 + rr() * 0.16, 1.0, 0.86]);
+        }
+        for (let k = 0; k < 6; k++) {
+          P.leafBlade(leafBed, mul(m4(fx + (rr() - 0.5) * bR * 1.6, bedTop,
+            fz + (rr() - 0.5) * bR * 1.6, 0, rr() * TAU, 0.9 + rr() * 0.5, 1, 1, 1)),
+            0.15, 0.05, [0.62, 0.92, 0.5]);
         }
       }
-      // 石瓮：方座 + 收颈 + 花瓶身 + 花球（别做成一眼是鸟浴盆的浅圆盘）
-      B(urnB, cx2, top + 0.06, cz2, 0.78, 0.14, 0.78, [0.95, 0.93, 0.88]);
-      cyl(urnB, cx2, top + 0.12, cz2, 0.34, 0.26, 0.18, 8, [1, 1, 1], 0, 0, 0, true);
-      cyl(urnB, cx2, top + 0.29, cz2, 0.14, 0.12, 0.44, 8, [1, 1, 1], 0, 0, 0, true);
-      cyl(urnB, cx2, top + 0.72, cz2, 0.13, 0.4, 0.3, 12, [1, 1, 1], 0, 0, 0, true);
-      urnB.torus.call(urnB, mul(m4(cx2, top + 1.02, cz2)), 0.4, 0.05, 16, 5, [1, 1, 1]);
-      // 花球：叶子 + 花，把瓮口压住
-      P.tallLeaves(leafBed, mul(m4(cx2, top + 1.02, cz2)), 18, 0.34, [0.8, 1, 0.66], seed + 9);
-      for (let i = 0; i < 21; i++) {
-        const a = i / 21 * TAU, rad = 0.05 + (i % 3) * 0.16;
-        const pi = i % 3;
-        P.chrysanthemum(pi === 0 ? paleB : petalB, stemB,
-          mul(m4(cx2 + Math.cos(a) * rad, top + 1.06 + (i % 2) * 0.08, cz2 + Math.sin(a) * rad)),
-          0.5 + rr() * 0.16,
-          pi === 0 ? [1.0, 1.0, 0.98] : pi === 1 ? [1.34, 0.96, 0.66] : [1.0, 0.56, 0.64], 40 + i);
-      }
-      // 石瓮外圈：紫穗和橙菊交替一圈，给中间的砾石收边
-      for (let i = 0; i < 14; i++) {
-        const a = i / 14 * TAU;
-        const fx = cx2 + Math.cos(a) * (gravR - 0.22);
-        const fz = cz2 + Math.sin(a) * (gravR - 0.22);
-        if (i % 2) {
-          P.tallLeaves(lavB, mul(m4(fx, top - 0.005, fz)), 5, 0.3 + rr() * 0.12,
-            [0.74, 0.6, 1.0], 50 + i);
-        } else {
-          P.chrysanthemum(petalB, stemB, mul(m4(fx, top - 0.01, fz)), 0.46 + rr() * 0.14,
-            i % 4 ? [1.34, 1.02, 0.72] : [1.0, 0.56, 0.64], 60 + i);
-        }
-      }
-      return top;
+      return bedTop;
     };
-    const bedTopE = gardenBed(1.42, 8.9, 16.95, 25.9, 71);
-    const bedTopW = gardenBed(-8.9, -1.42, 16.95, 25.9, 73);
+    const BED_TOPS = BEDS.map(bed => blobBed(bed));
 
-    /* ---- 台阶两侧的黄杨锥 + 院门内的两株柏树：给花园竖两根线 ---- */
-    for (const s2 of [-1, 1]) {
-      const tx = s2 * 2.34, tz = 17.5;
-      const by = (s2 > 0 ? bedTopE : bedTopW) - 0.03;
-      B(bedStone, tx, by + 0.2, tz, 0.74, 0.4, 0.74, [1.0, 0.98, 0.94]);
-      B(bedStone, tx, by + 0.44, tz, 0.84, 0.09, 0.84, [1.08, 1.06, 1.0]);
-      B(soil, tx, by + 0.48, tz, 0.62, 0.05, 0.62, [1, 1, 1]);
-      const bgy = by + 0.5;
-      boxB.cyl.call(boxB, mul(m4(tx, bgy, tz)), 0.33, 0.24, 0.5, 10, [0.92, 1.0, 0.86], true);
-      boxB.cyl.call(boxB, mul(m4(tx, bgy + 0.48, tz)), 0.25, 0.015, 1.05, 10, [0.96, 1.04, 0.9], true);
-      // 锥体上点几片叶子，近看不是一块绿塑料
-      for (let k = 0; k < 14; k++) {
-        const a = HASH(tx, k) * TAU, yy = bgy + 0.1 + HASH(k, tz) * 1.3;
-        const rr2 = Math.max(0.02, 0.3 * (1 - (yy - bgy) / 1.55));
-        P.leafBlade(leafBed, mul(m4(tx + Math.cos(a) * rr2, yy, tz + Math.sin(a) * rr2,
-          0, a, 0.9 + HASH(k, tx) * 0.8, 1, 1, 1)), 0.14, 0.04, [0.72, 1, 0.62]);
+    /* ---- 西花境：一棵细柏树 ---- */
+    {
+      const w = M.xf(D, [TREE_POS[0], 0, TREE_POS[1]]);
+      cypressTree(cypressTrunk, cypressPen, w[0], w[2], 3.3, 811, [0.9, 1.04, 0.86]);
+    }
+    /* ---- 东花境：一座石瓮（石料用平滑的浅色灰岩，不是砌墙那套砖纹） ---- */
+    {
+      const ux = URN_POS[0], uz = URN_POS[1];
+      const gy = BED_TOPS[1];
+      // 八角座 + 收颈 + 花瓶身：肚子收得住，才不像鸟浴盆
+      cyl(urnB, ux, gy - 0.02, uz, 0.42, 0.34, 0.1, 8, [1, 1, 1], 0, 0, 0, true);
+      cyl(urnB, ux, gy + 0.08, uz, 0.32, 0.24, 0.14, 8, [1, 1, 1], 0, 0, 0, true);
+      cyl(urnB, ux, gy + 0.22, uz, 0.13, 0.11, 0.48, 8, [1, 1, 1], 0, 0, 0, true);
+      cyl(urnB, ux, gy + 0.69, uz, 0.12, 0.34, 0.34, 12, [1, 1, 1], 0, 0, 0, true);
+      urnB.torus.call(urnB, mul(m4(ux, gy + 1.03, uz)), 0.34, 0.045, 16, 5, [1, 1, 1]);
+      // 花球：叶子从瓶口冒出来，花压在叶子上
+      P.tallLeaves(leafBed, mul(m4(ux, gy + 1.0, uz)), 34, 0.36, [0.78, 1, 0.64], 9);
+      const rf = rng(19);
+      for (let i = 0; i < 42; i++) {
+        const a = rf() * TAU, rad = Math.sqrt(rf()) * 0.36;
+        const pick = i % 3 === 0 ? COOL[0] : i % 3 === 1 ? WARM[0] : WARM[2];
+        P.chrysanthemum(pick[0], stemB,
+          mul(m4(ux + Math.cos(a) * rad, gy + 1.02 + rf() * 0.2, uz + Math.sin(a) * rad)),
+          0.46 + rf() * 0.18, pick[1], 30 + i);
+      }
+      // 瓶口垂下来的叶子：别让花球像插在一根杆子上的花束
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * TAU;
+        P.leafBlade(leafBed, mul(m4(ux + Math.cos(a) * 0.34, gy + 0.92,
+          uz + Math.sin(a) * 0.34, 0, a, 1.05 + rf() * 0.4, 1, 1, 1)),
+          0.18, 0.05, [0.66, 0.96, 0.52]);
       }
     }
-    for (const s2 of [-1, 1]) {
-      const w = M.xf(D, [s2 * 10.3, 0, 23.6]);
-      cypressTree(cypressTrunk, cypressPen, w[0], w[2], s2 > 0 ? 5.0 : 4.6,
-        Math.round(700 + s2 * 13), [0.9, 1.02, 0.88]);
+
+    /* ---- 台阶两侧：一边锥形、一边球形的黄杨，不成对复制 ---- */
+    {
+      const tx = -3.55, tz = 17.2;
+      const gy = gyAt(tx, tz);
+      B(bedStone, tx, gy + 0.21, tz, 0.7, 0.42, 0.7, [0.98, 0.96, 0.92]);
+      B(bedStone, tx, gy + 0.45, tz, 0.8, 0.08, 0.8, [1.06, 1.04, 0.98]);
+      B(soil, tx, gy + 0.47, tz, 0.6, 0.06, 0.6, [1, 1, 1]);
+      const bgy = gy + 0.49;
+      boxB.cyl.call(boxB, mul(m4(tx, bgy - 0.01, tz)), 0.32, 0.22, 0.5, 9, [1, 1, 1], true);
+      boxB.cyl.call(boxB, mul(m4(tx, bgy + 0.46, tz)), 0.24, 0.012, 1.15, 9, [1, 1, 1], true);
+      for (let k = 0; k < 16; k++) {
+        const a = HASH(tx, k) * TAU, yy = bgy + 0.12 + HASH(k, tz) * 1.42;
+        const rr2 = Math.max(0.02, 0.3 * (1 - (yy - bgy) / 1.62));
+        P.leafBlade(leafBed, mul(m4(tx + Math.cos(a) * rr2, yy, tz + Math.sin(a) * rr2,
+          0, a, 0.9 + HASH(k, tx) * 0.8, 1, 1, 1)), 0.15, 0.04, [0.72, 1, 0.62]);
+      }
+    }
+    {
+      const tx = 3.35, tz = 17.3;
+      const gy = gyAt(tx, tz);
+      cyl(bedStone, tx, gy + 0.02, tz, 0.34, 0.3, 0.36, 12, [0.98, 0.96, 0.92], 0, 0, 0, true);
+      bedStone.torus.call(bedStone, mul(m4(tx, gy + 0.4, tz)), 0.33, 0.035, 14, 5, [1.04, 1.02, 0.96]);
+      B(soil, tx, gy + 0.4, tz, 0.56, 0.07, 0.56, [1, 1, 1]);
+      B(cypressTrunk, tx, gy + 0.635, tz, 0.07, 0.53, 0.07, [1, 1, 1]);
+      boxB.sphere.call(boxB, mul(m4(tx, gy + 0.99, tz, 0, 0.4, 0, 1, 1.1, 1)), 0.46, 9, 6, [1, 1, 1]);
+      boxB.sphere.call(boxB, mul(m4(tx + 0.12, gy + 1.29, tz - 0.06, 0, 0.1, 0)), 0.3, 8, 5, [1, 1, 1]);
+    }
+
+    /* ---- 院门边的圆冠小树 + 东侧草地上的木长椅 ---- */
+    {
+      const w = M.xf(D, [8.7, 0, 24.7]);
+      const wx = w[0], wz = w[2], gy = groundH(wx, wz) + 0.02;
+      const rr = rng(97);
+      cypressTrunk.cyl.call(cypressTrunk, m4(wx, gy, wz), 0.16, 0.09, 2.0, 6, [1, 1, 1], true);
+      // 树冠：七团大小不一的球，别做成一整颗绿气球
+      const crowns = [[0, 2.5, 0, 0.8], [-0.45, 2.42, 0.26, 0.52], [0.5, 2.4, 0.2, 0.5],
+        [0.12, 2.75, -0.32, 0.5], [-0.26, 2.78, 0.3, 0.44], [0.28, 2.98, 0.08, 0.36], [-0.08, 2.15, -0.45, 0.44]];
+      for (const [ox, oy, oz, cr] of crowns) {
+        treeLeaf.sphere.call(treeLeaf,
+          m4(wx + ox, gy + oy, wz + oz, 0, rr() * TAU, 0, 1.12, 0.88, 1.12), cr, 8, 5,
+          [0.95 + rr() * 0.24, 1.02 + rr() * 0.08, 0.8]);
+      }
+      for (let i = 0; i < 18; i++) {
+        const a = rr() * TAU, hh = 1.85 + rr() * 1.2, rad = 0.62 + rr() * 0.3;
+        P.leafBlade(leafBed, mul(m4(wx + Math.cos(a) * rad, gy + hh, wz + Math.sin(a) * rad,
+          0, a, 0.9 + rr() * 0.6, 1, 1, 1)), 0.16, 0.05, [0.62, 0.95, 0.5]);
+      }
+    }
+    {
+      const bx = 8.5, bz = 21.4, br = -Math.PI / 2 - 0.18;   // 面朝花园
+      const gy = gyAt(bx, bz) + 0.04;
+      const bm = mul(m4(bx, gy, bz, 0, br, 0));
+      for (const s of [-1, 1]) {
+        bedStone.box.call(bedStone, M.mul(bm, m4(s * 0.66, 0.19, 0)), 0.16, 0.46, 0.52, [0.98, 0.96, 0.92], 1.0);
+      }
+      for (let k = -1; k <= 1; k++) {
+        benchWood.box.call(benchWood, M.mul(bm, m4(0, 0.44, k * 0.18)), 1.65, 0.055, 0.16, [1, 1, 1], 0.8);
+      }
+      for (const s of [-1, 1]) {
+        benchWood.box.call(benchWood, M.mul(bm, m4(s * 0.72, 0.72, -0.3)), 0.08, 0.6, 0.08, [1, 1, 1], 1.0);
+      }
+      for (const h of [0.66, 0.86]) {
+        benchWood.box.call(benchWood, M.mul(bm, m4(0, h, -0.31)), 1.65, 0.08, 0.05, [1, 1, 1], 0.8);
+      }
+    }
+    /* 草地上零散的小石头：近处有尺度，也不至于空 */
+    {
+      const rk = rng(31);
+      for (let i = 0; i < 12; i++) {
+        const lx = -9 + rk() * 18, lz = 16 + rk() * 9.5;
+        if (nearPath(lx, lz, 0.5) || inBed(lx, lz, 1.12)) continue;
+        if (Math.hypot(lx - 8.5, lz - 21.4) < 1.2) continue;
+        const gy = gyAt(lx, lz);
+        const s = 0.1 + rk() * 0.16;
+        rockB.sphere.call(rockB, mul(m4(lx, gy + s * 0.35, lz,
+          rk() * 0.4, rk() * TAU, rk() * 0.3, s, s * 0.55, s * 0.85)), 1, 6, 4,
+          [0.94, 0.92, 0.86]);
+      }
+    }
+
+    /* ---- 院门内的两株柏树：从门外看进来，左右各收一道边 ---- */
+    for (const [lx, lz, hh] of [[-9.9, 23.5, 4.6], [10.4, 23.7, 5.0]]) {
+      const w = M.xf(D, [lx, 0, lz]);
+      cypressTree(cypressTrunk, cypressPen, w[0], w[2], hh,
+        Math.round(700 + lx * 13), [0.9, 1.02, 0.88]);
     }
 
     /* 爬山虎：单片 quad 的叶子（leafFlat）整片贴墙。
@@ -1990,16 +2140,19 @@ const A3DWorld = (() => {
     /* ---- 甬道：从院门往南接到山门。
      * 原来铺的是一块块深色砖，整条路像一条灰带子；现在换成砾石，
      * 砖石只留在院内台阶上，院外这条上山路不再铺满砖。 ---- */
-    const pathPts = [[21.9, 116.2], [21.5, 120.4], [21.0, 124.6],
+    const walkPts = [[21.9, 116.55], [21.5, 120.4], [21.0, 124.6],
       [20.4, 129.4], [19.8, 136.0], [19.4, 144.0], [19.4, 152.0]];
     // 沿折线铺一条砾石带：每 1.6m 分一小段，坡地上不会穿帮
     const gravelHW = 1.05;
-    for (let i = 0; i < pathPts.length - 1; i++) {
-      const a = pathPts[i], b = pathPts[i + 1];
+    let walkRun = 0;
+    for (let i = 0; i < walkPts.length - 1; i++) {
+      const a = walkPts[i], b = walkPts[i + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1];
       const len = Math.hypot(dx, dz) || 1;
       const nx = -dz / len, nz = dx / len;
       const n = Math.max(1, Math.round(len / 1.6));
+      const segRun = walkRun;
+      walkRun += len;
       for (let k = 0; k < n; k++) {
         const u0 = k / n, u1 = (k + 1) / n;
         const ax = a[0] + dx * u0, az = a[1] + dz * u0;
@@ -2010,32 +2163,39 @@ const A3DWorld = (() => {
         const p3 = [bx - nx * gravelHW, 0, bz - nz * gravelHW];
         for (const p of [p0, p1, p2, p3]) p[1] = groundH(p[0], p[2]) + 0.055;
         P.quad4(pathP, M.ident(), p0, p1, p2, p3, [1, 1, 1],
-          [p0[0] * 0.8, p0[2] * 0.8, p2[0] * 0.8, p2[2] * 0.8], 0);
+          [0, (segRun + len * u0) * 0.8, gravelHW * 1.6, (segRun + len * u1) * 0.8], 0);
       }
     }
     // 甬道两旁的低矮黄杨 + 花（只铺院门外这一段，院内交给花圃）
     const pathX = z => {
-      for (let k = 0; k < pathPts.length - 1; k++) {
-        const a2 = pathPts[k], b2 = pathPts[k + 1];
+      for (let k = 0; k < walkPts.length - 1; k++) {
+        const a2 = walkPts[k], b2 = walkPts[k + 1];
         if (z >= a2[1] && z <= b2[1])
           return a2[0] + (b2[0] - a2[0]) * (z - a2[1]) / (b2[1] - a2[1]);
       }
-      return pathPts[pathPts.length - 1][0];
+      return walkPts[walkPts.length - 1][0];
     };
-    for (let i = 0; i < 27; i++) {
-      const pz = 118.2 + i * 1.3;
+    // 院外绿篱：一排互相叠着的椭圆叶团。方盒子会露出一节节的接缝，
+    // 叠球没有共面的顶，轮廓也像修剪过的矮篱。
+    for (let i = 0; i < 66; i++) {
+      const pz = 117.3 + i * 0.54;
       const px = pathX(pz);
       const py = groundH(px, pz);
-      const hg = 0.92 + HASH(i, 3) * 0.12;
       for (const s of [-1, 1]) {
-        // 连着铺：块与块之间留 1.3-1.38 的重叠，远看才是一条绿篱而不是一排骨牌
-        hedge.box.call(hedge, m4(px + s * 1.55, py + 0.23, pz), 0.62, 0.46, 1.38,
-          [hg, hg * (0.97 + HASH(i, 5) * 0.06), hg * 0.95], 1.2);
+        const hb = 0.46 + HASH(i, 3) * 0.1;
+        hedge.sphere.call(hedge,
+          m4(px + s * (1.6 + HASH(i, 7) * 0.06), py + hb * 0.5, pz,
+            0, HASH(i, 11) * TAU, 0, 1.05, 0.66, 1.2),
+          hb, 7, 5, [0.92 + HASH(i, 5) * 0.12, 1.0, 0.9]);
+        if (i % 4 === 0) {
+          P.leafBlade(leafBed, mul(m4(px + s * 1.6, py + 0.5, pz,
+            0, HASH(i, 13) * TAU, 0.9, 1, 1, 1)), 0.16, 0.05, [0.68, 1, 0.58]);
+        }
       }
-      if (i % 3 === 0) {
+      if (i % 6 === 0) {
         for (const s of [-1, 1]) {
           for (let k = 0; k < 3; k++) {
-            flowerP.quad.call(flowerP, m4(px + s * 1.33 + (HASH(i, k) - 0.5) * 0.24,
+            flowerP.quad.call(flowerP, m4(px + s * 1.4 + (HASH(i, k) - 0.5) * 0.24,
               py + 0.42, pz + (k - 1) * 0.16, -0.9, HASH(k, i) * TAU, 0),
               0.1, 0.13, [0.9, 0.82, 0.62], [0, 0, 1, 1]);
           }
