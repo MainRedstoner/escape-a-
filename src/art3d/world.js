@@ -941,7 +941,7 @@ const A3DWorld = (() => {
    *  教堂 + 前院 + 甬道（主标题的近景，也是 claude_door 的实景）
    *
    *  这一版把体量放大了一圈：中殿 16.8 × 24m、屋脊抬到 10m、钟楼 6.2m 见方，
-   *  正面加玫瑰窗和山墙尖饰，外围是「石院墙（内）+ 铁栅栏（外）」两圈。
+   *  正面加玫瑰窗和山墙尖饰，外围是完整一圈铁栅栏（原来的半圆石院墙已删）。
    *  钟楼尖顶上立 Claude 的星芒标志——从主标题看，那是山脊上唯一的橙色记号。
    * ============================================================ */
   function buildChurch(st) {
@@ -1206,9 +1206,9 @@ const A3DWorld = (() => {
       for (let k = 0; k < 4; k++) {
         const a = k * Math.PI / 2;
         lampGlass.quad.call(lampGlass, mul(m4(gx + Math.sin(a) * 0.11, ly + 0.01, gz + Math.cos(a) * 0.11, 0, a, 0)),
-          0.2, 0.38, [2.2, 1.5, 0.75], [0, 0, 1, 1]);
+          0.2, 0.38, [1.55, 1.05, 0.55], [0, 0, 1, 1]);
       }
-      glowP.quad.call(glowP, mul(m4(gx, ly + 0.01, gz + 0.19)), 2.6, 2.8, [1, 1, 1], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(gx, ly + 0.01, gz + 0.19)), 2.0, 2.2, [1, 1, 1], [0, 0, 1, 1]);
     }
 
     // 门前台阶：按台基与地面的高差自动分 2~7 级
@@ -1268,21 +1268,49 @@ const A3DWorld = (() => {
       pave.cyl.call(pave, mul(m4(0, gy + 0.06, cz)), 0.42, 0.42, 0.07, 16, [0.86, 0.84, 0.8], true);
     }
 
-    /* ---- 前院草坪：教堂前是一整片草地，不然近景会露出深褐色的地形。
-     * 用局部坐标铺（教堂局部 +Z = 南），逐格取世界高度贴地。 ---- */
+    /* ---- 前院草坪：按地形逐顶点贴地铺。
+     * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
+     * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
+    const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
     const lawn = st.pen("w.churchLawn", T.dirt(), { tint: [0.66, 1.0, 0.46], spec: 0.02, rim: 0.08 });
-    for (let ix = 0; ix < 27; ix++) {
-      for (let iz = 0; iz < 21; iz++) {
-        const lx = -26 + ix * 2.0 + 1.0;
-        const lz = -15 + iz * 2.0 + 1.0;
-        // 台基范围不铺
-        if (Math.abs(lx) < 9.9 && Math.abs(lz) < 14.7) continue;
-        // 广场和台阶范围不铺
-        if (Math.abs(lx) < 7.0 && lz > 13.5 && lz < 21.6) continue;
-        const wp = M.xf(D, [lx, 0, lz]);
-        const gy = groundH(wp[0], wp[2]) - y0;
-        lawn.grid.call(lawn, mul(m4(lx, gy + 0.03, lz)), 2.04, 2.04, 2, 2,
-          [1, 1, 1], 1.0, 0, 0);
+    // 甬道在院子里的一段（世界坐标），草坪给它让路
+    const yardPath = [[19.2, 105.6], [19.6, 110.0], [20.3, 114.2], [20.9, 119.0]];
+    const nearYardPath = (wx, wz, r) => {
+      for (let i = 0; i < yardPath.length - 1; i++) {
+        const a = yardPath[i], b = yardPath[i + 1];
+        const vx = b[0] - a[0], vz = b[1] - a[1];
+        const t = Math.max(0, Math.min(1,
+          ((wx - a[0]) * vx + (wz - a[1]) * vz) / (vx * vx + vz * vz)));
+        if (Math.hypot(wx - a[0] - vx * t, wz - a[1] - vz * t) < r) return true;
+      }
+      return false;
+    };
+    {
+      const LC = 1.6;                 // 草格边长
+      const gx0 = -29, gz0 = -17;
+      for (let ix = 0; ix < 38; ix++) {
+        for (let iz = 0; iz < 30; iz++) {
+          const lx = gx0 + ix * LC + LC / 2;
+          const lz = gz0 + iz * LC + LC / 2;
+          const w = M.xf(D, [lx, 0, lz]);
+          // 只在栅栏内铺草
+          if (w[0] < FX0 + 0.45 || w[0] > FX1 - 0.45 || w[2] < FZ0 + 0.45 || w[2] > FZ1 - 0.45) continue;
+          // 台基 / 广场 / 甬道让开
+          if (Math.abs(lx) < 9.9 && Math.abs(lz) < 14.7) continue;
+          if (Math.abs(lx) < 6.35 && lz > 13.4 && lz < 21.4) continue;
+          if (nearYardPath(w[0], w[2], 2.15)) continue;
+          const x0 = lx - LC / 2, x1 = lx + LC / 2;
+          const z0 = lz - LC / 2, z1 = lz + LC / 2;
+          const c00 = M.xf(D, [x0, 0, z1]); const c10 = M.xf(D, [x1, 0, z1]);
+          const c11 = M.xf(D, [x1, 0, z0]); const c01 = M.xf(D, [x0, 0, z0]);
+          const uv = 0.22;
+          P.quad4(lawn, D,
+            [x0, groundH(c00[0], c00[2]) - y0 + 0.04, z1],
+            [x1, groundH(c10[0], c10[2]) - y0 + 0.04, z1],
+            [x1, groundH(c11[0], c11[2]) - y0 + 0.04, z0],
+            [x0, groundH(c01[0], c01[2]) - y0 + 0.04, z0],
+            [1, 1, 1], [x0 * uv, z1 * uv, x1 * uv, z0 * uv], 0);
+        }
       }
     }
 
@@ -1328,11 +1356,20 @@ const A3DWorld = (() => {
         }
         vine.tube.call(vine, D, pts, 0.01, 4, [1, 1, 1]);
       }
-      for (let i = 0; i < 170; i++) {
-        const px = cx + (rr() - 0.5) * w * (0.86 + rr() * 0.14);
-        const py = cy + rr() * h;
-        const mm = mul(m4(px, py, zz + rr() * 0.06, -Math.PI / 2, rr() * TAU, 0, 1, 1, 1));
-        P.leafFlat(ivy, mm, 0.15 + rr() * 0.07, 0.07 + rr() * 0.035, [0.36 + rr() * 0.3, 0.56 + rr() * 0.22, 0.3]);
+      // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z；
+      // leafFlat 是平躺的，贴墙会被看成一条边，之前那几根「绿棍」就是这么来的。
+      for (let i = 0; i < 132; i++) {
+        const u = rr(), v2 = rr();
+        const px = cx + (u - 0.5) * w * (0.45 + v2 * 0.62);
+        const py = cy + v2 * h;
+        const sz = 0.13 + rr() * 0.08;
+        const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
+        const q = [[-sz, -sz * 0.62], [sz, -sz * 0.62], [sz, sz * 0.62], [-sz, sz * 0.62]];
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + rr() * 0.03];
+        const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
+        const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
+        const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
+        P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
     ivyPatch(-6.2, PT + 0.2, 1.2, 2.5, 91, 0.44);
@@ -1362,14 +1399,14 @@ const A3DWorld = (() => {
       B(trim, px, ny - 0.1, dz + 0.16, nw + 0.46, 0.2, 0.4, [1, 1, 1]);
       // 石像
       P.figure(statueP, mul(m4(px, ny + 0.02, dz + 0.13, 0, s2 * -0.18, 0)), [1.3, 1.27, 1.2], { h: 1.5 });
-      glowP.quad.call(glowP, mul(m4(px, ny + 1.1, dz + 0.1)), 1.5, 2.6, [1, 1, 1], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(px, ny + 1.1, dz + 0.1)), 1.2, 2.2, [1, 1, 1], [0, 0, 1, 1]);
       // 壁龛上方的小尖饰
       cyl(trim, px, ny + nh + 0.66, dz + 0.14, 0.16, 0.02, 0.5, 4, [1, 1, 1], 0, Math.PI / 4, 0, false);
     }
 
     /* ---- 玫瑰窗：圆盘彩窗 + 石环 + 放射窗棂 ---- */
     /* 玫瑰窗整体凸出山墙（z=12.0）：石背板、玻璃、石环各自留够间距，避免共面闪烁 */
-    const roseY = PT + 6.75, roseR = 1.45, roseZ = dz + 0.24;
+    const roseY = PT + 7.02, roseR = 1.45, roseZ = dz + 0.24;
     cyl(trim, 0, roseY, roseZ - 0.2, roseR + 0.2, roseR + 0.2, 0.14, 32, [1, 1, 1], Math.PI / 2, 0, 0, true);
     cyl(roseP, 0, roseY, roseZ, roseR, roseR, 0.06, 32, [1, 1, 1], Math.PI / 2, 0, 0, true);
     const ringM = mul(m4(0, roseY, roseZ + 0.06, Math.PI / 2, 0, 0));
@@ -1385,12 +1422,12 @@ const A3DWorld = (() => {
     // 玫瑰窗两侧的小圆窗：也一起凸出山墙
     for (const s2 of [-1, 1]) {
       const ox = s2 * 3.5;
-      cyl(trim, ox, PT + 6.4, dz + 0.12, 0.52, 0.52, 0.1, 16, [1, 1, 1], Math.PI / 2, 0, 0, true);
-      cyl(roseP, ox, PT + 6.4, dz + 0.2, 0.42, 0.42, 0.03, 16, [1, 1, 1], Math.PI / 2, 0, 0, true);
+      cyl(trim, ox, PT + 6.72, dz + 0.12, 0.52, 0.52, 0.1, 16, [1, 1, 1], Math.PI / 2, 0, 0, true);
+      cyl(roseP, ox, PT + 6.72, dz + 0.2, 0.42, 0.42, 0.03, 16, [1, 1, 1], Math.PI / 2, 0, 0, true);
       for (let k = 0; k < 6; k++) {
-        BR(trim, ox, PT + 6.4, dz + 0.23, 0, 0, k * Math.PI / 6, 0.04, 0.82, 0.05, [1, 1, 1], 0.5);
+        BR(trim, ox, PT + 6.72, dz + 0.23, 0, 0, k * Math.PI / 6, 0.04, 0.82, 0.05, [1, 1, 1], 0.5);
       }
-      glowP.quad.call(glowP, mul(m4(ox, PT + 6.4, dz + 0.26)), 1.4, 1.4, [1, 1, 1], [0, 0, 1, 1]);
+      glowP.quad.call(glowP, mul(m4(ox, PT + 6.72, dz + 0.26)), 1.4, 1.4, [1, 1, 1], [0, 0, 1, 1]);
     }
 
     /* ---- 钟楼：塔身 + 钟室 + 石板尖顶 + Claude 星芒 ---- */
@@ -1419,9 +1456,18 @@ const A3DWorld = (() => {
     Q(glass, TX - TXW - 0.015, PT + 5.0, TZ, 0, -Math.PI / 2, 0, 0.62, 1.3, [1, 1, 1]);
     B(trim, TX - TXW - 0.06, PT + 4.28, TZ, 0.22, 0.14, 1.0, [1, 1, 1]);
     glowP.quad.call(glowP, mul(m4(TX - TXW - 0.04, PT + 5.0, TZ, 0, -Math.PI / 2, 0)), 2.2, 2.6, [1, 1, 1], [0, 0, 1, 1]);
-    // 南面长窗（正对主标题）
+    // 南面长窗（正对主标题）：玻璃 + 石框 + 窗台
     Q(glass, TX, PT + 5.2, TZ + TXW + 0.015, 0, 0, 0, 0.8, 2.2, [1, 1, 1]);
-    B(trim, TX, PT + 4.0, TZ + TXW + 0.05, 0.24, 0.16, 1.16, [1, 1, 1]);
+    for (const q of [-1, 1]) {
+      B(trim, TX + q * 0.5, PT + 5.2, TZ + TXW + 0.05, 0.18, 2.34, 0.18, [1, 1, 1]);
+    }
+    B(trim, TX, PT + 4.04, TZ + TXW + 0.05, 1.16, 0.16, 0.24, [1, 1, 1]);
+    for (const q of [-1, 1]) {
+      const a0 = [TX + q * 0.5, PT + 6.36], a1 = [TX, PT + 6.76];
+      const len = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]);
+      BR(trim, (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2, TZ + TXW + 0.06, 0, 0,
+        Math.atan2(a1[1] - a0[1], a1[0] - a0[0]), len + 0.1, 0.18, 0.2, [1, 1, 1], 0.6);
+    }
     glowP.quad.call(glowP, mul(m4(TX, PT + 5.2, TZ + TXW + 0.06)), 2.6, 3.2, [1, 1, 1], [0, 0, 1, 1]);
 
     // 钟室：四面尖拱开口 + 百叶 + 石框
@@ -1491,69 +1537,14 @@ const A3DWorld = (() => {
 
 
     /* ============================================================
-     *  前院：石院墙（内圈）+ 铁栅栏（外圈）+ 大门 + 墓园 + 甬道
-     *  院墙 / 栅栏都用世界坐标沿半圆排，教堂正门朝 +Z（南）。
+     *  前院：铁栅栏（一圈）+ 大门 + 墓园 + 甬道
+     *  栅栏沿矩形走一圈，教堂正门朝 +Z（南）。原来的半圆石院墙已经删掉。
      * ============================================================ */
     const wallStone = st.pen("w.churchWall", WTex.ashlar(), { tint: [0.86, 0.84, 0.78], spec: 0.06 });
     const wallCap = st.pen("w.churchWallCap", T.stone(), { tint: [0.78, 0.78, 0.76], spec: 0.12 });
     const gateIron = st.pen("w.churchGate", T.darkMetal(), { tint: [0.26, 0.28, 0.3], spec: 0.45 });
-    const RAD = 24.0, RADX = 22.0;      // 内圈石墙（前院半圆）
-    const gateA = 0.104;                // 门洞中心角（正对教堂门的中线）
-    const gapHalf = 0.075;              // 石墙门洞半角
-
-    /* ---- 内圈：石院墙 ---- */
-    const segStep = 0.04;
-    for (let a = -1.42; a <= 1.42; a += segStep) {
-      if (Math.abs(a - gateA) < gapHalf) continue;
-      const wx = C.x + Math.sin(a) * RADX;
-      const wz = C.z + Math.cos(a) * RAD;
-      const gy = groundH(wx, wz);
-      const g = HASH(a * 13.1, 3.7);
-      wallStone.box.call(wallStone, m4(wx, gy + 0.42, wz, 0, a, 0), 0.98, 0.84 + g * 0.06, 0.44,
-        [0.92 + g * 0.12, 0.9, 0.84], 0.45);
-      wallCap.box.call(wallCap, m4(wx, gy + 0.88, wz, 0, a, 0), 1.08, 0.14, 0.54, [1, 1, 1], 1.2);
-      // 墙顶的小铁矛：石墙和铁栅栏之间有个过渡
-      if (HASH(a * 7.3, 11.1) > 0.45 && Math.abs(a - gateA) > gapHalf * 1.6) {
-        gateIron.box.call(gateIron, m4(wx, gy + 1.06, wz), 0.05, 0.3, 0.05, [1, 1, 1], 1.2);
-        gateIron.cyl.call(gateIron, m4(wx, gy + 1.2, wz), 0.05, 0.01, 0.12, 4, [1, 1, 1], false);
-      }
-    }
-    // 院墙两端收口柱
-    for (const a of [-1.43, 1.43]) {
-      const wx = C.x + Math.sin(a) * RADX, wz = C.z + Math.cos(a) * RAD;
-      const gy = groundH(wx, wz);
-      wallStone.box.call(wallStone, m4(wx, gy + 0.62, wz, 0, a, 0), 0.62, 1.24, 0.62, [1, 1, 1], 0.45);
-      wallCap.box.call(wallCap, m4(wx, gy + 1.32, wz, 0, a, 0), 0.78, 0.16, 0.78, [1, 1, 1], 1.2);
-      goldP.sphere.call(goldP, m4(wx, gy + 1.48, wz), 0.1, 7, 5, [1, 1, 1]);
-    }
-    // 内圈门柱 + 木门（保留原来的铁门样式）
-    const gateSpots = [gateA - gapHalf * 1.4, gateA + gapHalf * 1.4];
-    const gateWorld = gateSpots.map(a => {
-      const wx = C.x + Math.sin(a) * RADX, wz = C.z + Math.cos(a) * RAD;
-      return [wx, wz, groundH(wx, wz), a];
-    });
-    for (const g of gateWorld) {
-      wallStone.box.call(wallStone, m4(g[0], g[2] + 1.1, g[1], 0, g[3], 0), 0.72, 2.2, 0.72, [1, 1, 1], 0.45);
-      wallCap.box.call(wallCap, m4(g[0], g[2] + 2.26, g[1], 0, g[3], 0), 0.88, 0.18, 0.88, [1, 1, 1], 1.2);
-      goldP.sphere.call(goldP, m4(g[0], g[2] + 2.42, g[1]), 0.12, 7, 5, [1, 1, 1]);
-    }
-    for (const s2 of [-1, 1]) {
-      const gi = gateWorld[s2 > 0 ? 1 : 0];
-      const dir = s2 > 0 ? -1 : 1;
-      const w = 0.86;
-      for (let k = 0; k < 5; k++) {
-        gateIron.box.call(gateIron, m4(gi[0] + dir * w * 0.5, gi[2] + 0.82, gi[1] + dir * 0.3, 0, 0, 0),
-          0.05, 1.55, 0.05, [1, 1, 1], 0.8);
-      }
-      for (const yy of [gi[2] + 0.36, gi[2] + 0.85, gi[2] + 1.32]) {
-        gateIron.box.call(gateIron, m4(gi[0] + dir * w * 0.48, yy, gi[1] + dir * 0.3, 0, 0, 0),
-          w * 0.98, 0.05, 0.05, [1, 1, 1], 0.8);
-      }
-    }
-
     /* ---- 外圈：铁栅栏（完整一圈，北边贴着崖沿）
      *  以前只围南侧前院，背后是空的；现在沿矩形走一圈，南边留大门。 ---- */
-    const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;
     const FG0 = 17.8, FG1 = 22.2;       // 南边大门开口
     const fenceRun = (x0, z0, x1, z1, south) => {
       const dx = x1 - x0, dz = z1 - z0;
@@ -1655,10 +1646,11 @@ const A3DWorld = (() => {
           if (tr() < 0.28) continue;
           const gx2 = gx + (tr() - 0.5) * 0.5;
           const gz2 = gz + (tr() - 0.5) * 0.5;
-          // 院墙椭圆外不放；家族墓室附近留空
-          const dx = (gx2 - C.x) / 21.2, dz2 = (gz2 - C.z) / 23.2;
-          if (dx * dx + dz2 * dz2 > 1.0) continue;
+          // 栅栏内留一圈边距；家族墓室附近留空
+          if (gx2 < FX0 + 1.7 || gx2 > FX1 - 1.7 || gz2 < FZ0 + 1.5 || gz2 > FZ1 - 1.7) continue;
           if (Math.hypot(gx2 - (C.x - 13.2), gz2 - (C.z + 7.4)) < 3.4) continue;
+          // 甬道两侧留开
+          if (Math.abs(gx2 - 20.2) < 3.2 && gz2 > 102) continue;
           const gy = groundH(gx2, gz2);
           if (gy < 4) continue;
           const h = 0.55 + tr() * 0.85;
@@ -1754,7 +1746,7 @@ const A3DWorld = (() => {
       glowP.quad.call(glowP, m4(lx, gy + 1.02, lz + 0.27), 2.1 * s, 2.1 * s, [1, 1, 1], [0, 0, 1, 1]);
     }
     // 长椅三张
-    for (const [bx, bz, br] of [[16.6, 117.0, 0.1], [25.0, 129.0, -0.15], [23.4, 143.0, 0.08]]) {
+    for (const [bx, bz, br] of [[14.6, 124.5, 0.1], [25.2, 129.0, -0.15], [23.4, 143.0, 0.08]]) {
       const gy = groundH(bx, bz);
       for (const s of [-1, 1]) {
         wallStone.box.call(wallStone, m4(bx, gy + 0.2, bz + s * 0.7), 0.52, 0.4, 0.22, [1, 1, 1], 1.0);
@@ -2583,8 +2575,8 @@ const A3DWorld = (() => {
     const B0 = churchBase();
     const at = (lx, ly, lz) => M.xf(B0.D, [lx, ly, lz]);
     return [
-      { pos: at(-2.55, B0.PT + 3.02, CHURCH.hl + 0.5), col: [1.0, 0.72, 0.4], range: 7.5, inten: 1.4 },
-      { pos: at(2.55, B0.PT + 3.02, CHURCH.hl + 0.5), col: [1.0, 0.72, 0.4], range: 7.5, inten: 1.4 },
+      { pos: at(-2.55, B0.PT + 3.02, CHURCH.hl + 0.62), col: [1.0, 0.72, 0.4], range: 6.5, inten: 0.8 },
+      { pos: at(2.55, B0.PT + 3.02, CHURCH.hl + 0.62), col: [1.0, 0.72, 0.4], range: 6.5, inten: 0.8 },
       { pos: at(0, B0.PT + 1.7, CHURCH.hl + 2.4), col: [0.66, 0.7, 0.72], range: 13, inten: 0.5 }
     ];
   }
