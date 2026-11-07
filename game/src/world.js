@@ -211,7 +211,6 @@ window.WORLD = (() => {
       reveal: new Array(layers.length * lv.w * lv.h).fill(0),
       flashes: [],
       player: { x: st.x + 0.5, y: st.y + 1 - P_S, cx: st.x, cy: st.y,
-                px: st.x + 0.5, py: st.y + 1 - P_S,
                 vx: 0, vy: 0, dir: 1, lastDx: 1, lastDy: 0,
                 grounded: false, coyote: 0, jumpBuf: 0, dropT: 0, landT: 0,
                 cast: null, dead: false, inv: 0, stun: 0, logCd: 0, doorCd: 0 },
@@ -238,7 +237,7 @@ window.WORLD = (() => {
       bugBlock: (b, x, y) => bugBlock(W, b, x, y),
       observed: (x, y) => observed(W, x, y),
       move: (b, dx, dy) => bugMove(W, b, dx, dy),
-      place: (b, x, y) => { b.x = x; b.y = y; },
+      place: (b, x, y) => { b.x = x; b.y = y; b.sx = x; b.sy = y; },   // 跳虫大跳：判定盒 snap 到落点，不拖着滑
       remove: (b) => removeBug(W, b),
       spawn: (kind, x, y) => spawn(W, kind, x, y),
       explode: (x, y, r, why) => explode(W, x, y, r, why),
@@ -325,7 +324,7 @@ window.WORLD = (() => {
       dx: k.chase ? 0 : (x % 2 ? 1 : -1), dy: 0,
       attached: kind === "crawler", jumpCd: k.jump ? Math.round(k.jump * S) : null, fuse: k.fuse ? k.fuse * STEP_HZ : null,
       justJumped: 0, range: null,
-      px: x, py: y
+      sx: x, sy: y
     };
     if (kind === "crawler") { b.dx = 0; b.dy = 0; }
     if (kind === "heisen") { b.dx = 1; }
@@ -425,7 +424,9 @@ window.WORLD = (() => {
     let bug = null;
     for (const b of W.bugs) if (b.id === c.bug) bug = b;
     if (!bug) { toast(W, "目标跑了", "warn"); return; }
-    if (Math.abs(bug.x - W.player.cx) + Math.abs(bug.y - W.player.cy) > 1) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
+    /* 边走边修：完成那一刻还贴着就行 —— 按连续距离算（跟滑行中的虫也算得准），跑远才失败 */
+    const bx = bug.sx != null ? bug.sx : bug.x, by = bug.sy != null ? bug.sy : bug.y;
+    if (U.dist(W.player.x, W.player.y, bx + 0.5, by + 0.5) > 1.6) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
     if (c.type === "test") {
       W.tools.test--; bug.tested = true; sfx("test");
       toast(W, "给「" + BUGS.get(bug.kind).label + "」盖了测试，现在删它不会复发", "good");
@@ -556,7 +557,8 @@ window.WORLD = (() => {
       p: [r2(s.player.x), r2(s.player.y), s.player.dir, s.player.lastDx, s.player.lastDy, s.player.cast ? 1 : 0],
       tools: s.tools.test,
       bugs: (s.bugs || []).map(b => [b.kind, b.x, b.y, b.hp || 1, b.tested ? 1 : 0, b.attached ? 1 : 0,
-                                     sec(b.cd), sec(b.stun), sec(b.frozen), sec(b.jumpCd), sec(b.fuse)]),
+                                     sec(b.cd), sec(b.stun), sec(b.frozen), sec(b.jumpCd), sec(b.fuse),
+                                     r2(b.sx != null ? b.sx : b.x), r2(b.sy != null ? b.sy : b.y)]),
       layer: s.layer, mode: s.mode, gravity: s.gravity, layers: s.layers, dyn, flags,
       k: s.kills, e: s.entropy, rv: s.reverted, pr: s.prReady ? 1 : 0,
       depNext: s.depNext, idc: s.idc,
@@ -573,8 +575,6 @@ window.WORLD = (() => {
     if (p) {
       p.x = (p.x || 0) + 0.5;
       p.y = (p.y || 0) + 1 - P_S;                   // 旧格坐标 → 连续坐标：让判定箱整个落在格内
-      p.px = (p.px != null ? p.px : p.x - 0.5) + 0.5;
-      p.py = (p.py != null ? p.py : p.y - 0.5) + 0.5;
       p.vx = 0; p.vy = 0; p.airUp = 0;
       p.grounded = false; p.coyote = 0; p.jumpBuf = 0; p.dropT = 0; p.doorCd = 0;
       p.logCd = (p.logCd || 0) * sec;
@@ -597,7 +597,7 @@ window.WORLD = (() => {
       b.frozen = (b.frozen || 0) * mul;
       b.stun = (b.stun || 0) * mul;
       b.justJumped = (b.justJumped || 0) * mul;
-      b.px = b.x; b.py = b.y;
+      b.sx = b.x; b.sy = b.y;
     }
     if (o.movers) for (const m of o.movers) {
       m.cd = (m.cd || 0) * mul;
@@ -884,7 +884,7 @@ window.WORLD = (() => {
     }
     W.player.x = U.clamp(W.player.x + dx, 0.5, w - 0.5);
     syncCell(W.player);
-    for (const b of W.bugs) b.x = nx(b.x);
+    for (const b of W.bugs) { b.x = nx(b.x); b.sx = b.x; b.sy = b.y; }   // rebase 整体挪，判定盒跟着 snap
     for (const c of W.mapCommits) c.x = nx(c.x);
     for (const p of W.prs) p.x = nx(p.x);
     for (const p of W.fakePrs) p.x = nx(p.x);
@@ -1022,15 +1022,11 @@ window.WORLD = (() => {
     const top = W.mode === "top";
     const down = W.gravity > 0 ? 1 : -1;
 
-    /* 施法时一动就打断（原版是 movePlayer 成功才打断，连续物理下按方向就算） */
-    if (p.cast && (I.down("left") || I.down("right") || I.down("up") || I.down("down"))) p.cast = null;
-
+    /* 施法不再锁脚：边走边修（finishCast 按连续距离判成败），跳 / 下穿 / 快落也一样放行 */
     let ix = 0, iy = 0;
-    if (!p.cast) {
-      if (I.down("left")) ix -= 1;
-      if (I.down("right")) ix += 1;
-      if (top) { if (I.down("up")) iy -= 1; if (I.down("down")) iy += 1; }
-    }
+    if (I.down("left")) ix -= 1;
+    if (I.down("right")) ix += 1;
+    if (top) { if (I.down("up")) iy -= 1; if (I.down("down")) iy += 1; }
     if (ix && iy) { const len = Math.SQRT2; ix /= len; iy /= len; }
     if (ix) { p.dir = ix > 0 ? 1 : -1; p.lastDx = Math.sign(ix); p.lastDy = 0; }
     else if (iy) { p.lastDx = 0; p.lastDy = Math.sign(iy); }
@@ -1053,10 +1049,10 @@ window.WORLD = (() => {
     p.vx = approach(p.vx, tvx, (p.grounded ? ACC_SIDE : AIR_ACC) * DT);
     moveX(W, p.vx * DT);
 
-    if (!p.cast && I.hit("up")) p.jumpBuf = JUMP_BUF;
+    if (I.hit("up")) p.jumpBuf = JUMP_BUF;
     p.jumpBuf = Math.max(0, p.jumpBuf - DT);
     p.coyote = p.grounded ? COYOTE : Math.max(0, p.coyote - DT);
-    if (!p.cast && p.jumpBuf > 0 && p.coyote > 0) {
+    if (p.jumpBuf > 0 && p.coyote > 0) {
       p.vy = -down * JUMP_V0;
       if (ix) p.vx = ix * RUN_SIDE;          // 起跳直接带走方向速度，2 格坑才有稳定余量
       p.grounded = false; p.coyote = 0; p.jumpBuf = 0;
@@ -1064,7 +1060,7 @@ window.WORLD = (() => {
     }
 
     /* 按住 ↓：在单向平台上往下穿，空中则加速下落 */
-    if (!p.cast && I.down("down")) {
+    if (I.down("down")) {
       const fx = p.cx, fy = down > 0 ? Math.floor(p.y + P_S + 0.03) : Math.floor(p.y - P_S - 0.03);
       if (p.grounded && inb(W, fx, fy) && onewayAt(W, fx, fy)) {
         /* 要一口气穿过整格，不然 dropT 结束后会被同一块单杠吸回去 */
@@ -1074,7 +1070,7 @@ window.WORLD = (() => {
     if (p.dropT > 0) p.dropT -= DT;
 
     p.vy += GRAV * down * DT;
-    if (!p.grounded && !p.cast && I.down("down") && p.vy * down < 6) p.vy += GRAV * 0.9 * down * DT;
+    if (!p.grounded && I.down("down") && p.vy * down < 6) p.vy += GRAV * 0.9 * down * DT;
     if (down > 0) p.vy = Math.min(p.vy, MAX_FALL);
     else p.vy = Math.max(p.vy, -MAX_FALL);
     const wasG = p.grounded, fallVy = p.vy;
@@ -1191,7 +1187,6 @@ window.WORLD = (() => {
     if (W.won) return;
     if (W.player.dead) return;
     const p = W.player;
-    p.px = p.x; p.py = p.y;
     syncCell(p);
     const ocx = p.cx, ocy = p.cy, wasGrounded = p.grounded;
 
@@ -1218,11 +1213,23 @@ window.WORLD = (() => {
 
     /* 虫群 */
     for (const b of W.bugs.slice()) {
-      b.px = b.x; b.py = b.y;
       if (b.stun > 0) { b.stun--; continue; }
       if (b.frozen > 0) { b.frozen--; continue; }
       const k = BUGS.get(b.kind);
       try { k.ai ? k.ai.call(k, W.api, b) : null; } catch (e) { /* 单只虫抽风不该弄停世界 */ }
+    }
+    /* 甲虫的连续位置：每 tick 向格心匀速滑一段（渲染身体、致死判定、B 键红框共用它）。
+     * 眩晕 / 冻结当场停住 —— 丢 console 定住虫，它滑到哪儿就停在哪儿；
+     * 摔落 / 爬墙虫脱落 / 跳虫大跳 / rebase 在各自发生处直接 snap，不滑。
+     * 步进节奏有 ±20% 抖动，滑行速度取标称值，前后差半格以内，肉眼无感。 */
+    for (const b of W.bugs) {
+      if (b.sx == null) { b.sx = b.x; b.sy = b.y; continue; }   // 旧档 / 回档过来的虫先落位
+      if (b.stun > 0 || b.frozen > 0) continue;
+      const glide = 1 / Math.max(1, (BUGS.get(b.kind).speed || 0) * S);
+      if (b.sx < b.x) b.sx = Math.min(b.x, b.sx + glide);
+      else if (b.sx > b.x) b.sx = Math.max(b.x, b.sx - glide);
+      if (b.sy < b.y) b.sy = Math.min(b.y, b.sy + glide);
+      else if (b.sy > b.y) b.sy = Math.max(b.y, b.sy - glide);
     }
     dropCrawlers(W);
     bugGravity(W);
@@ -1315,13 +1322,13 @@ window.WORLD = (() => {
   function boxHitsCell(W, p, x, y) {
     return boxHitsCellAt(W, p.x, p.y, x, y);
   }
-  /** 判定箱（锚点 x,y）与甲虫致死盒是否重叠。
-   *  致死盒是格中心 BUG_HIT×BUG_HIT 的内接盒，对着甲虫椭圆身体画（render.js 的 size=TS*0.32，不出腿），
+  /** 判定箱（锚点 x,y）与甲虫致死盒是否重叠，(cx,cy) 是盒中心的连续坐标。
+   *  致死盒是 BUG_HIT×BUG_HIT 的方盒，对着甲虫椭圆身体画（render.js 的 size=TS*0.32，不出腿），
    *  B 键调试画的就是它。以前拿整格当碰撞体，而玩家箱底 P_S=0.533 已过半格 ——
    *  站在甲虫正上方一格的格中心，箱底就压进甲虫格 0.033 格，「贴上去按 H」的机会都没有。 */
-  function boxHitsBugAt(W, x, y, bx, by) {
+  function boxHitsBugXY(W, x, y, cx, cy) {
     const bh = W.gravity > 0 ? P_S : P_H, th = W.gravity > 0 ? P_H : P_S;
-    const h = BUG_HIT / 2, cx = bx + 0.5, cy = by + 0.5;
+    const h = BUG_HIT / 2;
     return x + PW / 2 > cx - h && x - PW / 2 < cx + h && y + bh > cy - h && y - th < cy + h;
   }
 
@@ -1344,7 +1351,7 @@ window.WORLD = (() => {
       if (b.cd-- > 0) continue;
       b.cd = Math.round(2 * S);
       const ny = b.y + (W.gravity > 0 ? 1 : -1);
-      if (!solidAt(W, b.x, ny) && !isPitAt(W, b.x, ny)) { b.y = ny; continue; }
+      if (!solidAt(W, b.x, ny) && !isPitAt(W, b.x, ny)) { b.y = ny; b.sy = ny; continue; }   // 脱落 snap
       b.kind = "walk"; b.attached = false; b.cd = Math.round(BUGS.get("walk").speed * S); b.dx = 1; b.dy = 0;
     }
   }
@@ -1361,7 +1368,7 @@ window.WORLD = (() => {
       if (!inb(W, b.x, ny)) continue;
       if (supportAt(W, b.x, ny) || isPitAt(W, b.x, ny)) continue;
       if (bugAt(W, b.x, ny)) continue;
-      b.y = ny;
+      b.y = ny; b.sy = ny;                                // 摔落 snap：判定盒跟着掉，别拖着滑
     }
   }
 
@@ -1370,14 +1377,12 @@ window.WORLD = (() => {
     if (p.inv > 0) return;
     for (const b of W.bugs) {
       if (!BUGS.isLethal(b)) continue;
-      /* 判定 = 判定箱碰到甲虫致死盒（与 B 键画出来的盒子同一几何） */
-      if (boxHitsBugAt(W, p.x, p.y, b.x, b.y)) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
-      /* 两人对穿（同 tick 交换格子）也算撞上 */
-      if (b.px != null &&
-          boxHitsBugAt(W, p.px, p.py, b.x, b.y) &&
-          boxHitsBugAt(W, p.x, p.y, b.px, b.py)) {
-        die(W, "和「" + BUGS.get(b.kind).label + "」迎面撞在一起"); return;
-      }
+      /* 判定 = 判定箱碰到甲虫致死盒。盒子中心跟着甲虫的连续位置 sx/sy 走，
+       * 和画出来的身体、B 键红框同一几何 —— 身体滑到哪儿，判定就在哪儿。
+       * 连续位置下不存在"同 tick 互相穿过"：穿越必然在多个 tick 里产生真实重叠，
+       * 旧的对穿兜底（按格子算）反而会在玩家跨站两格交界时提前误杀，已删。 */
+      const bx = b.sx != null ? b.sx : b.x, by = b.sy != null ? b.sy : b.y;
+      if (boxHitsBugXY(W, p.x, p.y, bx + 0.5, by + 0.5)) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
     }
   }
 

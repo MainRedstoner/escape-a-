@@ -2,8 +2,8 @@
  * Escape A÷ · game/src/render.js —— Canvas 2D 渲染层
  *
  * 全部图形都是代码画的（零素材），只用世界状态做输入，不改状态。
- * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子按自己的真实步进节奏匀速滑行（大跳短促一跳），
- * 机关和 CI 用指数平滑插值，避免格子跳变。
+ * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子画世界推进的连续位置 sx/sy（身体、致死判定、B 键
+ * 红框同源 —— 身体滑到哪儿判定就在哪儿），机关和 CI 用指数平滑插值，避免格子跳变。
  * 横版额外画视差背景、平台高光、坑的深度渐变和落地尘土；俯视保持原来的黑底。
  * 亮度 = WORLD.brightness()：1 实时观测 · 0 全黑 · 中间是「还记得」。
  * ============================================================ */
@@ -83,7 +83,7 @@ window.RENDER = (() => {
     const x0 = Math.floor(cam.x / TS) - 1, y0 = Math.floor(cam.y / TS) - 1;
     drawTiles(W, x0, y0, cols, rowsN);
     drawHazardsBack(W, x0, y0, cols, rowsN);
-    drawEntities(W, dt);
+    drawEntities(W);
     drawPlayer(W, dt);
     drawParticles();
     drawHazardsFront(W, dt);
@@ -504,30 +504,6 @@ window.RENDER = (() => {
     return m;
   }
 
-  /* ---------------- 甲虫滑行 ----------------
-   * 网格逻辑一步一格（判定/快照都不动），渲染层把"瞬移"摊成一整段匀速滑行：
-   * 每次目标格变了，就从当前画到的位置出发，用「上一次目标变更的实际间隔」当滑行时长——
-   * 步进节奏 1 秒就滑满 1 秒（贴着 AI 的真实速度），摔落 0.13 秒一格也自动跟着变快。
-   * 超过 2 格的大跳（跳虫）不拖着走，按 0.2s + 0.06s/格 的短跳处理。 */
-  function bugPos(b, dt) {
-    let m = memo["b" + b.id];
-    if (!m) m = memo["b" + b.id] = { x: b.x, y: b.y, fx: b.x, fy: b.y, tx: b.x, ty: b.y, t: 1, dur: 1, since: null };
-    m.since = m.since == null ? null : m.since + dt;
-    if (m.tx !== b.x || m.ty !== b.y) {
-      const dist = Math.abs(b.x - m.tx) + Math.abs(b.y - m.ty);
-      m.fx = m.x; m.fy = m.y; m.tx = b.x; m.ty = b.y; m.t = 0;
-      /* 第一次换格没有"上一次间隔"可量，用 b.cd（刚走完一步时它正好是完整周期）兜底 */
-      m.dur = dist > 2 ? 0.2 + 0.06 * dist
-            : Math.max(0.06, Math.min(3, m.since != null ? m.since : (b.cd + 1) * WORLD.DT));
-      m.since = 0;
-    }
-    m.t = Math.min(m.dur, m.t + dt);
-    const k = m.dur > 0 ? m.t / m.dur : 1;
-    m.x = m.fx + (m.tx - m.fx) * k;
-    m.y = m.fy + (m.ty - m.fy) * k;
-    return m;
-  }
-
   function visible(W, x, y) {
     if (WORLD.observed(W, x, y)) return 1;
     const i = WORLD.idx(W, W.layer, x, y);
@@ -535,27 +511,30 @@ window.RENDER = (() => {
     return 0;
   }
 
-  function drawEntities(W, dt) {
+  function drawEntities(W) {
     for (const b of W.bugs) {
       const v = visible(W, b.x, b.y);
       const kind = BUGS.get(b.kind);
       /* 海森堡虫：只在黑暗里显形（或者被观测卡住的时候） */
       if (kind.invisible) {
-        if (b.frozen > 0) { drawBug(W, b, 1, dt); continue; }
+        if (b.frozen > 0) { drawBug(W, b, 1); continue; }
         if (v > 0) continue;
         const bm = WORLD.brightness(W, b.x, b.y);
         if (bm <= 0 && !W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue;
-        drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9), dt);
+        drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9));
         continue;
       }
       if (v <= 0) continue;
-      drawBug(W, b, v, dt);
+      drawBug(W, b, v);
     }
   }
 
-  function drawBug(W, b, alpha, dt) {
-    const m = bugPos(b, dt);
-    const px = (m.x + 0.5) * TS, py = (m.y + 0.5) * TS;
+  /** 甲虫画在哪：世界推进的连续位置 sx/sy（没有就退回格坐标），中心 = 格坐标 + 0.5 */
+  function bugCX(b) { return ((b.sx != null ? b.sx : b.x) + 0.5) * TS; }
+  function bugCY(b) { return ((b.sy != null ? b.sy : b.y) + 0.5) * TS; }
+
+  function drawBug(W, b, alpha) {
+    const px = bugCX(b), py = bugCY(b);
     const k = BUGS.get(b.kind);
     const size = TS * (b.kind === "boss" ? 0.46 : b.kind === "egg" ? 0.22 : 0.32);
     ctx.save();
@@ -736,7 +715,7 @@ window.RENDER = (() => {
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
      * 黄框 = 玩家判定箱，world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
      * 箱下边、物理碰撞沿、阴影下缘切线三者合一，贴墙 / 落地时都停在方块表面上。
-     * 红框 = 甲虫致死盒，world.js 的 boxHitsBugAt（格中心 0.6×0.6 内接盒）——
+     * 红框 = 甲虫致死盒（0.6×0.6，中心跟甲虫的连续位置 sx/sy 走）——
      * 致死判定和它同一几何，B 所见 = 真实判定。 */
     if (showBox && !W.player.dead) {
       const bs = down > 0 ? P_S : P_H, th = down > 0 ? P_H : P_S;
@@ -751,8 +730,9 @@ window.RENDER = (() => {
       ctx.strokeStyle = "rgba(255,72,58,.9)";
       for (const b of W.bugs) {
         if (!BUGS.isLethal(b)) continue;
-        ctx.fillRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
-        ctx.strokeRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
+        const bcx = bugCX(b), bcy = bugCY(b);
+        ctx.fillRect(bcx - hs / 2, bcy - hs / 2, hs, hs);
+        ctx.strokeRect(bcx - hs / 2, bcy - hs / 2, hs, hs);
       }
       ctx.restore();
     }
