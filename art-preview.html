@@ -360,7 +360,7 @@
 
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
-  <span>构建 <b id="stBuild">2026-11-01d</b></span>
+  <span>构建 <b id="stBuild">2026-11-08a</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
   <span>画布 <b id="stGain">1.00x</b></span>
@@ -372,9 +372,9 @@
 
 <script src="assets/shh.js"></script>
 <script src="assets/manifest.js"></script>
-<script src="src/art3d/core.js?v=114"></script>
-<script src="src/art3d/textures.js?v=112"></script>
-<script src="src/art3d/props.js?v=110"></script>
+<script src="src/art3d/core.js?v=117"></script>
+<script src="src/art3d/textures.js?v=116"></script>
+<script src="src/art3d/props.js?v=115"></script>
 <script src="src/art3d/flock.js?v=110"></script>
 <script src="src/art3d/decor.js?v=110"></script>
 <script src="src/art3d/worlds.js?v=111"></script>
@@ -382,7 +382,7 @@
 <script src="src/art3d/world_github.js?v=131"></script>
 <script src="src/art3d/world_hf.js?v=131"></script>
 <script src="src/art3d/world_shit.js?v=131"></script>
-<script src="src/art3d/world.js?v=152"></script>
+<script src="src/art3d/world.js?v=164"></script>
 <!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
 <script src="src/art.js?v=36"></script>
 <script>
@@ -398,10 +398,10 @@
 const SCENES = [
   { id: "sea",            name: "深海 / 标题画面",        desc: "光柱、鱼群、远处鲸影；标题画面和被水淹没的梦。", group: "序章" },
   { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼工作室：床、两张桌子（靠墙那张给小克留着）、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章", post: false },
-  { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "已搬到大世界的教堂正门前：双扇橡木门、铁箍门环、CLAUDE 门牌、门头提灯，两侧石池里是橙色菊花，抬头是玫瑰窗与钟楼。", group: "序章" },
+  { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "已搬到大世界的教堂正门前（晴天）：双扇橡木门、铁箍门环、CLAUDE 门牌、门头提灯，两侧石池里是橙色菊花，抬头是玫瑰窗与钟楼。", group: "序章" },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的；整座教堂泡在红光里。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。序章第二课在这里——DeepSeek 上门学写信。", group: "序章" },
-  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。", group: "大世界" },
+  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。晴天：太阳平行光 + 正交阴影，前院草坪上是会随风摆的草丛。", group: "大世界" },
   { id: "world_title",    name: "大世界 · 主标题",        desc: "山顶教堂旁边，面向海岸线：下方是教堂与墓园，远处 GitHub 居中、HF 营地居左、灯塔与城市居右，海湾里有一条月光。", group: "大世界" },
   { id: "github_street",  name: "大世界 · GitHub 夜市街", desc: "街两边的摊位一个比一个不一样，灯笼和店招连成串；街尾是屎山，远远就能看见那些报错屏。", group: "大世界" },
   { id: "hf_camp",        name: "大世界 · HF 营地",       desc: "从海滩斜望向岸边（夜）：帐篷群、地摊和小吃、串灯与篝火，模型们的第二个家。", group: "大世界" },
@@ -686,6 +686,53 @@ function lightRow(label, color, min, max, step, value, fmt, onColor, onValue) {
   return row;
 }
 
+/* 只有滑杆的一行：太阳方向 / 硬度 / 阴影参数用。
+   复用 .lpRow 的栅格（标签占第一行，滑杆第二行，读数贴右边）。 */
+function sliderRow(label, min, max, step, value, fmt, onValue) {
+  const row = document.createElement("div");
+  row.className = "lpRow";
+  const nm = document.createElement("div");
+  nm.className = "nm";
+  const sp = document.createElement("span");
+  sp.textContent = label;
+  nm.appendChild(sp);
+  const range = document.createElement("input");
+  range.type = "range"; range.min = min; range.max = max; range.step = step; range.value = value;
+  const val = document.createElement("div");
+  val.className = "val"; val.textContent = fmt(+value);
+  row.append(nm, range, val);
+  range.addEventListener("input", () => {
+    val.textContent = fmt(+range.value);
+    onValue(+range.value);
+    updateLightJson();
+  });
+  return row;
+}
+
+/** 一行小字（没有太阳阴影的场景给个说明） */
+function noteRow(text) {
+  const d = document.createElement("div");
+  d.className = "lpSec";
+  d.style.textTransform = "none";
+  d.style.letterSpacing = "0";
+  d.textContent = text;
+  return d;
+}
+
+/** 方向角 ↔ 单位向量。方位角 0° = 世界 +Z（教堂正门朝向 / 南），90° = +X（东）。
+ *  内部一律存单位向量（lights.sun 就是「指向太阳」的方向）。 */
+function sunAngles(v) {
+  v = v || [0, 1, 0];
+  const el = Math.asin(clamp(v[1], -1, 1)) * 180 / Math.PI;
+  const az = Math.atan2(v[0], v[2]) * 180 / Math.PI;
+  return [az, el];
+}
+function sunVector(azDeg, elDeg) {
+  const a = azDeg * Math.PI / 180, e = elDeg * Math.PI / 180;
+  const c = Math.cos(e);
+  return [Math.sin(a) * c, Math.sin(e), Math.cos(a) * c];
+}
+
 function buildLightPanel(s) {
   if (!s) return;
   const host = $("lightRows");
@@ -697,8 +744,56 @@ function buildLightPanel(s) {
     const d = document.createElement("div");
     d.className = "lpSec"; d.textContent = t; host.appendChild(d);
   };
-  sec("环境 / 方向光");
-  [["sunCol", "太阳"], ["skyCol", "天光"], ["groundCol", "地面反弹"]].forEach(([key, label]) => {
+  /** 太阳方向 / 阴影参数一改，已经烘好的正交深度图就废了，得让它下一帧重建 */
+  const sunShadowDirty = () => { s.__sunShadow = undefined; };
+
+  /* ---------------- 太阳（平行光） ---------------- */
+  sec("太阳（平行光）");
+  {
+    let base = (L.sunCol || [1, 1, 1]).slice();
+    let inten = 1;
+    const apply = () => { L.sunCol = base.map(v => clamp(v * inten, 0, 4)); };
+    // 颜色：只改底色，亮度交给下一行，避免两个滑杆互相打架
+    const row = document.createElement("div");
+    row.className = "lpRow";
+    const nm = document.createElement("div");
+    nm.className = "nm";
+    const sp = document.createElement("span");
+    sp.textContent = "太阳颜色";
+    nm.appendChild(sp);
+    const col = document.createElement("input");
+    col.type = "color"; col.value = rgbToHex(base);
+    const val = document.createElement("div");
+    val.className = "val"; val.textContent = "×1.00";
+    row.append(nm, col, val);
+    col.addEventListener("input", () => { base = hexToRgb(col.value); apply(); });
+    col.addEventListener("change", updateLightJson);
+    host.appendChild(row);
+    host.appendChild(sliderRow("太阳亮度", 0, 3, 0.01, 1, v => "×" + v.toFixed(2), v => {
+      inten = v;
+      val.textContent = "×" + v.toFixed(2);
+      apply();
+    }));
+    // 方向：方位角 / 高度角，改完直接重建阴影
+    let angles = sunAngles(L.sun);
+    const writeDir = () => {
+      L.sun = sunVector(angles[0], angles[1]);
+      sunShadowDirty();
+    };
+    host.appendChild(sliderRow("方位角（0°=+Z 正南）", -180, 180, 1, Math.round(angles[0]), v => v.toFixed(0) + "°", v => {
+      angles[0] = v; writeDir();
+    }));
+    host.appendChild(sliderRow("高度角（地平线以上）", -10, 90, 0.5, Math.round(angles[1] * 2) / 2, v => v.toFixed(1) + "°", v => {
+      angles[1] = v; writeDir();
+    }));
+    // 环绕漫反射：1 = 老的非硬光，0.2 左右才有「太阳晒着」的明暗对比
+    host.appendChild(sliderRow("太阳硬度（0=硬方向光）", 0, 1, 0.01,
+      L.sunWrap === undefined ? 1 : L.sunWrap, v => v.toFixed(2), v => { L.sunWrap = v; }));
+  }
+
+  /* ---------------- 环境光 ---------------- */
+  sec("环境光");
+  [["skyCol", "天光"], ["groundCol", "地面反弹"]].forEach(([key, label]) => {
     let base = (L[key] || [1, 1, 1]).slice();
     let mult = 1;
     const apply = () => { L[key] = base.map(v => clamp(v * mult, 0, 4)); };
@@ -706,6 +801,35 @@ function buildLightPanel(s) {
       c => { base = c; apply(); },
       v => { mult = v; apply(); }));
   });
+
+  /* ---------------- 太阳阴影（正交深度图） ---------------- */
+  sec("太阳阴影");
+  const cfg = s.sunShadow;
+  if (!cfg) {
+    host.appendChild(noteRow("该场景没开 sunShadow，不投影（切回 world_church 就有）"));
+  } else {
+    if (s.__sunShadowCfg === undefined) s.__sunShadowCfg = Object.assign({}, cfg);
+    const restore = () => { s.sunShadow = Object.assign({}, s.__sunShadowCfg); sunShadowDirty(); };
+    const off = !s.sunShadow;
+    host.appendChild(sliderRow("开关", 0, 1, 1, off ? 0 : 1, v => (v ? "开" : "关"), v => {
+      if (v) restore(); else { s.sunShadow = null; sunShadowDirty(); }
+    }));
+    if (s.sunShadow) {
+      const c = s.sunShadow;
+      host.appendChild(sliderRow("覆盖范围（半边长 m）", 12, 90, 1, c.extent || 40, v => v.toFixed(0), v => {
+        c.extent = v; sunShadowDirty();
+      }));
+      host.appendChild(sliderRow("深度偏置（防阴影痤疮）", 0, 0.004, 0.00005,
+        c.bias === undefined ? 0.00055 : c.bias, v => (v * 1000).toFixed(2), v => {
+          c.bias = v; sunShadowDirty();
+        }));
+      host.appendChild(sliderRow("阴影贴图（0=默认 2048）", 0, 4096, 1024, c.size || 2048,
+        v => (v ? v + "²" : "默认"), v => {
+          c.size = v || 2048; sunShadowDirty();
+        }));
+    }
+  }
+
   const pts = L.points || [];
   if (pts.length) {
     sec("点光源");
@@ -737,8 +861,15 @@ function currentLightJson() {
     scene: s.__id || (SCENES[cur] && SCENES[cur].id) || "",
     sun: vec3(L.sun || [0, 1, 0]),
     sunCol: vec3(L.sunCol || [0, 0, 0]),
+    sunWrap: r3(L.sunWrap === undefined ? 1 : L.sunWrap),
     skyCol: vec3(L.skyCol || [0, 0, 0]),
     groundCol: vec3(L.groundCol || [0, 0, 0]),
+    sunShadow: s.sunShadow ? {
+      center: vec3(s.sunShadow.center || [0, 0, 0]),
+      extent: r3(s.sunShadow.extent || 40),
+      size: s.sunShadow.size || 2048,
+      bias: r3(s.sunShadow.bias === undefined ? 0.00055 : s.sunShadow.bias)
+    } : null,
     points: (L.points || []).map((p, i) => ({
       name: p.name || ("点光 " + (i + 1)),
       pos: vec3(p.pos || [0, 0, 0]),

@@ -10,6 +10,8 @@
 const A3DProps = (() => {
   const M = A3D.M, G = A3D.Builder.prototype;
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
+  /** 恒等 3×3：草叶的「世界向上」法线自己算好，_v 里不要再转（见 leafBlade） */
+  const IDENT_NM = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
   /** 随机数（带种子，保证每次进游戏构图一致） */
   function rng(seed) {
@@ -285,9 +287,13 @@ const A3DProps = (() => {
       [0.16, 0.13, 0.10], true);
   }
   /** 一片叶子：带弧度、沿长度方向分段的长条面片。
-   *  形状交给 leaf 贴图的 alpha，这里只负责弯曲和朝向。 */
-  function leafBlade(b, m, len, wid, col, curve) {
-    const seg = 4;
+   *  形状交给 leaf 贴图的 alpha，这里只负责弯曲和朝向。
+   *
+   *  sway 必须逐顶点给（叶根 0 → 叶尖 1）。以前四段都传了同一端的 t，
+   *  相邻段共享的那条边拿到两个不同的 sway，风一吹就被撕开——近景看是
+   *  「一片叶子断成一截一截」。宽度已经共享了，sway 也得共享。 */
+  function leafBlade(b, m, len, wid, col, curve, segs, upNorm) {
+    const seg = segs || 4;
     const nm = A3D.M.normalMat(m);
     const pts = [];
     for (let i = 0; i <= seg; i++) {
@@ -303,13 +309,30 @@ const A3DProps = (() => {
       const wc = wid * (0.75 + 0.25 * Math.sin(c[2] * Math.PI));
       const q = [[a[0], a[1], wa], [c[0], c[1], wc], [c[0], c[1], -wc], [a[0], a[1], -wa]];
       const uv = [[0, a[2]], [0, c[2]], [1, c[2]], [1, a[2]]];
-      // 法线：叶片切向 × 横向
+      const sw = [a[2], c[2], c[2], a[2]];
+      // 法线：叶片切向 × 横向。upNorm 的草叶不走这条（见下）
       let tx = c[0] - a[0], ty = c[1] - a[1];
       const l = Math.hypot(tx, ty) || 1;
       const nx = -ty / l, ny = tx / l;
       for (let k = 0; k < 4; k++) {
         const p = q[k];
-        b._v(b.d, m, nm, p[0], p[1], p[2], nx, ny, 0, uv[k][0], uv[k][1], col, a[2]);
+        if (upNorm) {
+          /* 草叶用「混过世界向上」的假法线：草是一根几毫米宽的薄片，
+           * 真实的侧面法线会让一半叶片在太阳下黑成剪影。
+           * 把叶片自己的法线跟世界向上按 6:4 混，既不会黑成剪影，
+           * 也不至于像一块平顶，逐叶顶点色负责把变化拉出来。 */
+          let gx2 = nm[0] * nx + nm[3] * ny;
+          let gy2 = nm[1] * nx + nm[4] * ny;
+          let gz2 = nm[2] * nx + nm[5] * ny;
+          const gl2 = Math.hypot(gx2, gy2, gz2) || 1;
+          gx2 = gx2 / gl2 * 0.6;
+          gy2 = gy2 / gl2 * 0.6 + 0.4;
+          gz2 = gz2 / gl2 * 0.6;
+          b._v(b.d, m, IDENT_NM, p[0], p[1], p[2], gx2, gy2, gz2,
+            uv[k][0], uv[k][1], col, sw[k]);
+        } else {
+          b._v(b.d, m, nm, p[0], p[1], p[2], nx, ny, 0, uv[k][0], uv[k][1], col, sw[k]);
+        }
       }
       b._pushQuad(b.count - 4);
     }
@@ -362,6 +385,33 @@ const A3DProps = (() => {
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
         M.trs(0, 0, 0, 0, 0, (r() - 0.5) * 0.5));
       leafBlade(b, mm, h * (0.5 + r() * 0.8), 0.012 + r() * 0.01, col);
+    }
+  }
+  /** 一丛草：根部收在一个小圆片里、每根叶片的朝向 / 弧度 / 长短都不同。
+   *  和 grass() 的区别是叶片更细更立、带向外的倾角，远看是一簇，近看根根分开；
+   *  叶片只用 3 段（风吹时弯曲够用，顶点数比默认的 4 段省四分之一）。 */
+  function grassTuft(b, m, op) {
+    op = op || {};
+    const r = rng(op.seed || 7);
+    const n = op.n || 7;
+    const h = op.h || 0.3;
+    const spread = op.spread === undefined ? 0.1 : op.spread;
+    const base = op.col || [0.62, 0.92, 0.5];
+    for (let i = 0; i < n; i++) {
+      const a = r() * TAU, rr = Math.sqrt(r()) * spread;
+      const len = h * (0.55 + r() * 0.8);
+      const wid = (op.wid || 0.005) * (0.7 + r() * 0.7);
+      // 越靠外的叶片越往外倒，中间那几根笔直顶出来；倾角封顶在 45° 左右，
+      // 再大就是一地趴着的叶子，不像草
+      const outward = spread > 0.001 ? rr / spread : 0;
+      const lean = Math.min(0.72, (0.14 + outward * 0.5) * (0.55 + r() * 0.6));
+      const twist = r() * TAU;
+      const tone = 0.78 + r() * 0.46;
+      const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
+        M.trs(0, 0, 0, 0, 0, lean));
+      leafBlade(b, mm, len, wid,
+        [base[0] * tone, base[1] * tone, base[2] * tone],
+        0.55 + r() * 0.6, 3, true);
     }
   }
   /** 菊花：茎 + 叶片 + 花瓣（petal builder） */
@@ -656,7 +706,7 @@ const A3DProps = (() => {
     rng, pick, mix, stage, quad4, figure,
     table, drawer, chair, monitorBody, monitorScreen, keyboard, mouse, mug, papers,
     book, bookRow, bookshelf, shelfBooks,
-    pot, leafBlade, leafFlat, plant, tallLeaves, grass, chrysanthemum,
+    pot, leafBlade, leafFlat, plant, tallLeaves, grass, grassTuft, chrysanthemum,
     tableLamp, paperLantern,
     tent, campfire, crate, barrel, rack, archWindowFrame, stall, garbagePile, birdWings
   };

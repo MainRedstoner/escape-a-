@@ -113,7 +113,7 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 背景是 `src/art3d/` 里现建的 WebGL2 场景（程序化几何 + 程序化贴图），不是图片。
 
 **最快的看法：双击 `art-preview.html`**（`file://` 可用）。左侧切场景、
-`全部场景` 生成缩略图、`游戏后期` 开关对比调色，`光影` 面板（或 `L`）调环境 / 每盏点光 / 后期色调的颜色和亮度，`复制 JSON` 一键复制（`file://` 下剪贴板不可用时回退到文本框）；底部有 FPS、顶点数和当前移动速度；
+`全部场景` 生成缩略图、`游戏后期` 开关对比调色，`光影` 面板（或 `L`）调**太阳颜色 / 亮度 / 方位角 / 高度角 / 硬度**、太阳阴影的开关 / 覆盖范围 / 深度偏置 / 贴图边长、天光与地面反弹、每盏点光的颜色和强度、后期色调，`复制 JSON` 一键复制（`file://` 下剪贴板不可用时回退到文本框）；底部有 FPS、顶点数和当前移动速度；
 画面是**第一人称自由相机**：打开就站在该场景的设计机位（eye + 朝向），
 **拖拽看视角 / WASD 飞 / Q/E 升降 / Shift 加速 / Alt 减速 / 滚轮调移动速度 / `[` `]` 或 `Shift+滚轮` 调 FOV（18–110°）/ R 回默认机位**，
 `H` 纯净模式、`G` 缩略图、`P` 调试角标、`1–9` 直选；滚轮只调移动速度，不再切场景。
@@ -145,12 +145,15 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 
 1. **先确认渲染层活着**：控制台 `A3D.ok` 应为 `true`；`false` 看 `A3D.failReason`。
    `ds_room` 的吊灯有真 cubemap 阴影：`A3D.debugScene().__shadow` 有对象才说明 shadow map 建成功；没有就是 FBO/深度贴图构建失败，看控制台 `[A3D] 阴影构建失败`。
+   `world_church` 的**太阳平行光阴影**同理看 `A3D.debugScene().__sunShadow`（正交深度图，`{ tex, vp, size, far, bias }`），报错字样是 `[A3D] 太阳阴影构建失败`。
    `A3D` 都没定义，通常是 `index.html` 的 `src/art3d/*.js` 没加载（顺序：core → textures → props → worlds → worlds2 → art）。2. **看控制台有没有 shader 报错**：着色器编译失败会打印完整源码和行号，按行号改 `src/art3d/core.js`。
 3. **单独预览一个场景**：`index.html?bg=ds_room`（可选 id 见 DESIGN.md 4.6）。
    标题画面会盖在场景上，想看干净的画面可以在控制台
    `document.getElementById('titleScreen').style.display='none'`。
 4. **调光**：`const sc = A3D.debugScene(); sc.lights.sunCol = [1,1,1];`（物体偏暗）、
    `sc.lights.fogAmt = 0`（雾太重）、`sc.cam.fov` / `sc.cam.eye`（构图）。
+   太阳方向是 `sc.lights.sun`（单位向量，**指向太阳**），改完要 `sc.__sunShadow = undefined` 让它重建阴影；
+   明暗对比不够就压 `sc.lights.sunWrap`（1 = 老的环绕漫反射，0.2 左右才有硬方向光的明暗）。
    注意场景的 `update()` 每帧会覆盖相机，临时调构图先把 `sc.update = null`。
 5. **子物体跑偏 / 半个面消失**：先怀疑几何构造。`A3D.Builder` 的 `_pushQuad` 要求
    正好 4 个连续顶点，多塞一个顶点就会把别的三角形挤歪。

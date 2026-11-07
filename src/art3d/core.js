@@ -45,6 +45,16 @@ const A3D = (() => {
         0, 0, 2 * far * near * nf, 0
       ]);
     },
+    /** 正交投影：平行光的阴影相机用它（透视投影做方向光阴影会有透视缩放，
+     *  远处的东西阴影大小不对）。列主序，和 perspective 一致。 */
+    ortho(l, r, b, t, n, f) {
+      return new Float32Array([
+        2 / (r - l), 0, 0, 0,
+        0, 2 / (t - b), 0, 0,
+        0, 0, -2 / (f - n), 0,
+        -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1
+      ]);
+    },
     lookAt(eye, center, up) {
       let fx = center[0] - eye[0], fy = center[1] - eye[1], fz = center[2] - eye[2];
       let l = Math.hypot(fx, fy, fz) || 1; fx /= l; fy /= l; fz /= l;
@@ -391,8 +401,9 @@ const A3D = (() => {
    * ============================================================ */
   let gcv = null, gl = null, ready = false, failReason = "";
   let anisoExt = null, maxAniso = 1;
-  let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg;
+  let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg, sunShadowProg;
   let shadowFbo = null, dummyShadow = null;
+  let sunShadowFbo = null, dummySunShadow = null;
 
   /* ---------------- 画质旋钮 ----------------
    * 内部渲染分辨率和逻辑舞台解耦：舞台坐标永远是 1600×900，但 WebGL 可以按
@@ -534,6 +545,7 @@ const A3D = (() => {
   const LIT_FS = `#version 300 es
   precision highp float;
   precision highp samplerCubeShadow;
+  precision highp sampler2DShadow;
   in vec3 vWorld; in vec3 vNor; in vec2 vUV; in vec3 vCol; in float vFogDepth;
   out vec4 o;
   uniform sampler2D uTex;
@@ -548,8 +560,28 @@ const A3D = (() => {
   uniform float uUVRand;
   uniform samplerCubeShadow uShadowMap;
   uniform int uShadowIdx, uShadowTaps;
+  /* 太阳（平行光）阴影：只有场景配了 sunShadow 才启用，没配时 uSunShadowOn=0，
+     走的是和以前完全一样的路径。 */
+  uniform sampler2DShadow uSunMap;
+  uniform mat4 uSunVP;
+  uniform float uSunShadowOn, uSunShadowBias, uSunTexel, uSunWrap;
   float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   uniform float uShadowOn, uShadowFar, uShadowBias;
+
+  /** 太阳阴影：3×3 PCF。超出正交框就当作不在阴影里（不能比 1 小） */
+  float sunShadow(vec3 wp, vec3 n) {
+    vec4 lp = uSunVP * vec4(wp + n * 0.06, 1.0);
+    vec3 p = lp.xyz / lp.w * 0.5 + 0.5;
+    if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
+    float ref = p.z - uSunShadowBias;
+    float sum = 0.0;
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        sum += texture(uSunMap, vec3(p.xy + vec2(float(x), float(y)) * uSunTexel, ref));
+      }
+    }
+    return sum / 9.0;
+  }
   float pointShadow(vec3 wp, vec3 n, vec3 lp) {
     vec3 d = wp - lp;
     float dist = length(d);
@@ -616,12 +648,16 @@ const A3D = (() => {
       vec3 n = normalize(vNor);
       vec3 v = normalize(uCam - vWorld);
       float ndl = dot(n, uSunDir);
-      float wrap = clamp(ndl * 0.5 + 0.5, 0.0, 1.0);
+      /* uSunWrap = 1 是老的「环绕漫反射」：背光面也有 0.5 的底光，画面平整；
+         调小它就往「硬方向光」走——阴影面真的暗下去，太阳才像太阳。 */
+      float wrap = mix(max(ndl, 0.0), ndl * 0.5 + 0.5, uSunWrap);
       float hemi = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+      float sunSh = 1.0;
+      if (uSunShadowOn > 0.5) sunSh = sunShadow(vWorld, n);
       vec3 amb = mix(uGroundCol, uSkyCol, hemi);
-      col = alb * (amb + uSunCol * wrap);
+      col = alb * (amb + uSunCol * wrap * sunSh);
       vec3 h = normalize(uSunDir + v);
-      col += uSunCol * pow(max(dot(n, h), 0.0), 28.0) * uSpec * wrap;
+      col += uSunCol * pow(max(dot(n, h), 0.0), 28.0) * uSpec * wrap * sunSh;
       float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
       col += uSkyCol * rim * uRim;
       for (int i = 0; i < 10; i++) {
@@ -661,6 +697,22 @@ const A3D = (() => {
   out vec4 o;
   void main(){
     gl_FragDepth = clamp(length(vWorld - uLightPos) / uFar, 0.0, 1.0);
+    o = vec4(1.0);
+  }`;
+
+  /* 太阳（平行光）阴影 pass：正交投影 + 普通深度，不需要手写 gl_FragDepth。
+   * 复用 SHADOW_VS 的顶点着色器，fragment 只负责把深度写下去。 */
+  const SUNSHADOW_VS = `#version 300 es
+  layout(location=0) in vec3 aPos;
+  uniform mat4 uVP, uModel;
+  void main(){
+    gl_Position = uVP * uModel * vec4(aPos, 1.0);
+  }`;
+
+  const SUNSHADOW_FS = `#version 300 es
+  precision highp float;
+  out vec4 o;
+  void main(){
     o = vec4(1.0);
   }`;
 
@@ -807,12 +859,15 @@ const A3D = (() => {
     ptProg = program(POINT_VS, POINT_FS, ["aPos", "aCol", "aSize", "aParam"]);
     glowProg = program(GLOW_VS, GLOW_FS, ["aPos", "aNor", "aUV", "aCol"]);
     shadowProg = program(SHADOW_VS, SHADOW_FS, ["aPos"]);
+    sunShadowProg = program(SUNSHADOW_VS, SUNSHADOW_FS, ["aPos"]);
     shadowFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
     gl.drawBuffers([gl.NONE]);
     gl.readBuffer(gl.NONE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    sunShadowFbo = gl.createFramebuffer();
     dummyShadow = makeDepthCube(1);
+    dummySunShadow = makeDepth2D(1);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     // 各向异性过滤：地面 / 机柜这种掠射角的贴图不糊成条纹
@@ -929,10 +984,13 @@ const A3D = (() => {
     const done = [];
     for (const id in scenes) {
       const sc = scenes[id] && scenes[id].__built;
-      if (!sc || sc.__shadow === undefined || done.indexOf(sc) >= 0) continue;
+      if (!sc || done.indexOf(sc) >= 0) continue;
+      if (sc.__shadow === undefined && sc.__sunShadow === undefined) continue;
       done.push(sc);                      // 别名共用同一个场景对象，别重复删
       if (sc.__shadow && sc.__shadow.tex) gl.deleteTexture(sc.__shadow.tex);
+      if (sc.__sunShadow && sc.__sunShadow.tex) gl.deleteTexture(sc.__sunShadow.tex);
       sc.__shadow = undefined;            // 下一帧按新尺寸懒重建
+      sc.__sunShadow = undefined;
     }
   }
 
@@ -966,6 +1024,83 @@ const A3D = (() => {
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
     return tex;
+  }
+
+  /* 2D 深度贴图：太阳（平行光）阴影用。和 cubemap 一样挂 COMPARE_REF_TO_TEXTURE，
+   * 采样器类型必须是 sampler2DShadow。 */
+  function makeDepth2D(size) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, size, size, 0,
+      gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+    return tex;
+  }
+
+  /* ---------------- 太阳阴影（正交深度图） ----------------
+   * 场景在 `sunShadow: { center, extent, distance, far, size, bias }` 里报名才建：
+   * 一次建好缓存住（大世界的几何是静态的），画质档位一变就回收重来。
+   * 方向取 `lights.sun`（和着色器里的 uSunDir 是同一个向量，指向太阳）。
+   * 正交框只罩住镜头附近那一块——方向光阴影不需要覆盖整张地图，
+   * 罩得越紧 texel 越细，教堂门前 55m 见方用 2048 的图差不多 2.7cm 一个像素。 */
+  function buildSunShadow(sc) {
+    const cfg = sc.sunShadow;
+    if (!cfg || !gl || !sunShadowProg) { sc.__sunShadow = null; return; }
+    const size = shadowSizeCap ? Math.min(cfg.size || 2048, shadowSizeCap) : (cfg.size || 2048);
+    const center = cfg.center || (sc.cam && sc.cam.target) || [0, 0, 0];
+    const extent = cfg.extent || 42;
+    const dist = cfg.distance || extent * 2.6;
+    const far = cfg.far || dist + extent * 2.5;
+    const dir = norm3((sc.lights && sc.lights.sun) || [0.3, 0.9, 0.3]);
+    const tex = makeDepth2D(size);
+    try {
+      setA2C(false);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, sunShadowFbo);
+      gl.drawBuffers([gl.NONE]);
+      gl.readBuffer(gl.NONE);
+      gl.viewport(0, 0, size, size);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(sunShadowProg.p);
+      const eye = [center[0] + dir[0] * dist, center[1] + dir[1] * dist, center[2] + dir[2] * dist];
+      const up = Math.abs(dir[1]) > 0.985 ? [0, 0, 1] : [0, 1, 0];
+      const view = M.lookAt(eye, center, up);
+      const proj = M.ortho(-extent, extent, -extent, extent, 0.5, far);
+      const vp = M.mul(proj, view);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tex, 0);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error("sun shadow FBO incomplete");
+      }
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.uniformMatrix4fv(sunShadowProg.u.uVP, false, vp);
+      for (const b of sc.batches) {
+        /* 和点光阴影同一套筛选：半透明 / 明确不投影的批次不写深度。
+         * 树叶这类镂空批次照写（贴图 alpha 不参与，阴影会按整片 quad 算），
+         * 近看会稍微「厚」一点，但比完全没影子强。 */
+        if (b.noShadow || b.blend || (b.opacity !== undefined && b.opacity < 0.999)) continue;
+        gl.uniformMatrix4fv(sunShadowProg.u.uModel, false, b.model || scratchMat);
+        gl.bindVertexArray(b.mesh.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
+      }
+      sc.__sunShadow = {
+        tex, vp, size, far,
+        bias: cfg.bias === undefined ? 0.0006 : cfg.bias
+      };
+    } catch (e) {
+      console.error("[A3D] 太阳阴影构建失败", e);
+      sc.__sunShadow = null;
+    } finally {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, rw, rh);
+      gl.bindVertexArray(null);
+    }
   }
 
   function buildShadow(sc) {
@@ -1110,6 +1245,16 @@ const A3D = (() => {
     gl.uniform1i(u.uShadowTaps, shadowTaps);
     gl.uniform1f(u.uShadowFar, sh ? sh.far : 1);
     gl.uniform1f(u.uShadowBias, sh ? sh.bias : 0);
+    /* 太阳阴影：没建的场景绑 1×1 深度图、uSunShadowOn=0，着色器直接跳过采样。 */
+    const ss = scene.__sunShadow;
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, ss ? ss.tex : dummySunShadow);
+    gl.uniform1i(u.uSunMap, 4);
+    gl.uniform1f(u.uSunShadowOn, ss ? 1 : 0);
+    gl.uniformMatrix4fv(u.uSunVP, false, ss ? ss.vp : scratchMat);
+    gl.uniform1f(u.uSunShadowBias, ss ? ss.bias : 0);
+    gl.uniform1f(u.uSunTexel, ss ? 1 / ss.size : 1);
+    gl.uniform1f(u.uSunWrap, L.sunWrap === undefined ? 1 : L.sunWrap);
   }
 
   /* 天空只在「这一帧还没有任何几何体写过深度」的像素上着色。
@@ -1314,6 +1459,7 @@ const A3D = (() => {
       if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
     }
     if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
+    if (sc.sunShadow && sc.__sunShadow === undefined) buildSunShadow(sc);
     const t0 = performance.now();
     render(sc, t);
     /* 贴到目标画布的真实像素尺寸，而不是写死 1600×900：

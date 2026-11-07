@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.dirt(), { tint: [0.66, 1.0, 0.46], spec: 0.02, rim: 0.08 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [0.88, 0.96, 0.82], spec: 0.02, rim: 0.08 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;
@@ -1773,7 +1773,7 @@ const A3DWorld = (() => {
       }
     }
 
-    /* 草坪上的野花和草丛：别让院子是一整片纯色地毯 */
+    /* 草坪上的野花：别让院子是一整片纯色地毯（草由后面的草丛块负责） */
     {
       const wr = rng(151);
       for (let i = 0; i < 130; i++) {
@@ -1783,8 +1783,6 @@ const A3DWorld = (() => {
         if (Math.hypot(lx + 3.55, lz - 17.2) < 0.7) continue;    // 黄杨锥
         if (Math.hypot(lx - 3.35, lz - 17.3) < 0.7) continue;    // 黄杨球
         const gy = gyAt(lx, lz);
-        P.tallLeaves(leafBed, mul(m4(lx, gy + 0.02, lz)), 4 + Math.floor(wr() * 3),
-          0.1 + wr() * 0.1, [0.6 + wr() * 0.2, 0.9 + wr() * 0.08, 0.5], Math.floor(wr() * 99));
         if (i % 4 === 0) {
           const warm = i % 8 === 0;
           P.chrysanthemum(warm ? petalB : paleB, stemB,
@@ -2157,6 +2155,87 @@ const A3DWorld = (() => {
       gateIron.box.call(gateIron, m4(mx, gy + 0.88, mz + 0.96), 1.0, 1.45, 0.06, [1, 1, 1], 0.8);
       for (let k = 0; k < 4; k++) {
         gateIron.box.call(gateIron, m4(mx - 0.36 + k * 0.24, gy + 0.88, mz + 1.0), 0.04, 1.45, 0.03, [1, 1, 1], 0.8);
+      }
+    }
+
+    /* ---- 前院草坪的草：一整张绿纸太假了 ----
+     * 用带种子的抖动网格铺草丛：门口到花境这一圈密，院子外围稀；
+     * 步道 / 花境 / 台阶 / 长椅 / 石灯 / 树脚 / 墓碑周围都让开。
+     * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
+    {
+      const grassP = st.pen("w.churchGrass", T.blade(),
+        { cutout: true, tint: [1, 1, 1], spec: 0.04, rim: 0.12, noShadow: true });
+      const gr = rng(211);
+      const nearTomb = (wx, wz) => {
+        for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
+        return false;
+      };
+      /* pad 只放宽「软」障碍（步道 / 花境），硬摆件的距离是写死的 */
+      const okSpot = (lx, lz, pad) => {
+        if (nearPath(lx, lz, 0.26 + pad)) return false;
+        if (inBed(lx, lz, 0.98 + pad * 0.25)) return false;
+        if (Math.abs(lx) < 9.9 && Math.abs(lz) < 15.0) return false;              // 台基
+        if (Math.abs(lx) < stepW / 2 + 0.3 && lz > PLL - 0.1 && lz < apronZ1 + 0.15) return false;
+        if (Math.abs(lx) < 2.9 && lz >= apronZ0 - 0.2 && lz < apronZ1 + 0.2) return false;
+        if (Math.hypot(lx - 8.5, lz - 21.4) < 1.15) return false;                 // 长椅
+        if (Math.hypot(lx - 8.7, lz - 24.7) < 1.75) return false;                 // 圆冠树
+        if (Math.hypot(lx + 3.55, lz - 17.2) < 0.62) return false;                // 黄杨锥
+        if (Math.hypot(lx - 3.35, lz - 17.3) < 0.62) return false;                // 黄杨球
+        if (Math.hypot(lx - 10.2, lz - 21.7) < 0.55) return false;                // 院灯
+        if (Math.hypot(lx + 10.2, lz - 21.7) < 0.55) return false;
+        // 家族墓室（世界 (4.8, 97.4) → 局部 (−14.16, 5.34)）：整块房子周围别长草
+        if (Math.hypot(lx + 14.16, lz - 5.34) < 2.6) return false;
+        const w = M.xf(D, [lx, 0, lz]);
+        if (w[0] < FX0 + 0.85 || w[0] > FX1 - 0.85 || w[2] < FZ0 + 0.9 || w[2] > FZ1 - 0.9) return false;
+        if (nearTomb(w[0], w[2])) return false;
+        return true;
+      };
+      const tuft = (lx, lz, hh, n, spread) => {
+        const gy = gyAt(lx, lz);
+        P.grassTuft(grassP, mul(m4(lx, gy + 0.012, lz, 0, gr() * TAU, 0)), {
+          n: n || (5 + Math.floor(gr() * 4)),
+          h: hh,
+          spread: spread || (0.075 + gr() * 0.075),
+          wid: 0.0045 + gr() * 0.0035,
+          seed: 1000 + Math.floor(gr() * 9000),
+          col: [0.64 + gr() * 0.22, 0.9 + gr() * 0.18, 0.48 + gr() * 0.16]
+        });
+      };
+      /* 镜头附近的草坪：正门到院门这一段是画面下缘，密到近景能数出叶片。
+         每丛也多放几根，不然 0.26m 的格距看着还是一撮一撮的空地。 */
+      for (let gx = -14.2; gx <= 14.2; gx += 0.24) {
+        for (let gz = 19.2; gz <= 26.6; gz += 0.24) {
+          const lx = gx + (gr() - 0.5) * 0.22, lz = gz + (gr() - 0.5) * 0.22;
+          if (!okSpot(lx, lz, 0)) continue;
+          if (gr() < 0.08) continue;
+          tuft(lx, lz, 0.18 + gr() * 0.24, 8 + Math.floor(gr() * 6), 0.09 + gr() * 0.08);
+        }
+      }
+      // 花境到台阶之间：中景，稍稀
+      for (let gx = -13.6; gx <= 13.6; gx += 0.36) {
+        for (let gz = 14.8; gz < 19.2; gz += 0.36) {
+          const lx = gx + (gr() - 0.5) * 0.34, lz = gz + (gr() - 0.5) * 0.34;
+          if (!okSpot(lx, lz, 0)) continue;
+          if (gr() < 0.1) continue;
+          tuft(lx, lz, 0.16 + gr() * 0.2, 6 + Math.floor(gr() * 4));
+        }
+      }
+      // 院子外围：稀一点，主要是把「一整片绿」打散
+      for (let gx = -31; gx <= 31; gx += 1.3) {
+        for (let gz = -16.5; gz <= 29.5; gz += 1.3) {
+          const lx = gx + (gr() - 0.5) * 1.2, lz = gz + (gr() - 0.5) * 1.2;
+          if (gr() < 0.22) continue;
+          if (!okSpot(lx, lz, 0.08)) continue;
+          tuft(lx, lz, 0.18 + gr() * 0.22);
+        }
+      }
+      // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
+      const tall = rng(2337);
+      for (let i = 0; i < 200; i++) {
+        const lx = -14.0 + tall() * 28.0;
+        const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
+        if (!okSpot(lx, lz, 0.02)) continue;
+        tuft(lx, lz, 0.40 + tall() * 0.30, 5 + Math.floor(tall() * 4), 0.06 + tall() * 0.06);
       }
     }
 
@@ -3123,21 +3202,28 @@ const A3DWorld = (() => {
    * ============================================================ */
   const VIEWS = {
 
-    /* 视角 0：教堂正门前 —— claude_door 的实景（白天阴天） */
+    /* 视角 0：教堂正门前 —— claude_door 的实景（大晴天，太阳从西南偏南压下来） */
     world_church: {
       cam: null,
       sky: {
-        mode: 0, top: [0.36, 0.44, 0.5], bot: [0.66, 0.7, 0.66],
-        glow: [0.8, 0.78, 0.68], sun: [0.34, 0.8], horizon: 0.6
+        mode: 0, top: [0.3, 0.47, 0.66], bot: [0.7, 0.78, 0.86],
+        glow: [0.95, 0.86, 0.66], sun: [0.34, 0.8], horizon: 0.6
       },
       lights: {
-        sun: A3D.norm3([-0.42, 0.72, 0.55]), sunCol: [0.8, 0.79, 0.74],
-        skyCol: [0.4, 0.45, 0.5], groundCol: [0.17, 0.16, 0.14],
-        fog: { col: [0.22, 0.25, 0.26], near: 18, far: 130 }, fogAmt: 0.3,
+        /* 平行光：太阳在镜头左后上方，正门立面全亮，投影落向前院右侧，
+         * 长椅 / 黄杨 / 墓碑的影子都留在草坪上。 */
+        sun: A3D.norm3([-0.46, 0.76, 0.46]), sunCol: [0.98, 0.87, 0.66],
+        skyCol: [0.29, 0.35, 0.43], groundCol: [0.12, 0.11, 0.09],
+        /* 硬方向光：背光面真的暗下去，才有「太阳晒着」的对比 */
+        sunWrap: 0.2,
+        fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
         points: []
       },
-      tone: [0.92, 0.96, 0.94],
-      swayAmp: 0.5
+      tone: [0.98, 1.0, 0.99],
+      swayAmp: 0.7,
+      /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
+       * 2048 的深度图铺在 80m 见方上，一个 texel 约 4cm，石阶缝、栏杆影子都够清楚。 */
+      sunShadow: { center: [18, 34, 104], extent: 40, size: 2048, bias: 0.00055 }
     },
 
     /* 视角 0b：同一扇门被 403 封住（门上的大红字由 door403() 单独拼进来） */
@@ -3291,6 +3377,9 @@ const A3DWorld = (() => {
       tone: v.tone,
       swayAmp: v.swayAmp,
       wind: [0.35, 0.12, 0.2],
+      /* 只有报名 sunShadow 的视角才建太阳阴影（core.js 的 buildSunShadow），
+       * 别的视角行为不变。 */
+      sunShadow: v.sunShadow,
       /* 视角可以没有 update（固定机位），有才调 */
       update(t, sc) { if (typeof v.update === "function") v.update(t, sc); }
     };
