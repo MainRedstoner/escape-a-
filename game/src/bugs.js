@@ -18,6 +18,12 @@ window.BUGS = (() => {
   const T = 60;              // 逻辑 tick / 秒（与 world.js 的 STEP_HZ 一致）
   const S = T / 8;           // 下面 speed/jump 等仍是 8Hz 时代的设计值，这里换算成 60Hz tick
 
+  /** 步进节奏抖动：在 ±20% 里取种子随机（必须走 W.rnd，随快照回档重放一致）。
+   *  巡逻不再像节拍器——每一只虫都按自己的节奏爬，渲染层的滑行时长也跟着这段真实间隔走。 */
+  function stepCd(W, k) {
+    return Math.max(1, Math.round(k.speed * S * (0.8 + 0.4 * W.rnd())));
+  }
+
   /* ---------------- 种类表 ---------------- */
   const KINDS = {
     docile: {
@@ -25,7 +31,7 @@ window.BUGS = (() => {
       speed: 10, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         const p = W.player;
         if (Math.abs(p.x - b.x) + Math.abs(p.y - b.y) > 7) {         // 太远就原地晃悠
           if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; }
@@ -40,7 +46,7 @@ window.BUGS = (() => {
       speed: 8, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; W.move(b, b.dx, b.dy); }
       }
     },
@@ -49,7 +55,7 @@ window.BUGS = (() => {
       speed: 3, lethal: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         const p = W.player;
         const d = Math.abs(p.x - b.x) + Math.abs(p.y - b.y);
         if (d > 9 || !W.observed(b.x, b.y)) {          // 看不见你时就原地瞎逛
@@ -69,7 +75,7 @@ window.BUGS = (() => {
       speed: 12, lethal: true, needsTest: true,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         if (!W.move(b, b.dx, b.dy)) { b.dx = -b.dx; b.dy = -b.dy; W.move(b, b.dx, b.dy); }
       }
     },
@@ -108,7 +114,7 @@ window.BUGS = (() => {
         }
         if (b.justJumped > 0) { b.justJumped--; return; }
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         const p = W.player, dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (!W.move(b, dx, 0) && !W.move(b, 0, dy)) W.move(b, -dx, 0);
       }
@@ -119,7 +125,7 @@ window.BUGS = (() => {
       ai(W, b) {
         if (W.observed(b.x, b.y)) { b.frozen = Math.round(4 * S); return; }   // 被观测 → 停滞，此时才杀得掉
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         const p = W.player;
         const dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (Math.abs(p.x - b.x) + Math.abs(p.y - b.y) <= 10) { W.move(b, dx, 0) || W.move(b, 0, dy); return; }
@@ -159,7 +165,7 @@ window.BUGS = (() => {
       speed: 7, lethal: true, needsTest: true, hp: 3,
       ai(W, b) {
         if (b.cd-- > 0) return;
-        b.cd = Math.round(this.speed * S);
+        b.cd = stepCd(W, this);
         const p = W.player;
         const dx = Math.sign(p.x - b.x), dy = Math.sign(p.y - b.y);
         if (!W.move(b, dx, 0)) W.move(b, 0, dy);
