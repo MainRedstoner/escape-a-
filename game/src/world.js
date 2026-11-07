@@ -387,11 +387,17 @@ window.WORLD = (() => {
   }
 
   /* ================= 工具动作 ================= */
+  /** 修理/盖测试的选靶：玩家判定箱中心到虫盒中心的连续距离，取 1.6 格内最近的一只。
+   *  和 finishCast 的完成距离同一把尺 —— 对角贴着也能修，不会"看着近却修不了"；
+   *  用连续坐标对滑行中的虫也算得准（身体在哪，就从哪算起）。 */
   function adjacentBug(W) {
-    let best = null, bd = 99;
+    const p = W.player;
+    const pcy = p.y + W.gravity * (P_S - P_H) / 2;      // 判定箱几何中心（箱体上下不对称）
+    let best = null, bd = 1.6;
     for (const b of W.bugs) {
-      const d = Math.abs(b.x - W.player.cx) + Math.abs(b.y - W.player.cy);
-      if (d <= 1 && d < bd) { bd = d; best = b; }
+      const bx = b.sx != null ? b.sx : b.x, by = b.sy != null ? b.sy : b.y;
+      const d = U.dist(p.x, pcy, bx + 0.5, by + 0.5);
+      if (d <= bd) { bd = d; best = b; }
     }
     return best;
   }
@@ -405,7 +411,7 @@ window.WORLD = (() => {
     if (p.cast) { if (name === "fix" || name === "test") p.cast = null; return; }
     const pickTarget = verb => {
       const b = adjacentBug(W);
-      if (!b) { toast(W, "挨着 " + verb + " 才有用 —— 走近一点", "warn"); return null; }
+      if (!b) { toast(W, "离远了 —— 进 1.6 格内再 " + verb, "warn"); return null; }
       return b;
     };
     if (name === "fix") {
