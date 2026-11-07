@@ -939,6 +939,15 @@ function setSim(on) {
   simOn = !!on;
   if (simOn) {
     A3D.clearCamOverride();            // 游戏里没有自由相机，合成模式也不该有
+    /* 但 clearCamOverride 只清掉覆盖、不会还原 sc.cam：原始路径每帧用
+     * setCamOverride 直接改写了场景相机，不补这一步，切进来会沿用拖拽 / 飞行
+     * 后的机位。游戏里没有自由相机，这里也该回到场景建好时的设计机位。 */
+    const s = A3D.debugScene();
+    if (s && s.cam && s.__cam0) {
+      s.cam.eye = s.__cam0.eye.slice();
+      s.cam.target = s.__cam0.target.slice();
+      s.cam.fov = s.__cam0.fov;
+    }
     if (ART.setPerf) ART.setPerf(true);   // 让 paint 报耗时
     simSizeCanvas();
     applyQuality();
