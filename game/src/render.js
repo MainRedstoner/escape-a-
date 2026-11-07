@@ -709,8 +709,10 @@ window.RENDER = (() => {
     }
 
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
-     * 矩形 = world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
-     * 箱下边、物理碰撞沿、阴影下缘切线三者合一，贴墙 / 落地时都停在方块表面上。 */
+     * 黄框 = 玩家判定箱，world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
+     * 箱下边、物理碰撞沿、阴影下缘切线三者合一，贴墙 / 落地时都停在方块表面上。
+     * 红框 = 甲虫致死盒，world.js 的 boxHitsBugAt（格中心 0.6×0.6 内接盒）——
+     * 致死判定和它同一几何，B 所见 = 真实判定。 */
     if (showBox && !W.player.dead) {
       const bs = down > 0 ? P_S : P_H, th = down > 0 ? P_H : P_S;
       const bx = px - PW * TS / 2, by = py - th * TS, bw = PW * TS, bhpx = (P_H + P_S) * TS;
@@ -719,6 +721,14 @@ window.RENDER = (() => {
       ctx.fillRect(bx, by, bw, bhpx);
       ctx.strokeStyle = "rgba(255,208,84,.95)"; ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, by, bw, bhpx);
+      const hs = WORLD.BUG_HIT * TS;
+      ctx.fillStyle = "rgba(255,72,58,.10)";
+      ctx.strokeStyle = "rgba(255,72,58,.9)";
+      for (const b of W.bugs) {
+        if (!BUGS.isLethal(b)) continue;
+        ctx.fillRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
+        ctx.strokeRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
+      }
       ctx.restore();
     }
   }

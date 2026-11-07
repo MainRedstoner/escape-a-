@@ -30,6 +30,7 @@ window.WORLD = (() => {
    *   胸口侧 P_H=0.12 —— 头不参与判定（矮顶下能多升 0.31 格才磕到）。
    * 落位（出生 / 挤压 / 旧档迁移）用「格底 - P_S」，让箱子整个落在格内。 */
   const PW = 0.66, P_H = 0.12, P_S = 0.533;
+  const BUG_HIT = 0.6;                // 甲虫致死盒边长（格中心内接盒）—— 致死判定不再拿整 1×1 格当碰撞体
   const GRAV = 40;                    // 格/秒²
   const RUN_SIDE = 5.0;               // 横版水平速度
   const RUN_TOP = 5.4;                // 俯视速度
@@ -1279,6 +1280,15 @@ window.WORLD = (() => {
   function boxHitsCell(W, p, x, y) {
     return boxHitsCellAt(W, p.x, p.y, x, y);
   }
+  /** 判定箱（锚点 x,y）与甲虫致死盒是否重叠。
+   *  致死盒是格中心 BUG_HIT×BUG_HIT 的内接盒，对着甲虫椭圆身体画（render.js 的 size=TS*0.32，不出腿），
+   *  B 键调试画的就是它。以前拿整格当碰撞体，而玩家箱底 P_S=0.533 已过半格 ——
+   *  站在甲虫正上方一格的格中心，箱底就压进甲虫格 0.033 格，「贴上去按 H」的机会都没有。 */
+  function boxHitsBugAt(W, x, y, bx, by) {
+    const bh = W.gravity > 0 ? P_S : P_H, th = W.gravity > 0 ? P_H : P_S;
+    const h = BUG_HIT / 2, cx = bx + 0.5, cy = by + 0.5;
+    return x + PW / 2 > cx - h && x - PW / 2 < cx + h && y + bh > cy - h && y - th < cy + h;
+  }
 
   function sweepBug(W, b) {
     if (BUGS.get(b.kind).needsTest && !b.tested) {
@@ -1325,12 +1335,12 @@ window.WORLD = (() => {
     if (p.inv > 0) return;
     for (const b of W.bugs) {
       if (!BUGS.isLethal(b)) continue;
-      /* 判定 = 判定箱碰到甲虫所在格子（与 B 键画出来的箱子同一几何） */
-      if (boxHitsCellAt(W, p.x, p.y, b.x, b.y)) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
+      /* 判定 = 判定箱碰到甲虫致死盒（与 B 键画出来的盒子同一几何） */
+      if (boxHitsBugAt(W, p.x, p.y, b.x, b.y)) { die(W, "被「" + BUGS.get(b.kind).label + "」撞了个正着"); return; }
       /* 两人对穿（同 tick 交换格子）也算撞上 */
       if (b.px != null &&
-          boxHitsCellAt(W, p.px, p.py, b.x, b.y) &&
-          boxHitsCellAt(W, p.x, p.y, b.px, b.py)) {
+          boxHitsBugAt(W, p.px, p.py, b.x, b.y) &&
+          boxHitsBugAt(W, p.x, p.y, b.px, b.py)) {
         die(W, "和「" + BUGS.get(b.kind).label + "」迎面撞在一起"); return;
       }
     }
@@ -1400,7 +1410,7 @@ window.WORLD = (() => {
   function sfx(cue) { if (window.GSFX) GSFX.play(cue); }
 
   return {
-    STEP_HZ, DT, bindLevels, create, tick, act, tutAck, tutNow,
+    STEP_HZ, DT, BUG_HIT, bindLevels, create, tick, act, tutAck, tutNow,
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
     tile, look, setTile, dyn, observed, brightness, memLeft, solidAt, bugBlock, isPitAt, supportAt,
     spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
