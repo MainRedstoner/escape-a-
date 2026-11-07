@@ -74,8 +74,8 @@ window.UI = (() => {
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单"; return; }
-    el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效" : "";
+    if (state === null) { el.hint.textContent = "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
+    el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效 · B 判定箱" : "";
   }
 
   /* ---------------- HUD ---------------- */

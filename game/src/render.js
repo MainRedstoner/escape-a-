@@ -21,7 +21,8 @@ window.RENDER = (() => {
   let bgCache = null, bgSeed = -1;
   const parts = [];
   let runPhase = 0, landK = 0, prevGrounded = true;
-  const PW = 0.66, P_F = 0.43;               // 和 world.js 的判定箱宽 / 支撑沿保持一致（渲染位置以此为准）
+  let showBox = false;               // 调试：显示玩家判定箱（B 键 / ?box=1）
+  const PW = 0.66, P_F = 0.43, P_H = 0.12;   // 和 world.js 的判定箱保持一致（宽 / 落地沿 / 胸口沿）
 
   function attach(canvas) {
     cv = canvas; ctx = cv.getContext("2d");
@@ -706,6 +707,24 @@ window.RENDER = (() => {
       ctx.fillStyle = grd;
       ctx.fillRect(cam.x - TS, cam.y - TS, view.w + TS * 2, view.h + TS * 2);
     }
+
+    /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清；
+     * 几何与 world.js 的 yTop/yBot 一致：宽 PW，胸口侧 P_H，重力侧（落地沿）P_F 加粗 */
+    if (showBox && !W.player.dead) {
+      const bh = down > 0 ? P_F : P_H, th = down > 0 ? P_H : P_F;
+      const bx = px - PW * TS / 2, by = py - th * TS, bw = PW * TS, bhpx = (P_H + P_F) * TS;
+      ctx.save();
+      ctx.fillStyle = "rgba(255,208,84,.10)";
+      ctx.fillRect(bx, by, bw, bhpx);
+      ctx.strokeStyle = "rgba(255,208,84,.95)"; ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, bw, bhpx);
+      ctx.strokeStyle = "rgba(255,140,60,.95)"; ctx.lineWidth = 3;   // 落地沿
+      ctx.beginPath();
+      if (down > 0) { ctx.moveTo(bx, by + bhpx); ctx.lineTo(bx + bw, by + bhpx); }
+      else { ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); }
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   /* ---------------- 危险源 ---------------- */
@@ -847,5 +866,11 @@ window.RENDER = (() => {
   }
   function memoPlayerReset() { for (const k in memo) delete memo[k]; cam.init = false; }
 
-  return { attach, resize, draw, kick, flash, reset, view: () => view };
+  /** 调试：判定箱显隐。带参 = 直接设定（?box=1），无参 = 翻转（B 键） */
+  function debugBox(on) {
+    showBox = on === undefined ? !showBox : !!on;
+    return showBox;
+  }
+
+  return { attach, resize, draw, kick, flash, reset, debugBox, view: () => view };
 })();

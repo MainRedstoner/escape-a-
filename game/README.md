@@ -29,6 +29,7 @@
 | `I` | 切图层（只有带 `rowsB` 的双分支关卡有用） |
 | `O` / `Esc` | 图鉴 / 菜单 |
 | `P` / `M` | 辅助模式（记忆不过期）/ 音效开关 |
+| `B` | 调试：显示 / 隐藏玩家判定箱（或 `?box=1` 启动即开） |
 
 死亡不惩罚你多少时间，只惩罚你**回档**：回档会把地形、虫群、照明记忆一起还原，
 但**每两次回档，屎山自己长一层熵**（`mutate` 点长虫）—— 越挣扎越脏。
@@ -74,7 +75,7 @@ python tools/check_js.py            # 会连 game/src/*.js 一起扫
 python tools/validate_game.py       # 关卡静态校验：行宽、图例、虫位、配额、几何可达、事件动作
 ```
 
-URL 参数：`game/index.html?level=3` 直跳某关简报（未解锁会被拽回第 1 关），`?assist=1` 开辅助模式。
+URL 参数：`game/index.html?level=3` 直跳某关简报（未解锁会被拽回第 1 关），`?assist=1` 开辅助模式，`?box=1` 启动即显示判定箱（调试）。
 
 控制台句柄：`BUGFIX.state` / `BUGFIX.world`（世界状态）/ `BUGFIX.ctl.*`（切状态），
 算法在 `WORLD.*`（如 `WORLD.brightness(BUGFIX.world, x, y)`），进度在 `GSAVE`。

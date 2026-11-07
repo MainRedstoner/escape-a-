@@ -61,6 +61,7 @@ window.BUGFIX = (() => {
     const st = GSAVE.settings();
     assist = !!st.assist || (params.assist != null && !/^(0|off|no)$/i.test(params.assist));
     if (st.sound === false && GSFX.isOn()) GSFX.toggle();
+    RENDER.debugBox(params.box != null && !/^(0|off|no)$/i.test(params.box));
 
     UI.init(ctl);
     const cv = document.getElementById("gf-canvas");
@@ -106,6 +107,7 @@ window.BUGFIX = (() => {
     U.Input.onKeyDown(e);
     const name = U.Input.logical(e.code);
     if (!name) return;
+    if (name === "box") { RENDER.debugBox(); return; }   // 调试：判定箱显隐，任何界面都能切
     if (state === "play") {
       const tut = WORLD.tutNow(W);
       if (tut && tut.wait && name === "commit") { WORLD.tutAck(W); return; }   // 教学卡住的这一步优先于落 commit
