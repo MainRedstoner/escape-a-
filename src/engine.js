@@ -2387,7 +2387,7 @@ const ENGINE = (() => {
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */
     AUDIO.playBGM("sea");
-    AUDIO.ambience("sea");
+    AUDIO.ambience("world_title");
     window.addEventListener("pointerdown", () => AUDIO.unlock(), { once: true });
     window.addEventListener("keydown", () => AUDIO.unlock(), { once: true });
     watchDpr();

@@ -542,11 +542,13 @@ const A3D = (() => {
   uniform vec3 uSunDir, uSunCol, uSkyCol, uGroundCol, uFogCol;
   uniform float uFogNear, uFogFar;
   uniform int uPointN;
-  uniform vec3 uPointPos[6], uPointCol[6];
-  uniform float uPointRange[6];
+  uniform vec3 uPointPos[10], uPointCol[10];
+  uniform float uPointRange[10];
   uniform vec2 uUVOff, uUVScale;
+  uniform float uUVRand;
   uniform samplerCubeShadow uShadowMap;
   uniform int uShadowIdx, uShadowTaps;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   uniform float uShadowOn, uShadowFar, uShadowBias;
   float pointShadow(vec3 wp, vec3 n, vec3 lp) {
     vec3 d = wp - lp;
@@ -575,7 +577,24 @@ const A3D = (() => {
   }
   void main(){
     vec2 uv = vUV * uUVScale + uUVOff;
-    vec4 tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
+    vec4 tx;
+    /* 一张贴图只靠平移平铺，相邻两块地皮就是同一张图，一眼能认出重复。
+       这里按贴图周期切格，每格用格子坐标哈希随机转 90° / 翻转一次 ——
+       相邻格朝向不同，就没有"旁边那块和这块一样"了。
+       梯度仍用未旋转的 uv 求：旋转/翻转不改变梯度长度，
+       所以 mip 不会在格子边界跳变，不会画出接缝线。 */
+    if (uUseTex > 0.5 && uUVRand > 0.5) {
+      vec2 cell = floor(uv), f = fract(uv);
+      float h = hash(cell);
+      vec2 g = f;
+      if (h < 0.25) g = f;
+      else if (h < 0.5) g = vec2(f.y, 1.0 - f.x);
+      else if (h < 0.75) g = vec2(1.0 - f.x, 1.0 - f.y);
+      else g = vec2(1.0 - f.y, f.x);
+      tx = textureGrad(uTex, cell + g, dFdx(uv), dFdy(uv));
+    } else {
+      tx = uUseTex > 0.5 ? texture(uTex, uv) : vec4(1.0);
+    }
     float a = tx.a * uOpacity;
     /* 镂空材质（树叶 / 海带 / 藤蔓）的边缘抗锯齿：
      *   · 有 MSAA 且支持 alpha-to-coverage 时不 discard，把贴图 alpha 交给覆盖度，
@@ -605,7 +624,7 @@ const A3D = (() => {
       col += uSunCol * pow(max(dot(n, h), 0.0), 28.0) * uSpec * wrap;
       float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
       col += uSkyCol * rim * uRim;
-      for (int i = 0; i < 6; i++) {
+      for (int i = 0; i < 10; i++) {
         if (i >= uPointN) break;
         vec3 d = uPointPos[i] - vWorld;
         float dist = length(d);
@@ -827,7 +846,20 @@ const A3D = (() => {
     gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 3, gl.FLOAT, false, st, 32);
     gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 1, gl.FLOAT, false, st, 44);
     gl.bindVertexArray(null);
-    const m = { vao, buf, count: builder.count, verts: builder.count, keep: builder.d.length };
+    /* 顺便记一个世界空间 AABB：调试要看几何体到底建在哪，
+     * 以后做批次级距离剔除也能直接用（不用再扫一遍顶点）。 */
+    let mnx = Infinity, mny = Infinity, mnz = Infinity, mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+    const d = builder.d;
+    for (let i = 0; i < d.length; i += STRIDE) {
+      const x = d[i], y = d[i + 1], z = d[i + 2];
+      if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+      if (y < mny) mny = y; if (y > mxy) mxy = y;
+      if (z < mnz) mnz = z; if (z > mxz) mxz = z;
+    }
+    const m = {
+      vao, buf, count: builder.count, verts: builder.count, keep: builder.d.length,
+      bounds: { min: [mnx, mny, mnz], max: [mxx, mxy, mxz] }
+    };
     meshes.push(m);
     return m;
   }
@@ -910,11 +942,12 @@ const A3D = (() => {
   const scratchMat = M.ident();
   const scratchNMat = new Float32Array(9);   // setBatch 的法线矩阵落脚点，别再每批新建
   const UV_ONE = new Float32Array([1, 1]);
-  /* applyLights 的点光缓冲：6 盏灯上限，每帧只是覆写同一块内存 */
-  const PT_MAX = 6;
+  /* applyLights 的点光缓冲：10 盏灯上限（超出会被静默丢掉，所以超了要吼一声），每帧只是覆写同一块内存 */
+  const PT_MAX = 10;
   const ptPos = new Float32Array(PT_MAX * 3);
   const ptCol = new Float32Array(PT_MAX * 3);
   const ptRng = new Float32Array(PT_MAX);
+  let ptWarned = false;
 
 
   /* ---------------- 点光阴影（cubemap shadow map） ---------------- */
@@ -1010,6 +1043,7 @@ const A3D = (() => {
     gl.uniform1f(u.uRim, b.rim === undefined ? 0.35 : b.rim);
     gl.uniform1f(u.uEmisBoost, b.emisBoost === undefined ? 1 : b.emisBoost);
     gl.uniform1f(u.uCutout, b.cutout ? 1 : 0);
+    gl.uniform1f(u.uUVRand, b.uvRand ? 1 : 0);
     gl.uniform3fv(u.uTint, b.tint || [1, 1, 1]);
     gl.uniform3fv(u.uEmissive, b.emissive || [0, 0, 0]);
     const off = b.uvAnim ? b.uvAnim(t) : (b.uvOff || [0, 0]);
@@ -1048,6 +1082,10 @@ const A3D = (() => {
     gl.uniform3fv(u.uWind, scene.wind || [0, 0, 0]);
     const pts = L.points || [];
     const n = Math.min(PT_MAX, pts.length);
+    if (pts.length > PT_MAX && !ptWarned) {
+      ptWarned = true;
+      console.warn("[A3D] 场景点光源 " + pts.length + " 个，超过上限 " + PT_MAX + "，多余的会被忽略");
+    }
     gl.uniform1i(u.uPointN, n);
     if (n) {
       for (let i = 0; i < n; i++) {
@@ -1189,7 +1227,10 @@ const A3D = (() => {
     gl.disable(gl.BLEND);
 
     curScene = scene;
-    const proj = M.perspective(fov, aspect, 0.05, 120);
+    /* 远裁剪面默认 120m（室内和小场景够用）；大世界这种要看海湾对岸的场景
+     * 在 cam.far 里单独写远一点，别为了几个远景把近处精度一起拉低。 */
+    const far = cam.far || 120;
+    const proj = M.perspective(fov, aspect, 0.05, far);
     const view = M.lookAt(eye, target, [0, 1, 0]);
     cur = { proj, view, eye, fov };
     scene.time = t;
