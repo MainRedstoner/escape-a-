@@ -1536,16 +1536,17 @@ const A3DWorld = (() => {
             0.4 + rr() * 0.14, i2 % 6 ? [1.34, 1.02, 0.72] : [1.0, 1.0, 0.98], 100 + i2);
         }
       }
-      // 成团的花丛：别均匀撒，一簇一簇才像花境
+      // 成团的花丛：别均匀撒，一簇一簇才像花境。
+      // 落点直接夹进花圃，别因为算到界外就整簇丢掉——两片花圃会一疏一密。
       for (let c = 0; c < 40; c++) {
         const a = rr() * TAU;
         const rad = gravR + 0.8 + rr() * Math.min(wx, wz) * 0.26;
-        const ccx = cx2 + Math.cos(a) * rad * 1.18;
-        const ccz = cz2 + Math.sin(a) * rad * 0.9;
-        if (ccx < bx0 || ccx > bx1 || ccz < bz0 || ccz > bz1) continue;
+        const ccx = Math.max(bx0 + 0.5, Math.min(bx1 - 0.5, cx2 + Math.cos(a) * rad * 1.18));
+        const ccz = Math.max(bz0 + 0.5, Math.min(bz1 - 0.5, cz2 + Math.sin(a) * rad * 0.9));
         const tone = c % 4;
         for (let k = 0; k < 4; k++) {
-          const fx = ccx + (rr() - 0.5) * 1.2, fz = ccz + (rr() - 0.5) * 1.2;
+          const fx = Math.max(x0 + 0.55, Math.min(x1 - 0.55, ccx + (rr() - 0.5) * 1.2));
+          const fz = Math.max(z0 + 0.55, Math.min(z1 - 0.55, ccz + (rr() - 0.5) * 1.2));
           const usePa = tone === 0 || tone === 3;
           P.chrysanthemum(usePa ? paleB : petalB, stemB, mul(m4(fx, top - 0.02, fz)),
             0.5 + rr() * 0.22,
