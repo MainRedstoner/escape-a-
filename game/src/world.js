@@ -535,6 +535,36 @@ window.WORLD = (() => {
     return JSON.stringify(copy);
   }
 
+  /** commit 指纹：挑出「会留在存档里的玩法状态」，判断脚下这个点还能不能落新 commit。
+   *  活的 W 和 parse 出来的快照字段同名，同一个函数两边都能吃。
+   *  故意不进指纹的：tick、光照记忆（lit/seen/reveal）、逐帧倒计时（cd/stun 等按秒取整，
+   *  o2/scrambled/rush 这类只看正负）—— 否则站着不动指纹也一直在变，"没变化"永远判不出来。 */
+  function commitSig(s) {
+    const r2 = v => Math.round(v * 100) / 100;
+    const sec = t => t > 0 ? Math.ceil(t / STEP_HZ) : 0;
+    const dyn = {};
+    for (const k in s.dyn) {
+      const d = s.dyn[k];
+      dyn[k] = [d.open ? 1 : 0, d.depHit ? 1 : 0, d.todoT != null ? 1 : 0, d.crumbleT != null ? 1 : 0];
+    }
+    const flags = {};
+    for (const k in s.flags) {
+      const v = s.flags[k];
+      flags[k] = typeof v === "number" ? (v > 0 ? 1 : 0) : v;
+    }
+    return JSON.stringify({
+      p: [r2(s.player.x), r2(s.player.y), s.player.dir, s.player.lastDx, s.player.lastDy, s.player.cast ? 1 : 0],
+      tools: s.tools.test,
+      bugs: (s.bugs || []).map(b => [b.kind, b.x, b.y, b.hp || 1, b.tested ? 1 : 0, b.attached ? 1 : 0,
+                                     sec(b.cd), sec(b.stun), sec(b.frozen), sec(b.jumpCd), sec(b.fuse)]),
+      layer: s.layer, mode: s.mode, gravity: s.gravity, layers: s.layers, dyn, flags,
+      k: s.kills, e: s.entropy, rv: s.reverted, pr: s.prReady ? 1 : 0,
+      depNext: s.depNext, idc: s.idc,
+      leaks: (s.leaks || []).map(l => [l.x, l.y, l.r]),
+      movers: (s.movers || []).map(m => [m.x, m.y])
+    });
+  }
+
   /** 旧 8Hz 快照 → 60Hz + 连续坐标。只在目标快照没有 sv 时跑一次。 */
   function retime(o) {
     const mul = S, sec = 1 / 8;          // 旧 tick 数 → 新 tick 数 / 秒
@@ -624,7 +654,12 @@ window.WORLD = (() => {
   function doCommit(W) {
     if (!atCommitTile(W)) { toast(W, "这里没有 -o- ，先去找一个", "warn"); return; }
     const last = W.commitLog[W.commitLog.length - 1];
-    if (last && last.cx === W.player.cx && last.cy === W.player.cy && last.tag !== "init") { toast(W, "已经在这个 commit 上了", "warn"); return; }
+    /* 能不能重复落 commit 不看脚下的点，看状态：和上一个 commit 比有任何不同就直接落。
+     * 直接比对 last.snap，不往存档里加新字段——旧档的 commit 照样能比。 */
+    if (last && last.snap && commitSig(W) === commitSig(JSON.parse(last.snap))) {
+      toast(W, "和上一个 commit 比什么都没变，不用重复提交", "warn");
+      return;
+    }
     pushCommit(W, "第 " + (W.li + 1) + " 关 · 已修 " + W.kills + " 只 · 剩 " + W.bugs.length + " 只");
     sfx("commit");
     toast(W, "commit 落好：" + W.commitLog[W.commitLog.length - 1].hash, "good");
