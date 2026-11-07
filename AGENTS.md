@@ -65,8 +65,9 @@ python tools/validate_game.py           # 小游戏关卡校验，改了 game/ �
 python tools/test_save_server.py        # 存档服务冒烟测试，必须"全部通过"
 ```
 
-> 上面这些脚本（外加存档服务冒烟测试）在 PR 和推送 `main` 时由 GitHub Actions 自动再跑一遍
-> （`.github/workflows/validate.yml`），本地先跑是为了别等 CI。PR 还会检查分支名前缀，所以分支名别省前缀。
+> 上面这些脚本（外加存档服务冒烟测试）在 PR 和推送 `main` / `dev` 时由 GitHub Actions 自动再跑一遍
+> （`.github/workflows/validate.yml`），本地先跑是为了别等 CI。PR 还会检查分支名前缀，所以分支名别省前缀
+> （`dev` 是长期集成分支，检查对它放行）。
 
 3D 背景改完后，先在浏览器里用 `index.html?bg=<场景id>` 单独看一遍（光、构图、帧率），
 再走一遍正常流程；WebGL2 不可用时会自动回落到占位卡，所以**不要只测一次就假定没问题**。
@@ -92,6 +93,10 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 - **默认流程：改完 → 提交 → `git push origin <branch>` → 汇报，结束。不要开 PR。**
   分支推上去就算交付，合并时机由用户决定；只有用户明确说「合并到 main」或「开 PR」时才走 PR。
   别自作主张 `gh pr create`，也别在收尾时问「要不要开 PR」——默认不需要。
+- **日常开发统一走 `dev`。** `dev` 是随时可玩的集成分支（不设保护，可以直接推），
+  功能分支从它开、做完合回它：`git switch -c <branch> dev` → 提交 → `git merge --no-ff <branch>` 回 `dev` → 推 `dev`。
+  GitHub Pages 挂在 `dev` 上（`https://mainredstoner.github.io/escape-a-/`），刷新就是最新版；
+  只有发版才把 `dev` 合进 `main`（见下面 PR 那条）。
 - **`main` 必须始终干净可玩。** 不直接在 `main` 上提交，也不在本地把分支直接合进 `main`；所有开发在分支上进行，进 `main` 只走 PR。
   GitHub 上的 `main` 由 ruleset 护着：禁止强推 / 删除，只能走 PR 且 CI 要绿。本地的 `main` 不受这层约束，规矩一样。
   PR 还要 1 个 approve：协作者提的 PR 得等仓库主人点头；主人自己的 PR 自批不了，用 admin bypass 合（`gh pr merge --admin`）。
@@ -104,9 +109,9 @@ python tools/test_save_server.py        # 存档服务冒烟测试，必须"全�
 - **开工前先 `git fetch --prune`，干活中途也尽量勤 fetch**：fetch 只更新远端跟踪引用，不碰工作区和本地分支，任何时候做都安全，不必等用户批准。别等到推送被拒、或者 rebase 出大冲突才发现自己落后了。
 - **发现落后就先同步再继续**：自己分支落后于远端同名分支时，先 `git rebase` 过去再往下改；拿不准该 rebase 还是该让用户决定，就问一声，别抱着旧代码闷头写。
 - **GitHub 远端随时可以推，而且尽量勤推**（推分支）：这些小步推送是为了和别人同步进度，不必等用户点头，也不要攒一大堆再一起推。本地 `local` 备份仓照样可以推，两边一起推最好。
-- **只有用户明确要求合进 `main` 时才需要 PR，而且得用户实际跑一遍、明确说可以。** ruleset 挡掉了直推 / 强推 / 删除，
+- **只有发版时才需要 PR：`dev → main`，而且得用户实际跑一遍、明确说可以。** ruleset 挡掉了直推 / 强推 / 删除，
   PR 必须过两个检查（`剧本与代码校验`、`分支命名`），合并方式只留 merge commit（squash / rebase 已在仓库设置里关掉）。
-  到那一步的流程才是：`git push origin <branch>` → `gh pr create` → CI 绿 → 合并。
+  到那一步的流程才是：`git push origin dev` → `gh pr create --base main --head dev` → CI 绿 → 合并。
   合完本地 `main` 用 `git pull --ff-only` 跟上就行；`main` 推不上去——要进 GitHub 只能走 PR。
 - **admin bypass 只用来绕过 approve，不用来绕过 CI。** 自己的 PR 自批不了，所以合并时得带 `--admin`；
   但检查该绿还得绿——只有 Actions 本身挂了才允许连检查一起绕过，事后记一笔原因。
