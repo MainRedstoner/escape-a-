@@ -51,6 +51,8 @@ window.U = (() => {
     held: new Set(),      // 当前按住的规范化键名
     pressed: new Set(),   // 本帧刚按下
     map: null,            // 键位打乱表（阴间事件用）：{ 物理键: 逻辑名 }
+    heldBy: new Map(),    // 物理键 code → 它按下那一刻映射到的逻辑名。松手按这份账删，
+                          // 键位打乱中途恢复也不会把"right"残留在 held 里卡死方向
     base: {
       /* 左手 WASD 走路（方向键留着一起用），右手一整个功能块：
        *   U 回档   I 图层   O 图鉴   P 辅助
@@ -70,7 +72,7 @@ window.U = (() => {
       const m = this.map || this.base;
       return m[code] || null;
     },
-    clear() { this.held.clear(); this.pressed.clear(); },
+    clear() { this.held.clear(); this.pressed.clear(); this.heldBy.clear(); },
     down(name) { return this.held.has(name); },
     hit(name) { return this.pressed.has(name); },
     onKeyDown(e) {
@@ -78,12 +80,15 @@ window.U = (() => {
       if (!name) return;
       if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
       if (e.repeat) return;
-      this.held.add(name);
+      if (!this.heldBy.has(e.code)) { this.heldBy.set(e.code, name); this.held.add(name); }
       this.pressed.add(name);
     },
     onKeyUp(e) {
-      const name = this.logical(e.code);
-      if (name) this.held.delete(name);
+      const name = this.heldBy.get(e.code);
+      if (name == null) return;
+      this.heldBy.delete(e.code);
+      for (const other of this.heldBy.values()) if (other === name) return;   // 还有别的物理键按着同一个动作
+      this.held.delete(name);
     },
     /** 打乱键位：把方向键互相映射（保留 fix/log 等） */
     scramble(kind) {
@@ -99,6 +104,7 @@ window.U = (() => {
       }
       this.map = m;
     },
+    /** 恢复键位。held 故意不动：已经按住的键继续它按下那一刻的动作，松手时按物理键的账清理 */
     unscramble() { this.map = null; }
   };
 

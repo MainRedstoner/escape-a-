@@ -68,6 +68,9 @@ window.BUGFIX = (() => {
     if (cv) RENDER.attach(cv);
     window.addEventListener("keydown", keydown, false);
     window.addEventListener("keyup", U.Input.onKeyUp.bind(U.Input), false);
+    /* 失焦 / 切走时清空输入：alt-tab 回来不会带着没松开的键一路走（keyup 收不到） */
+    window.addEventListener("blur", () => U.Input.clear(), false);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) U.Input.clear(); }, false);
     GSAVE.load();
     if (document.getElementById("gf-m-title")) ctl.openTitle();
     else { state = "brief"; ctl.enterLevel(); }   // 宿主只给了 canvas：跳过弹窗壳，直接可玩
