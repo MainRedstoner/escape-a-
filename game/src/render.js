@@ -22,7 +22,7 @@ window.RENDER = (() => {
   const parts = [];
   let runPhase = 0, landK = 0, prevGrounded = true;
   let showBox = false;               // 调试：显示玩家判定箱（B 键 / ?box=1）
-  const PW = 0.66, P_F = 0.43, P_H = 0.12, P_S = 0.533;   // 和 world.js 的判定箱保持一致（宽 / 落地沿 / 胸口沿 / 阴影切线）
+  const PW = 0.66, P_H = 0.12, P_S = 0.533;   // 和 world.js 的判定箱保持一致（宽 / 胸口沿 / 阴影-支撑沿）
 
   function attach(canvas) {
     cv = canvas; ctx = cv.getContext("2d");
@@ -615,7 +615,7 @@ window.RENDER = (() => {
     /* 落地反馈：压扁、尘土、轻震屏 */
     if (!prevGrounded && p.grounded) {
       landK = 1;
-      spawnDust(px, py + down * P_F * TS);
+      spawnDust(px, py + down * P_S * TS);
       kick(2.2);
     }
     prevGrounded = p.grounded;
@@ -709,9 +709,8 @@ window.RENDER = (() => {
     }
 
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
-     * 矩形 = world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影侧 P_S ——
-     * 下边正好与阴影椭圆下缘相切）；橙色线标支撑沿 P_F（落地 / 站立接触线，
-     * 比箱子的阴影侧边高 0.103 格 —— 那是阴影渗进地面的部分）。 */
+     * 矩形 = world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
+     * 箱下边、物理碰撞沿、阴影下缘切线三者合一，贴墙 / 落地时都停在方块表面上。 */
     if (showBox && !W.player.dead) {
       const bs = down > 0 ? P_S : P_H, th = down > 0 ? P_H : P_S;
       const bx = px - PW * TS / 2, by = py - th * TS, bw = PW * TS, bhpx = (P_H + P_S) * TS;
@@ -720,11 +719,6 @@ window.RENDER = (() => {
       ctx.fillRect(bx, by, bw, bhpx);
       ctx.strokeStyle = "rgba(255,208,84,.95)"; ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, by, bw, bhpx);
-      ctx.strokeStyle = "rgba(255,140,60,.95)"; ctx.lineWidth = 3;   // 支撑沿（落地接触线）
-      ctx.beginPath();
-      const fy = py + down * P_F * TS;
-      ctx.moveTo(bx, fy); ctx.lineTo(bx + bw, fy);
-      ctx.stroke();
       ctx.restore();
     }
   }
