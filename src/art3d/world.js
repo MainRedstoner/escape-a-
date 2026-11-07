@@ -1745,13 +1745,16 @@ const A3DWorld = (() => {
       wallCap.box.call(wallCap, m4(lx, gy + 1.28, lz), 0.58, 0.15, 0.58, [1, 1, 1], 1.1);
       glowP.quad.call(glowP, m4(lx, gy + 1.02, lz + 0.27), 2.1 * s, 2.1 * s, [1, 1, 1], [0, 0, 1, 1]);
     }
-    // 长椅三张
+    // 长椅三张：石腿 + 深色石座 + 矮靠背（浅色座面在草地上远看像一块白板）
     for (const [bx, bz, br] of [[14.6, 124.5, 0.1], [25.2, 129.0, -0.15], [23.4, 143.0, 0.08]]) {
       const gy = groundH(bx, bz);
       for (const s of [-1, 1]) {
-        wallStone.box.call(wallStone, m4(bx, gy + 0.2, bz + s * 0.7), 0.52, 0.4, 0.22, [1, 1, 1], 1.0);
+        wallStone.box.call(wallStone, m4(bx, gy + 0.2, bz + s * 0.7, 0, br, 0), 0.5, 0.4, 0.22,
+          [0.86, 0.85, 0.82], 1.0);
       }
-      wallStone.box.call(wallStone, m4(bx, gy + 0.44, bz, 0, br, 0), 1.6, 0.14, 0.76, [1, 1, 1], 1.0);
+      pave.box.call(pave, m4(bx, gy + 0.44, bz, 0, br, 0), 1.6, 0.14, 0.78, [0.78, 0.76, 0.72], 1.0);
+      const bm = m4(bx, gy, bz, 0, br, 0);
+      pave.box.call(pave, M.mul(bm, m4(0, 0.86, -0.32)), 1.6, 0.44, 0.1, [0.7, 0.68, 0.64], 1.0);
     }
     // 甬道尽头的林地山门（四柱 + 小两坡顶 + 吊钟 + 两扇半开的木门）
     {
