@@ -1772,6 +1772,28 @@ const A3DWorld = (() => {
       }
     }
 
+    /* 草坪上的野花和草丛：别让院子是一整片纯色地毯 */
+    {
+      const wr = rng(151);
+      for (let i = 0; i < 130; i++) {
+        const lx = -11 + wr() * 25, lz = 15.6 + wr() * 11.2;
+        if (nearPath(lx, lz, 0.35) || inBed(lx, lz, 1.02)) continue;
+        if (Math.hypot(lx - 8.5, lz - 21.4) < 1.0) continue;     // 长椅
+        if (Math.hypot(lx + 3.55, lz - 17.2) < 0.7) continue;    // 黄杨锥
+        if (Math.hypot(lx - 3.35, lz - 17.3) < 0.7) continue;    // 黄杨球
+        const gy = gyAt(lx, lz);
+        P.tallLeaves(leafBed, mul(m4(lx, gy + 0.02, lz)), 4 + Math.floor(wr() * 3),
+          0.1 + wr() * 0.1, [0.6 + wr() * 0.2, 0.9 + wr() * 0.08, 0.5], Math.floor(wr() * 99));
+        if (i % 4 === 0) {
+          const warm = i % 8 === 0;
+          P.chrysanthemum(warm ? petalB : paleB, stemB,
+            mul(m4(lx + (wr() - 0.5) * 0.3, gy + 0.01, lz + (wr() - 0.5) * 0.3)),
+            0.26 + wr() * 0.12, warm ? [1.3, 0.95, 0.6] : [1.0, 1.0, 0.96],
+            Math.floor(wr() * 99));
+        }
+      }
+    }
+
     /* ---- 院门内的两株柏树：从门外看进来，左右各收一道边 ---- */
     for (const [lx, lz, hh] of [[-9.9, 23.5, 4.6], [10.4, 23.7, 5.0]]) {
       const w = M.xf(D, [lx, 0, lz]);
