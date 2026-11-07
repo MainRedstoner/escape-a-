@@ -631,9 +631,7 @@ window.RENDER = (() => {
       sy = 1 - landK * 0.16; sx = 1 + landK * 0.2;
     }
 
-    /* 影子：横版离地越高越小越淡；俯视没有高度，固定画在脚下。
-     * 圆心按「下缘切线 = 支撑沿 P_F」反推（P_F·TS - 0.28r）：
-     * 贴墙 / 落地时切线正好压在方块表面上，下半截不再渗进墙里。 */
+    /* 影子：横版离地越高越小越淡；俯视没有高度，固定画在脚下 */
     const groundedLook = side ? p.grounded : true;
     const lift = side && !p.grounded ? Math.min(TS * 1.4, Math.abs(p.vy) * TS * 0.07) : 0;
     ctx.save();
@@ -641,7 +639,7 @@ window.RENDER = (() => {
     ctx.globalAlpha = p.dead ? 0.2 : (groundedLook ? 0.42 : 0.24);
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, down * (P_F * TS - r * 0.28 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, down * (r * 1.16 + lift), r * (groundedLook ? 0.9 : 0.66), r * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
