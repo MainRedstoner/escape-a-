@@ -424,9 +424,11 @@ window.WORLD = (() => {
     let bug = null;
     for (const b of W.bugs) if (b.id === c.bug) bug = b;
     if (!bug) { toast(W, "目标跑了", "warn"); return; }
-    /* 边走边修：完成那一刻还贴着就行 —— 按连续距离算（跟滑行中的虫也算得准），跑远才失败 */
+    /* 边走边修：完成那一刻还贴着就行。距离 = 玩家判定箱中心 ↔ 虫盒中心 ——
+     * 箱体上下不对称（阴影沿 P_S / 胸口沿 P_H），垂直中心在锚点下方 gravity×(P_S−P_H)/2 处 */
     const bx = bug.sx != null ? bug.sx : bug.x, by = bug.sy != null ? bug.sy : bug.y;
-    if (U.dist(W.player.x, W.player.y, bx + 0.5, by + 0.5) > 1.6) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
+    const pcy = W.player.y + W.gravity * (P_S - P_H) / 2;
+    if (U.dist(W.player.x, pcy, bx + 0.5, by + 0.5) > 1.6) { toast(W, "它跑开了，得重新贴上去", "warn"); return; }
     if (c.type === "test") {
       W.tools.test--; bug.tested = true; sfx("test");
       toast(W, "给「" + BUGS.get(bug.kind).label + "」盖了测试，现在删它不会复发", "good");
