@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [0.88, 0.96, 0.82], spec: 0.02, rim: 0.08 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.16, 1.2, 1.02], spec: 0.03, rim: 0.1 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;
@@ -1802,38 +1802,88 @@ const A3DWorld = (() => {
 
     /* 爬山虎：单片 quad 的叶子（leafFlat）整片贴墙。
      * 以前用 leafBlade 的分段面片，近景会裂出横缝（历史 v82/v83 修过一次）。 */
-    const ivy = st.pen("w.churchIvy", T.leaf(), { cutout: true, tint: [0.4, 0.62, 0.38], sway: 0.5, rim: 0.15 });
+    /* 爬山虎整片贴在墙面上，离墙只有十几厘米：风一大（0.16×swayAmp）
+     * 就会把叶子推进墙里。所以它的 sway 只留 0.1（摆动不到 1cm），
+     * 再往外垫 5cm 余量，任何风向都不会穿进石头。 */
+    const ivy = st.pen("w.churchIvy", T.leaf(), { cutout: true, tint: [0.4, 0.62, 0.38], sway: 0.1, rim: 0.15 });
     const vine = st.pen("w.churchVine", null, { tint: [0.2, 0.28, 0.16] });
-    const ivyPatch = (cx, cy, w, h, seed, zoff) => {
+    /* 按**矩形区域**铺一片爬山虎，而不是「一个随机扇形撒固定片数」：
+     * 片数 = 面积 × 58，所以大片小块密度一样；边缘羽化、往上渐稀，
+     * 看起来是长上去的，而不是一块方方正正的绿板。
+     * depth 是离 `dz`（主墙前脸）的偏移：左半面其实是钟楼前脸（凸 0.4m），
+     * 所以要 0.45；右半面就是主墙，0.16 就够。 */
+    /* bumps：墙面上凸出的水平线脚 [{ y, 前表面离 dz 的距离 }]。
+     * 叶子/藤蔓经过这些高度时自动往前让，不然会正好卡在线脚表面里。 */
+    const ivyField = (x0, x1, y0, y1, depth, seed, avoid, bumps) => {
       const rr = rng(seed);
-      const zz = dz + (zoff === undefined ? 0.1 : zoff);
-      for (let b = 0; b < 4; b++) {
-        const bx = cx + (rr() - 0.5) * w * 0.7;
+      const w = x1 - x0, h = y1 - y0;
+      const zz = dz + depth;
+      const n = Math.max(60, Math.round(w * h * 52));
+      /* 顶边不是一条直线：两条正弦叠起来给出一圈不规则的轮廓，
+       * 不然一整片藤会像一块方板贴上去。 */
+      const topAt = (x) => {
+        const u = (x - x0) / w;
+        const wob = 0.55 + 0.45 * Math.sin(u * 6.1 + seed * 0.37) * Math.sin(u * 2.3 + seed * 0.11);
+        return y0 + h * (0.62 + 0.38 * wob);
+      };
+      const depthAt = (y) => {
+        let d = depth;
+        if (bumps) for (const b of bumps) if (Math.abs(y - b[0]) < 0.24) d = Math.max(d, b[1] + 0.04);
+        return d;
+      };
+      const hidden = (x, y) => {
+        if (!avoid) return false;
+        for (const a of avoid) if (x > a[0] && x < a[1] && y > a[2] && y < a[3]) return true;
+        return false;
+      };
+      // 主茎：从顶上垂下来几根，叶子挂在茎周围
+      const nv = Math.max(3, Math.round(w / 0.42));
+      for (let b = 0; b < nv; b++) {
+        const bx = x0 + (b + 0.5) / nv * w + (rr() - 0.5) * 0.22;
+        const top = topAt(bx) - h * rr() * 0.12;
+        for (let k = 0; k <= 5; k++) {
+          if (hidden(bx, y0 + (k / 5) * (top - y0))) continue;
+        }
         const pts = [];
         for (let k = 0; k <= 5; k++) {
           const t = k / 5;
-          pts.push([bx + Math.sin(t * 2.2 + b * 1.7) * 0.28, cy + t * h, zz - 0.02]);
+          const vy = y0 + t * (top - y0);
+          pts.push([bx + Math.sin(t * 2.4 + b * 1.9) * 0.24, vy, dz + depthAt(vy) - 0.02]);
         }
         vine.tube.call(vine, D, pts, 0.01, 4, [1, 1, 1]);
       }
-      // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z；
-      // leafFlat 是平躺的，贴墙会被看成一条边，之前那几根「绿棍」就是这么来的。
-      for (let i = 0; i < 132; i++) {
+      // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z
+      for (let i = 0; i < n; i++) {
         const u = rr(), v2 = rr();
-        const px = cx + (u - 0.5) * w * (0.45 + v2 * 0.62);
-        const py = cy + v2 * h;
-        const sz = 0.13 + rr() * 0.08;
+        const px = x0 + u * w, py = y0 + v2 * h;
+        if (hidden(px, py)) continue;                     // 窗洞
+        if (py > topAt(px)) continue;                     // 不规则的顶
+        // 左右边缘羽化 + 越往上越稀
+        const eu = Math.min(1, Math.min(u, 1 - u) / 0.09);
+        const fall = 0.6 + 0.4 * (1 - v2);
+        if (rr() > Math.min(1, eu * 1.2) * fall) continue;
+        const sz = (0.15 + rr() * 0.09) * (0.75 + 0.25 * Math.min(1, eu * 2));
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
-        const q = [[-sz, -sz * 0.62], [sz, -sz * 0.62], [sz, sz * 0.62], [-sz, sz * 0.62]];
-        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + rr() * 0.03];
+        /* 前后抖动只留 ±2cm：再大叶子会压在「凸出件表面」上，一半在墙外一半在墙里 */
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca,
+          dz + depthAt(py) + (rr() - 0.5) * 0.04];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
         const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    ivyPatch(-6.2, PT + 0.2, 1.2, 2.5, 91, 0.44);
-    ivyPatch(6.1, PT + 0.2, 2.4, 2.9, 97);
+    /* 左半面墙 = 钟楼前脸：一整片从墙角往上爬，只给南面长窗抠个洞。
+     * 长窗：`Q(glass, TX, PT+5.2, …, 0.8, 2.2)` → x TX±0.4、y PT+4.1~6.3，
+     * 石框再各放 0.15，所以避开框取 [-7.45, -6.15] × [PT+3.9, PT+6.5]。 */
+    ivyField(-9.05, -3.95, PT + 0.12, PT + 6.2, 0.46, 121,
+      [[-7.45, -6.15, PT + 3.9, PT + 6.5]],
+      /* 钟脸上的三道横线脚：勒脚 / 腰线 / 檐线，前表面分别到 0.53 / 0.48 / 0.47，
+       * 叶子走到这些高度自动往外让 4cm，不会卡进石线里 */
+      [[PT + 0.22, 0.53], [PT + 4.5, 0.48], [PT + 7.4, 0.47]]);
+    /* 右半面墙 = 主墙：一整片，同样是一圈不规则顶边。
+     * 主墙的勒脚线前表面在 0.13，这里 0.18 已经让开。 */
+    ivyField(4.15, 8.15, PT + 0.12, PT + 6.1, 0.18, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
     const statueP = st.pen("w.churchStatue", T.stone(), { tint: [0.9, 0.89, 0.85], spec: 0.05, rim: 0.16 });
@@ -2164,7 +2214,7 @@ const A3DWorld = (() => {
      * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
     {
       const grassP = st.pen("w.churchGrass", T.blade(),
-        { cutout: true, tint: [1, 1, 1], spec: 0.04, rim: 0.12, noShadow: true });
+        { cutout: true, tint: [1.1, 1.12, 1.0], spec: 0.02, rim: 0.12, noShadow: true });
       const gr = rng(211);
       const nearTomb = (wx, wz) => {
         for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
@@ -2195,47 +2245,84 @@ const A3DWorld = (() => {
         P.grassTuft(grassP, mul(m4(lx, gy + 0.012, lz, 0, gr() * TAU, 0)), {
           n: n || (5 + Math.floor(gr() * 4)),
           h: hh,
-          spread: spread || (0.075 + gr() * 0.075),
-          wid: 0.0045 + gr() * 0.0035,
+          spread: spread || (0.09 + gr() * 0.07),
+          wid: 0.0140 + gr() * 0.0090,
           seed: 1000 + Math.floor(gr() * 9000),
-          col: [0.64 + gr() * 0.22, 0.9 + gr() * 0.18, 0.48 + gr() * 0.16]
+          col: [0.80 + gr() * 0.12, 0.96 + gr() * 0.08, 0.56 + gr() * 0.08]
         });
       };
       /* 镜头附近的草坪：正门到院门这一段是画面下缘，密到近景能数出叶片。
-         每丛也多放几根，不然 0.26m 的格距看着还是一撮一撮的空地。 */
-      for (let gx = -14.2; gx <= 14.2; gx += 0.24) {
-        for (let gz = 19.2; gz <= 26.6; gz += 0.24) {
-          const lx = gx + (gr() - 0.5) * 0.22, lz = gz + (gr() - 0.5) * 0.22;
+         不靠「把格点排得更密」而是「让每丛自己铺开」——格距放宽到 0.26，
+         每丛 13~19 根、散开 0.17~0.31m，相邻两丛的叶子互相压着，
+         近看才是一整片草，而不是一根根竖在地上的钉子。 */
+      for (let gx = -14.2; gx <= 14.2; gx += 0.18) {
+        for (let gz = 19.2; gz <= 26.6; gz += 0.18) {
+          const lx = gx + (gr() - 0.5) * 0.24, lz = gz + (gr() - 0.5) * 0.24;
           if (!okSpot(lx, lz, 0)) continue;
-          if (gr() < 0.08) continue;
-          tuft(lx, lz, 0.18 + gr() * 0.24, 8 + Math.floor(gr() * 6), 0.09 + gr() * 0.08);
+          if (gr() < 0.05) continue;
+          tuft(lx, lz, 0.22 + gr() * 0.14, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
         }
       }
       // 花境到台阶之间：中景，稍稀
-      for (let gx = -13.6; gx <= 13.6; gx += 0.36) {
-        for (let gz = 14.8; gz < 19.2; gz += 0.36) {
-          const lx = gx + (gr() - 0.5) * 0.34, lz = gz + (gr() - 0.5) * 0.34;
+      for (let gx = -13.6; gx <= 13.6; gx += 0.26) {
+        for (let gz = 14.8; gz < 19.2; gz += 0.26) {
+          const lx = gx + (gr() - 0.5) * 0.32, lz = gz + (gr() - 0.5) * 0.32;
           if (!okSpot(lx, lz, 0)) continue;
-          if (gr() < 0.1) continue;
-          tuft(lx, lz, 0.16 + gr() * 0.2, 6 + Math.floor(gr() * 4));
+          if (gr() < 0.07) continue;
+          tuft(lx, lz, 0.20 + gr() * 0.12, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
         }
       }
       // 院子外围：稀一点，主要是把「一整片绿」打散
-      for (let gx = -31; gx <= 31; gx += 1.3) {
-        for (let gz = -16.5; gz <= 29.5; gz += 1.3) {
-          const lx = gx + (gr() - 0.5) * 1.2, lz = gz + (gr() - 0.5) * 1.2;
+      for (let gx = -31; gx <= 31; gx += 0.72) {
+        for (let gz = -16.5; gz <= 29.5; gz += 0.72) {
+          const lx = gx + (gr() - 0.5) * 0.9, lz = gz + (gr() - 0.5) * 0.9;
           if (gr() < 0.22) continue;
           if (!okSpot(lx, lz, 0.08)) continue;
-          tuft(lx, lz, 0.18 + gr() * 0.22);
+          tuft(lx, lz, 0.18 + gr() * 0.12);
         }
       }
       // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
       const tall = rng(2337);
-      for (let i = 0; i < 200; i++) {
+      for (let i = 0; i < 240; i++) {
         const lx = -14.0 + tall() * 28.0;
         const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
         if (!okSpot(lx, lz, 0.02)) continue;
-        tuft(lx, lz, 0.40 + tall() * 0.30, 5 + Math.floor(tall() * 4), 0.06 + tall() * 0.06);
+        tuft(lx, lz, 0.32 + tall() * 0.20, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
+      }
+
+      /* ---- 草里的紫花：成团撒，不铺满 ----
+       * 参考图是「一片高草中间冒出一片紫色小花」，所以花按簇放：
+       * 一簇 6~14 朵、簇半径 0.5~1.2m，簇与簇之间留草，远看才是一团团的。 */
+      const bellP = st.pen("w.churchBell", T.bell(),
+        { cutout: true, tint: [1.06, 1.0, 1.12], spec: 0.05, rim: 0.3, noShadow: true });
+      const fr = rng(907);
+      const BELL = [
+        [0.80, 0.58, 1.0],   // 紫
+        [0.92, 0.68, 1.0],   // 浅紫
+        [0.64, 0.48, 0.96],  // 深紫
+        [1.0, 0.80, 0.9]     // 粉白（点缀）
+      ];
+      const oneBell = (lx, lz, k) => {
+        const gy = gyAt(lx, lz);
+        const pal = BELL[Math.floor(fr() * BELL.length)];
+        P.bellFlower(bellP, grassP, mul(m4(lx, gy + 0.01, lz, 0, fr() * TAU, 0)), {
+          scale: 0.8 + fr() * 0.4,
+          h: 0.26 + fr() * 0.16,
+          col: [pal[0] * (0.9 + fr() * 0.2), pal[1] * (0.9 + fr() * 0.2), pal[2]]
+        });
+        void k;
+      };
+      for (let c = 0; c < 110; c++) {
+        const cx = -13.5 + fr() * 27.0;
+        const cz = 15.4 + fr() * 11.0;
+        const rad = 0.45 + fr() * 0.85;
+        const cnt = 5 + Math.floor(fr() * 9);
+        for (let k = 0; k < cnt; k++) {
+          const a = fr() * TAU, rr = Math.sqrt(fr()) * rad;
+          const lx = cx + Math.cos(a) * rr, lz = cz + Math.sin(a) * rr;
+          if (!okSpot(lx, lz, 0.02)) continue;
+          oneBell(lx, lz, k);
+        }
       }
     }
 
@@ -3265,10 +3352,10 @@ const A3DWorld = (() => {
         density: 0.2, g: 0.63, intensity: 3, steps: 48,
         heightY: 33.2, falloff: 0.195, maxDist: 70
       },
-      tone: [0.98, 1.0, 0.99],
+      tone: [0.99, 1.0, 0.99],
       /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
       post: false,
-      swayAmp: 0.7,
+      swayAmp: 0.55,
       /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
        * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
       sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
@@ -3450,7 +3537,10 @@ const A3DWorld = (() => {
        * core.js 的 postOf() 会读这个字段，art.js / 预览页据此跳过后期。 */
       post: v.post,
       swayAmp: v.swayAmp,
-      wind: [0.35, 0.12, 0.2],
+      /* 风是「米」为单位的水平位移，直接加在顶点上：草只有十几厘米高，
+       * 以前给 0.35 等于把草尖推开 17cm（≈50°），整片草看着全往一边倒。
+       * 现在收到 4cm 量级——树和常春藤只是轻晃，草才是立着的。 */
+      wind: [0.015, 0.006, 0.012],
       /* 只有报名 sunShadow 的视角才建太阳阴影（core.js 的 buildSunShadow），
        * 别的视角行为不变。 */
       sunShadow: v.sunShadow,

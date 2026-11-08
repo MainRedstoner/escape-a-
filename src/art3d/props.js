@@ -10,6 +10,11 @@
 const A3DProps = (() => {
   const M = A3D.M, G = A3D.Builder.prototype;
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
+  /* leafBlade 的长轴是**局部 +X**（贴图 v=0 在 x=0 那头）。
+   * 所以「让叶子立起来」= 绕 Z 转 90°，再减去一点点倾角。
+   * 以前草叶只给了一个很小的 rz，叶子其实是横躺在地上扫来扫去的——
+   * 近看一片歪、远看一地倒，还会横着穿进坡里。 */
+  const UP = Math.PI / 2;
   /** 恒等 3×3：草叶的「世界向上」法线自己算好，_v 里不要再转（见 leafBlade） */
   const IDENT_NM = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
@@ -325,9 +330,11 @@ const A3DProps = (() => {
           let gy2 = nm[1] * nx + nm[4] * ny;
           let gz2 = nm[2] * nx + nm[5] * ny;
           const gl2 = Math.hypot(gx2, gy2, gz2) || 1;
-          gx2 = gx2 / gl2 * 0.6;
-          gy2 = gy2 / gl2 * 0.6 + 0.4;
-          gz2 = gz2 / gl2 * 0.6;
+          /* 法线里「叶片朝向」只占 18%（以前 40%）：草是一整片，
+           * 每根叶子朝向不同就会有人偏深有人偏浅，看着花。 */
+          gx2 = gx2 / gl2 * 0.18;
+          gy2 = gy2 / gl2 * 0.18 + 0.82;
+          gz2 = gz2 / gl2 * 0.18;
           b._v(b.d, m, IDENT_NM, p[0], p[1], p[2], gx2, gy2, gz2,
             uv[k][0], uv[k][1], col, sw[k]);
         } else {
@@ -383,7 +390,7 @@ const A3DProps = (() => {
     for (let i = 0; i < n; i++) {
       const a = r() * TAU, rr = r() * (spread || 0.3);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, (r() - 0.5) * 0.5));
+        M.trs(0, 0, 0, 0, 0, UP - (r() - 0.5) * 0.5));
       leafBlade(b, mm, h * (0.5 + r() * 0.8), 0.012 + r() * 0.01, col);
     }
   }
@@ -393,25 +400,72 @@ const A3DProps = (() => {
   function grassTuft(b, m, op) {
     op = op || {};
     const r = rng(op.seed || 7);
-    const n = op.n || 7;
+    const n = op.n || 9;
     const h = op.h || 0.3;
     const spread = op.spread === undefined ? 0.1 : op.spread;
     const base = op.col || [0.62, 0.92, 0.5];
     for (let i = 0; i < n; i++) {
       const a = r() * TAU, rr = Math.sqrt(r()) * spread;
-      const len = h * (0.55 + r() * 0.8);
-      const wid = (op.wid || 0.005) * (0.7 + r() * 0.7);
-      // 越靠外的叶片越往外倒，中间那几根笔直顶出来；倾角封顶在 45° 左右，
-      // 再大就是一地趴着的叶子，不像草
+      /* 原神那种草坪是「短、直、密」：叶子基本都立着，只有最外圈稍微斜一点。
+       * 所以高度只拉 0.75~1.2 倍（不再有特别高的主叶），倾角也压小，
+       * 之前那版东倒西歪的，近看像一片没割过的野草。 */
+      const len = h * (0.75 + r() * 0.45);
+      const wid = (op.wid || 0.005) * (0.8 + r() * 0.5);
       const outward = spread > 0.001 ? rr / spread : 0;
-      const lean = Math.min(0.72, (0.14 + outward * 0.5) * (0.55 + r() * 0.6));
+      /* 叶子几乎笔直立起来：倾角只留 1~6°，最外圈也就 8°。
+       * 之前给到 20° 再加叶身的弧度，看着就是一片趴在地上的草。 */
+      const lean = Math.min(0.08, (0.012 + outward * 0.05) * (0.6 + r() * 0.5));
       const twist = r() * TAU;
-      const tone = 0.78 + r() * 0.46;
+      /* 明暗只留一点点：以前 tone 跨 0.74~1.24（±25%），再叠上蓝通道的随机，
+       * 相邻两根草一根发黄一根发蓝，整片草地花得难受。现在 ±9% 左右，
+       * 差异交给叶尖渐变和风向，不再靠每根叶子换色。 */
+      const tone = 0.94 + r() * 0.12;
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
-        M.trs(0, 0, 0, 0, 0, lean));
+        M.trs(0, 0, 0, 0, 0, UP - lean));
       leafBlade(b, mm, len, wid,
         [base[0] * tone, base[1] * tone, base[2] * tone],
-        0.55 + r() * 0.6, 3, true);
+        // 叶身基本不弯（0.04~0.12 只够叶尖翘一点点），摆动全靠风
+        0.02 + r() * 0.05, 3, true);
+    }
+    /* 根部那两片短叶也只微微外翻，别把整丛带得往地上倒。 */
+    const lowN = op.lowN === undefined ? 2 : op.lowN;
+    for (let i = 0; i < lowN; i++) {
+      const a = r() * TAU;
+      const rr = (0.3 + r() * 0.6) * spread;
+      const len = h * (0.42 + r() * 0.24);
+      const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
+        M.trs(0, 0, 0, 0, 0, UP - (0.06 + r() * 0.08)));
+      const tone = 0.88 + r() * 0.16;
+      leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
+        [base[0] * tone, base[1] * tone, base[2] * tone], 0.06 + r() * 0.1, 2, true);
+    }
+  }
+  /** 一株小钟形花：一根细茎顶着一朵五瓣花（贴图是白的，靠顶点色染成紫 / 粉 / 白）。
+   *  成片撒在草丛里就是参考图那种「草里冒出一片紫花」的效果。 */
+  function bellFlower(bFlower, bStem, m, op) {
+    op = op || {};
+    const r = rng(op.seed || 17);
+    const s = op.scale || 1;
+    const h = (op.h || 0.3) * s;
+    const lean = (r() - 0.5) * 0.03;
+    const col = op.col || [0.92, 0.72, 1.0];
+    // 茎：一根竖直的细叶，根部到花头，正好借草叶的 sway
+    leafBlade(bStem, M.mul(m, M.trs(0, 0, 0, 0, 0, UP - Math.abs(lean) * 2)),
+      h, 0.0055 * s, [0.46, 0.82, 0.34], 0.06, 2, true);
+    // 花冠：坐在茎顶（别再放到 X 轴上去，以前就是横躺在地上的）
+    const head = M.mul(m, M.trs(lean * 6, h * 0.94, 0, 0, r() * TAU, 0.3 + r() * 0.3));
+    const sz = 0.075 * s * (0.82 + r() * 0.45);
+    for (let k = 0; k < 2; k++) {
+      const mm = M.mul(head, M.trs((k ? 1 : -1) * sz * 0.12, 0, 0, 0, k * Math.PI * 0.5, 0));
+      const nm = A3D.M.normalMat(mm);
+      const q = [[-sz, -sz, 0], [sz, -sz, 0], [sz, sz, 0], [-sz, sz, 0]];
+      const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      const sw = [1, 1, 1, 1];
+      for (let i = 0; i < 4; i++) {
+        bFlower._v(bFlower.d, mm, nm, q[i][0], q[i][1], q[i][2], 0, 0, 1,
+          uv[i][0], uv[i][1], col, sw[i]);
+      }
+      bFlower._pushQuad(bFlower.count - 4);
     }
   }
   /** 菊花：茎 + 叶片 + 花瓣（petal builder） */
@@ -706,7 +760,7 @@ const A3DProps = (() => {
     rng, pick, mix, stage, quad4, figure,
     table, drawer, chair, monitorBody, monitorScreen, keyboard, mouse, mug, papers,
     book, bookRow, bookshelf, shelfBooks,
-    pot, leafBlade, leafFlat, plant, tallLeaves, grass, grassTuft, chrysanthemum,
+    pot, leafBlade, leafFlat, plant, tallLeaves, grass, grassTuft, bellFlower, chrysanthemum,
     tableLamp, paperLantern,
     tent, campfire, crate, barrel, rack, archWindowFrame, stall, garbagePile, birdWings
   };

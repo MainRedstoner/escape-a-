@@ -568,13 +568,45 @@ const A3D = (() => {
   uniform float uTime, uSwayAmp;
   uniform vec3 uWind;
   out vec3 vWorld; out vec3 vNor; out vec2 vUV; out vec3 vCol; out float vFogDepth;
+
+  /* ---- 风场：世界坐标上的低频噪声 ----
+   * 以前是整个场景共用一个方向的风（uWind），同一时刻所有草朝同一边倒。
+   * 现在按世界位置取噪声，得到一片片「范围」：范围内草往一个方向摆，
+   * 隔壁那片方向不同，噪声再随时间漂移，阵风就会自己扫过草地。
+   * 草叶、常春藤、柏树、花都用同一个顶点着色器，所以是同一套风。 */
+  float wHash(vec2 q) {
+    q = fract(q * vec2(123.34, 456.21));
+    q += dot(q, q + 45.32);
+    return fract(q.x * q.y);
+  }
+  float wNoise(vec2 q) {
+    vec2 i = floor(q), f = fract(q);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = wHash(i), b = wHash(i + vec2(1.0, 0.0));
+    float c = wHash(i + vec2(0.0, 1.0)), d = wHash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+  /** 返回 xy = 该处风的方向×强度（长度 0~1），漂移量也一起给 */
+  vec2 wField(vec2 xz, float t) {
+    vec2 q = xz * 0.30 + vec2(t * 0.42, t * 0.28);
+    float n1 = wNoise(q);
+    float n2 = wNoise(q * 2.3 + 17.3);
+    float ang = (n1 * 2.0 - 1.0) * 3.1416 + n2 * 1.1;
+    float mag = 0.3 + 0.7 * n2;
+    return vec2(cos(ang), sin(ang)) * mag;
+  }
+
   void main(){
     vec3 p = aPos;
     if (aSway > 0.001) {
+      /* 先按静止位置取风：同一丛草里各顶点的风几乎一致，不会被撕开 */
+      vec2 wind = wField(p.xz, uTime) + uWind.xz * 4.0;
+      /* 每片叶子自己的小抖动，让同一片里的叶子不同步 */
       float ph = uTime * 1.35 + p.x * 0.9 + p.z * 0.7;
-      p.x += (sin(ph) * 0.035 + uWind.x) * aSway * uSwayAmp;
-      p.z += (cos(ph * 0.87) * 0.028 + uWind.z) * aSway * uSwayAmp;
-      p.y += sin(ph * 1.7) * 0.012 * aSway * uSwayAmp;
+      float k = aSway * uSwayAmp;
+      p.x += (wind.x * 0.16 + sin(ph) * 0.012) * k;
+      p.z += (wind.y * 0.16 + cos(ph * 0.87) * 0.010) * k;
+      p.y += sin(ph * 1.7) * 0.005 * k;
     }
     vec4 wp = uModel * vec4(p, 1.0);
     vWorld = wp.xyz;
