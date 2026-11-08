@@ -1807,29 +1807,40 @@ const A3DWorld = (() => {
      * 再往外垫 5cm 余量，任何风向都不会穿进石头。 */
     const ivy = st.pen("w.churchIvy", T.leaf(), { cutout: true, tint: [0.4, 0.62, 0.38], sway: 0.1, rim: 0.15 });
     const vine = st.pen("w.churchVine", null, { tint: [0.2, 0.28, 0.16] });
-    const ivyPatch = (cx, cy, w, h, seed, zoff) => {
+    /* 按**矩形区域**铺一片爬山虎，而不是「一个随机扇形撒固定片数」：
+     * 片数 = 面积 × 58，所以大片小块密度一样；边缘羽化、往上渐稀，
+     * 看起来是长上去的，而不是一块方方正正的绿板。
+     * depth 是离 `dz`（主墙前脸）的偏移：左半面其实是钟楼前脸（凸 0.4m），
+     * 所以要 0.45；右半面就是主墙，0.16 就够。 */
+    const ivyField = (x0, x1, y0, y1, depth, seed) => {
       const rr = rng(seed);
-      const zz = dz + (zoff === undefined ? 0.16 : zoff);
-      for (let b = 0; b < 4; b++) {
-        const bx = cx + (rr() - 0.5) * w * 0.7;
+      const w = x1 - x0, h = y1 - y0;
+      const zz = dz + depth;
+      const n = Math.max(60, Math.round(w * h * 58));
+      // 主茎：从顶上垂下来几根，叶子挂在茎周围
+      const nv = Math.max(3, Math.round(w / 0.42));
+      for (let b = 0; b < nv; b++) {
+        const bx = x0 + (b + 0.5) / nv * w + (rr() - 0.5) * 0.22;
+        const top = y1 - h * rr() * 0.22;
         const pts = [];
         for (let k = 0; k <= 5; k++) {
           const t = k / 5;
-          pts.push([bx + Math.sin(t * 2.2 + b * 1.7) * 0.28, cy + t * h, zz - 0.02]);
+          pts.push([bx + Math.sin(t * 2.4 + b * 1.9) * 0.24, y0 + t * (top - y0), zz - 0.02]);
         }
         vine.tube.call(vine, D, pts, 0.01, 4, [1, 1, 1]);
       }
-      // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z；
-      // leafFlat 是平躺的，贴墙会被看成一条边，之前那几根「绿棍」就是这么来的。
-      for (let i = 0; i < 240; i++) {
+      // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z
+      for (let i = 0; i < n; i++) {
         const u = rr(), v2 = rr();
-        const px = cx + (u - 0.5) * w * (0.45 + v2 * 0.62);
-        const py = cy + v2 * h;
-        const sz = 0.15 + rr() * 0.09;
+        // 边缘羽化：左右各 10%、底部 5%、顶上 24% 逐渐变稀
+        const eu = Math.min(1, Math.min(u, 1 - u) / 0.10);
+        const ev = Math.max(0, Math.min(1, Math.min(v2 / 0.05, (1 - v2) / 0.24)));
+        const fall = 0.55 + 0.45 * (1 - v2);
+        if (rr() > Math.min(1, eu * ev) * fall * 1.15) continue;
+        const px = x0 + u * w, py = y0 + v2 * h;
+        const sz = (0.15 + rr() * 0.09) * (0.75 + 0.25 * Math.min(1, eu * 2));
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
-        const q = [[-sz, -sz * 0.62], [sz, -sz * 0.62], [sz, sz * 0.62], [-sz, sz * 0.62]];
-        /* 叶片在墙面前后错开 ±7cm：一来像长出来的（不是一张贴纸），
-         * 二来万一有块石头凸出来，也不会整片叶子一起被切。 */
+        /* 叶片在墙面前后错开 ±5cm：看起来有厚度，凸出的石件也只会正常遮挡 */
         const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.10];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
@@ -1837,12 +1848,12 @@ const A3DWorld = (() => {
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    /* 左半面墙：主株贴地往上爬，上面再接一株矮的，两株的叶子互相压着 */
-    ivyPatch(-6.2, PT + 0.2, 2.8, 3.0, 91, 0.57);
-    ivyPatch(-6.6, PT + 2.4, 1.8, 1.9, 103, 0.57);
-    /* 右半面墙：门右侧一大片 + 上面再接一层 */
-    ivyPatch(6.1, PT + 0.2, 3.6, 3.4, 97);
-    ivyPatch(6.6, PT + 3.0, 2.0, 1.8, 107);
+    /* 左半面墙 = 钟楼前脸：整片墙角铺满，塔身左缘再往上带一条 */
+    ivyField(-8.05, -4.05, PT + 0.12, PT + 2.9, 0.45, 121);
+    ivyField(-8.05, -7.45, PT + 2.6, PT + 5.2, 0.45, 127);
+    /* 右半面墙 = 主墙：门右一整片，靠转角再往上带一条 */
+    ivyField(4.15, 8.0, PT + 0.12, PT + 4.7, 0.16, 97);
+    ivyField(7.15, 8.0, PT + 4.5, PT + 6.0, 0.16, 107);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
     const statueP = st.pen("w.churchStatue", T.stone(), { tint: [0.9, 0.89, 0.85], spec: 0.05, rim: 0.16 });
