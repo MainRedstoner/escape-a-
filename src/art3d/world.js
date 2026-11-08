@@ -1809,7 +1809,7 @@ const A3DWorld = (() => {
     const vine = st.pen("w.churchVine", null, { tint: [0.2, 0.28, 0.16] });
     const ivyPatch = (cx, cy, w, h, seed, zoff) => {
       const rr = rng(seed);
-      const zz = dz + (zoff === undefined ? 0.22 : zoff);
+      const zz = dz + (zoff === undefined ? 0.16 : zoff);
       for (let b = 0; b < 4; b++) {
         const bx = cx + (rr() - 0.5) * w * 0.7;
         const pts = [];
@@ -1821,22 +1821,24 @@ const A3DWorld = (() => {
       }
       // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z；
       // leafFlat 是平躺的，贴墙会被看成一条边，之前那几根「绿棍」就是这么来的。
-      for (let i = 0; i < 132; i++) {
+      for (let i = 0; i < 240; i++) {
         const u = rr(), v2 = rr();
         const px = cx + (u - 0.5) * w * (0.45 + v2 * 0.62);
         const py = cy + v2 * h;
-        const sz = 0.13 + rr() * 0.08;
+        const sz = 0.15 + rr() * 0.09;
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
         const q = [[-sz, -sz * 0.62], [sz, -sz * 0.62], [sz, sz * 0.62], [-sz, sz * 0.62]];
-        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + rr() * 0.03];
+        /* 叶片在墙面前后错开 ±7cm：一来像长出来的（不是一张贴纸），
+         * 二来万一有块石头凸出来，也不会整片叶子一起被切。 */
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.4) * 0.14];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
         const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    ivyPatch(-6.2, PT + 0.2, 1.2, 2.5, 91, 0.51);
-    ivyPatch(6.1, PT + 0.2, 2.4, 2.9, 97);
+    ivyPatch(-6.2, PT + 0.2, 1.6, 2.7, 91, 0.34);
+    ivyPatch(6.1, PT + 0.2, 2.6, 3.1, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
     const statueP = st.pen("w.churchStatue", T.stone(), { tint: [0.9, 0.89, 0.85], spec: 0.05, rim: 0.16 });
