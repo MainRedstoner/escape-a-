@@ -841,6 +841,16 @@ const A3D = (() => {
     float phase = (1.0 - g * g) /
       (12.566371 * pow(max(1.0 + g * g - 2.0 * g * cosT, 1e-4), 1.5));
     vec3 inscatter = uSunCol * (acc * uDensity * uIntensity * phase);
+
+    /* 软肩：直接往 RGBA8 上加，朝太阳那一片会一路截成一块死白。
+     * 用 Reinhard 压一遍，亮部收着涨，太阳附近才不会糊成一个白饼。 */
+    inscatter = inscatter / (1.0 + inscatter);
+
+    /* 亮部让步：天空本来就亮，再叠光晕只会更白。场景越亮，加得越少，
+     * 暗处（背光的立面、院子里的阴影）才吃得到光柱。 */
+    float lum = dot(scene, vec3(0.299, 0.587, 0.114));
+    inscatter *= clamp(1.0 - lum * 1.15, 0.08, 1.0);
+
     o = vec4(scene + inscatter, 1.0);
   }`;
 

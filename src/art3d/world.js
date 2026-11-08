@@ -3249,7 +3249,7 @@ const A3DWorld = (() => {
       lights: {
         /* 平行光：下午的太阳，正门立面全亮，投影落向前院右侧 */
         sun: A3D.norm3([-0.794, 0.438, -0.422]), sunCol: [0.98, 0.87, 0.66],
-        skyCol: [0.29, 0.35, 0.43], groundCol: [0.12, 0.11, 0.09],
+        skyCol: [0.34, 0.4, 0.48], groundCol: [0.15, 0.14, 0.12],
         /* 硬方向光：背光面真的暗下去，才有「太阳晒着」的对比 */
         sunWrap: 0.2,
         fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
@@ -3257,10 +3257,10 @@ const A3DWorld = (() => {
       },
       /* 太阳缓慢漂移：方位角在基准 ±42° 之间来回（会扫过侧逆光，光柱这时最明显），
        * 高度角 ±6°。浏览器预览面板里可以关掉，也可以拖基准方向。 */
-      sunDrift: { az: 22, azPeriod: 96, el: 5, elPeriod: 71, on: true },
+      sunDrift: { az: 9, azPeriod: 84, el: 3, elPeriod: 61, on: true },
       /* 体积光：逐像素沿视线步进太阳阴影贴图。密度 / g / 高度衰减都能在预览页调 */
       volumetric: {
-        density: 0.12, g: 0.6, intensity: 1.6, steps: 28,
+        density: 0.2, g: 0.6, intensity: 1.5, steps: 28,
         heightY: 33.2, falloff: 0.07, maxDist: 70
       },
       tone: [0.98, 1.0, 0.99],
