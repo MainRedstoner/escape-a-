@@ -2,7 +2,8 @@
  * Escape A÷ · game/src/render.js —— Canvas 2D 渲染层
  *
  * 全部图形都是代码画的（零素材），只用世界状态做输入，不改状态。
- * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子和机关用指数平滑插值，避免格子跳变。
+ * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子画世界推进的连续位置 sx/sy（身体、致死判定、B 键
+ * 红框同源 —— 身体滑到哪儿判定就在哪儿），机关和 CI 用指数平滑插值，避免格子跳变。
  * 横版额外画视差背景、平台高光、坑的深度渐变和落地尘土；俯视保持原来的黑底。
  * 亮度 = WORLD.brightness()：1 实时观测 · 0 全黑 · 中间是「还记得」。
  * ============================================================ */
@@ -528,9 +529,12 @@ window.RENDER = (() => {
     }
   }
 
+  /** 甲虫画在哪：世界推进的连续位置 sx/sy（没有就退回格坐标），中心 = 格坐标 + 0.5 */
+  function bugCX(b) { return ((b.sx != null ? b.sx : b.x) + 0.5) * TS; }
+  function bugCY(b) { return ((b.sy != null ? b.sy : b.y) + 0.5) * TS; }
+
   function drawBug(W, b, alpha) {
-    const m = smooth("b" + b.id, b.x, b.y, 1 / 60);
-    const px = (m.x + 0.5) * TS, py = (m.y + 0.5) * TS;
+    const px = bugCX(b), py = bugCY(b);
     const k = BUGS.get(b.kind);
     const size = TS * (b.kind === "boss" ? 0.46 : b.kind === "egg" ? 0.22 : 0.32);
     ctx.save();
@@ -711,7 +715,7 @@ window.RENDER = (() => {
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
      * 黄框 = 玩家判定箱，world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
      * 箱下边、物理碰撞沿、阴影下缘切线三者合一，贴墙 / 落地时都停在方块表面上。
-     * 红框 = 甲虫致死盒，world.js 的 boxHitsBugAt（格中心 0.6×0.6 内接盒）——
+     * 红框 = 甲虫致死盒（0.6×0.6，中心跟甲虫的连续位置 sx/sy 走）——
      * 致死判定和它同一几何，B 所见 = 真实判定。 */
     if (showBox && !W.player.dead) {
       const bs = down > 0 ? P_S : P_H, th = down > 0 ? P_H : P_S;
@@ -726,8 +730,9 @@ window.RENDER = (() => {
       ctx.strokeStyle = "rgba(255,72,58,.9)";
       for (const b of W.bugs) {
         if (!BUGS.isLethal(b)) continue;
-        ctx.fillRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
-        ctx.strokeRect((b.x + 0.5) * TS - hs / 2, (b.y + 0.5) * TS - hs / 2, hs, hs);
+        const bcx = bugCX(b), bcy = bugCY(b);
+        ctx.fillRect(bcx - hs / 2, bcy - hs / 2, hs, hs);
+        ctx.strokeRect(bcx - hs / 2, bcy - hs / 2, hs, hs);
       }
       ctx.restore();
     }
