@@ -1812,7 +1812,9 @@ const A3DWorld = (() => {
      * 看起来是长上去的，而不是一块方方正正的绿板。
      * depth 是离 `dz`（主墙前脸）的偏移：左半面其实是钟楼前脸（凸 0.4m），
      * 所以要 0.45；右半面就是主墙，0.16 就够。 */
-    const ivyField = (x0, x1, y0, y1, depth, seed, avoid) => {
+    /* bumps：墙面上凸出的水平线脚 [{ y, 前表面离 dz 的距离 }]。
+     * 叶子/藤蔓经过这些高度时自动往前让，不然会正好卡在线脚表面里。 */
+    const ivyField = (x0, x1, y0, y1, depth, seed, avoid, bumps) => {
       const rr = rng(seed);
       const w = x1 - x0, h = y1 - y0;
       const zz = dz + depth;
@@ -1823,6 +1825,11 @@ const A3DWorld = (() => {
         const u = (x - x0) / w;
         const wob = 0.55 + 0.45 * Math.sin(u * 6.1 + seed * 0.37) * Math.sin(u * 2.3 + seed * 0.11);
         return y0 + h * (0.62 + 0.38 * wob);
+      };
+      const depthAt = (y) => {
+        let d = depth;
+        if (bumps) for (const b of bumps) if (Math.abs(y - b[0]) < 0.24) d = Math.max(d, b[1] + 0.04);
+        return d;
       };
       const hidden = (x, y) => {
         if (!avoid) return false;
@@ -1840,7 +1847,8 @@ const A3DWorld = (() => {
         const pts = [];
         for (let k = 0; k <= 5; k++) {
           const t = k / 5;
-          pts.push([bx + Math.sin(t * 2.4 + b * 1.9) * 0.24, y0 + t * (top - y0), zz - 0.02]);
+          const vy = y0 + t * (top - y0);
+          pts.push([bx + Math.sin(t * 2.4 + b * 1.9) * 0.24, vy, dz + depthAt(vy) - 0.02]);
         }
         vine.tube.call(vine, D, pts, 0.01, 4, [1, 1, 1]);
       }
@@ -1857,7 +1865,8 @@ const A3DWorld = (() => {
         const sz = (0.15 + rr() * 0.09) * (0.75 + 0.25 * Math.min(1, eu * 2));
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
         /* 前后抖动只留 ±2cm：再大叶子会压在「凸出件表面」上，一半在墙外一半在墙里 */
-        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.04];
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca,
+          dz + depthAt(py) + (rr() - 0.5) * 0.04];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
         const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
@@ -1868,8 +1877,12 @@ const A3DWorld = (() => {
      * 长窗：`Q(glass, TX, PT+5.2, …, 0.8, 2.2)` → x TX±0.4、y PT+4.1~6.3，
      * 石框再各放 0.15，所以避开框取 [-7.45, -6.15] × [PT+3.9, PT+6.5]。 */
     ivyField(-9.05, -3.95, PT + 0.12, PT + 6.2, 0.46, 121,
-      [[-7.45, -6.15, PT + 3.9, PT + 6.5]]);
-    /* 右半面墙 = 主墙：一整片，同样是一圈不规则顶边 */
+      [[-7.45, -6.15, PT + 3.9, PT + 6.5]],
+      /* 钟脸上的三道横线脚：勒脚 / 腰线 / 檐线，前表面分别到 0.53 / 0.48 / 0.47，
+       * 叶子走到这些高度自动往外让 4cm，不会卡进石线里 */
+      [[PT + 0.22, 0.53], [PT + 4.5, 0.48], [PT + 7.4, 0.47]]);
+    /* 右半面墙 = 主墙：一整片，同样是一圈不规则顶边。
+     * 主墙的勒脚线前表面在 0.13，这里 0.18 已经让开。 */
     ivyField(4.15, 8.15, PT + 0.12, PT + 6.1, 0.18, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
