@@ -330,9 +330,11 @@ const A3DProps = (() => {
           let gy2 = nm[1] * nx + nm[4] * ny;
           let gz2 = nm[2] * nx + nm[5] * ny;
           const gl2 = Math.hypot(gx2, gy2, gz2) || 1;
-          gx2 = gx2 / gl2 * 0.6;
-          gy2 = gy2 / gl2 * 0.6 + 0.4;
-          gz2 = gz2 / gl2 * 0.6;
+          /* 法线里「叶片朝向」只占 18%（以前 40%）：草是一整片，
+           * 每根叶子朝向不同就会有人偏深有人偏浅，看着花。 */
+          gx2 = gx2 / gl2 * 0.18;
+          gy2 = gy2 / gl2 * 0.18 + 0.82;
+          gz2 = gz2 / gl2 * 0.18;
           b._v(b.d, m, IDENT_NM, p[0], p[1], p[2], gx2, gy2, gz2,
             uv[k][0], uv[k][1], col, sw[k]);
         } else {

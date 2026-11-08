@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.02, 1.06, 0.94], spec: 0.03, rim: 0.12 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.16, 1.2, 1.02], spec: 0.03, rim: 0.1 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;

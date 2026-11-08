@@ -648,9 +648,10 @@ const A3DTex = (() => {
       return get("blade", 64, 128, (x, w, h) => {
         x.clearRect(0, 0, w, h);
         const g = x.createLinearGradient(0, h, 0, 0);
-        g.addColorStop(0, "#41702e"); g.addColorStop(0.34, "#54853a");
-        g.addColorStop(0.68, "#6fa146"); g.addColorStop(0.92, "#8cba60");
-        g.addColorStop(1, "#9dc46a");
+        /* 叶身明度只差 1.35 倍（以前 2.3 倍）：草是一整片，不是一根根深浅不一的条 */
+        g.addColorStop(0, "#5d8c42"); g.addColorStop(0.34, "#628f46");
+        g.addColorStop(0.68, "#6a9850"); g.addColorStop(0.92, "#719d56");
+        g.addColorStop(1, "#78a35c");
         x.fillStyle = g;
         x.beginPath();
         x.moveTo(w * 0.5, h);
