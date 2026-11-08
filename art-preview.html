@@ -360,7 +360,7 @@
 
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
-  <span>构建 <b id="stBuild">2026-11-08b</b></span>
+  <span>构建 <b id="stBuild">2026-11-08d</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
   <span>画布 <b id="stGain">1.00x</b></span>
@@ -372,7 +372,7 @@
 
 <script src="assets/shh.js"></script>
 <script src="assets/manifest.js"></script>
-<script src="src/art3d/core.js?v=117"></script>
+<script src="src/art3d/core.js?v=127"></script>
 <script src="src/art3d/textures.js?v=116"></script>
 <script src="src/art3d/props.js?v=115"></script>
 <script src="src/art3d/flock.js?v=110"></script>
@@ -382,9 +382,9 @@
 <script src="src/art3d/world_github.js?v=131"></script>
 <script src="src/art3d/world_hf.js?v=131"></script>
 <script src="src/art3d/world_shit.js?v=131"></script>
-<script src="src/art3d/world.js?v=170"></script>
+<script src="src/art3d/world.js?v=175"></script>
 <!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
-<script src="src/art.js?v=36"></script>
+<script src="src/art.js?v=37"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -401,7 +401,7 @@ const SCENES = [
   { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "已搬到大世界的教堂正门前（晴天）：双扇橡木门、铁箍门环、CLAUDE 门牌、门头提灯，两侧石池里是橙色菊花，抬头是玫瑰窗与钟楼。", group: "序章" },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的；整座教堂泡在红光里。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。序章第二课在这里——DeepSeek 上门学写信。", group: "序章" },
-  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。晴天：太阳平行光 + 正交阴影，前院草坪上是会随风摆的草丛。", group: "大世界" },
+  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。晴天：太阳平行光 + 正交阴影 + 真实体积光（丁达尔，太阳会缓慢漂移），前院草坪上是会随风摆的草丛。", group: "大世界" },
   { id: "world_title",    name: "大世界 · 主标题",        desc: "山顶教堂旁边，面向海岸线：下方是教堂与墓园，远处 GitHub 居中、HF 营地居左、灯塔与城市居右，海湾里有一条月光。", group: "大世界" },
   { id: "github_street",  name: "大世界 · GitHub 夜市街", desc: "街两边的摊位一个比一个不一样，灯笼和店招连成串；街尾是屎山，远远就能看见那些报错屏。", group: "大世界" },
   { id: "hf_camp",        name: "大世界 · HF 营地",       desc: "从海滩斜望向岸边（夜）：帐篷群、地摊和小吃、串灯与篝火，模型们的第二个家。", group: "大世界" },
@@ -775,9 +775,13 @@ function buildLightPanel(s) {
       apply();
     }));
     // 方向：方位角 / 高度角，改完直接重建阴影
-    let angles = sunAngles(L.sun);
+    /* 太阳方向：视角里有 sunBase（会漂移）就改基准，否则直接改 lights.sun。
+       改完清掉 __sunShadow，下一帧按新方向重烘阴影。 */
+    const sunBase = s.sunBase || null;
+    let angles = sunBase ? [sunBase.az, sunBase.el] : sunAngles(L.sun);
     const writeDir = () => {
-      L.sun = sunVector(angles[0], angles[1]);
+      if (sunBase) { sunBase.az = angles[0]; sunBase.el = angles[1]; }
+      else { L.sun = sunVector(angles[0], angles[1]); }
       sunShadowDirty();
     };
     host.appendChild(sliderRow("方位角（0°=+Z 正南）", -180, 180, 1, Math.round(angles[0]), v => v.toFixed(0) + "°", v => {
@@ -789,6 +793,10 @@ function buildLightPanel(s) {
     // 环绕漫反射：1 = 老的非硬光，0.2 左右才有「太阳晒着」的明暗对比
     host.appendChild(sliderRow("太阳硬度（0=硬方向光）", 0, 1, 0.01,
       L.sunWrap === undefined ? 1 : L.sunWrap, v => v.toFixed(2), v => { L.sunWrap = v; }));
+    if (s.sunDrift) {
+      host.appendChild(sliderRow("太阳漂移（动起来才看得见光柱扫过）", 0, 1, 1,
+        s.sunDrift.on === false ? 0 : 1, v => (v ? "开" : "关"), v => { s.sunDrift.on = !!v; }));
+    }
   }
 
   /* ---------------- 环境光 ---------------- */
@@ -802,17 +810,21 @@ function buildLightPanel(s) {
       v => { mult = v; apply(); }));
   });
 
-  /* ---------------- 空气光柱（丁达尔效应） ---------------- */
-  const shafts = (s.glows || []).filter(b => b.kind === "sunshaft");
-  if (shafts.length) {
-    sec("空气光柱（丁达尔）");
-    let mult = 1;
-    const apply = () => {
-      for (const b of shafts) b.opacity = (b.baseOpacity === undefined ? 0.4 : b.baseOpacity) * mult;
-    };
-    host.appendChild(sliderRow("光柱强度", 0, 2.5, 0.02, 1, v => "×" + v.toFixed(2), v => {
-      mult = v; apply();
-    }));
+  /* ---------------- 体积光（丁达尔效应） ---------------- */
+  const vol = s.volumetric;
+  if (vol) {
+    sec("体积光（丁达尔）");
+    host.appendChild(noteRow("逐像素沿视线步进太阳阴影：只被照亮的空气才发光"));
+    host.appendChild(sliderRow("强度", 0, 3, 0.02,
+      vol.intensity === undefined ? 1 : vol.intensity, v => "×" + v.toFixed(2), v => { vol.intensity = v; }));
+    host.appendChild(sliderRow("密度", 0, 0.2, 0.002,
+      vol.density === undefined ? 0.05 : vol.density, v => v.toFixed(3), v => { vol.density = v; }));
+    host.appendChild(sliderRow("前向散射 g（越大越朝太阳聚）", 0, 0.95, 0.01,
+      vol.g === undefined ? 0.55 : vol.g, v => v.toFixed(2), v => { vol.g = v; }));
+    host.appendChild(sliderRow("贴地雾高度衰减", 0, 0.4, 0.005,
+      vol.falloff === undefined ? 0.1 : vol.falloff, v => v.toFixed(3), v => { vol.falloff = v; }));
+    host.appendChild(sliderRow("步进次数", 8, 48, 2,
+      vol.steps || 24, v => v.toFixed(0), v => { vol.steps = v | 0; }));
   }
 
   /* ---------------- 太阳阴影（正交深度图） ---------------- */
@@ -870,18 +882,24 @@ function currentLightJson() {
   const s = (typeof A3D !== "undefined" && A3D.debugScene) ? A3D.debugScene() : null;
   if (!s) return "{}";
   const L = s.lights || {};
-  /* 光柱强度是「相对 baseOpacity」的倍数，面板里只改 opacity，这里反算回去 */
-  const shafts = (s.glows || []).filter(b => b.kind === "sunshaft");
-  const shaftIn = shafts.length && shafts[0].baseOpacity
-    ? r3(shafts[0].opacity / shafts[0].baseOpacity) : null;
   const out = {
     scene: s.__id || (SCENES[cur] && SCENES[cur].id) || "",
     sun: vec3(L.sun || [0, 1, 0]),
+    sunBase: s.sunBase ? [r3(s.sunBase.az), r3(s.sunBase.el)] : null,
+    sunDrift: s.sunDrift ? {
+      on: s.sunDrift.on !== false, az: s.sunDrift.az, azPeriod: s.sunDrift.azPeriod,
+      el: s.sunDrift.el, elPeriod: s.sunDrift.elPeriod
+    } : null,
     sunCol: vec3(L.sunCol || [0, 0, 0]),
     sunWrap: r3(L.sunWrap === undefined ? 1 : L.sunWrap),
-    sunShaft: shaftIn,
     skyCol: vec3(L.skyCol || [0, 0, 0]),
     groundCol: vec3(L.groundCol || [0, 0, 0]),
+    volumetric: s.volumetric ? {
+      density: r3(s.volumetric.density), g: r3(s.volumetric.g),
+      intensity: r3(s.volumetric.intensity), steps: s.volumetric.steps | 0,
+      heightY: r3(s.volumetric.heightY), falloff: r3(s.volumetric.falloff),
+      maxDist: r3(s.volumetric.maxDist)
+    } : null,
     sunShadow: s.sunShadow ? {
       center: vec3(s.sunShadow.center || [0, 0, 0]),
       extent: r3(s.sunShadow.extent || 40),
@@ -1430,6 +1448,9 @@ function applyRawQuality() {
   if (typeof A3D !== "undefined" && A3D.setRenderScale) {
     A3D.setRenderScale(scale);
     A3D.setShadowQuality(cap, taps);
+    if (A3D.setVolumetricQuality) {
+      A3D.setVolumetricQuality(key === "low" ? 10 : key === "mid" ? 18 : 28);
+    }
   }
 }
 

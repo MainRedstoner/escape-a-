@@ -55,6 +55,40 @@ const A3D = (() => {
         -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1
       ]);
     },
+    /** 4×4 求逆（列主序）。体积光要从深度反推世界坐标，需要 viewProj 的逆。 */
+    invert(m) {
+      const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
+      const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
+      const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
+      const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+      const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10;
+      const b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
+      const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+      const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
+      const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31;
+      const b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+      let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+      const out = new Float32Array(16);
+      if (!det) return out;           // 退化矩阵：返回全 0，着色器里算出来也没意义
+      det = 1 / det;
+      out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+      out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+      out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+      out[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+      out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+      out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+      out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+      out[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+      out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+      out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+      out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+      out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+      out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+      out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+      out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+      out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+      return out;
+    },
     lookAt(eye, center, up) {
       let fx = center[0] - eye[0], fy = center[1] - eye[1], fz = center[2] - eye[2];
       let l = Math.hypot(fx, fy, fz) || 1; fx /= l; fy /= l; fz /= l;
@@ -401,9 +435,16 @@ const A3D = (() => {
    * ============================================================ */
   let gcv = null, gl = null, ready = false, failReason = "";
   let anisoExt = null, maxAniso = 1;
-  let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg, sunShadowProg;
+  let skyProg, litProg, seaProg, ptProg, glowProg, shadowProg, sunShadowProg, volProg;
   let shadowFbo = null, dummyShadow = null;
   let sunShadowFbo = null, dummySunShadow = null;
+  /* 体积光：先把场景画进带深度的离屏 FBO，再做一遍全屏光线步进。
+   * MSAA 只能由 renderbuffer 提供（默认帧缓冲的采样数管不到 FBO），
+   * 所以有 MSAA 时走「MSAA FBO → blit 到纹理 FBO」，没有就直接画纹理 FBO。 */
+  let volFbo = null, volColorTex = null, volDepthTex = null;
+  let volMsaaFbo = null, volMsaaColorRb = null, volMsaaDepthRb = null;
+  let volW = 0, volH = 0;
+  let volSteps = 24;
 
   /* ---------------- 画质旋钮 ----------------
    * 内部渲染分辨率和逻辑舞台解耦：舞台坐标永远是 1600×900，但 WebGL 可以按
@@ -428,6 +469,8 @@ const A3D = (() => {
       gcv.width = rw; gcv.height = rh;   // 改尺寸会丢掉缓冲内容，下一帧整帧重画即可
     }
     gl.viewport(0, 0, rw, rh);
+    // 离屏目标跟着分辨率走；尺寸一变，旧的纹理就不能用了
+    if (volFbo && (volW !== rw || volH !== rh)) destroyVolTargets();
   }
 
   function compile(type, src) {
@@ -716,6 +759,91 @@ const A3D = (() => {
     o = vec4(1.0);
   }`;
 
+  /* ============================================================
+   *  体积光（丁达尔效应）：屏幕空间光线步进
+   *
+   *  不是把几片加法面片摆在场景里，而是真的沿着视线从镜头往前走：
+   *  每个采样点用太阳的正交阴影贴图判断「这粒空气有没有被晒到」，
+   *  被晒到的才往画面里加散射光。于是光柱天然：
+   *    · 方向 = 真实光源方向（跟着 lights.sun 每帧变）
+   *    · 只在被照亮的空气里出现，阴影边缘才拉开明暗对比
+   *    · 0.5~1.5m 的窄缝（栏杆 / 树冠 / 门缝）会漏出细光条，不会被糊成一片
+   *  相位用 Henyey-Greenstein，g 越大越朝太阳方向聚（逆光时更亮）。
+   * ============================================================ */
+  const VOL_VS = `#version 300 es
+  out vec2 vUv;
+  void main(){
+    vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+    vUv = p;   // 可见平面是 clip −1..1，对应的 uv 就是 0..1
+    gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+  }`;
+
+  const VOL_FS = `#version 300 es
+  precision highp float;
+  precision highp sampler2DShadow;
+  in vec2 vUv;
+  out vec4 o;
+  uniform sampler2D uScene;
+  uniform sampler2D uDepth;
+  uniform sampler2DShadow uSunMap;
+  uniform mat4 uInvVP, uSunVP;
+  uniform vec3 uCam, uSunDir, uSunCol;
+  uniform float uSunBias;
+  uniform float uDensity, uG, uHeightY, uFalloff, uMaxDist, uIntensity, uTime;
+  uniform int uSteps, uSunOn;
+
+  float hash12(vec2 p){
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  /** 这个点有没有被太阳照到：投进太阳正交阴影贴图，超出框就算亮 */
+  float sunVis(vec3 p){
+    vec4 lp = uSunVP * vec4(p, 1.0);
+    vec3 s = lp.xyz / lp.w * 0.5 + 0.5;
+    if (s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0 || s.z > 1.0) return 1.0;
+    return texture(uSunMap, vec3(s.xy, s.z - uSunBias));
+  }
+
+  void main(){
+    vec3 scene = texture(uScene, vUv).rgb;
+    float d = texture(uDepth, vUv).r;
+
+    /* 深度反推世界坐标（天空的 d=1 会落在远平面上，按 maxDist 截断） */
+    vec4 ndc = vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+    vec4 wp = uInvVP * ndc;
+    vec3 world = wp.xyz / max(wp.w, 1e-5);
+    vec3 ray = world - uCam;
+    float full = length(ray);
+    float dist = min(full, uMaxDist);
+    vec3 dir = ray / max(full, 1e-4);
+
+    /* 抖动采样起点：固定步长会在画面里拉出一圈圈同心环 */
+    float jit = hash12(gl_FragCoord.xy + vec2(fract(uTime) * 173.0, fract(uTime * 0.37) * 91.0));
+    float stepLen = dist / float(uSteps);
+    float acc = 0.0;
+    for (int i = 0; i < 64; i++) {
+      if (i >= uSteps) break;
+      float t = (float(i) + jit) * stepLen;
+      vec3 p = uCam + dir * t;
+      /* 高度雾：越低越浓，光柱贴着地面和树冠下面才明显 */
+      float hgt = exp(-max(p.y - uHeightY, 0.0) * uFalloff);
+      /* 飘动的尘埃：让光柱自己也在呼吸 */
+      float dust = 0.86 + 0.14 * sin(p.y * 1.7 + uTime * 0.5 + p.x * 0.21 + p.z * 0.17);
+      float sh = uSunOn > 0 ? sunVis(p) : 1.0;
+      acc += sh * hgt * dust * stepLen;
+    }
+
+    /* Henyey-Greenstein 相位：朝太阳看时散射最亮，背对时几乎为零 */
+    float cosT = dot(dir, uSunDir);
+    float g = uG;
+    float phase = (1.0 - g * g) /
+      (12.566371 * pow(max(1.0 + g * g - 2.0 * g * cosT, 1e-4), 1.5));
+    vec3 inscatter = uSunCol * (acc * uDensity * uIntensity * phase);
+    o = vec4(scene + inscatter, 1.0);
+  }`;
+
   const SEA_VS = `#version 300 es
   layout(location=0) in vec3 aPos;
   layout(location=1) in vec3 aNor;
@@ -860,6 +988,7 @@ const A3D = (() => {
     glowProg = program(GLOW_VS, GLOW_FS, ["aPos", "aNor", "aUV", "aCol"]);
     shadowProg = program(SHADOW_VS, SHADOW_FS, ["aPos"]);
     sunShadowProg = program(SUNSHADOW_VS, SUNSHADOW_FS, ["aPos"]);
+    volProg = program(VOL_VS, VOL_FS, []);
     shadowFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
     gl.drawBuffers([gl.NONE]);
@@ -1046,18 +1175,30 @@ const A3D = (() => {
    * 场景在 `sunShadow: { center, extent, distance, far, size, bias }` 里报名才建：
    * 一次建好缓存住（大世界的几何是静态的），画质档位一变就回收重来。
    * 方向取 `lights.sun`（和着色器里的 uSunDir 是同一个向量，指向太阳）。
+   * 太阳会动（视角里可以写漂移）时，draw() 会按方向差复用同一张深度图重画。
    * 正交框只罩住镜头附近那一块——方向光阴影不需要覆盖整张地图，
    * 罩得越紧 texel 越细，教堂门前 55m 见方用 2048 的图差不多 2.7cm 一个像素。 */
   function buildSunShadow(sc) {
     const cfg = sc.sunShadow;
     if (!cfg || !gl || !sunShadowProg) { sc.__sunShadow = null; return; }
     const size = shadowSizeCap ? Math.min(cfg.size || 2048, shadowSizeCap) : (cfg.size || 2048);
+    const tex = makeDepth2D(size);
+    sc.__sunShadow = {
+      tex, size, vp: null, far: 1,
+      bias: cfg.bias === undefined ? 0.0006 : cfg.bias,
+      sun: null
+    };
+    renderSunShadow(sc, tex, size);
+  }
+
+  /** 把太阳阴影重新烘进 tex（首次建图、太阳移动时复用同一张图重画） */
+  function renderSunShadow(sc, tex, size) {
+    const cfg = sc.sunShadow;
     const center = cfg.center || (sc.cam && sc.cam.target) || [0, 0, 0];
     const extent = cfg.extent || 42;
     const dist = cfg.distance || extent * 2.6;
     const far = cfg.far || dist + extent * 2.5;
     const dir = norm3((sc.lights && sc.lights.sun) || [0.3, 0.9, 0.3]);
-    const tex = makeDepth2D(size);
     try {
       setA2C(false);
       gl.bindFramebuffer(gl.FRAMEBUFFER, sunShadowFbo);
@@ -1089,13 +1230,15 @@ const A3D = (() => {
         gl.bindVertexArray(b.mesh.vao);
         gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
       }
-      sc.__sunShadow = {
-        tex, vp, size, far,
-        bias: cfg.bias === undefined ? 0.0006 : cfg.bias
-      };
+      const sh = sc.__sunShadow;
+      if (sh) {
+        sh.vp = vp;
+        sh.far = far;
+        sh.sun = dir.slice();
+      }
     } catch (e) {
       console.error("[A3D] 太阳阴影构建失败", e);
-      sc.__sunShadow = null;
+      if (!sc.__sunShadow || !sc.__sunShadow.vp) sc.__sunShadow = null;
     } finally {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, rw, rh);
@@ -1358,12 +1501,126 @@ const A3D = (() => {
     gl.drawArrays(gl.TRIANGLES, 0, b.mesh.count);
   }
 
+  /* ---------------- 体积光的离屏目标 ---------------- */
+  function destroyVolTargets() {
+    if (volColorTex) gl.deleteTexture(volColorTex);
+    if (volDepthTex) gl.deleteTexture(volDepthTex);
+    if (volMsaaColorRb) gl.deleteRenderbuffer(volMsaaColorRb);
+    if (volMsaaDepthRb) gl.deleteRenderbuffer(volMsaaDepthRb);
+    if (volFbo) gl.deleteFramebuffer(volFbo);
+    if (volMsaaFbo) gl.deleteFramebuffer(volMsaaFbo);
+    volColorTex = volDepthTex = null;
+    volMsaaColorRb = volMsaaDepthRb = null;
+    volFbo = volMsaaFbo = null;
+    volW = volH = 0;
+  }
+
+  function texParam2D(minFilter) {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, minFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+
+  function ensureVolTargets() {
+    if (volFbo && volW === rw && volH === rh) return;
+    destroyVolTargets();
+    volW = rw; volH = rh;
+    volColorTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, volColorTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, volW, volH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    texParam2D(gl.LINEAR);
+    volDepthTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, volDepthTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, volW, volH, 0,
+      gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    texParam2D(gl.NEAREST);
+    volFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, volFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, volColorTex, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, volDepthTex, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      console.error("[A3D] 体积光 FBO 不完整");
+      destroyVolTargets();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return;
+    }
+    if (msaaSamples > 1) {
+      volMsaaFbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, volMsaaFbo);
+      volMsaaColorRb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, volMsaaColorRb);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, msaaSamples, gl.RGBA8, volW, volH);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, volMsaaColorRb);
+      volMsaaDepthRb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, volMsaaDepthRb);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, msaaSamples, gl.DEPTH_COMPONENT24, volW, volH);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, volMsaaDepthRb);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        // MSAA 目标失败就退回单采样，宁可锯齿也别整块黑
+        gl.deleteFramebuffer(volMsaaFbo); volMsaaFbo = null;
+        gl.deleteRenderbuffer(volMsaaColorRb); volMsaaColorRb = null;
+        gl.deleteRenderbuffer(volMsaaDepthRb); volMsaaDepthRb = null;
+      }
+    }
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /** 场景画完之后的体积光 pass：读场景颜色 + 深度，沿视线步进太阳阴影贴图 */
+  function drawVolumetric(scene, t, invVP) {
+    const v = scene.volumetric;
+    const u = volProg.u;
+    setA2C(false);
+    gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false);
+    gl.disable(gl.BLEND);
+    gl.useProgram(volProg.p);
+    gl.bindVertexArray(null);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, volColorTex);
+    gl.uniform1i(u.uScene, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, volDepthTex);
+    gl.uniform1i(u.uDepth, 1);
+    const sh = scene.__sunShadow;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, sh ? sh.tex : dummySunShadow);
+    gl.uniform1i(u.uSunMap, 2);
+    gl.uniform1i(u.uSunOn, sh && sh.vp ? 1 : 0);
+    gl.uniformMatrix4fv(u.uSunVP, false, sh && sh.vp ? sh.vp : scratchMat);
+    gl.uniform1f(u.uSunBias, sh ? sh.bias : 0);
+    gl.uniformMatrix4fv(u.uInvVP, false, invVP);
+    gl.uniform1f(u.uDensity, v.density === undefined ? 0.03 : v.density);
+    gl.uniform1f(u.uG, v.g === undefined ? 0.55 : v.g);
+    gl.uniform1f(u.uHeightY, v.heightY === undefined ? 0 : v.heightY);
+    gl.uniform1f(u.uFalloff, v.falloff === undefined ? 0.12 : v.falloff);
+    gl.uniform1f(u.uMaxDist, v.maxDist === undefined ? 80 : v.maxDist);
+    gl.uniform1f(u.uIntensity, v.intensity === undefined ? 1 : v.intensity);
+    gl.uniform1f(u.uTime, t || 0);
+    gl.uniform1i(u.uSteps, Math.max(4, Math.min(64, v.steps || volSteps)));
+    const L = scene.lights || {};
+    gl.uniform3fv(u.uSunDir, norm3(L.sun || [0.4, 0.8, 0.3]));
+    gl.uniform3fv(u.uSunCol, L.sunCol || [0.6, 0.62, 0.7]);
+    gl.uniform3fv(u.uCam, cur ? cur.eye : [0, 0, 0]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+  }
+
   function render(scene, t) {
     const cam = scene.cam || {};
     const eye = cam.eye || [0, 1.6, 3];
     const target = cam.target || [0, 1.4, -3];
     const fov = (cam.fov || 42) * D2R;
     const aspect = rw / rh;
+    /* 体积光要读场景颜色和深度，所以这一帧先画进离屏 FBO，最后再合成回画布 */
+    let useVol = !!(scene.volumetric && volProg);
+    if (useVol) {
+      ensureVolTargets();
+      if (!volFbo) useVol = false;
+    }
+    if (useVol) gl.bindFramebuffer(gl.FRAMEBUFFER, volMsaaFbo || volFbo);
     gl.viewport(0, 0, rw, rh);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1428,6 +1685,22 @@ const A3D = (() => {
     gl.depthMask(true);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
+
+    if (useVol) {
+      /* MSAA 目标先解析到带纹理的 FBO（WebGL2 的 blit 会做 resolve） */
+      if (volMsaaFbo) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, volMsaaFbo);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, volFbo);
+        gl.blitFramebuffer(0, 0, volW, volH, 0, 0, volW, volH,
+          gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, rw, rh);
+      const invVP = M.invert(M.mul(proj, view));
+      drawVolumetric(scene, t, invVP);
+    }
   }
 
   /* ---------------- 对外 ---------------- */
@@ -1459,7 +1732,20 @@ const A3D = (() => {
       if (typeof camOverride.fov === "number") sc.cam.fov = camOverride.fov;
     }
     if (sc.shadow && sc.__shadow === undefined) buildShadow(sc);
-    if (sc.sunShadow && sc.__sunShadow === undefined) buildSunShadow(sc);
+    if (sc.sunShadow) {
+      const sh = sc.__sunShadow;
+      if (sh === undefined) buildSunShadow(sc);
+      else if (sh && sh.sun && sh.vp) {
+        /* 太阳在动（视角写 sunDrift 或面板里拖）就复用同一张图重画；
+         * 夹角超过约 0.8° 才重画，并且限到 ~7Hz，别把整张地图每帧烘一遍。 */
+        const s = sc.lights.sun;
+        const dot = sh.sun[0] * s[0] + sh.sun[1] * s[1] + sh.sun[2] * s[2];
+        if (dot < 0.9999 && t - (sc.__sunRefitT || -1e9) > 0.14) {
+          sc.__sunRefitT = t;
+          renderSunShadow(sc, sh.tex, sh.size);
+        }
+      }
+    }
     const t0 = performance.now();
     render(sc, t);
     /* 贴到目标画布的真实像素尺寸，而不是写死 1600×900：
@@ -1516,6 +1802,17 @@ const A3D = (() => {
     get renderSize() { return [rw, rh]; },
     setShadowQuality,
     get shadowTaps() { return shadowTaps; },
+    /** 体积光的步进次数（画质档位用）：低 10 / 中 18 / 高 28 */
+    setVolumetricQuality(steps) {
+      const s = Math.max(4, Math.min(64, steps | 0 || 24));
+      if (s === volSteps) return;
+      volSteps = s;
+      for (const id in scenes) {
+        const sc = scenes[id] && scenes[id].__built;
+        if (sc && sc.volumetric) sc.volumetric.steps = s;
+      }
+    },
+    get volumetricSteps() { return volSteps; },
     /** 实际拿到的多重采样数（1 = 没有 MSAA）与 alpha-to-coverage 可用性 */
     get samples() { return msaaSamples; },
     get alphaToCoverage() { return a2cOK; },

@@ -3198,88 +3198,30 @@ const A3DWorld = (() => {
   }
 
   /* ============================================================
-   *  晴天正门前的「丁达尔」光柱 + 浮尘
+   *  正门前空气里的浮尘
    *
-   *  太阳在镜头左后上方，光从身后的树冠和栅栏之间斜穿过来，被空气里的
-   *  尘散射成几道看得见的光柱。做法是几片加法混合的软光柱面片（T.shaft）：
-   *  面片朝镜头（世界 +Z）、长轴顺着太阳方向，方向每帧从 scene.lights.sun
-   *  重新算 —— 所以在光影面板里拖方位角 / 高度角，光柱会跟着一起转。
-   *
-   *  只挂在 world_church 这一个视角上（sceneFor 里加），
-   *  主标题的夜景和 403 红光视角不受影响。
+   *  光柱本体交给 core.js 的体积光 pass（逐像素沿视线步进太阳阴影贴图），
+   *  这里只补一层真正会飘的尘埃点精灵：光柱扫过时它们自己会亮起来。
+   *  只挂在 world_church 这一个视角上（sceneFor 里加），别的视角不受影响。
    * ============================================================ */
-  const BEAM_SUN = [0.4, 0.8, 0.3];
   let CHURCH_AIR = null;
-
-  /** 一道光柱的模型矩阵：绕世界 Z 转，把 +Y（光柱长轴）转到太阳的来光方向。
-   *  太阳贴近地平线时把倾角夹住，不然光柱会横躺在地上。 */
-  function beamMatrix(anchor, w, h) {
-    const s = BEAM_SUN;
-    let tx = -s[0], ty = -s[1];
-    if (ty > -0.34) ty = -0.34;
-    const l = Math.hypot(tx, ty) || 1;
-    const bx = tx / l, by = ty / l;
-    const rz = Math.atan2(-bx, by);
-    return m4(anchor[0], anchor[1], anchor[2], 0, 0, rz, w, h, 1);
-  }
-
   function churchAir() {
     if (CHURCH_AIR) return CHURCH_AIR;
     const B0 = churchBase();
     const D = B0.D;
     const r = rng(313);
 
-    /* 一根单位长度的光柱面片，所有光柱共用它，靠每批自己的模型矩阵缩放 / 定位 */
-    const qb = new A3D.Builder();
-    qb.quad(M.ident(), 1, 1, [1, 1, 1], [0, 0, 1, 1]);
-    const beamMesh = A3D.meshFrom(qb);
-    const shaftTex = T.shaft();
-
-    /* 每道光柱按「镜头空间」摆：[前方 d 米, 横向 o 米, 比镜头高 hy 米, 宽, 长, 不透明度, 颜色]。
-     * 直接写世界坐标容易摆到画框外面去（镜头 fov 52°，5 米外横向只有 ±4 米），
-     * 所以用镜头基向量算锚点；同一条走廊里多放几道、宽窄和透明度错开，叠出体积感。 */
-    const cam0 = churchDoorCam();
-    const fwd = A3D.norm3([cam0.target[0] - cam0.eye[0],
-      cam0.target[1] - cam0.eye[1], cam0.target[2] - cam0.eye[2]]);
-    const rgt = A3D.norm3(A3D.cross(fwd, [0, 1, 0]));
-    const upv = A3D.cross(rgt, fwd);
-    /* 光束要「窄而亮、中间留黑」才像光柱：太宽、叠太多会糊成一层雾。
-       所以只放五道，宽度 0.9~1.5m，彼此隔开 2~3m，再叠一道很虚的大光斑当底雾。 */
-    const defs = [
-      [6.0, -2.7, 0.5, 1.05, 8.0, 0.62, [1.0, 0.9, 0.72]],
-      [8.2, -0.6, 1.3, 1.35, 9.6, 0.5, [1.0, 0.93, 0.78]],
-      [6.9, 1.5, 0.3, 0.95, 7.4, 0.58, [1.0, 0.86, 0.64]],
-      [10.2, 2.9, 1.7, 1.2, 8.6, 0.44, [1.0, 0.94, 0.8]],
-      [12.4, -2.2, 2.0, 1.4, 8.2, 0.4, [1.0, 0.88, 0.7]],
-      [7.4, 0.2, 2.4, 5.2, 11.4, 0.09, [1.0, 0.92, 0.76]]
-    ];
-    const glows = [];
-    for (const [d, o, hy, w, h, op, col] of defs) {
-      const anchor = [
-        cam0.eye[0] + fwd[0] * d + rgt[0] * o + upv[0] * hy,
-        cam0.eye[1] + fwd[1] * d + rgt[1] * o + upv[1] * hy,
-        cam0.eye[2] + fwd[2] * d + rgt[2] * o + upv[2] * hy
-      ];
-      glows.push({
-        mesh: beamMesh, tex: shaftTex, opacity: op, blend: "add", tint: col,
-        /* kind / baseOpacity 是给预览页光影面板认的：面板按 kind 找到这些光柱，
-         * 用 baseOpacity 做基准来调强度（直接改 opacity 会丢掉原始比例）。 */
-        kind: "sunshaft", baseOpacity: op,
-        matrix: () => beamMatrix(anchor, w, h)
-      });
-    }
-
     /* 空气里的浮尘：会被同一束光点亮，慢慢飘。范围就是前院花境这一片 */
     const pts = [];
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 170; i++) {
       const lx = -13.5 + r() * 27;
       const lz = 14.6 + r() * 11.8;
       const wp = M.xf(D, [lx, 0, lz]);
       const gy = groundH(wp[0], wp[2]);
       pts.push({
-        x: wp[0], y: gy + 0.12 + Math.pow(r(), 1.5) * 3.4, z: wp[2],
-        r: 1.0, g: 0.94, b: 0.8, a: 0.16 + r() * 0.3,
-        size: 0.035 + r() * 0.05, kind: 2,
+        x: wp[0], y: gy + 0.12 + Math.pow(r(), 1.5) * 3.6, z: wp[2],
+        r: 1.0, g: 0.94, b: 0.8, a: 0.1 + r() * 0.22,
+        size: 0.02 + r() * 0.035, kind: 2,
         speed: 0.02 + r() * 0.06, phase: r() * TAU, wob: 0.05 + r() * 0.16
       });
     }
@@ -3288,7 +3230,7 @@ const A3DWorld = (() => {
       yMin: B0.y0 - 0.4, yMax: B0.y0 + 5.4, fogNear: 9, fogFar: 46
     }];
 
-    CHURCH_AIR = { glows, points };
+    CHURCH_AIR = { points };
     return CHURCH_AIR;
   }
 
@@ -3297,7 +3239,7 @@ const A3DWorld = (() => {
    * ============================================================ */
   const VIEWS = {
 
-    /* 视角 0：教堂正门前 —— claude_door 的实景（大晴天，太阳从西南偏南压下来） */
+    /* 视角 0：教堂正门前 —— claude_door 的实景（晴天，太阳会缓慢漂移） */
     world_church: {
       cam: null,
       sky: {
@@ -3305,14 +3247,21 @@ const A3DWorld = (() => {
         glow: [0.95, 0.86, 0.66], sun: [0.34, 0.8], horizon: 0.6
       },
       lights: {
-        /* 平行光：太阳在镜头左后上方，正门立面全亮，投影落向前院右侧，
-         * 长椅 / 黄杨 / 墓碑的影子都留在草坪上。 */
-        sun: A3D.norm3([-0.46, 0.76, 0.46]), sunCol: [0.98, 0.87, 0.66],
+        /* 平行光：下午的太阳，正门立面全亮，投影落向前院右侧 */
+        sun: A3D.norm3([-0.794, 0.438, -0.422]), sunCol: [0.98, 0.87, 0.66],
         skyCol: [0.29, 0.35, 0.43], groundCol: [0.12, 0.11, 0.09],
         /* 硬方向光：背光面真的暗下去，才有「太阳晒着」的对比 */
         sunWrap: 0.2,
         fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
         points: []
+      },
+      /* 太阳缓慢漂移：方位角在基准 ±42° 之间来回（会扫过侧逆光，光柱这时最明显），
+       * 高度角 ±6°。浏览器预览面板里可以关掉，也可以拖基准方向。 */
+      sunDrift: { az: 22, azPeriod: 96, el: 5, elPeriod: 71, on: true },
+      /* 体积光：逐像素沿视线步进太阳阴影贴图。密度 / g / 高度衰减都能在预览页调 */
+      volumetric: {
+        density: 0.12, g: 0.6, intensity: 1.6, steps: 28,
+        heightY: 33.2, falloff: 0.07, maxDist: 70
       },
       tone: [0.98, 1.0, 0.99],
       swayAmp: 0.7,
@@ -3453,15 +3402,31 @@ const A3DWorld = (() => {
       }
     }
   };
+  /** 单位向量 ↔ 方位/高度角（度）。方位角 0° = 世界 +Z（正南），90° = +X（东） */
+  function sunAngles(v) {
+    v = v || [0, 1, 0];
+    return [Math.atan2(v[0], v[2]) * 180 / Math.PI,
+      Math.asin(clamp(v[1], -1, 1)) * 180 / Math.PI];
+  }
+  function sunVector(azDeg, elDeg) {
+    const a = azDeg * Math.PI / 180, e = elDeg * Math.PI / 180, c = Math.cos(e);
+    return [Math.sin(a) * c, Math.sin(e), Math.cos(a) * c];
+  }
+
   function sceneFor(id) {
     const v = VIEWS[id];
     const w = world();
     const e = id === "world_church_403" ? door403() : null;
-    /* 晴天正门才有丁达尔光柱 + 浮尘，夜景 / 403 都不挂 */
+    /* 晴天正门才有体积光和浮尘，夜景 / 403 都不挂 */
     const air = id === "world_church" ? churchAir() : null;
     const cam = v.cam || churchDoorCam();
     const lights = Object.assign({}, v.lights);
     if (!lights.points || !lights.points.length) lights.points = churchDoorLights();
+    /* 太阳漂移：把基准方向和漂移参数拷一份，预览面板改的是这份 */
+    const sa = sunAngles(v.lights.sun);
+    const sunBase = { az: sa[0], el: sa[1] };
+    const sunDrift = v.sunDrift ? Object.assign({}, v.sunDrift) : null;
+    const volumetric = v.volumetric ? Object.assign({}, v.volumetric) : null;
     return {
       cam: { eye: cam.eye.slice(), target: cam.target.slice(), fov: cam.fov, far: cam.far },
       sky: v.sky,
@@ -3470,7 +3435,10 @@ const A3DWorld = (() => {
       over: e ? w.over.concat(e.over) : w.over,
       dyn: w.dyn,
       points: air ? w.points.concat(air.points) : w.points,
-      glows: e ? w.glows.concat(e.glows) : (air ? w.glows.concat(air.glows) : w.glows),
+      glows: e ? w.glows.concat(e.glows) : w.glows,
+      volumetric,
+      sunBase,
+      sunDrift,
       tone: v.tone,
       swayAmp: v.swayAmp,
       wind: [0.35, 0.12, 0.2],
@@ -3478,10 +3446,18 @@ const A3DWorld = (() => {
        * 别的视角行为不变。 */
       sunShadow: v.sunShadow,
       /* 视角可以没有 update（固定机位），有才调。
-       * 顺手把太阳方向喂给光柱：在光影面板里拖方位角 / 高度角，光柱跟着转。 */
+       * 太阳方向统一从 sunBase（+漂移）算出来，这样面板拖基准、画面自己扫，
+       * 两边不会互相覆盖；体积光每帧读 lights.sun，自然跟着走。 */
       update(t, sc) {
-        const s = sc.lights.sun;
-        BEAM_SUN[0] = s[0]; BEAM_SUN[1] = s[1]; BEAM_SUN[2] = s[2];
+        if (sc.sunBase) {
+          const d = sc.sunDrift;
+          const on = !!(d && d.on !== false);
+          /* 用 sin 起头：t=0 就停在基准方向（测过最好看的那一档），
+           * 然后慢慢往两个极端漂，不会一进场就是全逆光。 */
+          const az = sc.sunBase.az + (on ? d.az * Math.sin(t * TAU / d.azPeriod) : 0);
+          const el = sc.sunBase.el + (on ? d.el * Math.cos(t * TAU / d.elPeriod) : 0);
+          sc.lights.sun = sunVector(az, clamp(el, 3, 88));
+        }
         if (typeof v.update === "function") v.update(t, sc);
       }
     };
