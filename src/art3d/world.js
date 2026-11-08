@@ -3239,35 +3239,42 @@ const A3DWorld = (() => {
    * ============================================================ */
   const VIEWS = {
 
-    /* 视角 0：教堂正门前 —— claude_door 的实景（晴天，太阳会缓慢漂移） */
+    /* 视角 0：教堂正门前 —— claude_door 的实景（黄昏，主人锁定的机位与光）
+     * 这一整套 cam / lights / volumetric / sunShadow 是主人在光影面板里调好的，
+     * 键位数值直接锁在这里；改之前先想清楚是不是又要重调一遍。 */
     world_church: {
-      cam: null,
+      cam: { eye: [25.3, 34.1, 115.7], target: [-17.6, 39.6, 25.5], fov: 44.8, far: 200 },
       sky: {
         mode: 0, top: [0.3, 0.47, 0.66], bot: [0.7, 0.78, 0.86],
         glow: [0.95, 0.86, 0.66], sun: [0.34, 0.8], horizon: 0.6
       },
       lights: {
-        /* 平行光：下午的太阳，正门立面全亮，投影落向前院右侧 */
-        sun: A3D.norm3([-0.794, 0.438, -0.422]), sunCol: [0.98, 0.87, 0.66],
-        skyCol: [0.34, 0.4, 0.48], groundCol: [0.15, 0.14, 0.12],
-        /* 硬方向光：背光面真的暗下去，才有「太阳晒着」的对比 */
-        sunWrap: 0.2,
+        /* 低角度的暖橙太阳（差不多是黄昏），方向由 sunBase 算出来 */
+        sun: A3D.norm3([-0.953, 0.087, 0.291]), sunCol: [0.817, 0.495, 0.228],
+        skyCol: [0.228, 0.268, 0.322], groundCol: [0.15, 0.14, 0.12],
+        sunWrap: 0.1,
         fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
-        points: []
+        /* 门头两盏提灯压到 0（黄昏下用不上），只留门前那盏补光 */
+        points: [
+          { pos: [17.365, 35.805, 102.859], col: [1, 0.72, 0.4], range: 6.5, inten: 0 },
+          { pos: [22.407, 35.805, 102.097], col: [1, 0.72, 0.4], range: 6.5, inten: 0 },
+          { pos: [20.152, 34.485, 104.238], col: [0.66, 0.7, 0.72], range: 13, inten: 1 }
+        ]
       },
-      /* 太阳缓慢漂移：方位角在基准 ±42° 之间来回（会扫过侧逆光，光柱这时最明显），
-       * 高度角 ±6°。浏览器预览面板里可以关掉，也可以拖基准方向。 */
-      sunDrift: { az: 9, azPeriod: 84, el: 3, elPeriod: 61, on: true },
+      /* 漂移默认关：主人锁了机位，太阳也不动；面板里随时能打开继续扫 */
+      sunDrift: { on: false, az: 9, azPeriod: 84, el: 3, elPeriod: 61 },
       /* 体积光：逐像素沿视线步进太阳阴影贴图。密度 / g / 高度衰减都能在预览页调 */
       volumetric: {
-        density: 0.2, g: 0.6, intensity: 1.5, steps: 28,
-        heightY: 33.2, falloff: 0.07, maxDist: 70
+        density: 0.2, g: 0.63, intensity: 3, steps: 48,
+        heightY: 33.2, falloff: 0.195, maxDist: 70
       },
       tone: [0.98, 1.0, 0.99],
+      /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
+      post: false,
       swayAmp: 0.7,
       /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
-       * 2048 的深度图铺在 80m 见方上，一个 texel 约 4cm，石阶缝、栏杆影子都够清楚。 */
-      sunShadow: { center: [18, 34, 104], extent: 40, size: 2048, bias: 0.00055 }
+       * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
+      sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
     },
 
     /* 视角 0b：同一扇门被 403 封住（门上的大红字由 door403() 单独拼进来） */
@@ -3440,6 +3447,9 @@ const A3DWorld = (() => {
       sunBase,
       sunDrift,
       tone: v.tone,
+      /* 场景可以在视角里写 post:false 关掉 2D 后期（压色 + 暗角 + 颗粒）。
+       * core.js 的 postOf() 会读这个字段，art.js / 预览页据此跳过后期。 */
+      post: v.post,
       swayAmp: v.swayAmp,
       wind: [0.35, 0.12, 0.2],
       /* 只有报名 sunShadow 的视角才建太阳阴影（core.js 的 buildSunShadow），

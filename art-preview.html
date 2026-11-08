@@ -360,7 +360,7 @@
 
 <div id="status">
   <span>WebGL2 <b id="stGl">检查中…</b></span>
-  <span>构建 <b id="stBuild">2026-11-08d</b></span>
+  <span>构建 <b id="stBuild">2026-11-08e</b></span>
   <span>FPS <b id="stFps">—</b></span>
   <span>场景 <b id="stInfo">—</b></span>
   <span>画布 <b id="stGain">1.00x</b></span>
@@ -382,7 +382,7 @@
 <script src="src/art3d/world_github.js?v=131"></script>
 <script src="src/art3d/world_hf.js?v=131"></script>
 <script src="src/art3d/world_shit.js?v=131"></script>
-<script src="src/art3d/world.js?v=179"></script>
+<script src="src/art3d/world.js?v=180"></script>
 <!-- 和 index.html 同一套顺序：art.js 是游戏的绘制层，游戏合成模式要用它 -->
 <script src="src/art.js?v=37"></script>
 <script>
@@ -398,10 +398,10 @@
 const SCENES = [
   { id: "sea",            name: "深海 / 标题画面",        desc: "光柱、鱼群、远处鲸影；标题画面和被水淹没的梦。", group: "序章" },
   { id: "ds_room",        name: "DeepSeek 家里",          desc: "紧凑的蓝色卧室兼工作室：床、两张桌子（靠墙那张给小克留着）、深海的窗；桌前滚动的训练日志与 loss 曲线，右墙白板上两条曲线。", group: "序章", post: false },
-  { id: "claude_door",    name: "Claude 庄园 · 门（白天）", desc: "已搬到大世界的教堂正门前（晴天）：双扇橡木门、铁箍门环、CLAUDE 门牌、门头提灯，两侧石池里是橙色菊花，抬头是玫瑰窗与钟楼。", group: "序章" },
+  { id: "claude_door",    name: "Claude 庄园 · 门（黄昏）", desc: "已搬到大世界的教堂正门前（黄昏）：双扇橡木门、铁箍门环、CLAUDE 门牌、门头提灯，两侧石池里是橙色菊花，抬头是玫瑰窗与钟楼。", group: "序章", post: false },
   { id: "claude_door_403",name: "Claude 庄园 · 403",      desc: "同一扇门被 403 封住：门上巨大的 403，中间的 0 是空心的；整座教堂泡在红光里。", group: "序章" },
   { id: "claude_lib",     name: "Claude 家里 · 藏书室",   desc: "四面书架、长桌、吊灯、梯子与地球仪，书架上插着菊花。序章第二课在这里——DeepSeek 上门学写信。", group: "序章" },
-  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。晴天：太阳平行光 + 正交阴影 + 真实体积光（丁达尔，太阳会缓慢漂移），前院草坪上是会随风摆的草丛。", group: "大世界" },
+  { id: "world_church",   name: "大世界 · 教堂正门",      desc: "教堂正门近景（claude_door 的实景）：16.8×24m 中殿、玫瑰窗、三角山花、门侧壁龛石像与壁灯，钟楼顶的 Claude 星芒，外围一圈铁栅栏。黄昏：机位与太阳都是主人锁定的，太阳平行光 + 4096 正交阴影 + 真实体积光（丁达尔），前院草坪上是会随风摆的草丛；这个场景关掉了 2D 后期。", group: "大世界", post: false },
   { id: "world_title",    name: "大世界 · 主标题",        desc: "山顶教堂旁边，面向海岸线：下方是教堂与墓园，远处 GitHub 居中、HF 营地居左、灯塔与城市居右，海湾里有一条月光。", group: "大世界" },
   { id: "github_street",  name: "大世界 · GitHub 夜市街", desc: "街两边的摊位一个比一个不一样，灯笼和店招连成串；街尾是屎山，远远就能看见那些报错屏。", group: "大世界" },
   { id: "hf_camp",        name: "大世界 · HF 营地",       desc: "从海滩斜望向岸边（夜）：帐篷群、地摊和小吃、串灯与篝火，模型们的第二个家。", group: "大世界" },
