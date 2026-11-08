@@ -1812,16 +1812,31 @@ const A3DWorld = (() => {
      * 看起来是长上去的，而不是一块方方正正的绿板。
      * depth 是离 `dz`（主墙前脸）的偏移：左半面其实是钟楼前脸（凸 0.4m），
      * 所以要 0.45；右半面就是主墙，0.16 就够。 */
-    const ivyField = (x0, x1, y0, y1, depth, seed) => {
+    const ivyField = (x0, x1, y0, y1, depth, seed, avoid) => {
       const rr = rng(seed);
       const w = x1 - x0, h = y1 - y0;
       const zz = dz + depth;
-      const n = Math.max(60, Math.round(w * h * 58));
+      const n = Math.max(60, Math.round(w * h * 52));
+      /* 顶边不是一条直线：两条正弦叠起来给出一圈不规则的轮廓，
+       * 不然一整片藤会像一块方板贴上去。 */
+      const topAt = (x) => {
+        const u = (x - x0) / w;
+        const wob = 0.55 + 0.45 * Math.sin(u * 6.1 + seed * 0.37) * Math.sin(u * 2.3 + seed * 0.11);
+        return y0 + h * (0.62 + 0.38 * wob);
+      };
+      const hidden = (x, y) => {
+        if (!avoid) return false;
+        for (const a of avoid) if (x > a[0] && x < a[1] && y > a[2] && y < a[3]) return true;
+        return false;
+      };
       // 主茎：从顶上垂下来几根，叶子挂在茎周围
       const nv = Math.max(3, Math.round(w / 0.42));
       for (let b = 0; b < nv; b++) {
         const bx = x0 + (b + 0.5) / nv * w + (rr() - 0.5) * 0.22;
-        const top = y1 - h * rr() * 0.22;
+        const top = topAt(bx) - h * rr() * 0.12;
+        for (let k = 0; k <= 5; k++) {
+          if (hidden(bx, y0 + (k / 5) * (top - y0))) continue;
+        }
         const pts = [];
         for (let k = 0; k <= 5; k++) {
           const t = k / 5;
@@ -1832,17 +1847,16 @@ const A3DWorld = (() => {
       // 叶片直接在墙面（XY 平面）上摆四边形，法线朝 +Z
       for (let i = 0; i < n; i++) {
         const u = rr(), v2 = rr();
-        // 边缘羽化：左右各 10%、底部 5%、顶上 24% 逐渐变稀
-        const eu = Math.min(1, Math.min(u, 1 - u) / 0.10);
-        const ev = Math.max(0, Math.min(1, Math.min(v2 / 0.05, (1 - v2) / 0.24)));
-        const fall = 0.55 + 0.45 * (1 - v2);
-        if (rr() > Math.min(1, eu * ev) * fall * 1.15) continue;
         const px = x0 + u * w, py = y0 + v2 * h;
+        if (hidden(px, py)) continue;                     // 窗洞
+        if (py > topAt(px)) continue;                     // 不规则的顶
+        // 左右边缘羽化 + 越往上越稀
+        const eu = Math.min(1, Math.min(u, 1 - u) / 0.09);
+        const fall = 0.6 + 0.4 * (1 - v2);
+        if (rr() > Math.min(1, eu * 1.2) * fall) continue;
         const sz = (0.15 + rr() * 0.09) * (0.75 + 0.25 * Math.min(1, eu * 2));
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
-        /* 叶片在墙面前后错开 ±5cm：看起来有厚度，凸出的石件也只会正常遮挡 */
-        /* 前后抖动只留 ±2cm：以前 ±5cm，叶子会刚好压在「凸出件表面」上，
-         * 一半在墙外一半在墙里，看着就是穿模。 */
+        /* 前后抖动只留 ±2cm：再大叶子会压在「凸出件表面」上，一半在墙外一半在墙里 */
         const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.04];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
@@ -1850,14 +1864,13 @@ const A3DWorld = (() => {
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    /* 左半面墙 = 钟楼前脸：整片墙角铺满，塔身左缘再往上带一条 */
-    ivyField(-9.05, -3.95, PT + 0.12, PT + 2.9, 0.46, 121);
-    /* 窗两侧往上各带一条，把上半面墙也铺住（窗本身留空） */
-    ivyField(-9.05, -7.35, PT + 2.5, PT + 5.3, 0.46, 127);
-    ivyField(-5.95, -3.95, PT + 2.5, PT + 4.6, 0.46, 131);
-    /* 右半面墙 = 主墙：门右一整片，靠转角再往上带一条 */
-    ivyField(4.15, 8.15, PT + 0.12, PT + 4.7, 0.18, 97);
-    ivyField(7.15, 8.15, PT + 4.5, PT + 6.0, 0.18, 107);
+    /* 左半面墙 = 钟楼前脸：一整片从墙角往上爬，只给南面长窗抠个洞。
+     * 长窗：`Q(glass, TX, PT+5.2, …, 0.8, 2.2)` → x TX±0.4、y PT+4.1~6.3，
+     * 石框再各放 0.15，所以避开框取 [-7.45, -6.15] × [PT+3.9, PT+6.5]。 */
+    ivyField(-9.05, -3.95, PT + 0.12, PT + 6.2, 0.46, 121,
+      [[-7.45, -6.15, PT + 3.9, PT + 6.5]]);
+    /* 右半面墙 = 主墙：一整片，同样是一圈不规则顶边 */
+    ivyField(4.15, 8.15, PT + 0.12, PT + 6.1, 0.18, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
     const statueP = st.pen("w.churchStatue", T.stone(), { tint: [0.9, 0.89, 0.85], spec: 0.05, rim: 0.16 });
