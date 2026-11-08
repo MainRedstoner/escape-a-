@@ -3276,7 +3276,8 @@ const A3DWorld = (() => {
 
     /* 视角 0b：同一扇门被 403 封住（门上的大红字由 door403() 单独拼进来） */
     world_church_403: {
-      cam: null,
+      /* 机位跟 world_church 完全一致：同一扇门、同一个视角，只是光和气氛变红了 */
+      cam: { eye: [25.3, 34.1, 115.7], target: [-17.6, 39.6, 25.5], fov: 44.8, far: 140 },
       sky: {
         mode: 0, top: [0.1, 0.03, 0.03], bot: [0.16, 0.05, 0.04],
         glow: [0.5, 0.1, 0.08], sun: [0.35, 0.78], horizon: 0.62
@@ -3474,9 +3475,8 @@ const A3DWorld = (() => {
   /* ============================================================
    *  注册：新 id + 老 id 全部指向大世界
    * ============================================================ */
-  /* claude_door 迁到教堂门口：剧情里的门 = 大世界教堂的正门 */
+  /* 教堂正门只注册一个 id：world_church（剧情里的「Claude 家的门」就是它） */
   A3D.register("world_church", () => sceneFor("world_church"));
-  A3D.register("claude_door", () => sceneFor("world_church"));
   A3D.register("claude_door_403", () => sceneFor("world_church_403"));
   A3D.register("world_title", () => sceneFor("world_title"));
   A3D.register("world_github", () => sceneFor("world_github"));

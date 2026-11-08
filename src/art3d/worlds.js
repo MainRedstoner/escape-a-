@@ -5,10 +5,9 @@
  * 场景返回 { cam, sky, lights, batches, over, dyn, points, glows, sea, tone, update }。
  *
  * 目前已经接上的地方：
- *   sea            标题画面 / 深海（小鲸的“家”外面）
  *   ds_room        DeepSeek 家里（窗外的深海、训练日志、白板曲线；靠墙那张桌子给小克留着）
  *   ds_room_night  同一间屋子，深夜
- *   （claude_door / claude_door_403 已迁到 src/art3d/world.js 的大世界教堂正门）
+ *   （教堂正门已经迁到 src/art3d/world.js 的大世界视角：world_church / world_church_403）
  *   claude_lib     Claude 家里的藏书室（DeepSeek 上门上课的那间）：四面书架、菊花、夕阳
  *   hf_camp        Hugging Face 海边营地（夜）
  *   github_street  GitHub 夜市（夜）
@@ -72,84 +71,6 @@ const A3DWorlds = (() => {
     return fishMeshCache;
   }
 
-  let whaleMeshCache = null;
-  function whaleMesh() {
-    if (whaleMeshCache) return whaleMeshCache;
-    const b = new A3D.Builder();
-    const nm = A3D.M.normalMat(M.ident());
-    // 身体：沿 +X 放样，尾细头圆，横截面比竖截面宽
-    const rings = 16, seg = 10;
-    const P = (i, k) => {
-      const t = i / (rings - 1);
-      const x = -4.6 + t * 9.0;
-      const shape = Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.05)), 0.55);
-      const r = 1.45 * shape * (0.72 + 0.42 * t) + 0.008;
-      const a = (k / seg) * TAU;
-      return [x, Math.cos(a) * r * 0.82, Math.sin(a) * r];
-    };
-    for (let i = 0; i < rings - 1; i++) {
-      for (let k = 0; k < seg; k++) {
-        const k2 = (k + 1) % seg;
-        const q = [P(i, k), P(i + 1, k), P(i + 1, k2), P(i, k2)];
-        const uv = [[i / rings, k / seg], [(i + 1) / rings, k / seg], [(i + 1) / rings, (k + 1) / seg], [i / rings, (k + 1) / seg]];
-        for (let z = 0; z < 4; z++) {
-          const p = q[z];
-          const n = A3D.norm3([p[1] * 0.25, p[1], p[2] * 0.9]);
-          const sh = 0.66 + 0.34 * (1 - (p[1] / 1.3 + 1) * 0.5);
-          b._v(b.d, M.ident(), nm, p[0], p[1], p[2], n[0], n[1], n[2], uv[z][0], uv[z][1], [sh, sh, sh], 0);
-        }
-        b._pushQuad(b.count - 4);
-      }
-    }
-    // 尾鳍：两片扁平的尾叶
-    b.tri(M.ident(), [-4.2, 0.05, 0], [-6.4, 0.35, 1.7], [-4.9, 0, 0.35], null, [0.86, 0.86, 0.86]);
-    b.tri(M.ident(), [-4.2, 0.05, 0], [-4.9, 0, -0.35], [-6.4, 0.35, -1.7], null, [0.8, 0.8, 0.8]);
-    b.tri(M.ident(), [-4.2, -0.05, 0], [-6.4, 0.35, 1.7], [-4.2, 0.05, 0], null, [0.9, 0.9, 0.9]);
-    // 胸鳍：向后掠
-    b.tri(M.ident(), [1.4, -0.55, 0.7], [0.0, -1.15, 2.5], [0.5, -0.8, 0.6], null, [0.82, 0.82, 0.82]);
-    b.tri(M.ident(), [1.4, -0.55, -0.7], [0.0, -1.15, -2.5], [0.5, -0.8, -0.6], null, [0.82, 0.82, 0.82]);
-    // 背鳍
-    b.tri(M.ident(), [-1.9, 0.7, 0], [-1.1, 1.08, 0], [-0.7, 0.72, 0], null, [0.9, 0.9, 0.9]);
-    whaleMeshCache = A3D.meshFrom(b);
-    return whaleMeshCache;
-  }
-
-  /** 把一片鱼群变成 dyn 列表：绕中心缓慢巡游 */
-  function fishSchool(st, opts) {
-    const mesh = fishMesh();
-    const r = rng(opts.seed || 3);
-    const fishes = [];
-    const n = opts.n || 14;
-    for (let i = 0; i < n; i++) {
-      const rad = opts.radius * (0.55 + r() * 0.75);
-      const spd = opts.speed * (0.7 + r() * 0.6) * (r() < 0.15 ? -1 : 1);
-      const ph = r() * TAU;
-      const yb = opts.y + (r() - 0.5) * opts.spreadY;
-      const cx = opts.x + (r() - 0.5) * opts.spreadX;
-      const cz = opts.z + (r() - 0.5) * opts.spreadZ;
-      const tilt = opts.radius * 0.45;
-      const s = (opts.size || 1) * (0.5 + r() * 0.8);
-      const col = P.mix(opts.col || [0.55, 0.78, 0.85], [0.9, 0.95, 1.0], r() * 0.6);
-      const batch = { mesh: mesh, tint: col, spec: 0.4, rim: 0.5 };
-      const fn = t => {
-        const a = ph + t * spd / rad;
-        const px = cx + Math.cos(a) * rad;
-        const pz = cz + Math.sin(a) * rad * 0.55;
-        const py = yb + Math.sin(a * 1.7 + ph) * tilt * 0.5;
-        const dx = -Math.sin(a) * rad;
-        const dz = Math.cos(a) * rad * 0.55;
-        const dy = Math.cos(a * 1.7 + ph) * tilt * 0.5;
-        const yaw = Math.atan2(-dz, dx);
-        const pitch = Math.atan2(dy, Math.hypot(dx, dz)) * 0.6;
-        const roll = Math.sin(t * 1.7 + ph) * 0.12;
-        return M.trs(px, py, pz, roll, yaw, pitch, s, s, s);
-      };
-      st.dyn.push({ batch, matrix: fn });
-      fishes.push({ batch, fn });
-    }
-    return fishes;
-  }
-
   /** 通用：海底 / 背景里的礁石剪影 */
   function rocks(b, m, n, spread, seed, col) {
     const r = rng(seed || 7);
@@ -158,95 +79,6 @@ const A3DWorlds = (() => {
       b.sphere.call(b, M.mul(m, M.trs((r() - 0.5) * spread, r() * s * 0.3, (r() - 0.5) * spread * 0.4,
         r(), r() * TAU, r(), s, s * (0.4 + r() * 0.5), s)), 1, 8, 6, col, 0);
     }
-  }
-
-  /* ============================================================
-   *  深海（标题画面）
-   * ============================================================ */
-  function buildSea() {
-    const st = P.stage();
-    const tone = [0.72, 0.88, 1.0];
-
-    // 远处的礁石 / 海床剪影
-    const rockB = st.pen("rock", null, { tint: [0.06, 0.15, 0.19], rim: 0.15, spec: 0 });
-    rocks(rockB, m4(0, -3.8, -18), 11, 30, 3, [0.07, 0.15, 0.19]);
-    // 海带
-    const kelp = st.pen("kelp", T.leaf(), { cutout: true, tint: [0.18, 0.5, 0.36], sway: 1, rim: 0.25 });
-    const kr = rng(21);
-    for (let i = 0; i < 26; i++) {
-      const x = -12 + kr() * 24, z = -10 - kr() * 8;
-      const h = 3 + kr() * 5;
-      for (let k = 0; k < 4; k++) {
-        P.leafBlade(kelp, m4(x + (kr() - 0.5) * 0.8, -3.4, z + (kr() - 0.5) * 0.8,
-          0, kr() * TAU, 1.2 + kr() * 0.5, 1, 1, 1), h * (0.6 + kr() * 0.5), 0.3, [0.7, 1, 0.85]);
-      }
-    }
-
-    // 鱼群
-    fishSchool(st, { x: -4, y: 0.2, z: -9, radius: 4.6, spreadX: 3, spreadY: 1.6, spreadZ: 2,
-      n: 30, speed: 0.5, size: 0.55, seed: 7, col: [0.5, 0.78, 0.86] });
-    fishSchool(st, { x: 5, y: -0.8, z: -12, radius: 5.5, spreadX: 2, spreadY: 2, spreadZ: 1,
-      n: 18, speed: 0.35, size: 0.9, seed: 13, col: [0.36, 0.6, 0.72] });
-
-    // 鲸鱼：远远地横穿过去
-    const whale = whaleMesh();
-    st.dyn.push({
-      batch: { mesh: whale, tint: [0.05, 0.13, 0.19], spec: 0.2, rim: 0.2, unlit: false },
-      matrix: t => {
-        const a = t * 0.04;
-        return M.trs(Math.cos(a) * 10 - 2, 2.3 + Math.sin(t * 0.3) * 0.5, -32 + Math.sin(a) * 4,
-          0, 0.3 + Math.sin(a) * 0.3, Math.sin(t * 0.35) * 0.04, 0.8, 0.8, 0.8);
-      }
-    });
-
-    // 气泡
-    const pts = [];
-    const r = rng(31);
-    for (let i = 0; i < 140; i++) {
-      pts.push({
-        x: (r() - 0.5) * 22, y: -5 + r() * 12, z: -13 + r() * 10,
-        r: 0.55 + r() * 0.4, g: 0.8 + r() * 0.2, b: 0.9, a: 0.12 + r() * 0.3,
-        size: 0.015 + r() * 0.05, kind: 1, speed: 0.5 + r() * 0.8, phase: r() * TAU, wob: 0.06 + r() * 0.1
-      });
-    }
-    for (let i = 0; i < 260; i++) {
-      pts.push({
-        x: (r() - 0.5) * 26, y: -5 + r() * 14, z: -16 + r() * 12,
-        r: 0.7, g: 0.85, b: 1, a: 0.1 + r() * 0.25,
-        size: 0.006 + r() * 0.012, kind: 2, speed: 0.12 + r() * 0.2, phase: r() * TAU, wob: 0.1 + r() * 0.2
-      });
-    }
-    st.points.push({ mesh: A3D.pointMesh(pts), blend: "alpha", yMin: -6, yMax: 10, fogNear: 8, fogFar: 40 });
-
-    // 光柱
-    const ray = st.glow("rays", T.shaft(), { opacity: 0.16, blend: "add", tint: [0.45, 0.85, 1.0] });
-    const rr = rng(41);
-    for (let i = 0; i < 9; i++) {
-      const x = -14 + rr() * 28;
-      const m = m4(x, 6, -18 + rr() * 14, 0, rr() * 0.5 - 0.25, 0.25 + rr() * 0.2, 1, 1, 1);
-      ray.quad.call(ray, M.mul(m, m4(0, -11, 0)), 4 + rr() * 5, 22, [1, 1, 1], [0, 0, 1, 1]);
-    }
-
-    st.finish();
-    st.finishGlows();
-    return {
-      cam: { eye: [0, 0.2, 7.5], target: [0, 0.6, -6], fov: 44 },
-      sky: {
-        mode: 1, top: [0.06, 0.24, 0.32], bot: [0.01, 0.04, 0.07],
-        glow: [0.25, 0.62, 0.72], sun: [0.44, 0.96], horizon: 0.2
-      },
-      lights: {
-        sun: A3D.norm3([-0.35, 1, 0.2]), sunCol: [0.34, 0.52, 0.58],
-        skyCol: [0.16, 0.3, 0.38], groundCol: [0.01, 0.03, 0.05],
-        fog: { col: [0.02, 0.09, 0.13], near: 10, far: 44 }, fogAmt: 0.85
-      },
-      batches: st.batches, over: st.over, dyn: st.dyn, points: st.points, glows: st.glows,
-      tone: tone, swayAmp: 0.5,
-      update(t, sc) {
-        const c = sc.cam;
-        c.eye = [Math.sin(t * 0.07) * 0.6, 0.15 + Math.sin(t * 0.13) * 0.18, 7.5];
-      }
-    };
   }
 
   /* ============================================================
@@ -1382,8 +1214,7 @@ const A3DWorlds = (() => {
   const buildRoomDay = () => buildRoomCompact({ night: false });
 
   function registerAll() {
-    A3D.register("sea", buildSea);
-    A3D.register("ds_room", buildRoomDay);
+      A3D.register("ds_room", buildRoomDay);
     A3D.register("ds_room_night", buildRoomDay); // 不再区分白天晚上
     A3D.register("ds_room_dawn", buildRoomDay);  // 同上，是 ds_room 的别名
     A3D.register("claude_lib", buildLib);
@@ -1391,6 +1222,6 @@ const A3DWorlds = (() => {
 
   if (typeof window !== "undefined") registerAll();
 
-  return { registerAll, buildSea, buildRoomCompact, buildLib };
+  return { registerAll, buildRoomCompact, buildLib };
 })();
 

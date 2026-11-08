@@ -594,7 +594,7 @@ const ART = (() => {
     }
 
     /* --- 背景：素材图 → 3D 场景 → 占位卡，挨个试 --- */
-    const bgId = vis.bg || "sea";
+    const bgId = vis.bg || "world_title";
     const bgRec = imgOf("bg", bgId);
     let bg3d = false;
     if (bgRec) {

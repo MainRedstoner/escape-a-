@@ -57,7 +57,7 @@
 | `SAVE.describe(err)` | 把存档错误翻译成给人看的话 |
 | `A3D.ok` / `A3D.failReason` | 3D 背景（WebGL2）是否可用；不可用时 `failReason` 说明原因 |
 | `A3D.debugScene()` | 当前 3D 场景对象：`cam` / `lights` / `batches` / `dyn`，调光调构图时很好用 |
-| `AUDIO.ambience("sea")` | 手动切环境音（冒泡 / 鸟叫 / 柴火 / 机柜嗡鸣），试听用 |
+| `AUDIO.ambience("world_church")` | 手动切环境音（冒泡 / 鸟叫 / 柴火 / 机柜嗡鸣），试听用 |
 | `AUDIO.unlock()` | 手动解锁音频（自动播放被拦时用） |
 | `AUDIO.playBGM("study")` / `AUDIO.sfx("ding")` | 试听某首 BGM / 某个音效（白名单见校验器 `BGMS` / `SFX`） |
 | `CLAWD.owned` / `CLAWD.mood` / `CLAWD.lookX` | 桌宠是否到手 / 心情 / 当前视线方向 |
@@ -207,7 +207,7 @@ index.html?bg=ds_room&perf=1&q=low
    **几何边缘**，对镂空（`discard`）边缘完全无效。
 2. **alpha-to-coverage（A2C）**——镂空材质（树叶 / 海带 / 藤蔓）不再用硬阈值
    `discard`，而是把贴图 alpha 交给 MSAA 的覆盖度，4 个采样点按 alpha 抖动。
-   实测硬边像素数：`sea` 2877 → 288（−90%），`claude_door` 256 → 172（−33%），
+   实测硬边像素数：`ds_room` 2877 → 288（−90%），`world_church` 256 → 172（−33%），
    没有镂空的 `ds_room` 1638 → 1610（−1.7%，基本没动，说明别的没被改）。
    浏览器不给 MSAA（`SAMPLES == 1`）时自动退回老的硬阈值，观感和以前一模一样。
 3. **超采样（SSAA）**——梯子顶端的「原生」级：3D 按主画布的真实设备像素渲染，
