@@ -9,7 +9,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05070a">
 <title>修复屎山 · Escape A÷ 小游戏</title>
 <link rel="stylesheet" href="src/game.css">
 </head>
@@ -63,6 +64,7 @@
           <button class="gf-btn" id="gf-pick">选关</button>
           <button class="gf-btn gf-ghost" id="gf-wipe">清空进度</button>
         </div>
+        <p class="gf-sub" id="gf-touch-note" style="display:none">触屏可玩：左下十字键移动，右下是修 / 测 / log / commit，最上一排小键是图层 / 回档 / 图鉴 / 判定箱 / 菜单。</p>
         <div id="gf-title-commits" class="gf-sub" style="margin-top:12px"></div>
       </div>
     </div>
@@ -187,6 +189,7 @@
 <script src="src/levels.js"></script>
 <script src="src/render.js"></script>
 <script src="src/ui.js"></script>
+<script src="src/touch.js"></script>
 <script src="src/game.js"></script>
 </body>
 </html>

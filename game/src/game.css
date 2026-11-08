@@ -12,6 +12,7 @@
   font-family: "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
   overflow: hidden;
   user-select: none;
+  touch-action: manipulation;   /* 触屏：双击不缩放页面（按键自己另带 touch-action:none） */
 }
 #gf-app.gf-mounted { position: absolute; inset: 0; }
 
@@ -236,4 +237,74 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
 #gf-hint {
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
   font-size: 12px; color: #5c7266; z-index: 5;
+}
+
+/* ---------------- 触屏控件（touch.js 挂进来，#gf-app.gf-touch 才显示布局适配） ---------------- */
+#gf-touch {
+  position: absolute; inset: 0; z-index: 12;
+  pointer-events: none;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#gf-app.gf-ui-open #gf-touch { display: none; }   /* 弹窗开着时收起按键 */
+.gf-tpad, .gf-tacts {
+  position: absolute;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.gf-tpad {
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 5px;
+}
+/* 十字排布：上（2,1）左（1,2）右（3,2）下（2,3），中格留空 */
+.gf-tpad .gf-up    { grid-area: 1 / 2; }
+.gf-tpad .gf-left  { grid-area: 2 / 1; }
+.gf-tpad .gf-right { grid-area: 2 / 3; }
+.gf-tpad .gf-down  { grid-area: 3 / 2; }
+.gf-tacts {
+  right: calc(10px + env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+}
+.gf-tmini { display: flex; gap: 5px; }
+.gf-tgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 66px);
+  grid-auto-rows: 56px;
+  gap: 6px;
+}
+.gf-tbtn {
+  pointer-events: auto;
+  border: 1px solid rgba(124,243,176,.45);
+  border-radius: 10px;
+  background: rgba(10,16,13,.55);
+  color: #ccffe6;
+  font: inherit; font-size: 17px; font-weight: 700;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+}
+.gf-tbtn.gf-hold { background: rgba(28,58,43,.9); border-color: #7cf3b0; }
+.gf-tmini .gf-tbtn { width: 38px; height: 34px; font-size: 13px; opacity: .85; }
+.gf-tgrid .gf-tbtn { font-size: 15px; }
+.gf-tbtn.gf-commit { color: #ffd479; border-color: rgba(255,212,121,.55); }
+.gf-tbtn.gf-commit.gf-hold { border-color: #ffd479; }
+
+/* 触屏模式下重排 HUD：提示行没意义了；目标挪到左上、日志右上、飘字让开顶部 */
+#gf-app.gf-touch #gf-hint { display: none; }
+#gf-app.gf-touch #gf-objective {
+  left: 8px; right: auto; bottom: auto; top: 64px;
+  max-width: min(58vw, 40ch);
+  font-size: 12px; padding: 8px 10px;
+}
+#gf-app.gf-touch #gf-log {
+  right: 8px; bottom: auto; top: 64px;
+  width: 22ch; font-size: 10.5px;
+}
+#gf-app.gf-touch #gf-toasts { top: 30%; }
+@media (max-width: 700px) {
+  #gf-app.gf-touch #gf-log { display: none; }
+  #gf-app.gf-touch #gf-objective { max-width: 74vw; }
 }
