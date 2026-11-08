@@ -1830,14 +1830,14 @@ const A3DWorld = (() => {
         const q = [[-sz, -sz * 0.62], [sz, -sz * 0.62], [sz, sz * 0.62], [-sz, sz * 0.62]];
         /* 叶片在墙面前后错开 ±7cm：一来像长出来的（不是一张贴纸），
          * 二来万一有块石头凸出来，也不会整片叶子一起被切。 */
-        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.4) * 0.14];
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.10];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
         const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    ivyPatch(-6.2, PT + 0.2, 1.6, 2.7, 91, 0.34);
+    ivyPatch(-6.2, PT + 0.2, 1.6, 2.7, 91, 0.57);
     ivyPatch(6.1, PT + 0.2, 2.6, 3.1, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
