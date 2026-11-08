@@ -588,7 +588,7 @@ const A3D = (() => {
   }
   /** 返回 xy = 该处风的方向×强度（长度 0~1），漂移量也一起给 */
   vec2 wField(vec2 xz, float t) {
-    vec2 q = xz * 0.21 + vec2(t * 0.13, t * 0.085);
+    vec2 q = xz * 0.30 + vec2(t * 0.42, t * 0.28);
     float n1 = wNoise(q);
     float n2 = wNoise(q * 2.3 + 17.3);
     float ang = (n1 * 2.0 - 1.0) * 3.1416 + n2 * 1.1;
@@ -604,9 +604,9 @@ const A3D = (() => {
       /* 每片叶子自己的小抖动，让同一片里的叶子不同步 */
       float ph = uTime * 1.35 + p.x * 0.9 + p.z * 0.7;
       float k = aSway * uSwayAmp;
-      p.x += (wind.x * 0.075 + sin(ph) * 0.010) * k;
-      p.z += (wind.y * 0.075 + cos(ph * 0.87) * 0.008) * k;
-      p.y += sin(ph * 1.7) * 0.004 * k;
+      p.x += (wind.x * 0.16 + sin(ph) * 0.012) * k;
+      p.z += (wind.y * 0.16 + cos(ph * 0.87) * 0.010) * k;
+      p.y += sin(ph * 1.7) * 0.005 * k;
     }
     vec4 wp = uModel * vec4(p, 1.0);
     vWorld = wp.xyz;
