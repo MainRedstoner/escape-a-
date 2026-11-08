@@ -399,36 +399,35 @@ const A3DProps = (() => {
     const base = op.col || [0.62, 0.92, 0.5];
     for (let i = 0; i < n; i++) {
       const a = r() * TAU, rr = Math.sqrt(r()) * spread;
-      /* 每丛挑几根「主叶」更高更宽：一丛草要是一样高，远看就是一个平顶刷子，
-       * 有高有低才有参考图里那种草浪的层次。 */
-      const hero = r() < 0.3 ? 1.3 + r() * 0.55 : 1;
-      const len = h * hero * (0.55 + r() * 0.8);
-      const wid = (op.wid || 0.005) * hero * (0.7 + r() * 0.7);
-      // 越靠外的叶片越往外倒，中间那几根笔直顶出来；倾角封顶在 50° 左右，
-      // 再大就是一地趴着的叶子，不像草
+      /* 原神那种草坪是「短、直、密」：叶子基本都立着，只有最外圈稍微斜一点。
+       * 所以高度只拉 0.75~1.2 倍（不再有特别高的主叶），倾角也压小，
+       * 之前那版东倒西歪的，近看像一片没割过的野草。 */
+      const len = h * (0.75 + r() * 0.45);
+      const wid = (op.wid || 0.005) * (0.8 + r() * 0.5);
       const outward = spread > 0.001 ? rr / spread : 0;
-      const lean = Math.min(0.88, (0.12 + outward * 0.62) * (0.55 + r() * 0.6));
+      const lean = Math.min(0.36, (0.05 + outward * 0.26) * (0.6 + r() * 0.55));
       const twist = r() * TAU;
       // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
-      const tone = 0.7 + r() * 0.62;
+      const tone = 0.74 + r() * 0.5;
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
         M.trs(0, 0, 0, 0, 0, lean));
       leafBlade(b, mm, len, wid,
         [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
-        0.5 + r() * 0.7, 3, true);
+        // 草叶自身几乎不弯（curve 越小越直），弯曲全靠风
+        0.18 + r() * 0.3, 3, true);
     }
-    /* 贴地的一圈短叶：草再密，光是竖着的长叶也会在根部露空，
-     * 补两三根往外趴的短叶，底部才是一整片绿，不是一根根插在地上的签子。 */
-    const lowN = op.lowN === undefined ? 3 : op.lowN;
+    /* 贴地的两片短叶：不往外趴，只是斜一点点把根部遮住，
+     * 免得草太矮时地面从缝里透出来。 */
+    const lowN = op.lowN === undefined ? 2 : op.lowN;
     for (let i = 0; i < lowN; i++) {
       const a = r() * TAU;
-      const rr = (0.35 + r() * 0.65) * spread;
-      const len = h * (0.28 + r() * 0.3);
+      const rr = (0.3 + r() * 0.6) * spread;
+      const len = h * (0.42 + r() * 0.24);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, 0.75 + r() * 0.5));
-      const tone = 0.66 + r() * 0.34;
-      leafBlade(b, mm, len, (op.wid || 0.005) * 1.5,
-        [base[0] * tone, base[1] * tone, base[2] * tone], 0.8 + r() * 0.8, 2, true);
+        M.trs(0, 0, 0, 0, 0, 0.34 + r() * 0.3));
+      const tone = 0.68 + r() * 0.32;
+      leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
+        [base[0] * tone, base[1] * tone, base[2] * tone], 0.3 + r() * 0.4, 2, true);
     }
   }
   /** 一株小钟形花：一根细茎顶着一朵五瓣花（贴图是白的，靠顶点色染成紫 / 粉 / 白）。
