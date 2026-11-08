@@ -1841,7 +1841,9 @@ const A3DWorld = (() => {
         const sz = (0.15 + rr() * 0.09) * (0.75 + 0.25 * Math.min(1, eu * 2));
         const a2 = rr() * TAU, ca = Math.cos(a2), sa = Math.sin(a2);
         /* 叶片在墙面前后错开 ±5cm：看起来有厚度，凸出的石件也只会正常遮挡 */
-        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.10];
+        /* 前后抖动只留 ±2cm：以前 ±5cm，叶子会刚好压在「凸出件表面」上，
+         * 一半在墙外一半在墙里，看着就是穿模。 */
+        const p0 = [px - sz * ca + sz * 0.62 * sa, py - sz * sa - sz * 0.62 * ca, zz + (rr() - 0.5) * 0.04];
         const p1 = [px + sz * ca + sz * 0.62 * sa, py + sz * sa - sz * 0.62 * ca, p0[2]];
         const p2 = [px + sz * ca - sz * 0.62 * sa, py + sz * sa + sz * 0.62 * ca, p0[2]];
         const p3 = [px - sz * ca - sz * 0.62 * sa, py - sz * sa + sz * 0.62 * ca, p0[2]];
@@ -1849,11 +1851,11 @@ const A3DWorld = (() => {
       }
     };
     /* 左半面墙 = 钟楼前脸：整片墙角铺满，塔身左缘再往上带一条 */
-    ivyField(-8.05, -4.05, PT + 0.12, PT + 2.9, 0.45, 121);
-    ivyField(-8.05, -7.45, PT + 2.6, PT + 5.2, 0.45, 127);
+    ivyField(-9.35, -3.95, PT + 0.12, PT + 2.9, 0.46, 121);
+    ivyField(-9.35, -8.55, PT + 2.6, PT + 5.2, 0.46, 127);
     /* 右半面墙 = 主墙：门右一整片，靠转角再往上带一条 */
-    ivyField(4.15, 8.0, PT + 0.12, PT + 4.7, 0.16, 97);
-    ivyField(7.15, 8.0, PT + 4.5, PT + 6.0, 0.16, 107);
+    ivyField(4.15, 8.15, PT + 0.12, PT + 4.7, 0.18, 97);
+    ivyField(7.15, 8.15, PT + 4.5, PT + 6.0, 0.18, 107);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
     const statueP = st.pen("w.churchStatue", T.stone(), { tint: [0.9, 0.89, 0.85], spec: 0.05, rim: 0.16 });
