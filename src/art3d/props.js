@@ -405,7 +405,9 @@ const A3DProps = (() => {
       const len = h * (0.75 + r() * 0.45);
       const wid = (op.wid || 0.005) * (0.8 + r() * 0.5);
       const outward = spread > 0.001 ? rr / spread : 0;
-      const lean = Math.min(0.36, (0.05 + outward * 0.26) * (0.6 + r() * 0.55));
+      /* 叶子几乎笔直立起来：倾角只留 1~6°，最外圈也就 8°。
+       * 之前给到 20° 再加叶身的弧度，看着就是一片趴在地上的草。 */
+      const lean = Math.min(0.14, (0.02 + outward * 0.09) * (0.6 + r() * 0.5));
       const twist = r() * TAU;
       // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
       const tone = 0.74 + r() * 0.5;
@@ -413,21 +415,20 @@ const A3DProps = (() => {
         M.trs(0, 0, 0, 0, 0, lean));
       leafBlade(b, mm, len, wid,
         [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
-        // 草叶自身几乎不弯（curve 越小越直），弯曲全靠风
-        0.18 + r() * 0.3, 3, true);
+        // 叶身基本不弯（0.04~0.12 只够叶尖翘一点点），摆动全靠风
+        0.04 + r() * 0.08, 3, true);
     }
-    /* 贴地的两片短叶：不往外趴，只是斜一点点把根部遮住，
-     * 免得草太矮时地面从缝里透出来。 */
+    /* 根部那两片短叶也只微微外翻，别把整丛带得往地上倒。 */
     const lowN = op.lowN === undefined ? 2 : op.lowN;
     for (let i = 0; i < lowN; i++) {
       const a = r() * TAU;
       const rr = (0.3 + r() * 0.6) * spread;
       const len = h * (0.42 + r() * 0.24);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, 0.34 + r() * 0.3));
+        M.trs(0, 0, 0, 0, 0, 0.08 + r() * 0.12));
       const tone = 0.68 + r() * 0.32;
       leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
-        [base[0] * tone, base[1] * tone, base[2] * tone], 0.3 + r() * 0.4, 2, true);
+        [base[0] * tone, base[1] * tone, base[2] * tone], 0.06 + r() * 0.1, 2, true);
     }
   }
   /** 一株小钟形花：一根细茎顶着一朵五瓣花（贴图是白的，靠顶点色染成紫 / 粉 / 白）。
