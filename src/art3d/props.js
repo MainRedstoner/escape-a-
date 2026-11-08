@@ -393,25 +393,69 @@ const A3DProps = (() => {
   function grassTuft(b, m, op) {
     op = op || {};
     const r = rng(op.seed || 7);
-    const n = op.n || 7;
+    const n = op.n || 9;
     const h = op.h || 0.3;
     const spread = op.spread === undefined ? 0.1 : op.spread;
     const base = op.col || [0.62, 0.92, 0.5];
     for (let i = 0; i < n; i++) {
       const a = r() * TAU, rr = Math.sqrt(r()) * spread;
-      const len = h * (0.55 + r() * 0.8);
-      const wid = (op.wid || 0.005) * (0.7 + r() * 0.7);
-      // 越靠外的叶片越往外倒，中间那几根笔直顶出来；倾角封顶在 45° 左右，
+      /* 每丛挑几根「主叶」更高更宽：一丛草要是一样高，远看就是一个平顶刷子，
+       * 有高有低才有参考图里那种草浪的层次。 */
+      const hero = r() < 0.3 ? 1.3 + r() * 0.55 : 1;
+      const len = h * hero * (0.55 + r() * 0.8);
+      const wid = (op.wid || 0.005) * hero * (0.7 + r() * 0.7);
+      // 越靠外的叶片越往外倒，中间那几根笔直顶出来；倾角封顶在 50° 左右，
       // 再大就是一地趴着的叶子，不像草
       const outward = spread > 0.001 ? rr / spread : 0;
-      const lean = Math.min(0.72, (0.14 + outward * 0.5) * (0.55 + r() * 0.6));
+      const lean = Math.min(0.88, (0.12 + outward * 0.62) * (0.55 + r() * 0.6));
       const twist = r() * TAU;
-      const tone = 0.78 + r() * 0.46;
+      // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
+      const tone = 0.7 + r() * 0.62;
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
         M.trs(0, 0, 0, 0, 0, lean));
       leafBlade(b, mm, len, wid,
-        [base[0] * tone, base[1] * tone, base[2] * tone],
-        0.55 + r() * 0.6, 3, true);
+        [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
+        0.5 + r() * 0.7, 3, true);
+    }
+    /* 贴地的一圈短叶：草再密，光是竖着的长叶也会在根部露空，
+     * 补两三根往外趴的短叶，底部才是一整片绿，不是一根根插在地上的签子。 */
+    const lowN = op.lowN === undefined ? 3 : op.lowN;
+    for (let i = 0; i < lowN; i++) {
+      const a = r() * TAU;
+      const rr = (0.35 + r() * 0.65) * spread;
+      const len = h * (0.28 + r() * 0.3);
+      const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
+        M.trs(0, 0, 0, 0, 0, 0.75 + r() * 0.5));
+      const tone = 0.66 + r() * 0.34;
+      leafBlade(b, mm, len, (op.wid || 0.005) * 1.5,
+        [base[0] * tone, base[1] * tone, base[2] * tone], 0.8 + r() * 0.8, 2, true);
+    }
+  }
+  /** 一株小钟形花：一根细茎顶着一朵五瓣花（贴图是白的，靠顶点色染成紫 / 粉 / 白）。
+   *  成片撒在草丛里就是参考图那种「草里冒出一片紫花」的效果。 */
+  function bellFlower(bFlower, bStem, m, op) {
+    op = op || {};
+    const r = rng(op.seed || 17);
+    const s = op.scale || 1;
+    const h = (op.h || 0.3) * s;
+    const lean = (r() - 0.5) * 0.06;
+    const col = op.col || [0.92, 0.72, 1.0];
+    // 茎：一根染绿的细叶，根部到花头，正好借草叶的 sway
+    leafBlade(bStem, m, h, 0.0055 * s, [0.46, 0.82, 0.34], 0.3, 2, true);
+    // 花冠：两片交叉的方片，稍微低头；两片左右分开一点，侧面看也有厚度
+    const head = M.mul(m, M.trs(lean, h * 0.9, 0, 0, r() * TAU, 0.5 + r() * 0.35));
+    const sz = 0.075 * s * (0.82 + r() * 0.45);
+    for (let k = 0; k < 2; k++) {
+      const mm = M.mul(head, M.trs((k ? 1 : -1) * sz * 0.12, 0, 0, 0, k * Math.PI * 0.5, 0));
+      const nm = A3D.M.normalMat(mm);
+      const q = [[-sz, -sz, 0], [sz, -sz, 0], [sz, sz, 0], [-sz, sz, 0]];
+      const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      const sw = [1, 1, 1, 1];
+      for (let i = 0; i < 4; i++) {
+        bFlower._v(bFlower.d, mm, nm, q[i][0], q[i][1], q[i][2], 0, 0, 1,
+          uv[i][0], uv[i][1], col, sw[i]);
+      }
+      bFlower._pushQuad(bFlower.count - 4);
     }
   }
   /** 菊花：茎 + 叶片 + 花瓣（petal builder） */
@@ -706,7 +750,7 @@ const A3DProps = (() => {
     rng, pick, mix, stage, quad4, figure,
     table, drawer, chair, monitorBody, monitorScreen, keyboard, mouse, mug, papers,
     book, bookRow, bookshelf, shelfBooks,
-    pot, leafBlade, leafFlat, plant, tallLeaves, grass, grassTuft, chrysanthemum,
+    pot, leafBlade, leafFlat, plant, tallLeaves, grass, grassTuft, bellFlower, chrysanthemum,
     tableLamp, paperLantern,
     tent, campfire, crate, barrel, rack, archWindowFrame, stall, garbagePile, birdWings
   };

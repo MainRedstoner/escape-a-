@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [0.88, 0.96, 0.82], spec: 0.02, rim: 0.08 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.26, 1.36, 1.0], spec: 0.03, rim: 0.2 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;
@@ -2164,7 +2164,7 @@ const A3DWorld = (() => {
      * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
     {
       const grassP = st.pen("w.churchGrass", T.blade(),
-        { cutout: true, tint: [1, 1, 1], spec: 0.04, rim: 0.12, noShadow: true });
+        { cutout: true, tint: [1.42, 1.5, 1.02], spec: 0.06, rim: 0.7, noShadow: true });
       const gr = rng(211);
       const nearTomb = (wx, wz) => {
         for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
@@ -2195,47 +2195,84 @@ const A3DWorld = (() => {
         P.grassTuft(grassP, mul(m4(lx, gy + 0.012, lz, 0, gr() * TAU, 0)), {
           n: n || (5 + Math.floor(gr() * 4)),
           h: hh,
-          spread: spread || (0.075 + gr() * 0.075),
-          wid: 0.0045 + gr() * 0.0035,
+          spread: spread || (0.14 + gr() * 0.12),
+          wid: 0.0105 + gr() * 0.0075,
           seed: 1000 + Math.floor(gr() * 9000),
-          col: [0.64 + gr() * 0.22, 0.9 + gr() * 0.18, 0.48 + gr() * 0.16]
+          col: [0.66 + gr() * 0.26, 0.92 + gr() * 0.16, 0.46 + gr() * 0.18]
         });
       };
       /* 镜头附近的草坪：正门到院门这一段是画面下缘，密到近景能数出叶片。
-         每丛也多放几根，不然 0.26m 的格距看着还是一撮一撮的空地。 */
-      for (let gx = -14.2; gx <= 14.2; gx += 0.24) {
-        for (let gz = 19.2; gz <= 26.6; gz += 0.24) {
-          const lx = gx + (gr() - 0.5) * 0.22, lz = gz + (gr() - 0.5) * 0.22;
+         不靠「把格点排得更密」而是「让每丛自己铺开」——格距放宽到 0.26，
+         每丛 13~19 根、散开 0.17~0.31m，相邻两丛的叶子互相压着，
+         近看才是一整片草，而不是一根根竖在地上的钉子。 */
+      for (let gx = -14.2; gx <= 14.2; gx += 0.26) {
+        for (let gz = 19.2; gz <= 26.6; gz += 0.26) {
+          const lx = gx + (gr() - 0.5) * 0.24, lz = gz + (gr() - 0.5) * 0.24;
           if (!okSpot(lx, lz, 0)) continue;
-          if (gr() < 0.08) continue;
-          tuft(lx, lz, 0.18 + gr() * 0.24, 8 + Math.floor(gr() * 6), 0.09 + gr() * 0.08);
+          if (gr() < 0.05) continue;
+          tuft(lx, lz, 0.34 + gr() * 0.34, 13 + Math.floor(gr() * 7), 0.17 + gr() * 0.14);
         }
       }
       // 花境到台阶之间：中景，稍稀
-      for (let gx = -13.6; gx <= 13.6; gx += 0.36) {
-        for (let gz = 14.8; gz < 19.2; gz += 0.36) {
-          const lx = gx + (gr() - 0.5) * 0.34, lz = gz + (gr() - 0.5) * 0.34;
+      for (let gx = -13.6; gx <= 13.6; gx += 0.30) {
+        for (let gz = 14.8; gz < 19.2; gz += 0.30) {
+          const lx = gx + (gr() - 0.5) * 0.32, lz = gz + (gr() - 0.5) * 0.32;
           if (!okSpot(lx, lz, 0)) continue;
-          if (gr() < 0.1) continue;
-          tuft(lx, lz, 0.16 + gr() * 0.2, 6 + Math.floor(gr() * 4));
+          if (gr() < 0.07) continue;
+          tuft(lx, lz, 0.28 + gr() * 0.28, 11 + Math.floor(gr() * 6), 0.14 + gr() * 0.12);
         }
       }
       // 院子外围：稀一点，主要是把「一整片绿」打散
-      for (let gx = -31; gx <= 31; gx += 1.3) {
-        for (let gz = -16.5; gz <= 29.5; gz += 1.3) {
-          const lx = gx + (gr() - 0.5) * 1.2, lz = gz + (gr() - 0.5) * 1.2;
+      for (let gx = -31; gx <= 31; gx += 0.82) {
+        for (let gz = -16.5; gz <= 29.5; gz += 0.82) {
+          const lx = gx + (gr() - 0.5) * 0.9, lz = gz + (gr() - 0.5) * 0.9;
           if (gr() < 0.22) continue;
           if (!okSpot(lx, lz, 0.08)) continue;
-          tuft(lx, lz, 0.18 + gr() * 0.22);
+          tuft(lx, lz, 0.26 + gr() * 0.28);
         }
       }
       // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
       const tall = rng(2337);
-      for (let i = 0; i < 200; i++) {
+      for (let i = 0; i < 240; i++) {
         const lx = -14.0 + tall() * 28.0;
         const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
         if (!okSpot(lx, lz, 0.02)) continue;
-        tuft(lx, lz, 0.40 + tall() * 0.30, 5 + Math.floor(tall() * 4), 0.06 + tall() * 0.06);
+        tuft(lx, lz, 0.55 + tall() * 0.35, 6 + Math.floor(tall() * 4), 0.06 + tall() * 0.06);
+      }
+
+      /* ---- 草里的紫花：成团撒，不铺满 ----
+       * 参考图是「一片高草中间冒出一片紫色小花」，所以花按簇放：
+       * 一簇 6~14 朵、簇半径 0.5~1.2m，簇与簇之间留草，远看才是一团团的。 */
+      const bellP = st.pen("w.churchBell", T.bell(),
+        { cutout: true, tint: [1.18, 1.1, 1.24], spec: 0.05, rim: 0.35, noShadow: true });
+      const fr = rng(907);
+      const BELL = [
+        [0.80, 0.58, 1.0],   // 紫
+        [0.92, 0.68, 1.0],   // 浅紫
+        [0.64, 0.48, 0.96],  // 深紫
+        [1.0, 0.80, 0.9]     // 粉白（点缀）
+      ];
+      const oneBell = (lx, lz, k) => {
+        const gy = gyAt(lx, lz);
+        const pal = BELL[Math.floor(fr() * BELL.length)];
+        P.bellFlower(bellP, grassP, mul(m4(lx, gy + 0.01, lz, 0, fr() * TAU, 0)), {
+          scale: 1.1 + fr() * 0.7,
+          h: 0.34 + fr() * 0.22,
+          col: [pal[0] * (0.9 + fr() * 0.2), pal[1] * (0.9 + fr() * 0.2), pal[2]]
+        });
+        void k;
+      };
+      for (let c = 0; c < 110; c++) {
+        const cx = -13.5 + fr() * 27.0;
+        const cz = 15.4 + fr() * 11.0;
+        const rad = 0.45 + fr() * 0.85;
+        const cnt = 5 + Math.floor(fr() * 9);
+        for (let k = 0; k < cnt; k++) {
+          const a = fr() * TAU, rr = Math.sqrt(fr()) * rad;
+          const lx = cx + Math.cos(a) * rr, lz = cz + Math.sin(a) * rr;
+          if (!okSpot(lx, lz, 0.02)) continue;
+          oneBell(lx, lz, k);
+        }
       }
     }
 

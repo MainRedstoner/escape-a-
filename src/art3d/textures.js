@@ -307,14 +307,14 @@ const A3DTex = (() => {
     turf() {
       return get("turf", 256, 256, (x, w, h) => {
         const r = rnd(173);
-        // 偏橄榄的绿：饱和度压一点，太阳底下才不会亮成一块荧光绿地毯。
-        // 底色也别太亮——主标题是夜景，草坪一亮就整块跳出来。
-        x.fillStyle = "#3a5c30"; x.fillRect(0, 0, w, h);
+        // 草坪是教堂前院的主角之一，底色比老版亮一档、绿得更正；
+        // 深浅斑负责把它打散，草叶铺上去之后不会像一块平面绿纸。
+        x.fillStyle = "#4a7a34"; x.fillRect(0, 0, w, h);
         // 大块的深浅斑：跨边界按 3×3 复制，平铺后不会切出一格一格的边
         for (let i = 0; i < 90; i++) {
           const px = r() * w, py = r() * h, rr = 6 + r() * 26;
           const t = 0.68 + r() * 0.62;
-          const cr = Math.round(50 * t), cg = Math.round(88 * t), cb = Math.round(40 * t);
+          const cr = Math.round(62 * t), cg = Math.round(112 * t), cb = Math.round(48 * t);
           for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
               const cx = px + dx * w, cy = py + dy * h;
@@ -640,33 +640,68 @@ const A3DTex = (() => {
         x.beginPath(); x.moveTo(w / 2, h * 0.1); x.lineTo(w / 2, h * 0.9); x.stroke();
       });
     },
-    /** 一片草叶：细长、根部宽、顶端收成尖，带一点偏黄的日照渐变。
-     *  leafBlade 的 uv 是「v=0 叶根 / v=1 叶尖」，所以尖要画在贴图顶部。 */
+    /** 一片草叶：根部宽、顶端收成尖，带一点偏黄的日照渐变。
+     *  leafBlade 的 uv 是「v=0 叶根 / v=1 叶尖」，所以尖要画在贴图顶部。
+     *  近景草是画面下缘的主角，颜色比老版更饱和、叶尖更亮，
+     *  左缘留一道高光——逆光时叶缘发亮，才不会糊成一片深绿。 */
     blade() {
       return get("blade", 64, 128, (x, w, h) => {
         x.clearRect(0, 0, w, h);
         const g = x.createLinearGradient(0, h, 0, 0);
-        g.addColorStop(0, "#2e5c24"); g.addColorStop(0.5, "#4f8a34"); g.addColorStop(1, "#8fc35a");
+        g.addColorStop(0, "#2b5f1a"); g.addColorStop(0.34, "#4a9a28");
+        g.addColorStop(0.68, "#79c93c"); g.addColorStop(0.92, "#b6ea6c");
+        g.addColorStop(1, "#d6f79a");
         x.fillStyle = g;
         x.beginPath();
         x.moveTo(w * 0.5, h);
-        x.bezierCurveTo(w * 0.10, h * 0.78, w * 0.12, h * 0.34, w * 0.5, 0);
-        x.bezierCurveTo(w * 0.88, h * 0.34, w * 0.90, h * 0.78, w * 0.5, h);
+        // 叶身比老版更宽（根部几乎占满），到尖端猛地收成针
+        x.bezierCurveTo(w * 0.03, h * 0.70, w * 0.10, h * 0.24, w * 0.5, 0);
+        x.bezierCurveTo(w * 0.90, h * 0.24, w * 0.97, h * 0.70, w * 0.5, h);
         x.fill();
+        // 左缘高光：一条顺着叶形的亮边，逆光时像透了光
+        x.strokeStyle = "rgba(226,255,168,.55)"; x.lineWidth = 2.1;
+        x.beginPath();
+        x.moveTo(w * 0.5, h * 0.99);
+        x.bezierCurveTo(w * 0.07, h * 0.70, w * 0.13, h * 0.25, w * 0.5, h * 0.012);
+        x.stroke();
         // 中脉：一根略亮的细线，近看不是一块纯色
-        x.strokeStyle = "rgba(210,245,170,.22)"; x.lineWidth = 1.6;
+        x.strokeStyle = "rgba(215,248,175,.26)"; x.lineWidth = 1.5;
         x.beginPath(); x.moveTo(w * 0.5, h * 0.98); x.lineTo(w * 0.5, h * 0.05); x.stroke();
         // 叶尖压一点黄，阳光下更透
-        const t = x.createLinearGradient(0, 0, 0, h * 0.26);
-        t.addColorStop(0, "rgba(228,238,150,.34)");
+        const t = x.createLinearGradient(0, 0, 0, h * 0.3);
+        t.addColorStop(0, "rgba(248,255,170,.5)");
         t.addColorStop(1, "rgba(228,238,150,0)");
         x.fillStyle = t;
         x.beginPath();
-        x.moveTo(w * 0.5, h * 0.06);
-        x.bezierCurveTo(w * 0.40, h * 0.14, w * 0.40, h * 0.22, w * 0.46, h * 0.26);
-        x.lineTo(w * 0.54, h * 0.26);
-        x.bezierCurveTo(w * 0.60, h * 0.22, w * 0.60, h * 0.14, w * 0.5, h * 0.06);
+        x.moveTo(w * 0.5, h * 0.04);
+        x.bezierCurveTo(w * 0.38, h * 0.14, w * 0.38, h * 0.24, w * 0.45, h * 0.3);
+        x.lineTo(w * 0.55, h * 0.3);
+        x.bezierCurveTo(w * 0.62, h * 0.24, w * 0.62, h * 0.14, w * 0.5, h * 0.04);
         x.fill();
+      });
+    },
+    /** 小钟形花：五片圆花瓣摊开、中间一点花心。整张贴图是白的，
+     *  靠顶点色染成紫 / 粉 / 白，所以在草里撒一片也不会全是同一个色。 */
+    bell() {
+      return get("bell", 64, 64, (x, w, h) => {
+        x.clearRect(0, 0, w, h);
+        const cx = w * 0.5, cy = h * 0.5;
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+          const r1 = w * 0.34;
+          const px = cx + Math.cos(a) * r1 * 1.02;
+          const py = cy + Math.sin(a) * r1 * 1.02;
+          const g = x.createRadialGradient(cx, cy, w * 0.06, cx, cy, r1 * 1.5);
+          g.addColorStop(0, "rgba(255,255,255,.55)");
+          g.addColorStop(0.5, "rgba(255,255,255,.98)");
+          g.addColorStop(1, "rgba(196,186,236,.9)");
+          x.fillStyle = g;
+          x.beginPath();
+          x.ellipse(px, py, r1 * 0.68, r1 * 0.56, a, 0, Math.PI * 2);
+          x.fill();
+        }
+        x.fillStyle = "rgba(255,252,225,.98)";
+        x.beginPath(); x.arc(cx, cy, w * 0.075, 0, Math.PI * 2); x.fill();
       });
     },
     glass() {
