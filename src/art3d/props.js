@@ -412,7 +412,7 @@ const A3DProps = (() => {
       const outward = spread > 0.001 ? rr / spread : 0;
       /* 叶子几乎笔直立起来：倾角只留 1~6°，最外圈也就 8°。
        * 之前给到 20° 再加叶身的弧度，看着就是一片趴在地上的草。 */
-      const lean = Math.min(0.14, (0.02 + outward * 0.09) * (0.6 + r() * 0.5));
+      const lean = Math.min(0.08, (0.012 + outward * 0.05) * (0.6 + r() * 0.5));
       const twist = r() * TAU;
       // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
       const tone = 0.74 + r() * 0.5;
@@ -421,7 +421,7 @@ const A3DProps = (() => {
       leafBlade(b, mm, len, wid,
         [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
         // 叶身基本不弯（0.04~0.12 只够叶尖翘一点点），摆动全靠风
-        0.04 + r() * 0.08, 3, true);
+        0.02 + r() * 0.05, 3, true);
     }
     /* 根部那两片短叶也只微微外翻，别把整丛带得往地上倒。 */
     const lowN = op.lowN === undefined ? 2 : op.lowN;
@@ -430,7 +430,7 @@ const A3DProps = (() => {
       const rr = (0.3 + r() * 0.6) * spread;
       const len = h * (0.42 + r() * 0.24);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, UP - (0.1 + r() * 0.14)));
+        M.trs(0, 0, 0, 0, 0, UP - (0.06 + r() * 0.08)));
       const tone = 0.68 + r() * 0.32;
       leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
         [base[0] * tone, base[1] * tone, base[2] * tone], 0.06 + r() * 0.1, 2, true);

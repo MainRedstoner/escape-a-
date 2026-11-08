@@ -648,9 +648,9 @@ const A3DTex = (() => {
       return get("blade", 64, 128, (x, w, h) => {
         x.clearRect(0, 0, w, h);
         const g = x.createLinearGradient(0, h, 0, 0);
-        g.addColorStop(0, "#2b5f1a"); g.addColorStop(0.34, "#4a9a28");
-        g.addColorStop(0.68, "#79c93c"); g.addColorStop(0.92, "#b6ea6c");
-        g.addColorStop(1, "#d6f79a");
+        g.addColorStop(0, "#3a6626"); g.addColorStop(0.34, "#578a38");
+        g.addColorStop(0.68, "#7dab4d"); g.addColorStop(0.92, "#a5ca72");
+        g.addColorStop(1, "#bcda8e");
         x.fillStyle = g;
         x.beginPath();
         x.moveTo(w * 0.5, h);
@@ -659,7 +659,7 @@ const A3DTex = (() => {
         x.bezierCurveTo(w * 0.90, h * 0.24, w * 0.97, h * 0.70, w * 0.5, h);
         x.fill();
         // 左缘高光：一条顺着叶形的亮边，逆光时像透了光
-        x.strokeStyle = "rgba(226,255,168,.55)"; x.lineWidth = 2.1;
+        x.strokeStyle = "rgba(214,240,170,.22)"; x.lineWidth = 1.8;
         x.beginPath();
         x.moveTo(w * 0.5, h * 0.99);
         x.bezierCurveTo(w * 0.07, h * 0.70, w * 0.13, h * 0.25, w * 0.5, h * 0.012);
@@ -669,7 +669,7 @@ const A3DTex = (() => {
         x.beginPath(); x.moveTo(w * 0.5, h * 0.98); x.lineTo(w * 0.5, h * 0.05); x.stroke();
         // 叶尖压一点黄，阳光下更透
         const t = x.createLinearGradient(0, 0, 0, h * 0.3);
-        t.addColorStop(0, "rgba(248,255,170,.5)");
+        t.addColorStop(0, "rgba(240,250,186,.24)");
         t.addColorStop(1, "rgba(228,238,150,0)");
         x.fillStyle = t;
         x.beginPath();

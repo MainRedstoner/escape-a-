@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.26, 1.36, 1.0], spec: 0.03, rim: 0.2 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [1.02, 1.06, 0.94], spec: 0.03, rim: 0.12 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;
@@ -2164,7 +2164,7 @@ const A3DWorld = (() => {
      * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
     {
       const grassP = st.pen("w.churchGrass", T.blade(),
-        { cutout: true, tint: [1.42, 1.5, 1.02], spec: 0.06, rim: 0.7, noShadow: true });
+        { cutout: true, tint: [1.1, 1.12, 1.0], spec: 0.03, rim: 0.26, noShadow: true });
       const gr = rng(211);
       const nearTomb = (wx, wz) => {
         for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
@@ -2196,7 +2196,7 @@ const A3DWorld = (() => {
           n: n || (5 + Math.floor(gr() * 4)),
           h: hh,
           spread: spread || (0.09 + gr() * 0.07),
-          wid: 0.0105 + gr() * 0.0075,
+          wid: 0.0140 + gr() * 0.0090,
           seed: 1000 + Math.floor(gr() * 9000),
           col: [0.66 + gr() * 0.26, 0.92 + gr() * 0.16, 0.46 + gr() * 0.18]
         });
@@ -2210,7 +2210,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.24, lz = gz + (gr() - 0.5) * 0.24;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.05) continue;
-          tuft(lx, lz, 0.17 + gr() * 0.12, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
+          tuft(lx, lz, 0.11 + gr() * 0.07, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
         }
       }
       // 花境到台阶之间：中景，稍稀
@@ -2219,7 +2219,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.32, lz = gz + (gr() - 0.5) * 0.32;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.07) continue;
-          tuft(lx, lz, 0.15 + gr() * 0.10, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
+          tuft(lx, lz, 0.10 + gr() * 0.06, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
         }
       }
       // 院子外围：稀一点，主要是把「一整片绿」打散
@@ -2228,7 +2228,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.9, lz = gz + (gr() - 0.5) * 0.9;
           if (gr() < 0.22) continue;
           if (!okSpot(lx, lz, 0.08)) continue;
-          tuft(lx, lz, 0.14 + gr() * 0.10);
+          tuft(lx, lz, 0.09 + gr() * 0.06);
         }
       }
       // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
@@ -2237,14 +2237,14 @@ const A3DWorld = (() => {
         const lx = -14.0 + tall() * 28.0;
         const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
         if (!okSpot(lx, lz, 0.02)) continue;
-        tuft(lx, lz, 0.26 + tall() * 0.14, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
+        tuft(lx, lz, 0.16 + tall() * 0.10, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
       }
 
       /* ---- 草里的紫花：成团撒，不铺满 ----
        * 参考图是「一片高草中间冒出一片紫色小花」，所以花按簇放：
        * 一簇 6~14 朵、簇半径 0.5~1.2m，簇与簇之间留草，远看才是一团团的。 */
       const bellP = st.pen("w.churchBell", T.bell(),
-        { cutout: true, tint: [1.18, 1.1, 1.24], spec: 0.05, rim: 0.35, noShadow: true });
+        { cutout: true, tint: [1.06, 1.0, 1.12], spec: 0.05, rim: 0.3, noShadow: true });
       const fr = rng(907);
       const BELL = [
         [0.80, 0.58, 1.0],   // 紫
@@ -2256,8 +2256,8 @@ const A3DWorld = (() => {
         const gy = gyAt(lx, lz);
         const pal = BELL[Math.floor(fr() * BELL.length)];
         P.bellFlower(bellP, grassP, mul(m4(lx, gy + 0.01, lz, 0, fr() * TAU, 0)), {
-          scale: 0.95 + fr() * 0.5,
-          h: 0.17 + fr() * 0.11,
+          scale: 0.8 + fr() * 0.4,
+          h: 0.13 + fr() * 0.08,
           col: [pal[0] * (0.9 + fr() * 0.2), pal[1] * (0.9 + fr() * 0.2), pal[2]]
         });
         void k;
@@ -3302,10 +3302,10 @@ const A3DWorld = (() => {
         density: 0.2, g: 0.63, intensity: 3, steps: 48,
         heightY: 33.2, falloff: 0.195, maxDist: 70
       },
-      tone: [0.98, 1.0, 0.99],
+      tone: [0.99, 1.0, 0.99],
       /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
       post: false,
-      swayAmp: 0.7,
+      swayAmp: 0.5,
       /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
        * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
       sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
