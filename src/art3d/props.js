@@ -10,6 +10,11 @@
 const A3DProps = (() => {
   const M = A3D.M, G = A3D.Builder.prototype;
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
+  /* leafBlade 的长轴是**局部 +X**（贴图 v=0 在 x=0 那头）。
+   * 所以「让叶子立起来」= 绕 Z 转 90°，再减去一点点倾角。
+   * 以前草叶只给了一个很小的 rz，叶子其实是横躺在地上扫来扫去的——
+   * 近看一片歪、远看一地倒，还会横着穿进坡里。 */
+  const UP = Math.PI / 2;
   /** 恒等 3×3：草叶的「世界向上」法线自己算好，_v 里不要再转（见 leafBlade） */
   const IDENT_NM = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
@@ -383,7 +388,7 @@ const A3DProps = (() => {
     for (let i = 0; i < n; i++) {
       const a = r() * TAU, rr = r() * (spread || 0.3);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, (r() - 0.5) * 0.5));
+        M.trs(0, 0, 0, 0, 0, UP - (r() - 0.5) * 0.5));
       leafBlade(b, mm, h * (0.5 + r() * 0.8), 0.012 + r() * 0.01, col);
     }
   }
@@ -412,7 +417,7 @@ const A3DProps = (() => {
       // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
       const tone = 0.74 + r() * 0.5;
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
-        M.trs(0, 0, 0, 0, 0, lean));
+        M.trs(0, 0, 0, 0, 0, UP - lean));
       leafBlade(b, mm, len, wid,
         [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
         // 叶身基本不弯（0.04~0.12 只够叶尖翘一点点），摆动全靠风
@@ -425,7 +430,7 @@ const A3DProps = (() => {
       const rr = (0.3 + r() * 0.6) * spread;
       const len = h * (0.42 + r() * 0.24);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
-        M.trs(0, 0, 0, 0, 0, 0.08 + r() * 0.12));
+        M.trs(0, 0, 0, 0, 0, UP - (0.1 + r() * 0.14)));
       const tone = 0.68 + r() * 0.32;
       leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
         [base[0] * tone, base[1] * tone, base[2] * tone], 0.06 + r() * 0.1, 2, true);
@@ -438,12 +443,13 @@ const A3DProps = (() => {
     const r = rng(op.seed || 17);
     const s = op.scale || 1;
     const h = (op.h || 0.3) * s;
-    const lean = (r() - 0.5) * 0.06;
+    const lean = (r() - 0.5) * 0.03;
     const col = op.col || [0.92, 0.72, 1.0];
-    // 茎：一根染绿的细叶，根部到花头，正好借草叶的 sway
-    leafBlade(bStem, m, h, 0.0055 * s, [0.46, 0.82, 0.34], 0.3, 2, true);
-    // 花冠：两片交叉的方片，稍微低头；两片左右分开一点，侧面看也有厚度
-    const head = M.mul(m, M.trs(lean, h * 0.9, 0, 0, r() * TAU, 0.5 + r() * 0.35));
+    // 茎：一根竖直的细叶，根部到花头，正好借草叶的 sway
+    leafBlade(bStem, M.mul(m, M.trs(0, 0, 0, 0, 0, UP - Math.abs(lean) * 2)),
+      h, 0.0055 * s, [0.46, 0.82, 0.34], 0.06, 2, true);
+    // 花冠：坐在茎顶（别再放到 X 轴上去，以前就是横躺在地上的）
+    const head = M.mul(m, M.trs(lean * 6, h * 0.94, 0, 0, r() * TAU, 0.3 + r() * 0.3));
     const sz = 0.075 * s * (0.82 + r() * 0.45);
     for (let k = 0; k < 2; k++) {
       const mm = M.mul(head, M.trs((k ? 1 : -1) * sz * 0.12, 0, 0, 0, k * Math.PI * 0.5, 0));

@@ -2205,30 +2205,30 @@ const A3DWorld = (() => {
          不靠「把格点排得更密」而是「让每丛自己铺开」——格距放宽到 0.26，
          每丛 13~19 根、散开 0.17~0.31m，相邻两丛的叶子互相压着，
          近看才是一整片草，而不是一根根竖在地上的钉子。 */
-      for (let gx = -14.2; gx <= 14.2; gx += 0.22) {
-        for (let gz = 19.2; gz <= 26.6; gz += 0.22) {
+      for (let gx = -14.2; gx <= 14.2; gx += 0.18) {
+        for (let gz = 19.2; gz <= 26.6; gz += 0.18) {
           const lx = gx + (gr() - 0.5) * 0.24, lz = gz + (gr() - 0.5) * 0.24;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.05) continue;
-          tuft(lx, lz, 0.24 + gr() * 0.17, 15 + Math.floor(gr() * 7), 0.10 + gr() * 0.08);
+          tuft(lx, lz, 0.17 + gr() * 0.12, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
         }
       }
       // 花境到台阶之间：中景，稍稀
-      for (let gx = -13.6; gx <= 13.6; gx += 0.30) {
-        for (let gz = 14.8; gz < 19.2; gz += 0.30) {
+      for (let gx = -13.6; gx <= 13.6; gx += 0.26) {
+        for (let gz = 14.8; gz < 19.2; gz += 0.26) {
           const lx = gx + (gr() - 0.5) * 0.32, lz = gz + (gr() - 0.5) * 0.32;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.07) continue;
-          tuft(lx, lz, 0.21 + gr() * 0.14, 12 + Math.floor(gr() * 6), 0.09 + gr() * 0.07);
+          tuft(lx, lz, 0.15 + gr() * 0.10, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
         }
       }
       // 院子外围：稀一点，主要是把「一整片绿」打散
-      for (let gx = -31; gx <= 31; gx += 0.82) {
-        for (let gz = -16.5; gz <= 29.5; gz += 0.82) {
+      for (let gx = -31; gx <= 31; gx += 0.72) {
+        for (let gz = -16.5; gz <= 29.5; gz += 0.72) {
           const lx = gx + (gr() - 0.5) * 0.9, lz = gz + (gr() - 0.5) * 0.9;
           if (gr() < 0.22) continue;
           if (!okSpot(lx, lz, 0.08)) continue;
-          tuft(lx, lz, 0.20 + gr() * 0.13);
+          tuft(lx, lz, 0.14 + gr() * 0.10);
         }
       }
       // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
@@ -2237,7 +2237,7 @@ const A3DWorld = (() => {
         const lx = -14.0 + tall() * 28.0;
         const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
         if (!okSpot(lx, lz, 0.02)) continue;
-        tuft(lx, lz, 0.38 + tall() * 0.18, 8 + Math.floor(tall() * 4), 0.05 + tall() * 0.05);
+        tuft(lx, lz, 0.26 + tall() * 0.14, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
       }
 
       /* ---- 草里的紫花：成团撒，不铺满 ----
@@ -2256,8 +2256,8 @@ const A3DWorld = (() => {
         const gy = gyAt(lx, lz);
         const pal = BELL[Math.floor(fr() * BELL.length)];
         P.bellFlower(bellP, grassP, mul(m4(lx, gy + 0.01, lz, 0, fr() * TAU, 0)), {
-          scale: 1.0 + fr() * 0.55,
-          h: 0.22 + fr() * 0.14,
+          scale: 0.95 + fr() * 0.5,
+          h: 0.17 + fr() * 0.11,
           col: [pal[0] * (0.9 + fr() * 0.2), pal[1] * (0.9 + fr() * 0.2), pal[2]]
         });
         void k;
