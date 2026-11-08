@@ -284,10 +284,10 @@ const AUDIO = (() => {
         ambNoise(0.012, 500, 0.9);
         ambBirdTick();
         break;
-      case "claude_door":
+      case "world_church":
       case "claude_door_403":
         ambNoise(0.010, 900, 0.6);
-        if (ambWant === "claude_door") ambBirdTick();
+        if (ambWant === "world_church") ambBirdTick();
         break;
       case "claude_lib":
         ambNoise(0.008, 600, 0.7);
@@ -329,10 +329,6 @@ const AUDIO = (() => {
         ambNoise(0.022, 1100, 0.5);
         break;
       }
-      case "sea":
-        ambNoise(0.020, 240, 0.6);
-        ambBubbleTick();
-        break;
       case "chat":
       case "news":
       case "ui_backdrop":

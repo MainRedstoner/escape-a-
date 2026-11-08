@@ -302,6 +302,51 @@ const A3DTex = (() => {
       });
     },
 
+    /** 草坪：能平铺的绿底 + 深浅斑 + 细草丝。
+     *  以前草坪借的是 dirt 贴图刷绿色，土底（#2e2a24）太黑，太阳底下也像阴影。 */
+    turf() {
+      return get("turf", 256, 256, (x, w, h) => {
+        const r = rnd(173);
+        // 偏橄榄的绿：饱和度压一点，太阳底下才不会亮成一块荧光绿地毯。
+        // 底色也别太亮——主标题是夜景，草坪一亮就整块跳出来。
+        x.fillStyle = "#3a5c30"; x.fillRect(0, 0, w, h);
+        // 大块的深浅斑：跨边界按 3×3 复制，平铺后不会切出一格一格的边
+        for (let i = 0; i < 90; i++) {
+          const px = r() * w, py = r() * h, rr = 6 + r() * 26;
+          const t = 0.68 + r() * 0.62;
+          const cr = Math.round(50 * t), cg = Math.round(88 * t), cb = Math.round(40 * t);
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx = px + dx * w, cy = py + dy * h;
+              if (cx < -rr || cx > w + rr || cy < -rr || cy > h + rr) continue;
+              const g = x.createRadialGradient(cx, cy, 0, cx, cy, rr);
+              g.addColorStop(0, "rgba(" + cr + "," + cg + "," + cb + ",.45)");
+              g.addColorStop(1, "rgba(" + cr + "," + cg + "," + cb + ",0)");
+              x.fillStyle = g;
+              x.beginPath(); x.arc(cx, cy, rr, 0, 7); x.fill();
+            }
+          }
+        }
+        // 细草丝
+        for (let i = 0; i < 300; i++) {
+          const px = r() * w, py = r() * h;
+          const len = 2 + r() * 6, ang = -Math.PI / 2 + (r() - 0.5) * 1.0;
+          x.strokeStyle = "rgba(" + Math.round(60 + r() * 70) + "," +
+            Math.round(120 + r() * 70) + "," + Math.round(45 + r() * 40) + ",.45)";
+          x.lineWidth = 0.8 + r() * 0.9;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx = px + dx * w, cy = py + dy * h;
+              if (cx < -8 || cx > w + 8 || cy < -8 || cy > h + 8) continue;
+              x.beginPath(); x.moveTo(cx, cy);
+              x.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len); x.stroke();
+            }
+          }
+        }
+        grain(x, w, h, { freq: 18, oct: 3, strength: 0.16, seed: 91 });
+      });
+    },
+
     metal() {
       return get("metal", 256, 256, (x, w, h) => {
         x.fillStyle = "#4a4d52"; x.fillRect(0, 0, w, h);
@@ -593,6 +638,35 @@ const A3DTex = (() => {
         x.fill();
         x.strokeStyle = "rgba(120,60,10,.25)"; x.lineWidth = 1.5;
         x.beginPath(); x.moveTo(w / 2, h * 0.1); x.lineTo(w / 2, h * 0.9); x.stroke();
+      });
+    },
+    /** 一片草叶：细长、根部宽、顶端收成尖，带一点偏黄的日照渐变。
+     *  leafBlade 的 uv 是「v=0 叶根 / v=1 叶尖」，所以尖要画在贴图顶部。 */
+    blade() {
+      return get("blade", 64, 128, (x, w, h) => {
+        x.clearRect(0, 0, w, h);
+        const g = x.createLinearGradient(0, h, 0, 0);
+        g.addColorStop(0, "#2e5c24"); g.addColorStop(0.5, "#4f8a34"); g.addColorStop(1, "#8fc35a");
+        x.fillStyle = g;
+        x.beginPath();
+        x.moveTo(w * 0.5, h);
+        x.bezierCurveTo(w * 0.10, h * 0.78, w * 0.12, h * 0.34, w * 0.5, 0);
+        x.bezierCurveTo(w * 0.88, h * 0.34, w * 0.90, h * 0.78, w * 0.5, h);
+        x.fill();
+        // 中脉：一根略亮的细线，近看不是一块纯色
+        x.strokeStyle = "rgba(210,245,170,.22)"; x.lineWidth = 1.6;
+        x.beginPath(); x.moveTo(w * 0.5, h * 0.98); x.lineTo(w * 0.5, h * 0.05); x.stroke();
+        // 叶尖压一点黄，阳光下更透
+        const t = x.createLinearGradient(0, 0, 0, h * 0.26);
+        t.addColorStop(0, "rgba(228,238,150,.34)");
+        t.addColorStop(1, "rgba(228,238,150,0)");
+        x.fillStyle = t;
+        x.beginPath();
+        x.moveTo(w * 0.5, h * 0.06);
+        x.bezierCurveTo(w * 0.40, h * 0.14, w * 0.40, h * 0.22, w * 0.46, h * 0.26);
+        x.lineTo(w * 0.54, h * 0.26);
+        x.bezierCurveTo(w * 0.60, h * 0.22, w * 0.60, h * 0.14, w * 0.5, h * 0.06);
+        x.fill();
       });
     },
     glass() {

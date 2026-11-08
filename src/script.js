@@ -299,7 +299,7 @@ Object.assign(SCRIPT.scenes, {
 Object.assign(SCRIPT.scenes, {
 
   p_morning: [
-    BGM("study"), BG("claude_door", "fade"),
+    BGM("study"), BG("world_church", "fade"),
     CHECKPOINT(),
     HINT("h_knock"),
     N("第四十二天的早上。"),

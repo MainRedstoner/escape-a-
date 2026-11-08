@@ -1477,7 +1477,7 @@ const A3DWorld = (() => {
      * 以前是一格一格的平板块，坡地上相邻块对不齐，会漏出下面的深色地形，
      * 远看是一道道黑带。现在四角各自取地面高度，块与块共享顶点，没有缝。 ---- */
     const FZ0 = 74.6, FZ1 = 116.0, FX0 = -8.0, FX1 = 44.0;   // 铁栅栏围起来的矩形
-    const lawn = st.pen("w.churchLawn", T.dirt(), { tint: [0.66, 1.0, 0.46], spec: 0.02, rim: 0.08 });
+    const lawn = st.pen("w.churchLawn", T.turf(), { tint: [0.88, 0.96, 0.82], spec: 0.02, rim: 0.08 });
     {
       const LC = 1.6;                 // 草格边长
       const gx0 = -29, gz0 = -17;
@@ -1773,7 +1773,7 @@ const A3DWorld = (() => {
       }
     }
 
-    /* 草坪上的野花和草丛：别让院子是一整片纯色地毯 */
+    /* 草坪上的野花：别让院子是一整片纯色地毯（草由后面的草丛块负责） */
     {
       const wr = rng(151);
       for (let i = 0; i < 130; i++) {
@@ -1783,8 +1783,6 @@ const A3DWorld = (() => {
         if (Math.hypot(lx + 3.55, lz - 17.2) < 0.7) continue;    // 黄杨锥
         if (Math.hypot(lx - 3.35, lz - 17.3) < 0.7) continue;    // 黄杨球
         const gy = gyAt(lx, lz);
-        P.tallLeaves(leafBed, mul(m4(lx, gy + 0.02, lz)), 4 + Math.floor(wr() * 3),
-          0.1 + wr() * 0.1, [0.6 + wr() * 0.2, 0.9 + wr() * 0.08, 0.5], Math.floor(wr() * 99));
         if (i % 4 === 0) {
           const warm = i % 8 === 0;
           P.chrysanthemum(warm ? petalB : paleB, stemB,
@@ -2157,6 +2155,87 @@ const A3DWorld = (() => {
       gateIron.box.call(gateIron, m4(mx, gy + 0.88, mz + 0.96), 1.0, 1.45, 0.06, [1, 1, 1], 0.8);
       for (let k = 0; k < 4; k++) {
         gateIron.box.call(gateIron, m4(mx - 0.36 + k * 0.24, gy + 0.88, mz + 1.0), 0.04, 1.45, 0.03, [1, 1, 1], 0.8);
+      }
+    }
+
+    /* ---- 前院草坪的草：一整张绿纸太假了 ----
+     * 用带种子的抖动网格铺草丛：门口到花境这一圈密，院子外围稀；
+     * 步道 / 花境 / 台阶 / 长椅 / 石灯 / 树脚 / 墓碑周围都让开。
+     * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
+    {
+      const grassP = st.pen("w.churchGrass", T.blade(),
+        { cutout: true, tint: [1, 1, 1], spec: 0.04, rim: 0.12, noShadow: true });
+      const gr = rng(211);
+      const nearTomb = (wx, wz) => {
+        for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
+        return false;
+      };
+      /* pad 只放宽「软」障碍（步道 / 花境），硬摆件的距离是写死的 */
+      const okSpot = (lx, lz, pad) => {
+        if (nearPath(lx, lz, 0.26 + pad)) return false;
+        if (inBed(lx, lz, 0.98 + pad * 0.25)) return false;
+        if (Math.abs(lx) < 9.9 && Math.abs(lz) < 15.0) return false;              // 台基
+        if (Math.abs(lx) < stepW / 2 + 0.3 && lz > PLL - 0.1 && lz < apronZ1 + 0.15) return false;
+        if (Math.abs(lx) < 2.9 && lz >= apronZ0 - 0.2 && lz < apronZ1 + 0.2) return false;
+        if (Math.hypot(lx - 8.5, lz - 21.4) < 1.15) return false;                 // 长椅
+        if (Math.hypot(lx - 8.7, lz - 24.7) < 1.75) return false;                 // 圆冠树
+        if (Math.hypot(lx + 3.55, lz - 17.2) < 0.62) return false;                // 黄杨锥
+        if (Math.hypot(lx - 3.35, lz - 17.3) < 0.62) return false;                // 黄杨球
+        if (Math.hypot(lx - 10.2, lz - 21.7) < 0.55) return false;                // 院灯
+        if (Math.hypot(lx + 10.2, lz - 21.7) < 0.55) return false;
+        // 家族墓室（世界 (4.8, 97.4) → 局部 (−14.16, 5.34)）：整块房子周围别长草
+        if (Math.hypot(lx + 14.16, lz - 5.34) < 2.6) return false;
+        const w = M.xf(D, [lx, 0, lz]);
+        if (w[0] < FX0 + 0.85 || w[0] > FX1 - 0.85 || w[2] < FZ0 + 0.9 || w[2] > FZ1 - 0.9) return false;
+        if (nearTomb(w[0], w[2])) return false;
+        return true;
+      };
+      const tuft = (lx, lz, hh, n, spread) => {
+        const gy = gyAt(lx, lz);
+        P.grassTuft(grassP, mul(m4(lx, gy + 0.012, lz, 0, gr() * TAU, 0)), {
+          n: n || (5 + Math.floor(gr() * 4)),
+          h: hh,
+          spread: spread || (0.075 + gr() * 0.075),
+          wid: 0.0045 + gr() * 0.0035,
+          seed: 1000 + Math.floor(gr() * 9000),
+          col: [0.64 + gr() * 0.22, 0.9 + gr() * 0.18, 0.48 + gr() * 0.16]
+        });
+      };
+      /* 镜头附近的草坪：正门到院门这一段是画面下缘，密到近景能数出叶片。
+         每丛也多放几根，不然 0.26m 的格距看着还是一撮一撮的空地。 */
+      for (let gx = -14.2; gx <= 14.2; gx += 0.24) {
+        for (let gz = 19.2; gz <= 26.6; gz += 0.24) {
+          const lx = gx + (gr() - 0.5) * 0.22, lz = gz + (gr() - 0.5) * 0.22;
+          if (!okSpot(lx, lz, 0)) continue;
+          if (gr() < 0.08) continue;
+          tuft(lx, lz, 0.18 + gr() * 0.24, 8 + Math.floor(gr() * 6), 0.09 + gr() * 0.08);
+        }
+      }
+      // 花境到台阶之间：中景，稍稀
+      for (let gx = -13.6; gx <= 13.6; gx += 0.36) {
+        for (let gz = 14.8; gz < 19.2; gz += 0.36) {
+          const lx = gx + (gr() - 0.5) * 0.34, lz = gz + (gr() - 0.5) * 0.34;
+          if (!okSpot(lx, lz, 0)) continue;
+          if (gr() < 0.1) continue;
+          tuft(lx, lz, 0.16 + gr() * 0.2, 6 + Math.floor(gr() * 4));
+        }
+      }
+      // 院子外围：稀一点，主要是把「一整片绿」打散
+      for (let gx = -31; gx <= 31; gx += 1.3) {
+        for (let gz = -16.5; gz <= 29.5; gz += 1.3) {
+          const lx = gx + (gr() - 0.5) * 1.2, lz = gz + (gr() - 0.5) * 1.2;
+          if (gr() < 0.22) continue;
+          if (!okSpot(lx, lz, 0.08)) continue;
+          tuft(lx, lz, 0.18 + gr() * 0.22);
+        }
+      }
+      // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
+      const tall = rng(2337);
+      for (let i = 0; i < 200; i++) {
+        const lx = -14.0 + tall() * 28.0;
+        const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
+        if (!okSpot(lx, lz, 0.02)) continue;
+        tuft(lx, lz, 0.40 + tall() * 0.30, 5 + Math.floor(tall() * 4), 0.06 + tall() * 0.06);
       }
     }
 
@@ -3119,30 +3198,86 @@ const A3DWorld = (() => {
   }
 
   /* ============================================================
+   *  正门前空气里的浮尘
+   *
+   *  光柱本体交给 core.js 的体积光 pass（逐像素沿视线步进太阳阴影贴图），
+   *  这里只补一层真正会飘的尘埃点精灵：光柱扫过时它们自己会亮起来。
+   *  只挂在 world_church 这一个视角上（sceneFor 里加），别的视角不受影响。
+   * ============================================================ */
+  let CHURCH_AIR = null;
+  function churchAir() {
+    if (CHURCH_AIR) return CHURCH_AIR;
+    const B0 = churchBase();
+    const D = B0.D;
+    const r = rng(313);
+
+    /* 空气里的浮尘：会被同一束光点亮，慢慢飘。范围就是前院花境这一片 */
+    const pts = [];
+    for (let i = 0; i < 170; i++) {
+      const lx = -13.5 + r() * 27;
+      const lz = 14.6 + r() * 11.8;
+      const wp = M.xf(D, [lx, 0, lz]);
+      const gy = groundH(wp[0], wp[2]);
+      pts.push({
+        x: wp[0], y: gy + 0.12 + Math.pow(r(), 1.5) * 3.6, z: wp[2],
+        r: 1.0, g: 0.94, b: 0.8, a: 0.1 + r() * 0.22,
+        size: 0.02 + r() * 0.035, kind: 2,
+        speed: 0.02 + r() * 0.06, phase: r() * TAU, wob: 0.05 + r() * 0.16
+      });
+    }
+    const points = [{
+      mesh: A3D.pointMesh(pts), blend: "add",
+      yMin: B0.y0 - 0.4, yMax: B0.y0 + 5.4, fogNear: 9, fogFar: 46
+    }];
+
+    CHURCH_AIR = { points };
+    return CHURCH_AIR;
+  }
+
+  /* ============================================================
    *  视角
    * ============================================================ */
   const VIEWS = {
 
-    /* 视角 0：教堂正门前 —— claude_door 的实景（白天阴天） */
+    /* 视角 0：教堂正门前 —— claude_door 的实景（清晨，主人锁定的机位与光）
+     * 这一整套 cam / lights / volumetric / sunShadow 是主人在光影面板里调好的，
+     * 键位数值直接锁在这里；改之前先想清楚是不是又要重调一遍。 */
     world_church: {
-      cam: null,
+      cam: { eye: [25.3, 34.1, 115.7], target: [-17.6, 39.6, 25.5], fov: 44.8, far: 140 },
       sky: {
-        mode: 0, top: [0.36, 0.44, 0.5], bot: [0.66, 0.7, 0.66],
-        glow: [0.8, 0.78, 0.68], sun: [0.34, 0.8], horizon: 0.6
+        mode: 0, top: [0.3, 0.47, 0.66], bot: [0.7, 0.78, 0.86],
+        glow: [0.95, 0.86, 0.66], sun: [0.34, 0.8], horizon: 0.6
       },
       lights: {
-        sun: A3D.norm3([-0.42, 0.72, 0.55]), sunCol: [0.8, 0.79, 0.74],
-        skyCol: [0.4, 0.45, 0.5], groundCol: [0.17, 0.16, 0.14],
-        fog: { col: [0.22, 0.25, 0.26], near: 18, far: 130 }, fogAmt: 0.3,
+        /* 低角度的暖橙太阳（清晨的低角度太阳），方向由 sunBase 算出来 */
+        sun: A3D.norm3([-0.953, 0.087, 0.291]), sunCol: [0.817, 0.495, 0.228],
+        skyCol: [0.228, 0.268, 0.322], groundCol: [0.15, 0.14, 0.12],
+        sunWrap: 0.1,
+        fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
+        /* 这个场景不要任何点光源：清晨的光全交给太阳 + 天光 + 体积光。
+         * 显式空数组，不会再被 sceneFor 的 churchDoorLights() 自动补回来。 */
         points: []
       },
-      tone: [0.92, 0.96, 0.94],
-      swayAmp: 0.5
+      /* 漂移默认关：主人锁了机位，太阳也不动；面板里随时能打开继续扫 */
+      sunDrift: { on: false, az: 9, azPeriod: 84, el: 3, elPeriod: 61 },
+      /* 体积光：逐像素沿视线步进太阳阴影贴图。密度 / g / 高度衰减都能在预览页调 */
+      volumetric: {
+        density: 0.2, g: 0.63, intensity: 3, steps: 48,
+        heightY: 33.2, falloff: 0.195, maxDist: 70
+      },
+      tone: [0.98, 1.0, 0.99],
+      /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
+      post: false,
+      swayAmp: 0.7,
+      /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
+       * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
+      sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
     },
 
     /* 视角 0b：同一扇门被 403 封住（门上的大红字由 door403() 单独拼进来） */
     world_church_403: {
-      cam: null,
+      /* 机位跟 world_church 完全一致：同一扇门、同一个视角，只是光和气氛变红了 */
+      cam: { eye: [25.3, 34.1, 115.7], target: [-17.6, 39.6, 25.5], fov: 44.8, far: 140 },
       sky: {
         mode: 0, top: [0.1, 0.03, 0.03], bot: [0.16, 0.05, 0.04],
         glow: [0.5, 0.1, 0.08], sun: [0.35, 0.78], horizon: 0.62
@@ -3151,7 +3286,7 @@ const A3DWorld = (() => {
         sun: A3D.norm3([-0.35, 0.75, 0.55]), sunCol: [0.22, 0.12, 0.1],
         skyCol: [0.16, 0.08, 0.08], groundCol: [0.1, 0.1, 0.1],
         fog: { col: [0.09, 0.03, 0.03], near: 8, far: 60 }, fogAmt: 0.5,
-        points: []
+        points: churchDoorLights()
       },
       tone: [0.95, 0.66, 0.62],
       swayAmp: 0.5
@@ -3272,13 +3407,32 @@ const A3DWorld = (() => {
       }
     }
   };
+  /** 单位向量 ↔ 方位/高度角（度）。方位角 0° = 世界 +Z（正南），90° = +X（东） */
+  function sunAngles(v) {
+    v = v || [0, 1, 0];
+    return [Math.atan2(v[0], v[2]) * 180 / Math.PI,
+      Math.asin(clamp(v[1], -1, 1)) * 180 / Math.PI];
+  }
+  function sunVector(azDeg, elDeg) {
+    const a = azDeg * Math.PI / 180, e = elDeg * Math.PI / 180, c = Math.cos(e);
+    return [Math.sin(a) * c, Math.sin(e), Math.cos(a) * c];
+  }
+
   function sceneFor(id) {
     const v = VIEWS[id];
     const w = world();
     const e = id === "world_church_403" ? door403() : null;
+    /* 晴天正门才有体积光和浮尘，夜景 / 403 都不挂 */
+    const air = id === "world_church" ? churchAir() : null;
     const cam = v.cam || churchDoorCam();
     const lights = Object.assign({}, v.lights);
-    if (!lights.points || !lights.points.length) lights.points = churchDoorLights();
+    /* 只补「没写 points」的视角；显式写 points: [] 就是真的不要点光，别再自动长回来 */
+    if (lights.points === undefined) lights.points = churchDoorLights();
+    /* 太阳漂移：把基准方向和漂移参数拷一份，预览面板改的是这份 */
+    const sa = sunAngles(v.lights.sun);
+    const sunBase = { az: sa[0], el: sa[1] };
+    const sunDrift = v.sunDrift ? Object.assign({}, v.sunDrift) : null;
+    const volumetric = v.volumetric ? Object.assign({}, v.volumetric) : null;
     return {
       cam: { eye: cam.eye.slice(), target: cam.target.slice(), fov: cam.fov, far: cam.far },
       sky: v.sky,
@@ -3286,22 +3440,43 @@ const A3DWorld = (() => {
       batches: e ? w.batches.concat(e.batches) : w.batches,
       over: e ? w.over.concat(e.over) : w.over,
       dyn: w.dyn,
-      points: w.points,
+      points: air ? w.points.concat(air.points) : w.points,
       glows: e ? w.glows.concat(e.glows) : w.glows,
+      volumetric,
+      sunBase,
+      sunDrift,
       tone: v.tone,
+      /* 场景可以在视角里写 post:false 关掉 2D 后期（压色 + 暗角 + 颗粒）。
+       * core.js 的 postOf() 会读这个字段，art.js / 预览页据此跳过后期。 */
+      post: v.post,
       swayAmp: v.swayAmp,
       wind: [0.35, 0.12, 0.2],
-      /* 视角可以没有 update（固定机位），有才调 */
-      update(t, sc) { if (typeof v.update === "function") v.update(t, sc); }
+      /* 只有报名 sunShadow 的视角才建太阳阴影（core.js 的 buildSunShadow），
+       * 别的视角行为不变。 */
+      sunShadow: v.sunShadow,
+      /* 视角可以没有 update（固定机位），有才调。
+       * 太阳方向统一从 sunBase（+漂移）算出来，这样面板拖基准、画面自己扫，
+       * 两边不会互相覆盖；体积光每帧读 lights.sun，自然跟着走。 */
+      update(t, sc) {
+        if (sc.sunBase) {
+          const d = sc.sunDrift;
+          const on = !!(d && d.on !== false);
+          /* 用 sin 起头：t=0 就停在基准方向（测过最好看的那一档），
+           * 然后慢慢往两个极端漂，不会一进场就是全逆光。 */
+          const az = sc.sunBase.az + (on ? d.az * Math.sin(t * TAU / d.azPeriod) : 0);
+          const el = sc.sunBase.el + (on ? d.el * Math.cos(t * TAU / d.elPeriod) : 0);
+          sc.lights.sun = sunVector(az, clamp(el, 3, 88));
+        }
+        if (typeof v.update === "function") v.update(t, sc);
+      }
     };
   }
 
   /* ============================================================
    *  注册：新 id + 老 id 全部指向大世界
    * ============================================================ */
-  /* claude_door 迁到教堂门口：剧情里的门 = 大世界教堂的正门 */
+  /* 教堂正门只注册一个 id：world_church（剧情里的「Claude 家的门」就是它） */
   A3D.register("world_church", () => sceneFor("world_church"));
-  A3D.register("claude_door", () => sceneFor("world_church"));
   A3D.register("claude_door_403", () => sceneFor("world_church_403"));
   A3D.register("world_title", () => sceneFor("world_title"));
   A3D.register("world_github", () => sceneFor("world_github"));

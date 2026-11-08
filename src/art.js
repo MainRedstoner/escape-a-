@@ -452,6 +452,8 @@ const ART = (() => {
         if (band >= 3) A3D.setShadowQuality(0, 8);
         else if (band === 2) A3D.setShadowQuality(1024, 8);
         else A3D.setShadowQuality(512, 4);
+        // 体积光的步进次数跟着档位走：高 28 / 中 18 / 低 10
+        if (A3D.setVolumetricQuality) A3D.setVolumetricQuality(band >= 3 ? 28 : band === 2 ? 18 : 10);
       }
     }
     set3dHz(hz);
@@ -592,7 +594,7 @@ const ART = (() => {
     }
 
     /* --- 背景：素材图 → 3D 场景 → 占位卡，挨个试 --- */
-    const bgId = vis.bg || "sea";
+    const bgId = vis.bg || "world_title";
     const bgRec = imgOf("bg", bgId);
     let bg3d = false;
     if (bgRec) {

@@ -334,8 +334,8 @@ def main():
     UI_ONLY_BG = {"blank", "chat", "news"}
     # 程序化 3D 背景（src/art3d/worlds*.js 里注册的场景 id）。新增场景要同时登记到这里。
     PROCEDURAL_BG = {
-        "sea", "ds_room", "ds_room_night", "ds_room_dawn",
-        "claude_door", "claude_door_403", "claude_lib",
+        "ds_room", "ds_room_night", "ds_room_dawn",
+        "world_church", "claude_door_403", "claude_lib",
         "hf_camp", "github_street", "nvidia", "shit_mountain", "ui_backdrop",
         # 大世界（src/art3d/world.js）：一张地图四个视角，老 id 是它的别名
         "world_title", "world_github", "world_hf", "world_shit",
