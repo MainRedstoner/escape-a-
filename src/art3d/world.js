@@ -3254,12 +3254,9 @@ const A3DWorld = (() => {
         skyCol: [0.228, 0.268, 0.322], groundCol: [0.15, 0.14, 0.12],
         sunWrap: 0.1,
         fog: { col: [0.46, 0.5, 0.54], near: 26, far: 150 }, fogAmt: 0.24,
-        /* 门头两盏提灯压到 0（清晨用不上），只留门前那盏补光 */
-        points: [
-          { pos: [17.365, 35.805, 102.859], col: [1, 0.72, 0.4], range: 6.5, inten: 0 },
-          { pos: [22.407, 35.805, 102.097], col: [1, 0.72, 0.4], range: 6.5, inten: 0 },
-          { pos: [20.152, 34.485, 104.238], col: [0.66, 0.7, 0.72], range: 13, inten: 1 }
-        ]
+        /* 这个场景不要任何点光源：清晨的光全交给太阳 + 天光 + 体积光。
+         * 显式空数组，不会再被 sceneFor 的 churchDoorLights() 自动补回来。 */
+        points: []
       },
       /* 漂移默认关：主人锁了机位，太阳也不动；面板里随时能打开继续扫 */
       sunDrift: { on: false, az: 9, azPeriod: 84, el: 3, elPeriod: 61 },
@@ -3288,7 +3285,7 @@ const A3DWorld = (() => {
         sun: A3D.norm3([-0.35, 0.75, 0.55]), sunCol: [0.22, 0.12, 0.1],
         skyCol: [0.16, 0.08, 0.08], groundCol: [0.1, 0.1, 0.1],
         fog: { col: [0.09, 0.03, 0.03], near: 8, far: 60 }, fogAmt: 0.5,
-        points: []
+        points: churchDoorLights()
       },
       tone: [0.95, 0.66, 0.62],
       swayAmp: 0.5
@@ -3428,7 +3425,8 @@ const A3DWorld = (() => {
     const air = id === "world_church" ? churchAir() : null;
     const cam = v.cam || churchDoorCam();
     const lights = Object.assign({}, v.lights);
-    if (!lights.points || !lights.points.length) lights.points = churchDoorLights();
+    /* 只补「没写 points」的视角；显式写 points: [] 就是真的不要点光，别再自动长回来 */
+    if (lights.points === undefined) lights.points = churchDoorLights();
     /* 太阳漂移：把基准方向和漂移参数拷一份，预览面板改的是这份 */
     const sa = sunAngles(v.lights.sun);
     const sunBase = { az: sa[0], el: sa[1] };
