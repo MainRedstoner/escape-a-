@@ -1,8 +1,9 @@
 /* ============================================================
  * Escape A÷ · game/src/touch.js —— 小游戏触屏控件层
  *
- * 在 canvas 上叠一层 DOM 虚拟按键：左下十字键移动，右下动作键。
- * 按下 / 松开都汇进 U.Input（走 BUGFIX.key / keyUp），和键盘共用
+ * 在 canvas 上叠一层 DOM 虚拟控件：左下摇杆（八向、带死区）移动，
+ * 右下动作键。摇杆推过死区 = 按下方向键，推回死区 = 松开，
+ * 和触屏按键一样汇进 U.Input（走 BUGFIX.key / keyUp），与键盘共用
  * 同一张键位表 —— 键位被打乱事件打乱时触屏也跟着乱，体验一致。
  * 检测到触屏（或 ?touch=1 强开）才挂出来；不碰存档、不碰世界状态。
  * ============================================================ */
@@ -11,12 +12,6 @@
 window.GTOUCH = (() => {
 
   /* 按键表：code 必须是 U.Input.base 里已有的物理键名，不许发明新的 */
-  const DPAD = [
-    { code: "KeyW", label: "↑", cls: "up" },
-    { code: "KeyA", label: "←", cls: "left" },
-    { code: "KeyD", label: "→", cls: "right" },
-    { code: "KeyS", label: "↓", cls: "down" }
-  ];
   const ACTS = [
     { code: "KeyH", label: "修", title: "修掉挨着的甲虫（H）" },
     { code: "KeyK", label: "测", title: "给挨着的甲虫盖测试（K）" },
@@ -30,6 +25,11 @@ window.GTOUCH = (() => {
     { code: "KeyB", label: "箱", title: "判定箱显隐（调试）" },
     { code: "Escape", label: "菜", title: "菜单（Esc）" }
   ];
+
+  /* 摇杆：八向扇区。atan2 按 45° 一档取整，推过死区才认方向，
+   * 俯视的斜走和横版的跑 / 跳 / 下穿刚好各占一个扇区。 */
+  const JOY_CODES = ["KeyD", "KeyS", "KeyA", "KeyW"];   // 四个方向对应的假物理码
+  const JOY_DEAD = 0.3;      // 死区（占可拉半径的比例），防手心搭上去就乱走
 
   let inited = false;
 
@@ -56,12 +56,71 @@ window.GTOUCH = (() => {
     return b;
   }
 
+  function makeJoy() {
+    const base = document.createElement("div");
+    base.className = "gf-tjoy";
+    const knob = document.createElement("div");
+    knob.className = "gf-tknob";
+    base.appendChild(knob);
+    const on = { KeyD: false, KeyS: false, KeyA: false, KeyW: false };
+    let joyId = null;
+
+    /* dir: -1 = 死区；0..7 = 从右起每 45° 一档，顺时针（屏幕 y 向下）。
+     * 每个方向键覆盖自己两侧的斜扇区：↗ = KeyD + KeyW，以此类推。 */
+    function apply(dir) {
+      const want = {
+        KeyD: dir === 7 || dir === 0 || dir === 1,
+        KeyS: dir === 1 || dir === 2 || dir === 3,
+        KeyA: dir === 3 || dir === 4 || dir === 5,
+        KeyW: dir === 5 || dir === 6 || dir === 7
+      };
+      for (const code of JOY_CODES) {
+        if (want[code] === on[code]) continue;
+        on[code] = want[code];
+        if (!window.BUGFIX) continue;
+        if (want[code]) window.BUGFIX.key(code);
+        else window.BUGFIX.keyUp(code);
+      }
+    }
+
+    function move(e) {
+      const r = base.getBoundingClientRect();
+      const R = r.width / 2;
+      const dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+      const len = Math.hypot(dx, dy) || 1;
+      const reach = R * 0.62;                  // 杆头最多拉到 62%，留点视觉余量
+      knob.style.transform = "translate(" + (dx / len * reach).toFixed(1) + "px," + (dy / len * reach).toFixed(1) + "px)";
+      if (len < reach * JOY_DEAD) { apply(-1); return; }
+      const step = Math.PI / 4;
+      apply(((Math.round(Math.atan2(dy, dx) / step) % 8) + 8) % 8);
+    }
+    function end(e) {
+      if (e.pointerId !== joyId) return;
+      joyId = null;
+      base.classList.remove("gf-hold");
+      knob.style.transform = "translate(0,0)";
+      apply(-1);
+    }
+    base.addEventListener("pointerdown", e => {
+      if (joyId != null) return;
+      joyId = e.pointerId;
+      try { base.setPointerCapture(e.pointerId); } catch (err) {}
+      base.classList.add("gf-hold");
+      e.preventDefault();
+      move(e);
+    });
+    base.addEventListener("pointermove", e => { if (e.pointerId === joyId) move(e); });
+    base.addEventListener("pointerup", end);
+    base.addEventListener("pointercancel", end);
+    base.addEventListener("lostpointercapture", end);
+    base.addEventListener("contextmenu", e => e.preventDefault());
+    return base;
+  }
+
   function build() {
     const host = document.createElement("div");
     host.id = "gf-touch";
-    const pad = document.createElement("div");
-    pad.className = "gf-tpad";
-    for (const d of DPAD) pad.appendChild(makeBtn(d));
+    host.appendChild(makeJoy());
     const side = document.createElement("div");
     side.className = "gf-tacts";
     const mini = document.createElement("div");
@@ -72,7 +131,6 @@ window.GTOUCH = (() => {
     for (const a of ACTS) grid.appendChild(makeBtn(a));
     side.appendChild(mini);
     side.appendChild(grid);
-    host.appendChild(pad);
     host.appendChild(side);
     return host;
   }

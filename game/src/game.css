@@ -247,26 +247,31 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 #gf-app.gf-ui-open #gf-touch { display: none; }   /* 弹窗开着时收起按键 */
-.gf-tpad, .gf-tacts {
+.gf-tjoy {
   position: absolute;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: 104px; height: 104px; border-radius: 50%;
+  border: 1px solid rgba(124,243,176,.4);
+  background: rgba(10,16,13,.5);
+  pointer-events: auto; touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.gf-tjoy.gf-hold { border-color: #7cf3b0; background: rgba(28,58,43,.55); }
+.gf-tknob {
+  position: absolute; left: 50%; top: 50%;
+  width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: rgba(124,243,176,.2);
+  border: 1px solid rgba(124,243,176,.55);
   pointer-events: none;
 }
-.gf-tpad {
-  left: calc(10px + env(safe-area-inset-left, 0px));
-  display: grid;
-  grid-template-columns: repeat(3, 52px);
-  grid-template-rows: repeat(3, 52px);
-  gap: 5px;
-}
-/* 十字排布：上（2,1）左（1,2）右（3,2）下（2,3），中格留空 */
-.gf-tpad .gf-up    { grid-area: 1 / 2; }
-.gf-tpad .gf-left  { grid-area: 2 / 1; }
-.gf-tpad .gf-right { grid-area: 2 / 3; }
-.gf-tpad .gf-down  { grid-area: 3 / 2; }
 .gf-tacts {
+  position: absolute;
   right: calc(10px + env(safe-area-inset-right, 0px));
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  pointer-events: none;
 }
 .gf-tmini { display: flex; gap: 5px; }
 .gf-tgrid {
