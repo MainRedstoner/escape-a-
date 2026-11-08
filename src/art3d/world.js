@@ -3305,7 +3305,7 @@ const A3DWorld = (() => {
       tone: [0.99, 1.0, 0.99],
       /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
       post: false,
-      swayAmp: 0.25,
+      swayAmp: 0.55,
       /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
        * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
       sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
