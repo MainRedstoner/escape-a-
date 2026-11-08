@@ -1802,11 +1802,14 @@ const A3DWorld = (() => {
 
     /* 爬山虎：单片 quad 的叶子（leafFlat）整片贴墙。
      * 以前用 leafBlade 的分段面片，近景会裂出横缝（历史 v82/v83 修过一次）。 */
-    const ivy = st.pen("w.churchIvy", T.leaf(), { cutout: true, tint: [0.4, 0.62, 0.38], sway: 0.5, rim: 0.15 });
+    /* 爬山虎整片贴在墙面上，离墙只有十几厘米：风一大（0.16×swayAmp）
+     * 就会把叶子推进墙里。所以它的 sway 只留 0.1（摆动不到 1cm），
+     * 再往外垫 5cm 余量，任何风向都不会穿进石头。 */
+    const ivy = st.pen("w.churchIvy", T.leaf(), { cutout: true, tint: [0.4, 0.62, 0.38], sway: 0.1, rim: 0.15 });
     const vine = st.pen("w.churchVine", null, { tint: [0.2, 0.28, 0.16] });
     const ivyPatch = (cx, cy, w, h, seed, zoff) => {
       const rr = rng(seed);
-      const zz = dz + (zoff === undefined ? 0.1 : zoff);
+      const zz = dz + (zoff === undefined ? 0.22 : zoff);
       for (let b = 0; b < 4; b++) {
         const bx = cx + (rr() - 0.5) * w * 0.7;
         const pts = [];
@@ -1832,7 +1835,7 @@ const A3DWorld = (() => {
         P.quad4(ivy, D, p0, p1, p2, p3, [0.8 + rr() * 0.4, 1, 0.72], [0, 0, 1, 1], 0.4);
       }
     };
-    ivyPatch(-6.2, PT + 0.2, 1.2, 2.5, 91, 0.44);
+    ivyPatch(-6.2, PT + 0.2, 1.2, 2.5, 91, 0.51);
     ivyPatch(6.1, PT + 0.2, 2.4, 2.9, 97);
 
     /* ---- 正立面的壁龛：石框 + 深色内壁 + 一尊石像（守门人） ---- */
