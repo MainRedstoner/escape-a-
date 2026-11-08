@@ -2210,7 +2210,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.24, lz = gz + (gr() - 0.5) * 0.24;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.05) continue;
-          tuft(lx, lz, 0.11 + gr() * 0.07, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
+          tuft(lx, lz, 0.15 + gr() * 0.09, 16 + Math.floor(gr() * 7), 0.12 + gr() * 0.08);
         }
       }
       // 花境到台阶之间：中景，稍稀
@@ -2219,7 +2219,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.32, lz = gz + (gr() - 0.5) * 0.32;
           if (!okSpot(lx, lz, 0)) continue;
           if (gr() < 0.07) continue;
-          tuft(lx, lz, 0.10 + gr() * 0.06, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
+          tuft(lx, lz, 0.13 + gr() * 0.08, 13 + Math.floor(gr() * 5), 0.10 + gr() * 0.07);
         }
       }
       // 院子外围：稀一点，主要是把「一整片绿」打散
@@ -2228,7 +2228,7 @@ const A3DWorld = (() => {
           const lx = gx + (gr() - 0.5) * 0.9, lz = gz + (gr() - 0.5) * 0.9;
           if (gr() < 0.22) continue;
           if (!okSpot(lx, lz, 0.08)) continue;
-          tuft(lx, lz, 0.09 + gr() * 0.06);
+          tuft(lx, lz, 0.12 + gr() * 0.07);
         }
       }
       // 墙根 / 栅栏边的高草：剪过的草坪边上总有一圈没剪到的
@@ -2237,7 +2237,7 @@ const A3DWorld = (() => {
         const lx = -14.0 + tall() * 28.0;
         const lz = tall() < 0.5 ? 25.0 + tall() * 2.0 : 14.9 + tall() * 1.6;
         if (!okSpot(lx, lz, 0.02)) continue;
-        tuft(lx, lz, 0.16 + tall() * 0.10, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
+        tuft(lx, lz, 0.20 + tall() * 0.12, 9 + Math.floor(tall() * 4), 0.06 + tall() * 0.05);
       }
 
       /* ---- 草里的紫花：成团撒，不铺满 ----
@@ -2257,7 +2257,7 @@ const A3DWorld = (() => {
         const pal = BELL[Math.floor(fr() * BELL.length)];
         P.bellFlower(bellP, grassP, mul(m4(lx, gy + 0.01, lz, 0, fr() * TAU, 0)), {
           scale: 0.8 + fr() * 0.4,
-          h: 0.13 + fr() * 0.08,
+          h: 0.16 + fr() * 0.09,
           col: [pal[0] * (0.9 + fr() * 0.2), pal[1] * (0.9 + fr() * 0.2), pal[2]]
         });
         void k;
