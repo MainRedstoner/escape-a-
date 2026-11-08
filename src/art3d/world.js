@@ -3305,7 +3305,7 @@ const A3DWorld = (() => {
       tone: [0.99, 1.0, 0.99],
       /* 和 ds_room 一样不走 2D 后期（压色 + 暗角会把逆光的立面再压黑一档） */
       post: false,
-      swayAmp: 0.5,
+      swayAmp: 0.25,
       /* 太阳平行光的阴影：正交框罩住教堂正门 + 前院（世界坐标）。
        * 4096 的深度图铺在 56m 见方上，一个 texel 约 1.4cm，栏杆与石阶缝都够清楚。 */
       sunShadow: { center: [18, 34, 104], extent: 28, size: 4096, bias: 0 }
@@ -3487,7 +3487,10 @@ const A3DWorld = (() => {
        * core.js 的 postOf() 会读这个字段，art.js / 预览页据此跳过后期。 */
       post: v.post,
       swayAmp: v.swayAmp,
-      wind: [0.35, 0.12, 0.2],
+      /* 风是「米」为单位的水平位移，直接加在顶点上：草只有十几厘米高，
+       * 以前给 0.35 等于把草尖推开 17cm（≈50°），整片草看着全往一边倒。
+       * 现在收到 4cm 量级——树和常春藤只是轻晃，草才是立着的。 */
+      wind: [0.015, 0.006, 0.012],
       /* 只有报名 sunShadow 的视角才建太阳阴影（core.js 的 buildSunShadow），
        * 别的视角行为不变。 */
       sunShadow: v.sunShadow,
