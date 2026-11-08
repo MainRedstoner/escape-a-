@@ -2164,7 +2164,7 @@ const A3DWorld = (() => {
      * 草丛的每根叶片根部 sway=0、叶尖 sway=1，风一吹整丛一起弯。 */
     {
       const grassP = st.pen("w.churchGrass", T.blade(),
-        { cutout: true, tint: [1.1, 1.12, 1.0], spec: 0.03, rim: 0.26, noShadow: true });
+        { cutout: true, tint: [1.1, 1.12, 1.0], spec: 0.02, rim: 0.12, noShadow: true });
       const gr = rng(211);
       const nearTomb = (wx, wz) => {
         for (const t of tombSpots) if (Math.hypot(t[0] - wx, t[1] - wz) < 0.6) return true;
@@ -2198,7 +2198,7 @@ const A3DWorld = (() => {
           spread: spread || (0.09 + gr() * 0.07),
           wid: 0.0140 + gr() * 0.0090,
           seed: 1000 + Math.floor(gr() * 9000),
-          col: [0.66 + gr() * 0.26, 0.92 + gr() * 0.16, 0.46 + gr() * 0.18]
+          col: [0.80 + gr() * 0.12, 0.96 + gr() * 0.08, 0.56 + gr() * 0.08]
         });
       };
       /* 镜头附近的草坪：正门到院门这一段是画面下缘，密到近景能数出叶片。

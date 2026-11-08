@@ -414,12 +414,14 @@ const A3DProps = (() => {
        * 之前给到 20° 再加叶身的弧度，看着就是一片趴在地上的草。 */
       const lean = Math.min(0.08, (0.012 + outward * 0.05) * (0.6 + r() * 0.5));
       const twist = r() * TAU;
-      // 颜色跨度拉大：有的叶尖发黄，有的整根偏深绿，草才不会像一块染色地毯
-      const tone = 0.74 + r() * 0.5;
+      /* 明暗只留一点点：以前 tone 跨 0.74~1.24（±25%），再叠上蓝通道的随机，
+       * 相邻两根草一根发黄一根发蓝，整片草地花得难受。现在 ±9% 左右，
+       * 差异交给叶尖渐变和风向，不再靠每根叶子换色。 */
+      const tone = 0.94 + r() * 0.12;
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, twist, 0)),
         M.trs(0, 0, 0, 0, 0, UP - lean));
       leafBlade(b, mm, len, wid,
-        [base[0] * tone, base[1] * tone, base[2] * tone * (0.94 + r() * 0.12)],
+        [base[0] * tone, base[1] * tone, base[2] * tone],
         // 叶身基本不弯（0.04~0.12 只够叶尖翘一点点），摆动全靠风
         0.02 + r() * 0.05, 3, true);
     }
@@ -431,7 +433,7 @@ const A3DProps = (() => {
       const len = h * (0.42 + r() * 0.24);
       const mm = M.mul(M.mul(m, M.trs(Math.cos(a) * rr, 0, Math.sin(a) * rr, 0, r() * TAU, 0)),
         M.trs(0, 0, 0, 0, 0, UP - (0.06 + r() * 0.08)));
-      const tone = 0.68 + r() * 0.32;
+      const tone = 0.88 + r() * 0.16;
       leafBlade(b, mm, len, (op.wid || 0.005) * 1.4,
         [base[0] * tone, base[1] * tone, base[2] * tone], 0.06 + r() * 0.1, 2, true);
     }

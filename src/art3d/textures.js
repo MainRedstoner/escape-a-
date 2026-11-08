@@ -648,9 +648,9 @@ const A3DTex = (() => {
       return get("blade", 64, 128, (x, w, h) => {
         x.clearRect(0, 0, w, h);
         const g = x.createLinearGradient(0, h, 0, 0);
-        g.addColorStop(0, "#3a6626"); g.addColorStop(0.34, "#578a38");
-        g.addColorStop(0.68, "#7dab4d"); g.addColorStop(0.92, "#a5ca72");
-        g.addColorStop(1, "#bcda8e");
+        g.addColorStop(0, "#41702e"); g.addColorStop(0.34, "#54853a");
+        g.addColorStop(0.68, "#6fa146"); g.addColorStop(0.92, "#8cba60");
+        g.addColorStop(1, "#9dc46a");
         x.fillStyle = g;
         x.beginPath();
         x.moveTo(w * 0.5, h);
