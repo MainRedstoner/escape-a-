@@ -147,6 +147,47 @@
   }
   #speedToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
+  /* ---------- 触屏控件 ---------- */
+  /* z 压在 grid(9) / lightPanel(8) / fail(12) 之下：网格和面板开着时控件被盖住、不挡点按 */
+  #touchCtl{position:absolute;inset:0;z-index:7;pointer-events:none;touch-action:none;}
+  body.clean #touchCtl{display:none;}
+  #joyBase{
+    position:absolute;left:14px;bottom:18px;width:104px;height:104px;border-radius:50%;
+    border:1px solid rgba(70,83,106,.8);background:rgba(8,11,16,.45);
+    pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #joyBase.on{border-color:var(--clay);background:rgba(217,119,87,.10);}
+  #joyKnob{
+    position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
+    border-radius:50%;background:rgba(201,210,222,.28);border:1px solid rgba(201,210,222,.5);
+    pointer-events:none;
+  }
+  #touchSide{position:absolute;right:14px;bottom:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+  #touchSide .tbtn{
+    width:58px;height:46px;border-radius:8px;border:1px solid rgba(70,83,106,.8);
+    background:rgba(8,11,16,.55);color:var(--text);font-family:inherit;font-size:15px;
+    pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;padding:0;
+  }
+  #touchSide .tbtn.on{border-color:var(--clay);background:rgba(217,119,87,.16);color:#F2F6FB;}
+  #touchSide .tSpdRow{display:flex;gap:8px;}
+  #touchSide .tSpdRow .tbtn{width:66px;height:36px;font-size:13px;}
+  /* 触屏开着时收掉键盘专属的操作提示 */
+  body.touch-on #status .keys{display:none;}
+
+  /* ---------- 窄屏（手机竖屏） ---------- */
+  @media (max-width: 760px){
+    header{flex-wrap:wrap;gap:8px;padding:8px 12px;}
+    header h1{font-size:16px;}
+    header .sub{display:none;}
+    #side{display:none;}            /* 场景切换走右上「全部场景」的网格 */
+    #view{padding:8px;}
+    #caption .d{display:none;}
+    #caption .t{font-size:15px;}
+    #status{gap:10px;padding:5px 10px;font-size:10.5px;overflow-x:auto;}
+  }
+
   /* 全部场景 */
   #grid{
     position:absolute;inset:0;z-index:9;display:none;overflow-y:auto;
@@ -335,6 +376,19 @@
           但预览页只能看到这块提示。<br><br>
           诊断信息：<code id="failWhy"></code>
         </p>
+      </div>
+    </div>
+
+    <!-- 触屏控件：检测到触屏才显示（?touch=1 可强开） -->
+    <div id="touchCtl" hidden>
+      <div id="joyBase"><div id="joyKnob"></div></div>
+      <div id="touchSide">
+        <button class="tbtn" id="tUp" title="上升（E）">升</button>
+        <button class="tbtn" id="tDown" title="下降（Q）">降</button>
+        <div class="tSpdRow">
+          <button class="tbtn" id="tSpdDn" title="减速（滚轮向后）">−速</button>
+          <button class="tbtn" id="tSpdUp" title="加速（滚轮向前）">＋速</button>
+        </div>
       </div>
     </div>
   </section>
@@ -1516,6 +1570,72 @@ function bindSimControls() {
   $("selSprites").addEventListener("change", e => { simSprites = +e.target.value | 0; });
 }
 boot();
+
+/* ---------------- 触屏控件 ----------------
+ * 检测到触屏（或 ?touch=1 强开，桌面调试用）才挂出来：
+ *   左下摇杆 = WASD（八方向，按死区判轴），右侧 升/降 = Q/E，±速 = 滚轮的替身。
+ * 拖拽看视角走的是现成的 pointer 事件（#stage 有 touch-action:none），不用另写。
+ * 只改 held，不碰相机状态本身；纯净化（body.clean）时跟着隐藏。 */
+(() => {
+  const natural = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
+  const forced = /(^|&)touch=1(&|$)/.test((window.location.search || "").replace(/^\?/, ""));
+  if (!natural && !forced) return;
+  const box = $("touchCtl");
+  if (!box) return;
+  box.hidden = false;
+  document.body.classList.add("touch-on");     // CSS 收掉键盘专属提示
+
+  const base = $("joyBase"), knob = $("joyKnob");
+  let joyId = null;
+  function joyMove(e) {
+    const r = base.getBoundingClientRect();
+    const R = r.width / 2;
+    const dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+    const len = Math.hypot(dx, dy) || 1;
+    const cl = Math.min(len, R * 0.62);        // 摇杆头最多拉到 62%，留点视觉余量
+    knob.style.transform = "translate(" + (dx / len * cl) + "px," + (dy / len * cl) + "px)";
+    const nx = dx / len, ny = dy / len;
+    held.w = ny < -0.32; held.s = ny > 0.32;   // 死区内不算，防手抖漂移
+    held.a = nx < -0.32; held.d = nx > 0.32;
+  }
+  function joyEnd(e) {
+    if (e.pointerId !== joyId) return;
+    joyId = null;
+    base.classList.remove("on");
+    knob.style.transform = "translate(0,0)";
+    held.w = held.a = held.s = held.d = false;
+  }
+  base.addEventListener("pointerdown", e => {
+    if (joyId != null) return;
+    joyId = e.pointerId;
+    try { base.setPointerCapture(e.pointerId); } catch (err) {}
+    base.classList.add("on");
+    e.preventDefault();
+    joyMove(e);
+  });
+  base.addEventListener("pointermove", e => { if (e.pointerId === joyId) joyMove(e); });
+  base.addEventListener("pointerup", joyEnd);
+  base.addEventListener("pointercancel", joyEnd);
+
+  /* 升 / 降是按住生效的，和按住 Q / E 一个手感 */
+  function holdBtn(el, key) {
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      held[key] = true;
+      el.classList.add("on");
+    });
+    const off = () => { held[key] = false; el.classList.remove("on"); };
+    el.addEventListener("pointerup", off);
+    el.addEventListener("pointercancel", off);
+    el.addEventListener("lostpointercapture", off);
+  }
+  holdBtn($("tUp"), "e");
+  holdBtn($("tDown"), "q");
+  /* 调速走 click：触屏上也能稳定触发，指数步进和滚轮一致 */
+  $("tSpdUp").addEventListener("click", () => setSpeed(moveSpeed * 1.4, true));
+  $("tSpdDn").addEventListener("click", () => setSpeed(moveSpeed / 1.4, true));
+})();
 </script>
 </body>
 </html>

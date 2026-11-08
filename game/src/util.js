@@ -90,6 +90,25 @@ window.U = (() => {
       for (const other of this.heldBy.values()) if (other === name) return;   // 还有别的物理键按着同一个动作
       this.held.delete(name);
     },
+    /** 触屏按钮按下：等价于敲一个键。code 传 base 表里的物理键名，
+     *  照样过 logical()（键位被打乱时触屏跟着一起乱，和键盘体验一致）；
+     *  账记在 "T:" 前缀下，不和真键盘的同名按键打架。 */
+    touchDown(code) {
+      const name = this.logical(code);
+      if (!name) return;
+      const tc = "T:" + code;
+      if (!this.heldBy.has(tc)) { this.heldBy.set(tc, name); this.held.add(name); }
+      this.pressed.add(name);
+    },
+    /** 触屏按钮松开：按按下那一刻的账清理，同 onKeyUp */
+    touchUp(code) {
+      const tc = "T:" + code;
+      const name = this.heldBy.get(tc);
+      if (name == null) return;
+      this.heldBy.delete(tc);
+      for (const other of this.heldBy.values()) if (other === name) return;
+      this.held.delete(name);
+    },
     /** 打乱键位：把方向键互相映射（保留 fix/log 等） */
     scramble(kind) {
       const rot = { cw: { left: "up", up: "right", right: "down", down: "left" },

@@ -70,12 +70,18 @@ window.UI = (() => {
       if (m === which) el[m].classList.add("gf-on");
       else el[m].classList.remove("gf-on");
     }
+    /* 弹窗开着就把触屏按键层收起来（gf-touch 类在 touch.js 里打） */
+    if (el.app) el.app.classList.toggle("gf-ui-open", !!which);
     hint(which === "m-title" ? null : "on");
   }
   function hint(state) {
     if (!el.hint) return;
-    if (state === null) { el.hint.textContent = "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
-    el.hint.textContent = state === "on" ? "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效 · B 判定箱" : "";
+    const touch = el.app && el.app.classList.contains("gf-touch");
+    if (state === null) { el.hint.textContent = touch ? "" : "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
+    el.hint.textContent = state === "on"
+      ? (touch ? "左下摇杆移动 · 右下 修 / 测 / log / commit · 小键：层 / 回 / 图 / 菜"
+               : "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效 · B 判定箱")
+      : "";
   }
 
   /* ---------------- HUD ---------------- */

@@ -64,6 +64,7 @@ window.BUGFIX = (() => {
     RENDER.debugBox(params.box != null && !/^(0|off|no)$/i.test(params.box));
 
     UI.init(ctl);
+    if (window.GTOUCH) GTOUCH.init();       // 触屏控件层（?touch=1 可强开，仅叠 DOM，不碰存档）
     const cv = document.getElementById("gf-canvas");
     if (cv) RENDER.attach(cv);
     window.addEventListener("keydown", keydown, false);
@@ -109,7 +110,11 @@ window.BUGFIX = (() => {
     GSFX.unlock();
     U.Input.onKeyDown(e);
     const name = U.Input.logical(e.code);
-    if (!name) return;
+    if (name) handleLogical(name);
+  }
+  /** 逻辑动作的统一分发：物理键盘和触屏按钮都汇到这里，按当前界面解释。
+   *  移动类（left/right/...）不在这消费 —— world.js 每 tick 读 held。 */
+  function handleLogical(name) {
     if (name === "box") { RENDER.debugBox(); return; }   // 调试：判定箱显隐，任何界面都能切
     if (state === "play") {
       const tut = WORLD.tutNow(W);
@@ -297,7 +302,10 @@ window.BUGFIX = (() => {
   }
 
   const api = { mount, boot, ctl, get state() { return state; }, get world() { return W; },
-                LEVELS, start: () => ctl.enterLevel() };
+                LEVELS, start: () => ctl.enterLevel(),
+                /** 触屏按钮入口：code 传 base 表的物理键名，等价于敲一下这个键 */
+                key(code) { GSFX.unlock(); U.Input.touchDown(code); const n = U.Input.logical(code); if (n) handleLogical(n); },
+                keyUp: code => U.Input.touchUp(code) };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, false);
   else boot();
