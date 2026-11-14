@@ -18,7 +18,6 @@ window.BUGFIX = (() => {
   let li = 0;                      // 准备进入 / 正在打的关卡下标
   let state = "boot";              // title / pick / brief / play / dead / win / end / codex / menu / revert
   let acc = 0, lastT = 0, rafId = 0;
-  let assist = false;
   let prevState = null;            // 图鉴/菜单是从哪个画面打开的，关掉时回哪儿
   const MODAL_OF = { title: "m-title", pick: "m-pick", brief: "m-brief",
                      dead: "m-death", win: "m-win", end: "m-end" };
@@ -31,6 +30,22 @@ window.BUGFIX = (() => {
     for (const p of s.split("&")) if (p) { const kv = p.split("="); q[kv[0]] = kv.length > 1 ? kv[1] : "1"; }
     return q;
   })();
+
+  /* ?perf=1：右上角显示实测帧率与 RENDER.draw 耗时（只读，不碰玩法） */
+  const perfOn = params.perf != null && !/^(0|off|no)$/i.test(params.perf);
+  let perfEl = null, perfN = 0, perfDraw = 0, perfT = 0;
+  function perfFrame(dt, drawMs) {
+    if (!perfOn) return;
+    if (!perfEl) perfEl = document.getElementById("gf-perf");
+    if (!perfEl) return;
+    perfEl.style.display = "";
+    perfN++; perfDraw += drawMs; perfT += dt;
+    if (perfT >= 0.5) {
+      const fps = Math.round(perfN / Math.max(perfT, 0.001));
+      perfEl.textContent = "fps " + fps + " · draw " + (perfDraw / perfN).toFixed(2) + "ms";
+      perfN = 0; perfDraw = 0; perfT = 0;
+    }
+  }
 
   /* ---------------- 启动 ---------------- */
   function boot() {
@@ -58,9 +73,6 @@ window.BUGFIX = (() => {
   }
   function init(app) {
     mounted = app;
-    const st = GSAVE.settings();
-    assist = !!st.assist || (params.assist != null && !/^(0|off|no)$/i.test(params.assist));
-    if (st.sound === false && GSFX.isOn()) GSFX.toggle();
     RENDER.debugBox(params.box != null && !/^(0|off|no)$/i.test(params.box));
 
     UI.init(ctl);
@@ -102,7 +114,13 @@ window.BUGFIX = (() => {
       UI.objective(W);
       UI.log(W);
     }
-    if (W) RENDER.draw(W, dt);
+    if (W) {
+      if (perfOn) {
+        const t0 = performance.now();
+        RENDER.draw(W, dt);
+        perfFrame(dt, performance.now() - t0);
+      } else RENDER.draw(W, dt);
+    } else RENDER.clear();          // 回标题时把上一关的最后一帧擦掉，别留在标题卡后面
   }
 
   /* ---------------- 输入 ---------------- */
@@ -120,12 +138,10 @@ window.BUGFIX = (() => {
       const tut = WORLD.tutNow(W);
       if (tut && tut.wait && name === "commit") { WORLD.tutAck(W); return; }   // 教学卡住的这一步优先于落 commit
       if (name === "fix" || name === "test" || name === "log" ||
-          name === "commit" || name === "layer") { WORLD.act(W, name); return; }
+          name === "commit") { WORLD.act(W, name); return; }
       if (name === "revert") return ctl.openRevert();
       if (name === "help") return ctl.openCodex();
       if (name === "menu") return ctl.openMenu();
-      if (name === "assist") return ctl.toggleAssist();
-      if (name === "volume") return ctl.toggleSound();
       return;
     }
     if (state === "dead") {
@@ -143,7 +159,6 @@ window.BUGFIX = (() => {
     if (state === "title") {
       if (name === "commit") ctl.firstLevel();
       else if (name === "help") ctl.openCodex();
-      else if (name === "layer") ctl.openPick();
       return;
     }
     if (state === "pick") { if (name === "menu" || name === "commit") ctl.openTitle(); return; }
@@ -159,7 +174,6 @@ window.BUGFIX = (() => {
       if (!cod[s.kind] && BUGS.get(s.kind) && out.indexOf("新甲虫：" + BUGS.get(s.kind).label) < 0) out.push("新甲虫：" + BUGS.get(s.kind).label);
     }
     if ((lv.mode || "top") === "side") out.push("新视角：横版 —— 有重力，A / D 跑、W / ↑ 跳，脚下没东西会掉");
-    if (lv.rowsB) out.push("新机制：两条分支 —— 按 I 切图层");
     if (lv.fog && lv.fog.r) out.push("新黑暗：光圈只有 " + lv.fog.r + " 格，记忆只亮 " + (lv.fog.mem || 60) + " 秒");
     const foes = [];
     if (lv.ci) foes.push("CI 红光（每两秒熄一次）");
@@ -174,13 +188,13 @@ window.BUGFIX = (() => {
     openTitle() {
       W = null; state = "title"; UI.logReset();
       UI.hint(null);
+      UI.objective(null);         // 目标栏 / HUD 都跟着清，标题页不该看到上一关的战绩
+      UI.hud(null);
       try { GSFX.stopHum(); } catch (e) {}
       const p = GSAVE.load(), t = p.total;
       UI.show("m-title");
       UI.progressLine(null, "已解锁 " + (Math.min(p.unlocked, LEVELS.length - 1) + 1) + " / " + LEVELS.length + " 关"
-        + " · 累计 commit " + t.commits + " · 死亡 " + t.deaths + " · 回档 " + t.reverts
-        + (assist ? " · 辅助模式开着" : ""));
-      UI.toggles(assist, GSFX.isOn());
+        + " · 累计 commit " + t.commits + " · 死亡 " + t.deaths + " · 回档 " + t.reverts);
     },
     openPick() {
       state = "pick";
@@ -192,7 +206,9 @@ window.BUGFIX = (() => {
     enterLevel() {
       const lv = LEVELS[li];
       const saved = GSAVE.commits(lv.id);
-      W = WORLD.create(li, { assist: assist });
+      W = WORLD.create(li);
+      /* 教学进度一推进就写进存档 —— 快照不带它（回档不退），但关掉浏览器不能丢 */
+      W.onTut = (step, flags) => GSAVE.setTut(lv.id, step, flags);
       W.onToast = (text, tone) => { UI.toast(text, tone); if (tone === "tut") RENDER.flash("white", 0.1); };
       W.onCommit = entry => { GSAVE.recordCommit(lv.id, entry); RENDER.flash("white", 0.25); RENDER.kick(4); };
       W.onDeath = why => {
@@ -205,11 +221,11 @@ window.BUGFIX = (() => {
         GSAVE.noteCodex(W.seenKinds);
         const hasNext = li + 1 < LEVELS.length;
         GSAVE.finishLevel(lv.id, { deaths: runDeaths, reverts: W.reverted, sec: playSec,
-                                   kills: W.kills, assist: assist, nextIndex: hasNext ? li + 1 : LEVELS.length });
+                                   kills: W.kills, nextIndex: hasNext ? li + 1 : LEVELS.length });
         RENDER.flash("white", 0.7);
         state = hasNext ? "win" : "end";
         try { GSFX.stopHum(); } catch (e) {}
-        if (hasNext) UI.win(lv, { sec: playSec, deaths: runDeaths, reverts: W.reverted, entropy: W.entropy, kills: W.kills, assist: assist }, hasNext);
+        if (hasNext) UI.win(lv, { sec: playSec, deaths: runDeaths, reverts: W.reverted, entropy: W.entropy, kills: W.kills }, hasNext);
         else UI.end(GSAVE.load(), GSAVE.load().total);
       };
       playSec = 0; runDeaths = 0; acc = 0;
@@ -223,9 +239,14 @@ window.BUGFIX = (() => {
         W.commitLog = W.commitLog.slice(0, 1).concat(saved);
         UI.toast("从上一个 commit " + saved[saved.length - 1].hash + " 继续", "good");
       }
+      /* 教学进度从存档接回来：快照故意不带 tutStep/tutFlags，所以要在恢复之后再写 */
+      const tut = GSAVE.levelState(lv.id).tut;
+      if (tut) {
+        W.tutStep = Math.min(tut.step | 0, W.tut.length);
+        W.tutFlags = Object.assign({}, tut.flags || {});
+      }
       state = "play";
       UI.show(null);
-      UI.toggles(assist, GSFX.isOn());
       try { GSFX.startHum(); } catch (e) {}
       RENDER.reset();
       UI.objective(W); UI.hud(W);
@@ -244,7 +265,7 @@ window.BUGFIX = (() => {
       if (!W) return;
       doRevert(W.commitLog.length - 1);
     },
-    openMenu() { if (state !== "play") return; prevState = state; state = "menu"; UI.toggles(assist, GSFX.isOn()); UI.show("m-menu"); },
+    openMenu() { if (state !== "play") return; prevState = state; state = "menu"; UI.show("m-menu"); },
     openRevert() { if (state !== "play") return; prevState = state; state = "revert"; UI.commitRows(document.getElementById("gf-revert-commits"), W, i => doRevert(i)); UI.show("m-revert"); },
     openCodex() {
       if (state === "codex") return ctl.closeOverlay();
@@ -257,19 +278,6 @@ window.BUGFIX = (() => {
       state = back;
       UI.show(MODAL_OF[back] || null);
       if (back === "play") { UI.hud(W); UI.objective(W); }
-    },
-    toggleAssist() {
-      assist = !assist;
-      GSAVE.setSettings({ assist: assist });
-      if (W) W.cfg.assist = assist;
-      UI.toast(assist ? "辅助模式：记忆不再过期，光也留得住" : "辅助模式关了 —— 黑暗开始吃你的上下文", assist ? "good" : "warn");
-      UI.toggles(assist, GSFX.isOn());
-    },
-    toggleSound() {
-      const on = GSFX.toggle();
-      GSAVE.setSettings({ sound: on });
-      UI.toggles(assist, on);
-      UI.toast(on ? "音效开" : "音效关", "warn");
     },
     wipeProgress() {
       GSAVE.clearAll();

@@ -10,12 +10,12 @@
 window.GSFX = (() => {
 
   let ctx = null, master = null, hum = null, humOn = false;
-  let enabled = true;
+  let broken = false;              // 浏览器没有 WebAudio：认一次，别每次重新试
 
   function ensure() {
-    if (ctx || !enabled) return ctx;
+    if (ctx || broken) return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) { enabled = false; return null; }
+    if (!AC) { broken = true; return null; }
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = 0.28;
@@ -24,7 +24,6 @@ window.GSFX = (() => {
   }
 
   function tone(freq, dur, opts) {
-    if (!enabled) return;
     const c = ensure();
     if (!c) return;
     const o = c.createOscillator(), g = c.createGain();
@@ -42,7 +41,6 @@ window.GSFX = (() => {
 
   let noiseBuf = null;
   function noise(dur, opts) {
-    if (!enabled) return;
     const c = ensure();
     if (!c) return;
     if (!noiseBuf) {
@@ -115,16 +113,9 @@ window.GSFX = (() => {
     if (fn) { try { fn(); } catch (e) { /* 音频坏了不该弄坏游戏 */ } }
   }
 
-  function toggle() {
-    enabled = !enabled;
-    if (!enabled && ctx) { try { ctx.suspend(); } catch (e) {} }
-    else if (enabled && ctx) { try { ctx.resume(); } catch (e) {} }
-    return enabled;
-  }
-  function isOn() { return enabled; }
   function unlock() { ensure(); if (ctx && ctx.state === "suspended") { try { ctx.resume(); } catch (e) {} } }
   function startHum() { if (!humOn) humOn_(48); setHum(0.3); }
   function stopHum() { if (hum && humOn) { try { hum.g.gain.value = 0; } catch (e) {} } }
 
-  return { play, unlock, toggle, isOn, startHum, stopHum, setHum };
+  return { play, unlock, startHum, stopHum, setHum };
 })();

@@ -142,50 +142,77 @@ window.WORLD = (() => {
     return TILES.lookOf(ch);
   }
 
-  /* ================= 照明 / 记忆 ================= */
-  /** 某格中心到玩家中心的距离（玩家是连续坐标，灯和探针仍按格中心） */
+  /* ================= 照明 / 记忆 =================
+   * 光照是一张「记忆图」：每格再细分 2×2 子格，每个子格一个 0..1 的值。
+   * 玩家光圈每 tick 按距离写入（中心 1、边缘 0），同一子格取历史最大值；
+   * 窗口 = cfg.mem 秒：超过窗口没再被照到的子格清零，地形回到黑色遮罩。
+   * 「原地不动也一直亮」「走过的路保留最高亮度」「一分钟前的光照被清掉」
+   * 都是这同一套逻辑自然推出来的，不另打补丁。 */
+  const LIGHT_S = 2;               // 每格 2×2 子格，光圈中心不会卡在格子中心
+  /** 某格中心到玩家中心的距离（玩家是连续坐标） */
   function cellDist(W, x, y) { return U.dist(x + 0.5, y + 0.5, W.player.x, W.player.y); }
-  function lightCircle(W, cx, cy, r, probeTicks) {
-    const rr = Math.ceil(r + 1);
-    const L = W.layer;
-    for (let y = Math.floor(cy - rr); y <= Math.ceil(cy + rr); y++) for (let x = Math.floor(cx - rr); x <= Math.ceil(cx + rr); x++) {
-      if (!inb(W, x, y)) continue;
-      if (U.dist(x + 0.5, y + 0.5, cx, cy) > r + 0.35) continue;
-      const i = idx(W, L, x, y);
-      W.lit[i] = W.tick; W.seen[i] = 1;
-      if (probeTicks) W.reveal[i] = Math.max(W.reveal[i], probeTicks);
-    }
-  }
-  function light(W) {
+  /** 进场光圈：黑暗关卡开局 2 秒内从 1.6 格张开到 cfg.r */
+  function fogR(W) {
     const r = W.cfg.r;
-    if (r > 0) lightCircle(W, W.player.x, W.player.y, r, 0);
-    else {                                            // 全图常亮（教学关）
-      for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, W.layer, x, y); W.lit[i] = W.tick; W.seen[i] = 1; }
+    if (r <= 0) return r;
+    const ramp = Math.round(2 * STEP_HZ);
+    if (W.tick >= ramp) return r;
+    const from = Math.min(1.6, r);
+    return from + (r - from) * (W.tick / ramp);
+  }
+  function updateLight(W) {
+    const gw = W.w * LIGHT_S, gh = W.h * LIGHT_S;
+    const r = fogR(W);
+    if (r <= 0) {                                        // 全图常亮（教学关）
+      for (let i = 0; i < W.lightMap.length; i++) { W.lightMap[i] = 1; W.lightT[i] = W.tick; }
+      for (let i = 0; i < W.seen.length; i++) { W.seen[i] = 1; W.lit[i] = W.tick; }
+      return;
     }
-    for (const l of W.lamps) lightCircle(W, l.x + 0.5, l.y + 0.5, l.r, 0);
-    for (const f of W.flashes) lightCircle(W, f.x + 0.5, f.y + 0.5, f.r, f.probe ? f.ticks : 0);
+    const px = W.player.x * LIGHT_S, py = W.player.y * LIGHT_S;
+    const gr = r * LIGHT_S;
+    const gx0 = Math.max(0, Math.floor(px - gr)), gx1 = Math.min(gw - 1, Math.ceil(px + gr));
+    const gy0 = Math.max(0, Math.floor(py - gr)), gy1 = Math.min(gh - 1, Math.ceil(py + gr));
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      const wx = (gx + 0.5) / LIGHT_S, wy = (gy + 0.5) / LIGHT_S;
+      const d = U.dist(wx, wy, W.player.x, W.player.y);
+      if (d > r) continue;
+      const t = d / r;
+      /* 中心 55% 半径保持全亮，最外 45% 快速降下去：手电筒式的光圈，
+         既保住「保持最高亮度」，边缘又不糊成一整片 */
+      const k = t < 0.55 ? 1 : (1 - t) / 0.45;
+      const gi = gy * gw + gx;
+      if (k > W.lightMap[gi]) W.lightMap[gi] = k;
+      W.lightT[gi] = W.tick;
+      const ci = idx(W, W.layer, Math.floor(wx), Math.floor(wy));
+      W.seen[ci] = 1; W.lit[ci] = W.tick;
+    }
+    /* 一分钟前的光照被清出窗口；窗口内的保留。
+       过期不瞬间清零，而是约 1 秒淡出 —— 回收的那一下也要平滑 */
+    if (W.cfg.mem > 0) {
+      const win = W.cfg.mem * STEP_HZ;
+      for (let gi = 0; gi < W.lightMap.length; gi++) {
+        if (W.lightMap[gi] <= 0) continue;
+        if (W.tick - W.lightT[gi] > win) {
+          W.lightMap[gi] *= 0.94;
+          if (W.lightMap[gi] < 0.01) W.lightMap[gi] = 0;
+        }
+      }
+    }
   }
-  /** 此刻是否被「观测」——只算实时光源，记忆不算 */
+  /** 此刻是否在玩家光圈里（实时观测，记忆不算） */
   function observed(W, x, y) {
-    if (W.cfg.r <= 0) return true;
-    if (cellDist(W, x, y) <= W.cfg.r + 0.35) return true;
-    for (const f of W.flashes) if (U.dist(x + 0.5, y + 0.5, f.x + 0.5, f.y + 0.5) <= f.r + 0.35) return true;
-    for (const l of W.lamps) if (U.dist(x + 0.5, y + 0.5, l.x + 0.5, l.y + 0.5) <= l.r + 0.35) return true;
-    return false;
+    const r = fogR(W);
+    if (r <= 0) return true;
+    return cellDist(W, x, y) <= r;
   }
-  /** 渲染亮度：1 实时可见 · 0 全黑 · 中间是「还记得但已经模糊」 */
+  /** 渲染亮度：直接读光照记忆图（0 = 没去过 / 已过期，1 = 刚照到） */
   function brightness(W, x, y) {
-    if (observed(W, x, y)) return 1;
-    const i = idx(W, W.layer, x, y);
-    if (!W.seen[i]) return 0;
-    if (W.cfg.assist) return 0.6;
-    if (W.cfg.mem <= 0) return 0;
-    const age = (W.tick - W.lit[i]) * DT;
-    if (age > W.cfg.mem) return 0;
-    const k = age / W.cfg.mem;
-    return 0.68 - 0.36 * k * k;
+    const gw = W.w * LIGHT_S;
+    const gx = Math.min(gw - 1, Math.max(0, Math.floor((x + 0.5) * LIGHT_S)));
+    const gy = Math.min(W.h * LIGHT_S - 1, Math.max(0, Math.floor((y + 0.5) * LIGHT_S)));
+    return W.lightMap[gy * gw + gx] || 0;
   }
-  /** 记忆还剩几秒（HUD 用来闪警告） */
+  /** 记忆还剩几秒（调试用） */
   function memLeft(W, x, y) {
     const i = idx(W, W.layer, x, y);
     if (!W.seen[i] || W.lit[i] < 0) return 0;
@@ -199,7 +226,6 @@ window.WORLD = (() => {
     if (!lv) throw new Error("没有第 " + li + " 关");
 
     const layers = [flat(lv.rows)];
-    if (lv.rowsB) layers.push(flat(lv.rowsB));
     const st = findChar(lv.rows, "@");
 
     const W = {
@@ -219,14 +245,16 @@ window.WORLD = (() => {
       commitLog: [], entropy: 0, reverted: 0, kills: 0, seenKinds: {},
       tick: 0, seed: opts.seed || (1234 + li * 77), rng: U.rngNew(opts.seed || (1234 + li * 77)),
       fired: {}, notes: [], toasts: [], flags: {}, tutFlags: {}, tutStep: 0,
-      cfg: { r: lv.fog ? lv.fog.r : 4, mem: lv.fog && lv.fog.mem != null ? lv.fog.mem : 60,
-             ghost: lv.fog && lv.fog.ghost != null ? lv.fog.ghost : 0.18, assist: !!opts.assist },
+      cfg: { r: lv.fog ? lv.fog.r : 4, mem: lv.fog && lv.fog.mem != null ? lv.fog.mem : 60 },
       prReady: false, gravity: 1, jump: lv.jump || 2,
       pDeadly: lv.pDeadly !== false, maxBugs: lv.maxBugs || 40,
       idc: 1, lamps: [], lampCov: [], mapCommits: collect(lv.rows, "o"),
+      lightS: LIGHT_S, lightMap: [], lightT: [],
       prs: collect(lv.rows, "P"), fakePrs: collect(lv.rows, "!"),
       deps: [], belts: [], events: lv.events || [], tut: lv.tut || []
     };
+    W.lightMap = new Array(W.w * W.h * LIGHT_S * LIGHT_S).fill(0);
+    W.lightT = new Array(W.w * W.h * LIGHT_S * LIGHT_S).fill(-1);
 
     /* 给 bugs.js 的窄接口：只暴露它需要的动作，闭包在 W 上，快照/回档后依然有效 */
     W.api = {
@@ -289,7 +317,7 @@ window.WORLD = (() => {
 
     /* 开局先落一个 init commit，否则第一次死亡无处可回 */
     pushCommit(W, "起点 · " + lv.name, true);
-    light(W);
+    updateLight(W);
     W.flags.started = true;
     return W;
   }
@@ -407,7 +435,6 @@ window.WORLD = (() => {
     if (p.dead || W.won) return;
     if (name === "commit") return doCommit(W);
     if (name === "log") return doLog(W);
-    if (name === "layer") return doLayer(W);
     if (p.cast) { if (name === "fix" || name === "test") p.cast = null; return; }
     const pickTarget = verb => {
       const b = adjacentBug(W);
@@ -518,6 +545,15 @@ window.WORLD = (() => {
       tx = nx; ty = ny;
     }
     W.flashes.push({ x: tx, y: ty, r: 3.6, ticks: 5 * STEP_HZ, probe: true });
+    /* 探针不再是光源：只把「看穿假地块」的标记打进它覆盖的那圈格子，
+       玩家走进自己光圈时才能看到真相 */
+    const fr = 3.6;
+    for (let y = Math.floor(ty - fr); y <= Math.ceil(ty + fr); y++) for (let x = Math.floor(tx - fr); x <= Math.ceil(tx + fr); x++) {
+      if (!inb(W, x, y)) continue;
+      if (U.dist(x + 0.5, y + 0.5, tx + 0.5, ty + 0.5) > fr + 0.35) continue;
+      const i = idx(W, W.layer, x, y);
+      W.reveal[i] = Math.max(W.reveal[i], 5 * STEP_HZ);
+    }
     p.logCd = 1.375;
     sfx("log");
     flag(W, "log");
@@ -644,7 +680,8 @@ window.WORLD = (() => {
     const obj = JSON.parse(text);
     if (obj.sv !== SNAP_V) retime(obj);
     const keep = { api: W.api, lampCov: W.lampCov, toasts: W.toasts, commitLog: W.commitLog,
-                   onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast };
+                   onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast,
+                   onTut: W.onTut };
     for (const k in obj) W[k] = obj[k];
     for (const k in keep) if (keep[k] !== undefined) W[k] = keep[k];
     syncCell(W.player);
@@ -700,7 +737,7 @@ window.WORLD = (() => {
     mutate(W);
     fire(W, "onRevert");
     flag(W, "revert");
-    light(W);
+    updateLight(W);
     return true;
   }
 
@@ -827,7 +864,6 @@ window.WORLD = (() => {
         for (let i = 0; i < (a.n || 3); i++) { const s = randomDarkTile(W); if (s && tile(W, s.x, s.y) === ".") setTile(W, s.x, s.y, "#"); }
         sfx("glitch"); toast(W, a.text || "屎山自己长厚了一点", "bad"); break;
       }
-      case "layerSwap": doLayer(W, a.to); sfx("glitch"); toast(W, a.text || null, "warn"); break;
       case "flipGravity":
         W.gravity = a.to === "up" ? -1 : 1;
         W.player.vy = 0; W.player.grounded = false; W.player.coyote = 0;
@@ -906,7 +942,7 @@ window.WORLD = (() => {
     resolvePlayer(W);
   }
 
-  /** 把玩家从墙里挤出来：切图层 / 切模式 / rebase 之后都靠它兜底 */
+  /** 把玩家从墙里挤出来：切模式 / rebase 之后都靠它兜底 */
   function resolvePlayer(W) {
     const p = W.player;
     syncCell(p);
@@ -922,18 +958,6 @@ window.WORLD = (() => {
     }
     die(W, "重构坐标系时你被挤进了实心代码里 —— 冲突未解决");
     return false;
-  }
-
-  function doLayer(W, to) {
-    if (W.layers.length < 2) { toast(W, "这关只有一条分支，切不了图层", "warn"); return; }
-    W.layer = to != null ? (to % W.layers.length) : (W.layer + 1) % W.layers.length;
-    const before = { cx: W.player.cx, cy: W.player.cy };
-    if (solidAt(W, W.player.cx, W.player.cy) || isPitAt(W, W.player.cx, W.player.cy)) {
-      if (!resolvePlayer(W)) return;
-      if (W.player.cx !== before.cx || W.player.cy !== before.cy) toast(W, "切换分支：你被挤到了空位上", "warn");
-    }
-    sfx("glitch");
-    flag(W, "layer");
   }
 
   /* ================= 玩家移动 =================
@@ -1316,7 +1340,7 @@ window.WORLD = (() => {
       }
     }
 
-    light(W);
+    updateLight(W);
     W.tick++;
     fire(W, "tick");
     runTut(W);
@@ -1419,7 +1443,6 @@ window.WORLD = (() => {
       case "log": return !!f.ev_log;
       case "kill": return (f.cnt_kill || 0) >= (st.n || 1);
       case "test": return !!f.ev_test;
-      case "layer": return !!f.ev_layer;
       case "revert": return W.reverted >= (st.n || 1);
       case "dead": return !!f.ev_dead;
       case "tick": return W.tick >= Math.round((st.n || 0) * STEP_HZ);
@@ -1428,6 +1451,8 @@ window.WORLD = (() => {
       default: return true;
     }
   }
+  /** 教学推进时把进度交给宿主存档（续关不重来） */
+  function syncTut(W) { if (W.onTut) W.onTut(W.tutStep, W.tutFlags); }
   function runTut(W) {
     if (W.tutStep >= W.tut.length) {
       /* 教学走完时如果正站在 PR 门前等着，就直接放行，不用再踩一次 */
@@ -1436,11 +1461,11 @@ window.WORLD = (() => {
     }
     const st = W.tut[W.tutStep];
     if (st.wait) return;                      // 等玩家按空格确认（UI 调 tutAck）
-    if (tutDone(W, st)) W.tutStep++;
+    if (tutDone(W, st)) { W.tutStep++; syncTut(W); }
   }
   function tutAck(W) {
     if (W.tutStep >= W.tut.length) return;
-    if (W.tut[W.tutStep].wait) { W.tutStep++; W.tutFlags.tutAck = 1; sfx("uiOk"); }
+    if (W.tut[W.tutStep].wait) { W.tutStep++; W.tutFlags.tutAck = 1; sfx("uiOk"); syncTut(W); }
   }
   function tutNow(W) { return W.tutStep < W.tut.length ? W.tut[W.tutStep] : null; }
 
@@ -1460,9 +1485,9 @@ window.WORLD = (() => {
   return {
     STEP_HZ, DT, BUG_HIT, bindLevels, create, tick, act, tutAck, tutNow,
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
-    tile, look, setTile, dyn, observed, brightness, memLeft, solidAt, bugBlock, isPitAt, supportAt,
-    spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
-    stepPlayer, resolvePlayer, doLog, doLayer, mutate, act1, fire, checkPr, jump,
+    tile, look, setTile, dyn, observed, brightness, memLeft, fogR, updateLight, solidAt, bugBlock, isPitAt, supportAt,
+    spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, inb, idx, keyOf,
+    stepPlayer, resolvePlayer, doLog, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS
   };
 })();
