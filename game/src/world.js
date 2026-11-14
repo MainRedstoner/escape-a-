@@ -188,7 +188,7 @@ window.WORLD = (() => {
    *  记忆 = 「最近 mem 秒更新过的光照」的滑动窗口：光圈每 tick 都往里写，
    *  所以原地不动也不会过期；超过窗口的更新逐出，格子回到几乎全黑的遮罩。
    *  未探索过的地方同样落在 FOG_DARK —— 不是纯黑，但只剩一层几乎看不见的轮廓。 */
-  const FOG_DARK = 0.05;          // 没去过 / 记忆过期：黑色遮罩，几乎看不见
+  const FOG_DARK = 0.12;          // 没去过 / 记忆过期：黑色遮罩，几乎看不见但能看出有东西
   const MEM_HOLD = 0.68;          // 窗口内保持的最高记忆亮度，不随时间衰减
   function brightness(W, x, y) {
     if (observed(W, x, y)) return 1;

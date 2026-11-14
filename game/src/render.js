@@ -88,7 +88,15 @@ window.RENDER = (() => {
     drawEntities(W);
     drawPlayer(W, dt);
     drawParticles();
-    drawHazardsFront(W, dt);
+    ctx.restore();
+
+    drawFog(W);                    // 整屏黑暗遮罩：光圈在这里擦出来，才不会一格一格的
+
+    ctx.save();
+    ctx.translate(Math.round(-cam.x), Math.round(-cam.y));
+    drawHazardsFront(W, dt);       // CI 红光：在黑暗之上
+    drawOverlayMarks(W);           // commit / PR：穿黑暗可见
+    drawDarkHeisen(W);             // 海森堡虫：只在黑暗里显形
     ctx.restore();
 
     drawScreenFx(W);
@@ -205,29 +213,20 @@ window.RENDER = (() => {
     ctx.globalAlpha = 1;
   }
 
-  /* ---------------- 地块 ---------------- */
+  /* ---------------- 地块 ----------------
+   * 地形一律按本色画满，黑暗交给后面的整屏遮罩（drawFog）——
+   * 逐格 alpha 会把光圈切成方块，灯一照就是一块一块的亮斑。 */
   function drawTiles(W, x0, y0, cols, rowsN) {
     for (let j = 0; j < rowsN; j++) for (let i = 0; i < cols; i++) {
       const x = x0 + i, y = y0 + j;
       if (!WORLD.inb(W, x, y)) { continue; }
-      const b = WORLD.brightness(W, x, y);
       const raw = WORLD.tile(W, x, y);
       const shown = WORLD.look(W, x, y);
-      const dark = b <= WORLD.FOG_DARK;        // 没去过 / 记忆过期：只剩一层极暗的遮罩
-      if (dark) {
-        /* commit 点与 PR 门是穿黑暗的灯塔：没探索过也画；假 PR 不在黑暗里露头 */
-        if (raw === "o") { commitMark(W, x, y, 0); continue; }
-        if (raw === "P") { prMark(W, x, y, 0); continue; }
-        if (raw === "!") continue;
-      }
       if (shown === "_") continue;                 // 空气：什么都不画
-      ctx.globalAlpha = b;                         // 1 实时 / MEM_HOLD 记忆 / FOG_DARK 遮罩
-      paintTile(W, x, y, shown, b >= 1);
-      /* 被探针看穿的地块：画一圈红虚线，说明「真相和刚才看到的不一样」 */
-      if (b >= 1 && W.reveal[WORLD.idx(W, W.layer, x, y)] > 0 && raw !== shown) trickTile(W, x, y, raw);
       ctx.globalAlpha = 1;
-      if (shown === "o") commitMark(W, x, y, b);
-      if (shown === "P" || shown === "!") prMark(W, x, y, b);
+      paintTile(W, x, y, shown, true);
+      /* 被探针看穿的地块：画一圈红虚线，说明「真相和刚才看到的不一样」 */
+      if (W.reveal[WORLD.idx(W, W.layer, x, y)] > 0 && raw !== shown) trickTile(W, x, y, raw);
     }
   }
 
@@ -506,12 +505,8 @@ window.RENDER = (() => {
       const kind = BUGS.get(b.kind);
       /* 海森堡虫：只在黑暗里显形（或者被观测卡住的时候） */
       if (kind.invisible) {
-        if (b.frozen > 0) { drawBug(W, b, 1); continue; }
-        if (v > 0) continue;
-        const bm = WORLD.brightness(W, b.x, b.y);
-        if (bm <= WORLD.FOG_DARK && !W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue;
-        drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9));
-        continue;
+        if (b.frozen > 0) { drawBug(W, b, 1); continue; }   // 被光卡住：在实时光里显形
+        continue;                                            // 其余交给遮罩后的 drawDarkHeisen
       }
       if (v <= 0) continue;
       drawBug(W, b, v);
@@ -692,18 +687,7 @@ window.RENDER = (() => {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(px, py, TS * 0.42, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
     }
-    /* 光圈边缘：软渐变只压在光圈自己这一圈上 —— 铺满全屏会把光圈外的「记忆」也一起压暗，
-     * 那样 0.68 的记忆亮度就保不住了。 */
-    if (W.cfg.r > 0) {
-      const rr = TS * (W.cfg.r + 0.5);
-      const grd = ctx.createRadialGradient(px, py, TS * W.cfg.r * 0.7, px, py, rr);
-      grd.addColorStop(0, "rgba(0,0,0,0)");
-      grd.addColorStop(1, "rgba(2,3,5,.55)");
-      ctx.fillStyle = grd;
-      ctx.beginPath();
-      ctx.arc(px, py, rr, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    /* 光圈边缘交给 drawFog 的整屏遮罩处理，这里不再单独压一层 */
 
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
      * 黄框 = 玩家判定箱，world.js 的 yTop/yBot（宽 PW，胸口侧 P_H，阴影/支撑侧 P_S）——
@@ -819,6 +803,76 @@ window.RENDER = (() => {
       ctx.fillStyle = "rgba(124,243,176,.9)"; ctx.font = Math.floor(TS * 0.24) + "px monospace";
       ctx.textAlign = "center";
       ctx.fillText("console.log", px, py - TS * 0.5);
+    }
+  }
+
+  /* ---------------- 光照遮罩 ----------------
+   * 地形先按本色全画，再盖一层整屏黑；玩家 / 灯 / 探针用径向渐变擦出光圈，
+   * 记忆窗口内的格子再擦掉一层（比实时暗）。这样光圈是圆的，灯也不再是方块。 */
+  let fogCv = null, fogCtx = null;
+  function fogLayer() {
+    if (!fogCv) { fogCv = document.createElement("canvas"); fogCtx = fogCv.getContext("2d"); }
+    if (fogCv.width !== view.w || fogCv.height !== view.h) { fogCv.width = view.w; fogCv.height = view.h; }
+    return fogCtx;
+  }
+  function eraseRadial(f, cx, cy, r) {
+    const rr = TS * (r + 0.6);
+    const grd = f.createRadialGradient(cx, cy, TS * r * 0.55, cx, cy, rr);
+    grd.addColorStop(0, "rgba(0,0,0,1)");
+    grd.addColorStop(0.7, "rgba(0,0,0,1)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    f.fillStyle = grd;
+    f.beginPath(); f.arc(cx, cy, rr, 0, Math.PI * 2); f.fill();
+  }
+  function drawFog(W) {
+    if (!W.cfg.r || W.cfg.r <= 0) return;          // 教学关全图常亮
+    const f = fogLayer();
+    f.setTransform(1, 0, 0, 1, 0, 0);
+    f.globalCompositeOperation = "source-over";
+    f.clearRect(0, 0, view.w, view.h);
+    f.fillStyle = "rgba(2,3,5,.86)";               // 没去过的地方：一层几乎不透光的黑
+    f.fillRect(0, 0, view.w, view.h);
+    f.globalCompositeOperation = "destination-out";
+    const ox = -cam.x, oy = -cam.y;                // 世界坐标 → 遮罩画布坐标
+    eraseRadial(f, W.player.x * TS + ox, W.player.y * TS + oy, W.cfg.r);
+    for (const l of W.lamps) eraseRadial(f, (l.x + 0.5) * TS + ox, (l.y + 0.5) * TS + oy, l.r);
+    for (const fl of W.flashes) eraseRadial(f, (fl.x + 0.5) * TS + ox, (fl.y + 0.5) * TS + oy, fl.r);
+    /* 记忆窗口内的格子：只擦掉六成，比实时可见暗一档 */
+    f.fillStyle = "rgba(0,0,0,.62)";
+    const gx0 = Math.floor(-ox / TS) - 1, gy0 = Math.floor(-oy / TS) - 1;
+    const gcols = Math.ceil(view.w / TS) + 2, grows = Math.ceil(view.h / TS) + 2;
+    for (let j = 0; j < grows; j++) for (let i = 0; i < gcols; i++) {
+      const x = gx0 + i, y = gy0 + j;
+      if (!WORLD.inb(W, x, y)) continue;
+      if (WORLD.brightness(W, x, y) !== WORLD.MEM_HOLD) continue;
+      f.fillRect(x * TS + ox, y * TS + oy, TS, TS);
+    }
+    f.globalCompositeOperation = "source-over";
+    ctx.drawImage(fogCv, 0, 0, view.w, view.h);
+  }
+
+  /** commit 点 / PR 门穿黑暗可见；假 PR 只在记忆或实时光里露头 */
+  function drawOverlayMarks(W) {
+    for (const c of W.mapCommits) {
+      const b = WORLD.brightness(W, c.x, c.y);
+      commitMark(W, c.x, c.y, b > WORLD.FOG_DARK ? 1 : 0);
+    }
+    for (const p of W.prs) {
+      const b = WORLD.brightness(W, p.x, p.y);
+      prMark(W, p.x, p.y, b > WORLD.FOG_DARK ? 1 : 0);
+    }
+    for (const p of W.fakePrs) {
+      if (WORLD.brightness(W, p.x, p.y) > WORLD.FOG_DARK) prMark(W, p.x, p.y, 1);
+    }
+  }
+
+  /** 海森堡虫：只在黑暗里显形 —— 必须在遮罩之后画，不然会被黑暗一起盖掉 */
+  function drawDarkHeisen(W) {
+    for (const b of W.bugs) {
+      if (!BUGS.get(b.kind).invisible || b.frozen > 0) continue;
+      if (visible(W, b.x, b.y) > 0) continue;                  // 实时光 / 探针里不显形
+      if (!W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue; // 没见过的黑暗里也不画
+      drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9));
     }
   }
 
