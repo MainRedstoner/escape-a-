@@ -89,7 +89,6 @@ window.RENDER = (() => {
     drawPlayer(W, dt);
     drawParticles();
     drawHazardsFront(W, dt);
-    drawOverlays(W);
     ctx.restore();
 
     drawScreenFx(W);
@@ -828,16 +827,6 @@ window.RENDER = (() => {
       ctx.fillStyle = "rgba(124,243,176,.9)"; ctx.font = Math.floor(TS * 0.24) + "px monospace";
       ctx.textAlign = "center";
       ctx.fillText("console.log", px, py - TS * 0.5);
-    }
-  }
-
-  function drawOverlays(W) {
-    /* 分支图层提示：另一条分支的轮廓 */
-    if (W.layers.length > 1) {
-      ctx.globalAlpha = 0.1;
-      ctx.fillStyle = W.layer === 0 ? "#3a6cff" : "#ff6a3a";
-      ctx.fillRect(cam.x, cam.y, 6, view.h);
-      ctx.globalAlpha = 1;
     }
   }
 

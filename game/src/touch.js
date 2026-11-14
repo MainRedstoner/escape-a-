@@ -19,7 +19,6 @@ window.GTOUCH = (() => {
     { code: "Space", label: "commit", title: "落 commit（空格）", cls: "commit" }
   ];
   const MINI = [
-    { code: "KeyI", label: "层", title: "切分支图层（I，双分支关才有）" },
     { code: "KeyU", label: "回", title: "回档（U）" },
     { code: "KeyO", label: "图", title: "图鉴（O）" },
     { code: "KeyB", label: "箱", title: "判定箱显隐（调试）" },

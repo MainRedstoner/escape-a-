@@ -22,8 +22,7 @@ window.GSAVE = (() => {
     return {
       format: FORMAT, version: VERSION, unlocked: 0,
       levels: {}, codex: {},
-      total: { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 },
-      settings: { assist: false, sound: true }
+      total: { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 }
     };
   }
 
@@ -44,7 +43,6 @@ window.GSAVE = (() => {
     if (!p.levels) p.levels = {};
     if (!p.codex) p.codex = {};
     if (!p.total) p.total = { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 };
-    if (!p.settings) p.settings = { assist: false, sound: true };
     if (typeof p.unlocked !== "number") p.unlocked = 0;
     p.version = VERSION;
     return p;
@@ -82,7 +80,7 @@ window.GSAVE = (() => {
 
   function levelState(id) {
     const p = load();
-    if (!p.levels[id]) p.levels[id] = { done: false, deaths: 0, reverts: 0, bestSec: 0, assist: false, commits: [], tut: null };
+    if (!p.levels[id]) p.levels[id] = { done: false, deaths: 0, reverts: 0, bestSec: 0, commits: [], tut: null };
     return p.levels[id];
   }
 
@@ -117,7 +115,6 @@ window.GSAVE = (() => {
     /* 死亡在 onDeath 里已经逐次 bumpDeath 过了，这里再加一次就会翻倍 */
     st.reverts += stats.reverts;
     if (!st.bestSec || stats.sec < st.bestSec) st.bestSec = stats.sec;
-    st.assist = st.assist || stats.assist;
     if (p.unlocked < stats.nextIndex) p.unlocked = stats.nextIndex;
     p.total.reverts += stats.reverts; p.total.kills += stats.kills;
     p.total.playSec += stats.sec;
@@ -126,9 +123,6 @@ window.GSAVE = (() => {
     save();
   }
   function bumpDeath(levelId) { levelState(levelId).deaths++; load().total.deaths++; save(); }
-
-  function settings() { return load().settings; }
-  function setSettings(patch) { Object.assign(load().settings, patch); save(); }
 
   const BACKUP_KEY = "ea_bugfix_progress_backup";
 
@@ -157,6 +151,6 @@ window.GSAVE = (() => {
   }
 
   return { load, save, levelState, recordCommit, commits, noteCodex, finishLevel,
-           bumpDeath, setTut, settings, setSettings, clearAll, hasBackup, restoreBackup,
+           bumpDeath, setTut, clearAll, hasBackup, restoreBackup,
            KEY, BACKUP_KEY, VERSION };
 })();

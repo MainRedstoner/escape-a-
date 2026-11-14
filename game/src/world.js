@@ -189,7 +189,6 @@ window.WORLD = (() => {
     if (observed(W, x, y)) return 1;
     const i = idx(W, W.layer, x, y);
     if (!W.seen[i]) return 0;
-    if (W.cfg.assist) return 0.6;
     if (W.cfg.mem <= 0) return 0;
     const age = (W.tick - W.lit[i]) * DT;
     if (age > W.cfg.mem) return 0;
@@ -210,7 +209,6 @@ window.WORLD = (() => {
     if (!lv) throw new Error("没有第 " + li + " 关");
 
     const layers = [flat(lv.rows)];
-    if (lv.rowsB) layers.push(flat(lv.rowsB));
     const st = findChar(lv.rows, "@");
 
     const W = {
@@ -231,7 +229,7 @@ window.WORLD = (() => {
       tick: 0, seed: opts.seed || (1234 + li * 77), rng: U.rngNew(opts.seed || (1234 + li * 77)),
       fired: {}, notes: [], toasts: [], flags: {}, tutFlags: {}, tutStep: 0,
       cfg: { r: lv.fog ? lv.fog.r : 4, mem: lv.fog && lv.fog.mem != null ? lv.fog.mem : 60,
-             ghost: lv.fog && lv.fog.ghost != null ? lv.fog.ghost : 0.18, assist: !!opts.assist },
+             ghost: lv.fog && lv.fog.ghost != null ? lv.fog.ghost : 0.18 },
       prReady: false, gravity: 1, jump: lv.jump || 2,
       pDeadly: lv.pDeadly !== false, maxBugs: lv.maxBugs || 40,
       idc: 1, lamps: [], lampCov: [], mapCommits: collect(lv.rows, "o"),
@@ -418,7 +416,6 @@ window.WORLD = (() => {
     if (p.dead || W.won) return;
     if (name === "commit") return doCommit(W);
     if (name === "log") return doLog(W);
-    if (name === "layer") return doLayer(W);
     if (p.cast) { if (name === "fix" || name === "test") p.cast = null; return; }
     const pickTarget = verb => {
       const b = adjacentBug(W);
@@ -654,14 +651,11 @@ window.WORLD = (() => {
   function restore(W, text) {
     const obj = JSON.parse(text);
     if (obj.sv !== SNAP_V) retime(obj);
-    /* 辅助模式是玩家设置，不该被快照里的旧值覆盖 —— 先留住，恢复后写回 */
-    const assist = W.cfg ? W.cfg.assist : false;
     const keep = { api: W.api, lampCov: W.lampCov, toasts: W.toasts, commitLog: W.commitLog,
                    onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast,
                    onTut: W.onTut };
     for (const k in obj) W[k] = obj[k];
     for (const k in keep) if (keep[k] !== undefined) W[k] = keep[k];
-    if (W.cfg) W.cfg.assist = assist;
     syncCell(W.player);
     W.trail = [];
     for (const g of W.ghosts) g.i = 0;
@@ -842,7 +836,6 @@ window.WORLD = (() => {
         for (let i = 0; i < (a.n || 3); i++) { const s = randomDarkTile(W); if (s && tile(W, s.x, s.y) === ".") setTile(W, s.x, s.y, "#"); }
         sfx("glitch"); toast(W, a.text || "屎山自己长厚了一点", "bad"); break;
       }
-      case "layerSwap": doLayer(W, a.to); sfx("glitch"); toast(W, a.text || null, "warn"); break;
       case "flipGravity":
         W.gravity = a.to === "up" ? -1 : 1;
         W.player.vy = 0; W.player.grounded = false; W.player.coyote = 0;
@@ -921,7 +914,7 @@ window.WORLD = (() => {
     resolvePlayer(W);
   }
 
-  /** 把玩家从墙里挤出来：切图层 / 切模式 / rebase 之后都靠它兜底 */
+  /** 把玩家从墙里挤出来：切模式 / rebase 之后都靠它兜底 */
   function resolvePlayer(W) {
     const p = W.player;
     syncCell(p);
@@ -937,18 +930,6 @@ window.WORLD = (() => {
     }
     die(W, "重构坐标系时你被挤进了实心代码里 —— 冲突未解决");
     return false;
-  }
-
-  function doLayer(W, to) {
-    if (W.layers.length < 2) { toast(W, "这关只有一条分支，切不了图层", "warn"); return; }
-    W.layer = to != null ? (to % W.layers.length) : (W.layer + 1) % W.layers.length;
-    const before = { cx: W.player.cx, cy: W.player.cy };
-    if (solidAt(W, W.player.cx, W.player.cy) || isPitAt(W, W.player.cx, W.player.cy)) {
-      if (!resolvePlayer(W)) return;
-      if (W.player.cx !== before.cx || W.player.cy !== before.cy) toast(W, "切换分支：你被挤到了空位上", "warn");
-    }
-    sfx("glitch");
-    flag(W, "layer");
   }
 
   /* ================= 玩家移动 =================
@@ -1434,7 +1415,6 @@ window.WORLD = (() => {
       case "log": return !!f.ev_log;
       case "kill": return (f.cnt_kill || 0) >= (st.n || 1);
       case "test": return !!f.ev_test;
-      case "layer": return !!f.ev_layer;
       case "revert": return W.reverted >= (st.n || 1);
       case "dead": return !!f.ev_dead;
       case "tick": return W.tick >= Math.round((st.n || 0) * STEP_HZ);
@@ -1479,7 +1459,7 @@ window.WORLD = (() => {
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
     tile, look, setTile, dyn, observed, brightness, memLeft, solidAt, bugBlock, isPitAt, supportAt,
     spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
-    stepPlayer, resolvePlayer, doLog, doLayer, mutate, act1, fire, checkPr, jump,
+    stepPlayer, resolvePlayer, doLog, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS
   };
 })();

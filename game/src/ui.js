@@ -10,7 +10,7 @@
 window.UI = (() => {
 
   const IDS = ["app", "stage", "canvas", "hud", "lvl", "bugs", "tests", "commits",
-               "reverts", "mode", "layer", "time", "toasts", "objective", "log", "hint",
+               "reverts", "mode", "time", "toasts", "objective", "log", "hint",
                "m-title", "m-pick", "m-brief", "m-death", "m-win", "m-end", "m-codex", "m-menu", "m-revert",
                "start", "pick", "wipe", "undo-wipe", "levels", "pick-back", "pick-commits", "title-commits",
                "brief-name", "brief-text", "brief-new", "brief-go",
@@ -18,7 +18,7 @@ window.UI = (() => {
                "win-stats", "win-note", "win-next", "win-replay", "win-title",
                "end-stats", "end-title", "end-again",
                "codex-bugs", "codex-tiles", "codex-back",
-               "menu-resume", "menu-revert", "menu-replay", "menu-assist", "menu-sound", "menu-pick", "menu-title",
+               "menu-resume", "menu-revert", "menu-replay", "menu-pick", "menu-title",
                "revert-commits", "revert-back"];
   const el = {};
   let G = null;                 // 控制器：game.js 提供的回调集合
@@ -70,8 +70,6 @@ window.UI = (() => {
     on("menu-resume", () => G.closeOverlay());
     on("menu-revert", () => G.openRevert());
     on("menu-replay", () => G.restartLevel());
-    on("menu-assist", () => G.toggleAssist());
-    on("menu-sound", () => G.toggleSound());
     on("menu-pick", () => G.openPick());
     on("menu-title", () => G.openTitle());
     on("revert-back", () => G.closeOverlay());
@@ -105,8 +103,8 @@ window.UI = (() => {
     const touch = el.app && el.app.classList.contains("gf-touch");
     if (state === null) { el.hint.textContent = touch ? "" : "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
     el.hint.textContent = state === "on"
-      ? (touch ? "左下摇杆移动 · 右下 修 / 测 / log / commit · 小键：层 / 回 / 图 / 菜"
-               : "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效 · B 判定箱")
+      ? (touch ? "左下摇杆移动 · 右下 修 / 测 / log / commit · 小键：回 / 图 / 菜"
+               : "Esc 菜单 · O 图鉴 · B 判定箱")
       : "";
   }
 
@@ -120,7 +118,6 @@ window.UI = (() => {
       el.commits.textContent = "0";
       el.reverts.textContent = "—";
       el.mode.textContent = "—";
-      el.layer.textContent = "—";
       el.time.textContent = "00:00";
       return;
     }
@@ -132,7 +129,6 @@ window.UI = (() => {
     el.commits.textContent = Math.max(0, W.commitLog.length - 1);
     el.reverts.textContent = W.reverted + " / 熵 " + W.entropy;
     el.mode.textContent = W.mode === "side" ? (W.gravity > 0 ? "横版" : "横版·倒立") : "俯视";
-    el.layer.textContent = W.layers.length > 1 ? (W.layer === 0 ? "main" : "hotfix") : "main";
     el.time.textContent = U.mmss(W.tick * WORLD.DT);
   }
 
@@ -187,7 +183,6 @@ window.UI = (() => {
       lines.push(W.prReady ? "甲虫清零了 —— 去踩亮着的 PR 门过关。" : "继续清虫。");
     }
     if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 空格 落一个 commit。");
-    if (W.layers.length > 1) lines.push("按 I 在 main / hotfix 之间切图层。");
     if (W.player.cast) lines.push("施法中…… 可以移动，别跑出 1.6 格。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
   }
@@ -250,7 +245,6 @@ window.UI = (() => {
       const d = document.createElement("span");
       d.className = "gf-d";
       d.textContent = (lv.mode === "side" ? "横版" : "俯视")
-        + (lv.rowsB ? " · 双分支" : "")
         + " · 虫 " + ((lv.bugs || []).length)
         + " · 事件 " + ((lv.events || []).length)
         + (st.done ? " · 最好 " + U.mmss(st.bestSec) : st.deaths ? " · 死了 " + st.deaths + " 次" : "");
@@ -316,9 +310,7 @@ window.UI = (() => {
       el["win-stats"].textContent =
         "用时 " + U.mmss(stats.sec) + " · 死亡 " + stats.deaths + " 次 · 回档 " + stats.reverts +
         " 次（熵 " + stats.entropy + "）· 修掉 " + stats.kills + " 只甲虫";
-      el["win-note"].textContent = stats.assist
-        ? "你开了辅助模式：记忆不过期。玩得开心就好。"
-        : (hasNext ? "下一关会更阴 —— 山是有记忆的。" : "");
+      el["win-note"].textContent = hasNext ? "下一关会更阴 —— 山是有记忆的。" : "";
       el["win-next"].style.display = hasNext ? "" : "none";
       el["win-next"].textContent = hasNext ? "下一关（Enter）" : "已到底";
     }
@@ -377,12 +369,6 @@ window.UI = (() => {
     show("m-codex");
   }
 
-  /* ---------------- 菜单上的开关文字 ---------------- */
-  function toggles(assist, sound) {
-    if (el["menu-assist"]) el["menu-assist"].textContent = "辅助模式：" + (assist ? "开（记忆不过期）" : "关");
-    if (el["menu-sound"]) el["menu-sound"].textContent = "音效：" + (sound ? "开" : "关");
-  }
-
   /* ---------------- 标题页的进度 ---------------- */
   function progressLine(W0, text) {
     const box = el["title-commits"] || el["pick-commits"];
@@ -392,5 +378,5 @@ window.UI = (() => {
   function pickProgress(text) { if (el["pick-commits"]) el["pick-commits"].textContent = text; }
 
   return { init, show, hud, objective, toast, log, logReset, renderLevels, brief, briefLabel,
-           commitRows, death, win, end, codex, toggles, progressLine, pickProgress, hint, el: () => el };
+           commitRows, death, win, end, codex, progressLine, pickProgress, hint, el: () => el };
 })();

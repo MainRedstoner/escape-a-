@@ -102,7 +102,7 @@ index.html?scene=start&trust=0&wanted=0&args=xxx&flags=egg1
 
 可选参数：`scene`（场景 id）、`trust`、`wanted`、`args`（逗号分隔）、`flags`（逗号分隔）。
 
-小游戏另有自己的参数：`game/index.html?level=3` 直跳某关简报、`?assist=1` 开辅助模式（记忆不过期）。
+小游戏另有自己的参数：`game/index.html?level=3` 直跳某关简报、`?perf=1` 在右上角显示帧率与绘制耗时。
 
 ## 小游戏：修复屎山
 
