@@ -41,6 +41,8 @@
 | 新环境音（跟背景绑定） | `src/audio.js` `ambience()` 的 switch（不在剧本里，所以不用进白名单） |
 | 桌宠新操作 / 新姿势 | `src/pet.js` + `tools/validate_script.py` 的 `PET_OPS / PET_ANIMS` + STORY_GUIDE.md 桌宠节点表 |
 | 新节点类型 | `src/engine.js` `applyNode()` + `tools/simulate_playthrough.py` 同语义分支 + `tools/validate_script.py` 检查 + STORY_GUIDE.md 节点表 |
+| 改片头 `src/opening.js` / `src/opening_script.js` | `index.html` 与 `opening-preview.html` 里这两支的 `?v=` 一起 +1（预览页漏改就会一直吃缓存，看着像"没生效"） |
+| 片头加段落 / 改时间线 | `opening_script.js` 的 `segments` + `DESIGN.md` 4.10（段落 id 是以后剧情穿插的接口，别随手改） |
 | 存档快照结构 | 存档格式版本号 + 旧版本迁移（见 PLAN.md 存档章节） |
 | 存档契约 / 后端接口 | `SAVE_API.md` + `server.py` + `tools/test_save_server.py`（前端接入后还有 `src/save.js`） |
 | 小游戏新关卡 | `game/src/levels.js`（`w/h` 必须等于 `rows` 行列数）+ `python tools/validate_game.py` 必须通过；要新地块 / 新虫种再动 `game/src/tiles.js` / `game/src/bugs.js`，两者都要写 `hint`，图鉴会自动长出来 |

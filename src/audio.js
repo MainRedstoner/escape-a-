@@ -158,6 +158,23 @@ const AUDIO = (() => {
       case "pat":      // 摸摸
         tone(660, t0, 0.07, "sine", 0.07); tone(990, t0 + 0.06, 0.12, "sine", 0.06);
         break;
+      /* ---- 片头用：键盘、鼠标、快门、关机（src/opening.js 直接调，不进剧本白名单） ---- */
+      case "key":      // 键帽落到底：一小段噪声 + 一点低频的"嗒"
+        noise(t0, 0.026, 0.030);
+        tone(150 + Math.random() * 70, t0, 0.028, "square", 0.016);
+        break;
+      case "click":    // 鼠标左键
+        tone(1180, t0, 0.018, "square", 0.05);
+        noise(t0, 0.012, 0.02);
+        break;
+      case "shutter":  // 截图 / 白闪
+        noise(t0, 0.08, 0.14);
+        tone(2600, t0 + 0.015, 0.045, "square", 0.045);
+        break;
+      case "powerdown": // 屏幕熄灭：一路往下掉
+        for (let i = 0; i < 5; i++) tone(520 - i * 100, t0 + i * 0.13, 0.30, "sawtooth", 0.055);
+        noise(t0 + 0.15, 0.65, 0.045);
+        break;
       case "heart": tone(494, t0, 0.1, "sine", 0.09); tone(622, t0 + 0.1, 0.1, "sine", 0.09); tone(740, t0 + 0.2, 0.24, "sine", 0.09); break;
     }
   }
@@ -327,6 +344,21 @@ const AUDIO = (() => {
           ambNodes.push(o, g, lp);
         }
         ambNoise(0.022, 1100, 0.5);
+        break;
+      }
+      case "opening": {
+        /* 片头：屏幕的屏嗡。比机房更低、更薄，只留一点点锯齿的毛刺 */
+        const t = ac.currentTime;
+        for (const [f, v] of [[52, 0.030], [104, 0.013], [156, 0.006]]) {
+          const o = ac.createOscillator(), gnode = ac.createGain();
+          o.type = "sawtooth"; o.frequency.value = f;
+          const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 240;
+          gnode.gain.value = v;
+          o.connect(lp); lp.connect(gnode); gnode.connect(master);
+          o.start(t);
+          ambNodes.push(o, gnode, lp);
+        }
+        ambNoise(0.009, 900, 0.5);
         break;
       }
       case "chat":

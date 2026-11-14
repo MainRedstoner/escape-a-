@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>片头预览 · Escape A÷</title>
+<style>
+  :root{ --void:#05070A; --line:#2C3542; --text:#C9D2DE; --muted:#7D8798; --clay:#D97757; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--text);
+    font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #stage{position:relative;width:1600px;height:900px;flex:0 0 auto;transform-origin:center center;
+    background:#000;box-shadow:0 0 120px rgba(0,0,0,.9);overflow:hidden;}
+  #opCanvas{position:absolute;inset:0;width:1600px;height:900px;display:block;}
+  #ui{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,14,.94);border-top:1px solid var(--line);
+    padding:10px 18px 12px;display:flex;flex-direction:column;gap:8px;z-index:10;}
+  #bar{display:flex;align-items:center;gap:12px;}
+  #bar button{background:#0E131A;border:1px solid var(--line);color:var(--text);font:inherit;
+    font-size:13px;padding:5px 12px;cursor:pointer;border-radius:3px;letter-spacing:1px;}
+  #bar button:hover{border-color:var(--clay);color:#fff;}
+  #bar button.on{background:var(--clay);border-color:var(--clay);color:#fff;}
+  #scrub{flex:1;accent-color:#D97757;}
+  #time{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--muted);min-width:132px;text-align:right;}
+  #segs{display:flex;flex-wrap:wrap;gap:6px;}
+  #segs button{background:#0B0F14;border:1px solid #1E2733;color:#8FA3B8;font:inherit;font-size:12px;
+    padding:3px 10px;cursor:pointer;border-radius:3px;}
+  #segs button:hover{color:#fff;border-color:#3A4657;}
+  #layers{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);}
+  #layers label{display:flex;align-items:center;gap:5px;cursor:pointer;}
+  #stats{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#5C6B7E;margin-left:auto;white-space:nowrap;}
+  input[type=checkbox]{accent-color:#D97757;}
+  body.clean #ui{display:none;}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage"><canvas id="opCanvas"></canvas></div></div>
+
+<div id="ui">
+  <div id="bar">
+    <button id="btnPlay">▶ 播放</button>
+    <button id="btnStop">■ 停</button>
+    <input id="scrub" type="range" min="0" max="142" step="0.05" value="0">
+    <span id="time">0.00 / 142s</span>
+    <span id="stats"></span>
+  </div>
+  <div id="segs"></div>
+  <div id="layers">
+    <label><input type="checkbox" data-k="grid" checked>像素栅格</label>
+    <label><input type="checkbox" data-k="sub" checked>RGB 子像素</label>
+    <label><input type="checkbox" data-k="moire" checked>摩尔纹</label>
+    <label><input type="checkbox" data-k="bloom" checked>泛光</label>
+    <label><input type="checkbox" data-k="dust" checked>灰尘</label>
+    <label><input type="checkbox" data-k="grain" checked>颗粒</label>
+  </div>
+</div>
+
+<script src="src/opening_script.js?v=1"></script>
+<script src="src/opening.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+  const DUR = OPENING.duration;
+  const stage = document.getElementById("stage");
+  const scrub = document.getElementById("scrub");
+  const timeEl = document.getElementById("time");
+  const statsEl = document.getElementById("stats");
+  const btnPlay = document.getElementById("btnPlay");
+  let playing = false;
+
+  function fit() {
+    const clean = document.body.classList.contains("clean");
+    const s = Math.min(window.innerWidth / 1600, (window.innerHeight - (clean ? 0 : 120)) / 900);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  fit();
+
+  /* 段落按钮 */
+  const segs = document.getElementById("segs");
+  OPENING.segments().forEach(sg => {
+    const b = document.createElement("button");
+    b.textContent = sg.id + " · " + sg.label;
+    b.addEventListener("click", () => { seek(sg.at); });
+    segs.appendChild(b);
+  });
+
+  function seek(tt) {
+    if (playing) { OPENING.debug.stop(); playing = false; btnPlay.textContent = "▶ 播放"; }
+    tt = Math.max(0, Math.min(DUR, tt));
+    OPENING.debug.seek(tt);
+    scrub.value = tt;
+    tick();
+  }
+
+  function tick() {
+    const st = OPENING.debug.stats();
+    timeEl.textContent = st.t.toFixed(2) + " / " + DUR + "s";
+    statsEl.textContent = "s=" + st.s.toFixed(2) + "  θ=" + (0.05 + 0.55 * st.t / DUR).toFixed(2) +
+      "°  帧耗时 " + st.ms.toFixed(2) + "ms";
+    if (playing) {
+      scrub.value = st.t;
+      if (st.t >= DUR - 0.02) { playing = false; btnPlay.textContent = "▶ 播放"; }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  btnPlay.addEventListener("click", () => {
+    if (playing) { OPENING.debug.stop(); playing = false; btnPlay.textContent = "▶ 播放"; return; }
+    const from = +scrub.value >= DUR - 0.2 ? 0 : +scrub.value;
+    playing = true;
+    btnPlay.textContent = "❚❚ 暂停";
+    OPENING.debug.play(from, () => { playing = false; btnPlay.textContent = "▶ 播放"; });
+  });
+  document.getElementById("btnStop").addEventListener("click", () => {
+    OPENING.debug.stop(); playing = false; btnPlay.textContent = "▶ 播放"; tick();
+  });
+
+  scrub.addEventListener("input", () => seek(+scrub.value));
+
+  document.querySelectorAll("#layers input").forEach(cb => {
+    cb.addEventListener("change", () => {
+      OPENING.debug.setLayer(cb.dataset.k, cb.checked);
+      OPENING.debug.renderAt(+scrub.value);
+    });
+  });
+
+  /* 空格 = 播放 / 暂停 */
+  window.addEventListener("keydown", e => {
+    if (e.code === "Space") { e.preventDefault(); btnPlay.click(); }
+  });
+
+  OPENING.debug.renderAt(0);
+  tick();
+
+  /* ?t=<秒> 定格一帧、隐藏控制条（截图 / 发给别人看用）；?layers=grid,sub 可关图层 */
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get("clean") === "1") document.body.classList.add("clean");
+    if (qs.has("layers")) {
+      const keep = qs.get("layers").split(",");
+      ["grid", "sub", "moire", "bloom", "dust", "grain"].forEach(k => {
+        const on = keep.indexOf(k) >= 0;
+        OPENING.debug.setLayer(k, on);
+        const cb = document.querySelector('#layers input[data-k="' + k + '"]');
+        if (cb) cb.checked = on;
+      });
+    }
+    if (qs.has("t")) {
+      const tt = parseFloat(qs.get("t")) || 0;
+      OPENING.debug.seek(tt);
+      scrub.value = tt;
+      tick();
+    }
+    fit();
+  })();
+})();
+</script>
+</body>
+</html>
