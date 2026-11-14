@@ -798,69 +798,56 @@ window.RENDER = (() => {
   }
 
   /* ---------------- 光照遮罩 ----------------
-   * 地形先按本色全画，再盖一层整屏黑；只有玩家光圈是光源，
-   * 记忆窗口内的格子再擦掉一层（比实时暗）。 */
+   * 地形按本色全画，再盖一层由「光照记忆图」生成的黑色遮罩。
+   * 光照图每个子格 1 像素（world.js 按 2×2 子格记录），放大时开插值，
+   * 光圈边缘就是平滑渐变，不再是按格硬切的方块。 */
   let fogCv = null, fogCtx = null;
-  function fogLayer() {
+  function fogLayer(gw, gh) {
     if (!fogCv) { fogCv = document.createElement("canvas"); fogCtx = fogCv.getContext("2d"); }
-    const w = Math.max(1, Math.round(view.w * dpr)), h = Math.max(1, Math.round(view.h * dpr));
-    if (fogCv.width !== w || fogCv.height !== h) { fogCv.width = w; fogCv.height = h; }
+    if (fogCv.width !== gw || fogCv.height !== gh) { fogCv.width = gw; fogCv.height = gh; }
     return fogCtx;
-  }
-  function eraseRadial(f, cx, cy, r) {
-    const rr = TS * (r + 0.6);
-    const grd = f.createRadialGradient(cx, cy, TS * r * 0.45, cx, cy, rr);
-    /* 多段色标：只给 0/1 两段的话，8 位色深会在光圈边缘出现一圈圈色带 */
-    grd.addColorStop(0, "rgba(0,0,0,1)");
-    grd.addColorStop(0.42, "rgba(0,0,0,1)");
-    grd.addColorStop(0.58, "rgba(0,0,0,.985)");
-    grd.addColorStop(0.70, "rgba(0,0,0,.93)");
-    grd.addColorStop(0.80, "rgba(0,0,0,.80)");
-    grd.addColorStop(0.88, "rgba(0,0,0,.60)");
-    grd.addColorStop(0.94, "rgba(0,0,0,.34)");
-    grd.addColorStop(0.98, "rgba(0,0,0,.12)");
-    grd.addColorStop(1, "rgba(0,0,0,0)");
-    f.fillStyle = grd;
-    f.beginPath(); f.arc(cx, cy, rr, 0, Math.PI * 2); f.fill();
   }
   function drawFog(W) {
     if (!W.cfg.r || W.cfg.r <= 0) return;          // 教学关全图常亮
-    const f = fogLayer();
-    f.setTransform(dpr, 0, 0, dpr, 0, 0);
-    f.globalCompositeOperation = "source-over";
-    f.clearRect(0, 0, view.w, view.h);
-    f.fillStyle = "rgba(2,3,5,.86)";               // 没去过的地方：一层几乎不透光的黑
-    f.fillRect(0, 0, view.w, view.h);
-    f.globalCompositeOperation = "destination-out";
-    const ox = -cam.x, oy = -cam.y;                // 世界坐标 → 遮罩画布坐标
-    eraseRadial(f, W.player.x * TS + ox, W.player.y * TS + oy, WORLD.fogR(W));
-    /* 记忆窗口内的格子：只擦掉六成，比实时可见暗一档 */
-    f.fillStyle = "rgba(0,0,0,.62)";
-    const gx0 = Math.floor(-ox / TS) - 1, gy0 = Math.floor(-oy / TS) - 1;
-    const gcols = Math.ceil(view.w / TS) + 2, grows = Math.ceil(view.h / TS) + 2;
-    for (let j = 0; j < grows; j++) for (let i = 0; i < gcols; i++) {
-      const x = gx0 + i, y = gy0 + j;
-      if (!WORLD.inb(W, x, y)) continue;
-      if (WORLD.brightness(W, x, y) !== WORLD.MEM_HOLD) continue;
-      f.fillRect(x * TS + ox, y * TS + oy, TS, TS);
+    const S = W.lightS || 2;
+    const gw = W.w * S, gh = W.h * S;
+    const f = fogLayer(gw, gh);
+    f.setTransform(1, 0, 0, 1, 0, 0);
+    /* 1) 黑暗遮罩：光照越强，黑色越淡 */
+    f.clearRect(0, 0, gw, gh);
+    for (let gy = 0; gy < gh; gy++) {
+      for (let gx = 0; gx < gw; gx++) {
+        const light = W.lightMap[gy * gw + gx] || 0;
+        const a = 0.80 * (1 - light);              // 0.80 = 没去过的地方有多黑
+        if (a <= 0.004) continue;
+        f.fillStyle = "rgba(2,3,5," + a.toFixed(3) + ")";
+        f.fillRect(gx, gy, 1, 1);
+      }
     }
-    f.globalCompositeOperation = "source-over";
-    ctx.drawImage(fogCv, 0, 0, view.w, view.h);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(fogCv, 0, 0, gw, gh, -cam.x, -cam.y, W.w * TS, W.h * TS);
+    /* 2) 光照本身再给地形叠一层暖亮 —— 只是擦掉黑色的话，深色地形还是看不清 */
+    f.clearRect(0, 0, gw, gh);
+    for (let gy = 0; gy < gh; gy++) {
+      for (let gx = 0; gx < gw; gx++) {
+        const light = W.lightMap[gy * gw + gx] || 0;
+        if (light <= 0.01) continue;
+        f.fillStyle = "rgba(255,236,196," + (light * 0.16).toFixed(3) + ")";
+        f.fillRect(gx, gy, 1, 1);
+      }
+    }
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(fogCv, 0, 0, gw, gh, -cam.x, -cam.y, W.w * TS, W.h * TS);
+    ctx.restore();
   }
 
-  /** commit 点 / PR 门穿黑暗可见；假 PR 只在记忆或实时光里露头 */
+  /** commit 点 / PR 门穿黑暗可见；假 PR 只在有光照的地方露头 */
   function drawOverlayMarks(W) {
-    for (const c of W.mapCommits) {
-      const b = WORLD.brightness(W, c.x, c.y);
-      commitMark(W, c.x, c.y, b > WORLD.FOG_DARK ? 1 : 0);
-    }
-    for (const p of W.prs) {
-      const b = WORLD.brightness(W, p.x, p.y);
-      prMark(W, p.x, p.y, b > WORLD.FOG_DARK ? 1 : 0);
-    }
-    for (const p of W.fakePrs) {
-      if (WORLD.brightness(W, p.x, p.y) > WORLD.FOG_DARK) prMark(W, p.x, p.y, 1);
-    }
+    const lit = (x, y) => WORLD.brightness(W, x, y) > 0.02;
+    for (const c of W.mapCommits) commitMark(W, c.x, c.y, lit(c.x, c.y) ? 1 : 0);
+    for (const p of W.prs) prMark(W, p.x, p.y, lit(p.x, p.y) ? 1 : 0);
+    for (const p of W.fakePrs) if (lit(p.x, p.y)) prMark(W, p.x, p.y, 1);
   }
 
   /** 海森堡虫：只在黑暗里显形 —— 必须在遮罩之后画，不然会被黑暗一起盖掉 */

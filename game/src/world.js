@@ -142,22 +142,16 @@ window.WORLD = (() => {
     return TILES.lookOf(ch);
   }
 
-  /* ================= 照明 / 记忆 ================= */
-  /** 某格中心到玩家中心的距离（玩家是连续坐标，灯和探针仍按格中心） */
+  /* ================= 照明 / 记忆 =================
+   * 光照是一张「记忆图」：每格再细分 2×2 子格，每个子格一个 0..1 的值。
+   * 玩家光圈每 tick 按距离写入（中心 1、边缘 0），同一子格取历史最大值；
+   * 窗口 = cfg.mem 秒：超过窗口没再被照到的子格清零，地形回到黑色遮罩。
+   * 「原地不动也一直亮」「走过的路保留最高亮度」「一分钟前的光照被清掉」
+   * 都是这同一套逻辑自然推出来的，不另打补丁。 */
+  const LIGHT_S = 2;               // 每格 2×2 子格，光圈中心不会卡在格子中心
+  /** 某格中心到玩家中心的距离（玩家是连续坐标） */
   function cellDist(W, x, y) { return U.dist(x + 0.5, y + 0.5, W.player.x, W.player.y); }
-  function lightCircle(W, cx, cy, r, probeTicks) {
-    const rr = Math.ceil(r + 1);
-    const L = W.layer;
-    for (let y = Math.floor(cy - rr); y <= Math.ceil(cy + rr); y++) for (let x = Math.floor(cx - rr); x <= Math.ceil(cx + rr); x++) {
-      if (!inb(W, x, y)) continue;
-      if (U.dist(x + 0.5, y + 0.5, cx, cy) > r + 0.35) continue;
-      const i = idx(W, L, x, y);
-      W.lit[i] = W.tick; W.seen[i] = 1;
-      if (probeTicks) W.reveal[i] = Math.max(W.reveal[i], probeTicks);
-    }
-  }
-  /** 进场光圈：黑暗关卡开局 2 秒内从 1.6 格张开到 cfg.r ——
-   *  一进门就是一整块黑布，玩家会以为加载失败了。只改「可见半径」，不动 cfg.r 本身。 */
+  /** 进场光圈：黑暗关卡开局 2 秒内从 1.6 格张开到 cfg.r */
   function fogR(W) {
     const r = W.cfg.r;
     if (r <= 0) return r;
@@ -166,37 +160,54 @@ window.WORLD = (() => {
     const from = Math.min(1.6, r);
     return from + (r - from) * (W.tick / ramp);
   }
-  /** 光照只跟玩家走：灯 / 探针 / commit 点都不再自发照亮地形。
-   *  （commit 点与 PR 门仍是穿黑暗可见的标记，但不贡献光照。） */
-  function light(W) {
+  function updateLight(W) {
+    const gw = W.w * LIGHT_S, gh = W.h * LIGHT_S;
     const r = fogR(W);
-    if (r > 0) lightCircle(W, W.player.x, W.player.y, r, 0);
-    else {                                            // 全图常亮（教学关）
-      for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, W.layer, x, y); W.lit[i] = W.tick; W.seen[i] = 1; }
+    if (r <= 0) {                                        // 全图常亮（教学关）
+      for (let i = 0; i < W.lightMap.length; i++) { W.lightMap[i] = 1; W.lightT[i] = W.tick; }
+      for (let i = 0; i < W.seen.length; i++) { W.seen[i] = 1; W.lit[i] = W.tick; }
+      return;
+    }
+    const px = W.player.x * LIGHT_S, py = W.player.y * LIGHT_S;
+    const gr = r * LIGHT_S;
+    const gx0 = Math.max(0, Math.floor(px - gr)), gx1 = Math.min(gw - 1, Math.ceil(px + gr));
+    const gy0 = Math.max(0, Math.floor(py - gr)), gy1 = Math.min(gh - 1, Math.ceil(py + gr));
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      const wx = (gx + 0.5) / LIGHT_S, wy = (gy + 0.5) / LIGHT_S;
+      const d = U.dist(wx, wy, W.player.x, W.player.y);
+      if (d > r) continue;
+      const t = d / r;
+      /* 中心 55% 半径保持全亮，最外 45% 快速降下去：手电筒式的光圈，
+         既保住「保持最高亮度」，边缘又不糊成一整片 */
+      const k = t < 0.55 ? 1 : (1 - t) / 0.45;
+      const gi = gy * gw + gx;
+      if (k > W.lightMap[gi]) W.lightMap[gi] = k;
+      W.lightT[gi] = W.tick;
+      const ci = idx(W, W.layer, Math.floor(wx), Math.floor(wy));
+      W.seen[ci] = 1; W.lit[ci] = W.tick;
+    }
+    /* 一分钟前的光照被清出窗口；窗口内的保留 */
+    if (W.cfg.mem > 0) {
+      const win = W.cfg.mem * STEP_HZ;
+      for (let gi = 0; gi < W.lightMap.length; gi++) {
+        if (W.lightMap[gi] > 0 && W.tick - W.lightT[gi] > win) W.lightMap[gi] = 0;
+      }
     }
   }
-  /** 此刻是否被「观测」——只算玩家光圈，记忆不算 */
+  /** 此刻是否在玩家光圈里（实时观测，记忆不算） */
   function observed(W, x, y) {
     const r = fogR(W);
     if (r <= 0) return true;
-    return cellDist(W, x, y) <= r + 0.35;
+    return cellDist(W, x, y) <= r;
   }
-  /** 渲染亮度：1 实时可见 · MEM_HOLD 窗口内的记忆（保持不衰减）· FOG_DARK 黑色遮罩。
-   *  记忆 = 「最近 mem 秒更新过的光照」的滑动窗口：光圈每 tick 都往里写，
-   *  所以原地不动也不会过期；超过窗口的更新逐出，格子回到几乎全黑的遮罩。
-   *  未探索过的地方同样落在 FOG_DARK —— 不是纯黑，但只剩一层几乎看不见的轮廓。 */
-  const FOG_DARK = 0.12;          // 没去过 / 记忆过期：黑色遮罩，几乎看不见但能看出有东西
-  const MEM_HOLD = 0.68;          // 窗口内保持的最高记忆亮度，不随时间衰减
+  /** 渲染亮度：直接读光照记忆图（0 = 没去过 / 已过期，1 = 刚照到） */
   function brightness(W, x, y) {
-    if (observed(W, x, y)) return 1;
-    const i = idx(W, W.layer, x, y);
-    if (!W.seen[i]) return FOG_DARK;        // 从来没进过光圈
-    if (W.cfg.mem <= 0) return FOG_DARK;
-    const age = (W.tick - W.lit[i]) * DT;
-    if (age > W.cfg.mem) return FOG_DARK;   // 一分钟以前的光照已经清出窗口
-    return MEM_HOLD;                        // 窗口内保持最高记忆亮度
+    const gw = W.w * LIGHT_S;
+    const gx = Math.min(gw - 1, Math.max(0, Math.floor((x + 0.5) * LIGHT_S)));
+    const gy = Math.min(W.h * LIGHT_S - 1, Math.max(0, Math.floor((y + 0.5) * LIGHT_S)));
+    return W.lightMap[gy * gw + gx] || 0;
   }
-  /** 记忆还剩几秒（HUD 用来闪警告） */
+  /** 记忆还剩几秒（调试用） */
   function memLeft(W, x, y) {
     const i = idx(W, W.layer, x, y);
     if (!W.seen[i] || W.lit[i] < 0) return 0;
@@ -233,9 +244,12 @@ window.WORLD = (() => {
       prReady: false, gravity: 1, jump: lv.jump || 2,
       pDeadly: lv.pDeadly !== false, maxBugs: lv.maxBugs || 40,
       idc: 1, lamps: [], lampCov: [], mapCommits: collect(lv.rows, "o"),
+      lightS: LIGHT_S, lightMap: [], lightT: [],
       prs: collect(lv.rows, "P"), fakePrs: collect(lv.rows, "!"),
       deps: [], belts: [], events: lv.events || [], tut: lv.tut || []
     };
+    W.lightMap = new Array(W.w * W.h * LIGHT_S * LIGHT_S).fill(0);
+    W.lightT = new Array(W.w * W.h * LIGHT_S * LIGHT_S).fill(-1);
 
     /* 给 bugs.js 的窄接口：只暴露它需要的动作，闭包在 W 上，快照/回档后依然有效 */
     W.api = {
@@ -298,7 +312,7 @@ window.WORLD = (() => {
 
     /* 开局先落一个 init commit，否则第一次死亡无处可回 */
     pushCommit(W, "起点 · " + lv.name, true);
-    light(W);
+    updateLight(W);
     W.flags.started = true;
     return W;
   }
@@ -718,7 +732,7 @@ window.WORLD = (() => {
     mutate(W);
     fire(W, "onRevert");
     flag(W, "revert");
-    light(W);
+    updateLight(W);
     return true;
   }
 
@@ -1321,7 +1335,7 @@ window.WORLD = (() => {
       }
     }
 
-    light(W);
+    updateLight(W);
     W.tick++;
     fire(W, "tick");
     runTut(W);
@@ -1466,8 +1480,8 @@ window.WORLD = (() => {
   return {
     STEP_HZ, DT, BUG_HIT, bindLevels, create, tick, act, tutAck, tutNow,
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
-    tile, look, setTile, dyn, observed, brightness, memLeft, fogR, FOG_DARK, MEM_HOLD, solidAt, bugBlock, isPitAt, supportAt,
-    spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
+    tile, look, setTile, dyn, observed, brightness, memLeft, fogR, updateLight, solidAt, bugBlock, isPitAt, supportAt,
+    spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, inb, idx, keyOf,
     stepPlayer, resolvePlayer, doLog, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS
   };
