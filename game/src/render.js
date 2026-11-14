@@ -492,11 +492,11 @@ window.RENDER = (() => {
     return m;
   }
 
+  /** 实体可见度：跟着光照记忆图走 —— 远处只要还亮着，虫照样看得见，只是暗一点 */
   function visible(W, x, y) {
-    if (WORLD.observed(W, x, y)) return 1;
-    const i = WORLD.idx(W, W.layer, x, y);
-    if (W.reveal[i] > 0 && W.seen[i]) return 0.8;
-    return 0;
+    const b = WORLD.brightness(W, x, y);
+    if (b <= 0.02) return 0;
+    return Math.max(0.55, Math.min(1, b));
   }
 
   function drawEntities(W) {
@@ -813,7 +813,6 @@ window.RENDER = (() => {
     const gw = W.w * S, gh = W.h * S;
     const f = fogLayer(gw, gh);
     f.setTransform(1, 0, 0, 1, 0, 0);
-    /* 1) 黑暗遮罩：光照越强，黑色越淡 */
     f.clearRect(0, 0, gw, gh);
     for (let gy = 0; gy < gh; gy++) {
       for (let gx = 0; gx < gw; gx++) {
@@ -826,18 +825,6 @@ window.RENDER = (() => {
     }
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(fogCv, 0, 0, gw, gh, -cam.x, -cam.y, W.w * TS, W.h * TS);
-    /* 2) 光照本身再给地形叠一层暖亮 —— 只是擦掉黑色的话，深色地形还是看不清 */
-    f.clearRect(0, 0, gw, gh);
-    for (let gy = 0; gy < gh; gy++) {
-      for (let gx = 0; gx < gw; gx++) {
-        const light = W.lightMap[gy * gw + gx] || 0;
-        if (light <= 0.01) continue;
-        f.fillStyle = "rgba(255,236,196," + (light * 0.16).toFixed(3) + ")";
-        f.fillRect(gx, gy, 1, 1);
-      }
-    }
-    ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(fogCv, 0, 0, gw, gh, -cam.x, -cam.y, W.w * TS, W.h * TS);
     ctx.restore();
   }

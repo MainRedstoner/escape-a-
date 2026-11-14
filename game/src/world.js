@@ -186,11 +186,16 @@ window.WORLD = (() => {
       const ci = idx(W, W.layer, Math.floor(wx), Math.floor(wy));
       W.seen[ci] = 1; W.lit[ci] = W.tick;
     }
-    /* 一分钟前的光照被清出窗口；窗口内的保留 */
+    /* 一分钟前的光照被清出窗口；窗口内的保留。
+       过期不瞬间清零，而是约 1 秒淡出 —— 回收的那一下也要平滑 */
     if (W.cfg.mem > 0) {
       const win = W.cfg.mem * STEP_HZ;
       for (let gi = 0; gi < W.lightMap.length; gi++) {
-        if (W.lightMap[gi] > 0 && W.tick - W.lightT[gi] > win) W.lightMap[gi] = 0;
+        if (W.lightMap[gi] <= 0) continue;
+        if (W.tick - W.lightT[gi] > win) {
+          W.lightMap[gi] *= 0.94;
+          if (W.lightMap[gi] < 0.01) W.lightMap[gi] = 0;
+        }
       }
     }
   }

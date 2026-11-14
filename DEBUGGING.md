@@ -298,7 +298,7 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 | `BUGFIX.world` | **世界状态**（`tick`、`player`、`bugs`、`tools`、`cfg`、`lit/seen`、`commitLog`），可整份 `JSON.stringify` |
 | `BUGFIX.world.player` | 玩家是连续坐标：`x/y` 是格单位中心点（格 `tx` 占据 `[tx, tx+1)`），`cx/cy` 是所在格；`vx/vy` 是速度，`grounded/coyote/jumpBuf/dropT` 是横版状态 |
 | `WORLD.STEP_HZ` / `WORLD.DT` | 世界时钟 60 tick/秒；`tick` 是 60Hz 计数，所有机关冷却都按它算 |
-| `WORLD.brightness(BUGFIX.world, x, y)` | 某格此刻的亮度：`1` 实时可见 · `0.68` 记忆窗口内（不衰减）· `0.05` 黑色遮罩（没去过 / 过期）。别写成 `BUGFIX.world.brightness(...)`，算法挂在 `WORLD` 上 |
+| `WORLD.brightness(BUGFIX.world, x, y)` | 某格此刻的光照记忆值 `0..1`（`0` = 没去过 / 已过期）。别写成 `BUGFIX.world.brightness(...)`，算法挂在 `WORLD` 上 |
 | `WORLD.observed(BUGFIX.world, x, y)` | 这格此刻在不在光源里（记忆不算） |
 | `WORLD.snap(BUGFIX.world)` | 当前 commit 快照的原文，回档就是把它灌回去 |
 | `BUGFIX.ctl.openTitle()` / `.restartLevel()` | 不点按钮也能切状态 |
