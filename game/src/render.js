@@ -85,6 +85,7 @@ window.RENDER = (() => {
     const x0 = Math.floor(cam.x / TS) - 1, y0 = Math.floor(cam.y / TS) - 1;
     drawTiles(W, x0, y0, cols, rowsN);
     drawHazardsBack(W, x0, y0, cols, rowsN);
+    drawEntities(W);               // 无条件渲染所有甲虫，但会被后面的黑暗遮罩挡住
     drawPlayer(W, dt);
     drawParticles();
     ctx.restore();
@@ -93,7 +94,6 @@ window.RENDER = (() => {
 
     ctx.save();
     ctx.translate(Math.round(-cam.x), Math.round(-cam.y));
-    drawEntities(W);               // 甲虫总是可见：画在遮罩之后
     drawHazardsFront(W, dt);       // CI 红光：在黑暗之上
     drawOverlayMarks(W);           // commit / PR：穿黑暗可见
     ctx.restore();
