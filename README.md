@@ -36,6 +36,7 @@
 | `?` | 记忆碎片面板（残破的 CLAUDE.md） |
 | `Ctrl`（按住） | 快进 |
 | `Esc` | 菜单 |
+| 任意键 / 点击（片头播放中） | 跳过片头 |
 
 存档：3 个手动槽位 + 剧情检查点自动存档，标题画面与游戏内共用一个「存档 / 读档」面板：点槽位展开读取 / 保存 / 导出 / 导入 / 删除，覆盖与删除都会先确认。`file://` 直开时走 localStorage；用 `python server.py` 起服务时写本机磁盘（换浏览器不丢档）。契约见 SAVE_API.md。
 
@@ -64,6 +65,9 @@ src/script.js         剧本：场景注册表 + 速写助手（可拆成 script
 src/engine.js         VN 引擎：节点解释 / 打字机 / 选项调度 / 立绘调度 / 存读档 / 历史 / 深度思考
 src/token-choice.js   TokenChoice 组件：Transformer 选词器风格的滑道选项框（所有 choice 都用它）
 src/token-choice.css  该组件样式（类名前缀 tc-，配色接引擎主题变量）
+src/opening_script.js 片头《愿望》的台本（纯数据：台词 / 时间点 / 镜头关键帧 / 论坛文案）
+src/opening.js        片头渲染器：内容层 640×360 → 采样层 → 镜头层（超微距 / 像素栅格 / 摩尔纹）
+opening-preview.html  片头预览页（双击就开；时间轴拖拽 / 分段 / 图层开关 / 帧耗时）
 tools/                校验与生成工具（见下）
 game/                 「修复屎山」小游戏：独立可玩，也准备日后嵌进主线（见 game/README.md）
   index.html          双击即玩；game/src/ 下 10 个普通 <script>，零依赖

@@ -91,6 +91,8 @@ index.html?scene=c1_perm&trust=6&wanted=2&args=frag_first,frag_pet&flags=pass_lo
 | `bg` | 标题画面上直接预览某个 3D 背景（美术调试用，如 `?bg=nvidia`），不开始剧情 |
 | `q` | 强制 3D 画质：`?q=low` / `mid` / `high` / `auto`，覆盖设置里的档位 |
 | `perf` | 打开左下角的性能面板（存在即生效，如 `?perf=1`），详见 3.5.1 |
+| `opening` | 片头：`?opening=0` 不播、`?opening=1` 强制播（默认只在第一次「开始游戏」时播） |
+| `opening_t` | 把片头定格在第 N 秒（截图 / 调参用，如 `?opening_t=62`） |
 
 注意：**`tokens` 参数已经移除**（Token 数值机制已删）。
 

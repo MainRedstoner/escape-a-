@@ -158,6 +158,8 @@ const ENGINE = (() => {
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     if (document.hidden) return;
+    /* 片头盖住整个舞台时，画布下面的 3D 场景没人看得见，这一帧干脆别画 */
+    if (typeof OPENING !== "undefined" && OPENING.covering) return;
     updatePerf(now);
     ART.stepFX(dt);
     syncChoiceBlock();
@@ -2279,8 +2281,9 @@ const ENGINE = (() => {
   function buildTitle() {
     ui.titleMenu.innerHTML = "";
     const items = [
-      ["开始游戏", () => { AUDIO.unlock(); newGame(); }, true],
+      ["开始游戏", () => startGame(), true],
       ["读档", () => { AUDIO.unlock(); openSavePanel(); }, false],
+      ["片头", () => replayOpening(), false],
       ["结局收集", () => { AUDIO.unlock(); showGallery(); }, false],
       ["设置", () => { showSettings(); }, false],
       ["关于本作", () => { $("ovAbout").style.display = "flex"; }, false]
@@ -2293,6 +2296,27 @@ const ENGINE = (() => {
       ui.titleMenu.appendChild(b);
     }
     ui.titleMenu.children[1].disabled = !SAVE.hasAny();
+  }
+
+  /* ---------------- 片头 ----------------
+   * 第一次点「开始游戏」先播片头；看过、`?opening=0`、或系统开了「减少动态效果」就直接开局。
+   * 片头放不出来（没有画布/初始化失败）也绝不能卡住开局：play() 返回 false 就照常 newGame()。 */
+  function startGame() {
+    AUDIO.unlock();
+    if (typeof OPENING !== "undefined" && OPENING.covering) return;
+    const qs = new URLSearchParams(location.search);
+    if (qs.get("opening") === "0") { newGame(); return; }
+    if (typeof OPENING !== "undefined" && (qs.get("opening") === "1" || OPENING.wants())) {
+      if (OPENING.play({ onDone: () => newGame() })) return;
+    }
+    newGame();
+  }
+
+  /** 标题菜单的「片头」：随时可以重看，看完回标题 */
+  function replayOpening() {
+    if (typeof OPENING === "undefined") return;
+    AUDIO.unlock();
+    OPENING.play({ onDone: () => { if (!started) { buildTitle(); ui.titleScreen.style.display = "flex"; } } });
   }
 
   function newGame() {
@@ -2383,6 +2407,13 @@ const ENGINE = (() => {
     /* ?q=low|mid|high|auto 强制 3D 画质；?bg= 预览一律高档，别让自动降档干扰美术判断 */
     applyQuality(qs.get("q") || (bgQ ? "high" : null));
     if (qs.has("perf")) { ART.setPerf(true); buildPerfHud(); }
+    /* 片头定格一帧：?opening_t=<秒>（截图 / 调参用，见 DEBUGGING.md） */
+    const opT = qs.get("opening_t");
+    if (opT !== null && typeof OPENING !== "undefined") {
+      document.body.classList.add("opening-on");
+      $("opCanvas").style.display = "block";
+      OPENING.debug.renderAt(Math.max(0, parseFloat(opT) || 0));
+    }
     requestAnimationFrame(loop);
     /* 标题就播 BGM：浏览器此时会拦自动播放，AUDIO 只把曲名记下，
        等第一次交互（点鼠标或按键）由 unlock() 补播——所以读档前先点一下屏幕也有音乐。 */

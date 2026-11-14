@@ -152,6 +152,7 @@ SAVE.importFile(file)  → 校验后写入槽位
   - [ ] 2E 验收：四件套 + 浏览器实测（服务模式已过；`file://` 与用户试玩待做）
 - [ ] 第三章「门后」、第四章「越权」、终章「200 OK」剧本 + 剩余结局（`end_200` / `end_pet` / `end_mirror` / `end_jailbreak` / `end_clawd`）
 - [ ] 演出层：CG、立绘、故障段落、`451`
+- [x] 片头《愿望》：全程序化超微距退役采访（`src/opening*.js` + `opening-preview.html`，见 DESIGN.md 4.10）
 
 ### 4.4 依赖与顺序
 
