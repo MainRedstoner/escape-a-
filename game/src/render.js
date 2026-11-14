@@ -692,13 +692,17 @@ window.RENDER = (() => {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(px, py, TS * 0.42, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
     }
-    /* 光圈边缘：软渐变，让黑暗有个边界 */
+    /* 光圈边缘：软渐变只压在光圈自己这一圈上 —— 铺满全屏会把光圈外的「记忆」也一起压暗，
+     * 那样 0.68 的记忆亮度就保不住了。 */
     if (W.cfg.r > 0) {
-      const grd = ctx.createRadialGradient(px, py, TS * W.cfg.r * 0.55, px, py, TS * (W.cfg.r + 1.5));
+      const rr = TS * (W.cfg.r + 0.5);
+      const grd = ctx.createRadialGradient(px, py, TS * W.cfg.r * 0.7, px, py, rr);
       grd.addColorStop(0, "rgba(0,0,0,0)");
-      grd.addColorStop(1, "rgba(2,3,5,.82)");
+      grd.addColorStop(1, "rgba(2,3,5,.55)");
       ctx.fillStyle = grd;
-      ctx.fillRect(cam.x - TS, cam.y - TS, view.w + TS * 2, view.h + TS * 2);
+      ctx.beginPath();
+      ctx.arc(px, py, rr, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     /* 调试：判定箱（B 键 / ?box=1 开关）。画在光圈之后，黑暗里也看得清。
