@@ -5,7 +5,7 @@
  * 逻辑 60 tick/秒：玩家直接画连续坐标；虫子画世界推进的连续位置 sx/sy（身体、致死判定、B 键
  * 红框同源 —— 身体滑到哪儿判定就在哪儿），机关和 CI 用指数平滑插值，避免格子跳变。
  * 横版额外画视差背景、平台高光、坑的深度渐变和落地尘土；俯视保持原来的黑底。
- * 亮度 = WORLD.brightness()：1 实时观测 · 0 全黑 · 中间是「还记得」。
+ * 亮度 = WORLD.brightness()：1 实时观测 · 0.68 记忆窗口内（不衰减）· 0.05 黑色遮罩。
  * ============================================================ */
 "use strict";
 
@@ -211,20 +211,17 @@ window.RENDER = (() => {
       const x = x0 + i, y = y0 + j;
       if (!WORLD.inb(W, x, y)) { continue; }
       const b = WORLD.brightness(W, x, y);
-      const seen = !!W.seen[WORLD.idx(W, W.layer, x, y)];
-      if (b <= 0) {
-        /* 记忆过期：只留一点点地形的残影（关卡可调，最阴的关是 0） */
-        const raw0 = WORLD.tile(W, x, y);
-        if (raw0 === "o") { commitMark(W, x, y, 0); continue; }        // commit 点穿墙可见
-        if (raw0 === "P") { prMark(W, x, y, 0); continue; }
-        if (seen && W.cfg.ghost > 0 && tileLike(W, x, y)) ghostTile(W, x, y);
-        continue;
-      }
       const raw = WORLD.tile(W, x, y);
       const shown = WORLD.look(W, x, y);
+      const dark = b <= WORLD.FOG_DARK;        // 没去过 / 记忆过期：只剩一层极暗的遮罩
+      if (dark) {
+        /* commit 点与 PR 门是穿黑暗的灯塔：没探索过也画；假 PR 不在黑暗里露头 */
+        if (raw === "o") { commitMark(W, x, y, 0); continue; }
+        if (raw === "P") { prMark(W, x, y, 0); continue; }
+        if (raw === "!") continue;
+      }
       if (shown === "_") continue;                 // 空气：什么都不画
-      ctx.globalAlpha = b >= 1 ? 1 : 0.35 + 0.55 * b;
-      if (b < 1 && memExpiring(W, x, y)) ctx.globalAlpha *= 0.75 + 0.25 * Math.sin(time * 22);
+      ctx.globalAlpha = b;                         // 1 实时 / MEM_HOLD 记忆 / FOG_DARK 遮罩
       paintTile(W, x, y, shown, b >= 1);
       /* 被探针看穿的地块：画一圈红虚线，说明「真相和刚才看到的不一样」 */
       if (b >= 1 && W.reveal[WORLD.idx(W, W.layer, x, y)] > 0 && raw !== shown) trickTile(W, x, y, raw);
@@ -232,16 +229,6 @@ window.RENDER = (() => {
       if (shown === "o") commitMark(W, x, y, b);
       if (shown === "P" || shown === "!") prMark(W, x, y, b);
     }
-  }
-  function tileLike(W, x, y) { return WORLD.solidAt(W, x, y) || WORLD.isPitAt(W, x, y); }
-  function memExpiring(W, x, y) { const l = WORLD.memLeft(W, x, y); return l > 0 && l < 10; }
-
-  function ghostTile(W, x, y) {
-    const px = x * TS, py = y * TS;
-    ctx.globalAlpha = W.cfg.ghost;
-    if (WORLD.isPitAt(W, x, y)) { ctx.fillStyle = "#0a0507"; ctx.fillRect(px, py, TS, TS); }
-    else { ctx.fillStyle = "#141a22"; ctx.fillRect(px, py, TS, TS); ctx.strokeStyle = "#1f2733"; ctx.lineWidth = 1; ctx.strokeRect(px + 0.5, py + 0.5, TS - 1, TS - 1); }
-    ctx.globalAlpha = 1;
   }
 
   function paintTile(W, x, y, ch, live) {
@@ -312,12 +299,13 @@ window.RENDER = (() => {
       }
       case "x": {
         floor(W, x, px, py, n);
+        ctx.save();
         ctx.fillStyle = "#9fd8ff"; ctx.globalAlpha *= 0.75;
         for (let i2 = 0; i2 < 5; i2++) {
           const gx = px + TS * U.hash2(x + i2, y, 7), gy = py + TS * U.hash2(x, y + i2, 11);
           ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + 5, gy + 3); ctx.lineTo(gx + 2, gy + 7); ctx.closePath(); ctx.fill();
         }
-        ctx.globalAlpha = 1;
+        ctx.restore();
         break;
       }
       case "l": {
@@ -521,7 +509,7 @@ window.RENDER = (() => {
         if (b.frozen > 0) { drawBug(W, b, 1); continue; }
         if (v > 0) continue;
         const bm = WORLD.brightness(W, b.x, b.y);
-        if (bm <= 0 && !W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue;
+        if (bm <= WORLD.FOG_DARK && !W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue;
         drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9));
         continue;
       }

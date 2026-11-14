@@ -184,16 +184,20 @@ window.WORLD = (() => {
     for (const l of W.lamps) if (U.dist(x + 0.5, y + 0.5, l.x + 0.5, l.y + 0.5) <= l.r + 0.35) return true;
     return false;
   }
-  /** 渲染亮度：1 实时可见 · 0 全黑 · 中间是「还记得但已经模糊」 */
+  /** 渲染亮度：1 实时可见 · MEM_HOLD 窗口内的记忆（保持不衰减）· FOG_DARK 黑色遮罩。
+   *  记忆 = 「最近 mem 秒更新过的光照」的滑动窗口：光圈每 tick 都往里写，
+   *  所以原地不动也不会过期；超过窗口的更新逐出，格子回到几乎全黑的遮罩。
+   *  未探索过的地方同样落在 FOG_DARK —— 不是纯黑，但只剩一层几乎看不见的轮廓。 */
+  const FOG_DARK = 0.05;          // 没去过 / 记忆过期：黑色遮罩，几乎看不见
+  const MEM_HOLD = 0.68;          // 窗口内保持的最高记忆亮度，不随时间衰减
   function brightness(W, x, y) {
     if (observed(W, x, y)) return 1;
     const i = idx(W, W.layer, x, y);
-    if (!W.seen[i]) return 0;
-    if (W.cfg.mem <= 0) return 0;
+    if (!W.seen[i]) return FOG_DARK;        // 从来没进过光圈
+    if (W.cfg.mem <= 0) return FOG_DARK;
     const age = (W.tick - W.lit[i]) * DT;
-    if (age > W.cfg.mem) return 0;
-    const k = age / W.cfg.mem;
-    return 0.68 - 0.36 * k * k;
+    if (age > W.cfg.mem) return FOG_DARK;   // 一分钟以前的光照已经清出窗口
+    return MEM_HOLD;                        // 窗口内保持最高记忆亮度
   }
   /** 记忆还剩几秒（HUD 用来闪警告） */
   function memLeft(W, x, y) {
@@ -228,8 +232,7 @@ window.WORLD = (() => {
       commitLog: [], entropy: 0, reverted: 0, kills: 0, seenKinds: {},
       tick: 0, seed: opts.seed || (1234 + li * 77), rng: U.rngNew(opts.seed || (1234 + li * 77)),
       fired: {}, notes: [], toasts: [], flags: {}, tutFlags: {}, tutStep: 0,
-      cfg: { r: lv.fog ? lv.fog.r : 4, mem: lv.fog && lv.fog.mem != null ? lv.fog.mem : 60,
-             ghost: lv.fog && lv.fog.ghost != null ? lv.fog.ghost : 0.18 },
+      cfg: { r: lv.fog ? lv.fog.r : 4, mem: lv.fog && lv.fog.mem != null ? lv.fog.mem : 60 },
       prReady: false, gravity: 1, jump: lv.jump || 2,
       pDeadly: lv.pDeadly !== false, maxBugs: lv.maxBugs || 40,
       idc: 1, lamps: [], lampCov: [], mapCommits: collect(lv.rows, "o"),
@@ -1457,7 +1460,7 @@ window.WORLD = (() => {
   return {
     STEP_HZ, DT, BUG_HIT, bindLevels, create, tick, act, tutAck, tutNow,
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
-    tile, look, setTile, dyn, observed, brightness, memLeft, solidAt, bugBlock, isPitAt, supportAt,
+    tile, look, setTile, dyn, observed, brightness, memLeft, FOG_DARK, MEM_HOLD, solidAt, bugBlock, isPitAt, supportAt,
     spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
     stepPlayer, resolvePlayer, doLog, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS

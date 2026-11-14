@@ -5,7 +5,7 @@
  *   id/name/brief      编号、标题、开场白
  *   w/h                图的宽高（必须等于 rows 的行宽 / 行数，校验器会管）
  *   mode               "top" 俯视 · "side" 横版（事件可以中途翻）
- *   fog {r,mem,ghost}  r=光圈半径（0=全图常亮）· mem=记忆秒数 · ghost=记忆过期后的残影强度
+ *   fog {r,mem}        r=光圈半径（0=全图常亮）· mem=记忆窗口秒数（最近 mem 秒更新过的光照保留）
  *   tools {test} 配额
  *   jump               起跳能升几格（横版：跑动中按跳，固定高度，可跨 2 格坑）
  *   pDeadly            踩没解锁的 PR 门是否当场暴毙（教学两关关着）
@@ -34,7 +34,7 @@ window.GAME_LEVELS = [
   {
     id: "l1", name: "第 1 关 · onboarding", mode: "top", w: 24, h: 14,
     brief: "接手第一天。仓库里没有 README、没有 CI、没有测试，只有一座山和一堆虫。\n这一关灯全亮着 —— 之后不会了。",
-    fog: { r: 0, mem: 0, ghost: 0.35 },
+    fog: { r: 0, mem: 0 },
     tools: { test: 1 },
     requireTut: true, pDeadly: false, jump: 2,
     rows: [
@@ -85,7 +85,7 @@ window.GAME_LEVELS = [
   {
     id: "l2", name: "第 2 关 · context 丢了", mode: "top", w: 28, h: 16,
     brief: "灯被拔了。你只能看清身边一圈，看过的地方也只亮 60 秒。\n记住：commit 点会穿过黑暗发光，那是你的灯塔。",
-    fog: { r: 3.3, mem: 60, ghost: 0.22 },
+    fog: { r: 3.3, mem: 60 },
     tools: { test: 2 },
     pDeadly: false, jump: 2,
     rows: [
@@ -139,7 +139,7 @@ window.GAME_LEVELS = [
   {
     id: "l3", name: "第 3 关 · 换个角度看屎山", mode: "side", w: 35, h: 16,
     brief: "这一关是横版：A / D 跑，W / ↑ 跳，脚下没东西就会掉。跳固定 2 格高，2 格宽的窟窿跑起来跳得过去，3 格就别试了。\n按住 S 可以快速下落，也能从单杠平台（＋）上直接跳下去。\n中途有人会「重构坐标系」，重力说翻就翻。",
-    fog: { r: 4.2, mem: 60, ghost: 0.2 },
+    fog: { r: 4.2, mem: 60 },
     tools: { test: 2 },
     jump: 2,
     rows: [
@@ -192,7 +192,7 @@ window.GAME_LEVELS = [
   {
     id: "l4", name: "第 4 关 · 黑暗分支", mode: "top", w: 30, h: 16,
     brief: "这一关有只能在黑暗里看见的虫，和一条必须按顺序踩的依赖地砖。\n踩错顺序会长虫 —— 想清楚再下脚。",
-    fog: { r: 3.6, mem: 55, ghost: 0.16 },
+    fog: { r: 3.6, mem: 55 },
     tools: { test: 2 },
     jump: 2,
     rows: [
@@ -247,7 +247,7 @@ window.GAME_LEVELS = [
   {
     id: "l5", name: "第 5 关 · 流水线", mode: "side", w: 38, h: 18,
     brief: "这座山开始自己跑起来了：内存泄漏在涨，CI 在扫，流水线一触发全仓的虫一起动。\n下层是另一套虫群，跳板 + 单杠是唯一的上行路。",
-    fog: { r: 3.8, mem: 50, ghost: 0.14 },
+    fog: { r: 3.8, mem: 50 },
     tools: { test: 3 },
     jump: 2,
     rows: [
@@ -312,7 +312,7 @@ window.GAME_LEVELS = [
   {
     id: "l6", name: "第 6 关 · code review", mode: "top", w: 30, h: 17,
     brief: "最后一关是纯黑的：看过的地方 45 秒就忘，残影也关掉了。\n山的最深处坐着祖传本体，它有三管血，每管都要先盖测试。",
-    fog: { r: 2.5, mem: 45, ghost: 0 },
+    fog: { r: 2.5, mem: 45 },
     tools: { test: 3 },
     jump: 2,
     rows: [

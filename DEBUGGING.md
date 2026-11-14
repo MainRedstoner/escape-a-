@@ -298,7 +298,7 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 | `BUGFIX.world` | **世界状态**（`tick`、`player`、`bugs`、`tools`、`cfg`、`lit/seen`、`commitLog`），可整份 `JSON.stringify` |
 | `BUGFIX.world.player` | 玩家是连续坐标：`x/y` 是格单位中心点（格 `tx` 占据 `[tx, tx+1)`），`cx/cy` 是所在格；`vx/vy` 是速度，`grounded/coyote/jumpBuf/dropT` 是横版状态 |
 | `WORLD.STEP_HZ` / `WORLD.DT` | 世界时钟 60 tick/秒；`tick` 是 60Hz 计数，所有机关冷却都按它算 |
-| `WORLD.brightness(BUGFIX.world, x, y)` | 某格此刻的亮度：`1` 实时可见 · `0` 全黑 · 中间是记忆。别写成 `BUGFIX.world.brightness(...)`，算法挂在 `WORLD` 上 |
+| `WORLD.brightness(BUGFIX.world, x, y)` | 某格此刻的亮度：`1` 实时可见 · `0.68` 记忆窗口内（不衰减）· `0.05` 黑色遮罩（没去过 / 过期）。别写成 `BUGFIX.world.brightness(...)`，算法挂在 `WORLD` 上 |
 | `WORLD.observed(BUGFIX.world, x, y)` | 这格此刻在不在光源里（记忆不算） |
 | `WORLD.snap(BUGFIX.world)` | 当前 commit 快照的原文，回档就是把它灌回去 |
 | `BUGFIX.ctl.openTitle()` / `.restartLevel()` | 不点按钮也能切状态 |
@@ -378,7 +378,7 @@ VN 里背景「糊」比背景「跳」更容易被看出来，所以先砍帧�
 | 素材（`assets/`） | 重新生成 `manifest.js`，检查占位卡是否消失 |
 | 工具自身（`tools/*.py`） | 三个命令都要能跑通，输出与改动前一致或按预期变化 |
 | 小游戏关卡（`game/src/levels.js`） | `check_js.py` → `validate_game.py`（必须"关卡校验通过"）→ 浏览器 `?level=<n>` 真走一遍 |
-| 小游戏机制（`world.js` / `bugs.js` / `tiles.js`） | 上面三步 + 死一次 / 回档 / 落 commit / 图鉴各点一遍；照明改动要对比「全亮 · 记忆 · 全黑」三档（3.6 有表达式） |
+| 小游戏机制（`world.js` / `bugs.js` / `tiles.js`） | 上面三步 + 死一次 / 回档 / 落 commit / 图鉴各点一遍；照明改动要对比「全亮 · 记忆 · 遮罩」三档（3.6 有表达式） |
 
 ---
 
