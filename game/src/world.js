@@ -1054,14 +1054,15 @@ window.WORLD = (() => {
     const top = W.mode === "top";
     const down = W.gravity > 0 ? 1 : -1;
 
-    /* 施法不再锁脚：边走边修（finishCast 按连续距离判成败），跳 / 下穿 / 快落也一样放行 */
-    let ix = 0, iy = 0;
-    if (I.down("left")) ix -= 1;
-    if (I.down("right")) ix += 1;
-    if (top) { if (I.down("up")) iy -= 1; if (I.down("down")) iy += 1; }
-    if (ix && iy) { const len = Math.SQRT2; ix /= len; iy /= len; }
-    if (ix) { p.dir = ix > 0 ? 1 : -1; p.lastDx = Math.sign(ix); p.lastDy = 0; }
-    else if (iy) { p.lastDx = 0; p.lastDy = Math.sign(iy); }
+    /* 施法不再锁脚：边走边修（finishCast 按连续距离判成败），跳 / 下穿 / 快落也一样放行。
+     * 速度来自 moveVec：键盘是八向满速，摇杆是万向 + 油门（模长越小走得越慢）。 */
+    const mv = I.moveVec();
+    const ix = mv.x, iy = top ? mv.y : 0;
+    const ax = Math.abs(ix), ay = Math.abs(iy);
+    if (ax > 0.2) p.dir = ix > 0 ? 1 : -1;
+    /* 朝向取主导轴（阈值防抖）：console.log 探针顺着它照，斜走时不会来回摆 */
+    if (ax >= ay) { if (ax > 0.2) { p.lastDx = ix > 0 ? 1 : -1; p.lastDy = 0; } }
+    else if (ay > 0.2) { p.lastDx = 0; p.lastDy = iy > 0 ? 1 : -1; }
 
     let tvx = ix * (top ? RUN_TOP : RUN_SIDE);
     let tvy = top ? iy * RUN_TOP : 0;

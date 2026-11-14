@@ -103,7 +103,7 @@ window.UI = (() => {
     const touch = el.app && el.app.classList.contains("gf-touch");
     if (state === null) { el.hint.textContent = touch ? "" : "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
     el.hint.textContent = state === "on"
-      ? (touch ? "左下摇杆移动 · 右下 修 / 测 / log / commit · 小键：回 / 图 / 菜"
+      ? (touch ? "左下摇杆：万向移动 · 推远加速 · 上推跳 / 下拉下穿 · 右下 修 / 测 / log / commit"
                : "Esc 菜单 · O 图鉴 · B 判定箱")
       : "";
   }
