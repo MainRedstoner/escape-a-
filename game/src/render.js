@@ -85,7 +85,6 @@ window.RENDER = (() => {
     const x0 = Math.floor(cam.x / TS) - 1, y0 = Math.floor(cam.y / TS) - 1;
     drawTiles(W, x0, y0, cols, rowsN);
     drawHazardsBack(W, x0, y0, cols, rowsN);
-    drawEntities(W);
     drawPlayer(W, dt);
     drawParticles();
     ctx.restore();
@@ -94,9 +93,9 @@ window.RENDER = (() => {
 
     ctx.save();
     ctx.translate(Math.round(-cam.x), Math.round(-cam.y));
+    drawEntities(W);               // 甲虫总是可见：画在遮罩之后
     drawHazardsFront(W, dt);       // CI 红光：在黑暗之上
     drawOverlayMarks(W);           // commit / PR：穿黑暗可见
-    drawDarkHeisen(W);             // 海森堡虫：只在黑暗里显形
     ctx.restore();
 
     drawScreenFx(W);
@@ -492,25 +491,9 @@ window.RENDER = (() => {
     return m;
   }
 
-  /** 实体可见度：跟着光照记忆图走 —— 远处只要还亮着，虫照样看得见，只是暗一点 */
-  function visible(W, x, y) {
-    const b = WORLD.brightness(W, x, y);
-    if (b <= 0.02) return 0;
-    return Math.max(0.55, Math.min(1, b));
-  }
-
+  /** 甲虫总是可见：不再受光照影响 */
   function drawEntities(W) {
-    for (const b of W.bugs) {
-      const v = visible(W, b.x, b.y);
-      const kind = BUGS.get(b.kind);
-      /* 海森堡虫：只在黑暗里显形（或者被观测卡住的时候） */
-      if (kind.invisible) {
-        if (b.frozen > 0) { drawBug(W, b, 1); continue; }   // 被光卡住：在实时光里显形
-        continue;                                            // 其余交给遮罩后的 drawDarkHeisen
-      }
-      if (v <= 0) continue;
-      drawBug(W, b, v);
-    }
+    for (const b of W.bugs) drawBug(W, b, 1);
   }
 
   /** 甲虫画在哪：世界推进的连续位置 sx/sy（没有就退回格坐标），中心 = 格坐标 + 0.5 */
@@ -817,7 +800,7 @@ window.RENDER = (() => {
     for (let gy = 0; gy < gh; gy++) {
       for (let gx = 0; gx < gw; gx++) {
         const light = W.lightMap[gy * gw + gx] || 0;
-        const a = 0.80 * (1 - light);              // 0.80 = 没去过的地方有多黑
+        const a = 1 - light;                        // 光圈外全黑；只有记忆窗口内的光照透出来
         if (a <= 0.004) continue;
         f.fillStyle = "rgba(2,3,5," + a.toFixed(3) + ")";
         f.fillRect(gx, gy, 1, 1);
@@ -837,15 +820,7 @@ window.RENDER = (() => {
     for (const p of W.fakePrs) if (lit(p.x, p.y)) prMark(W, p.x, p.y, 1);
   }
 
-  /** 海森堡虫：只在黑暗里显形 —— 必须在遮罩之后画，不然会被黑暗一起盖掉 */
-  function drawDarkHeisen(W) {
-    for (const b of W.bugs) {
-      if (!BUGS.get(b.kind).invisible || b.frozen > 0) continue;
-      if (visible(W, b.x, b.y) > 0) continue;                  // 实时光 / 探针里不显形
-      if (!W.seen[WORLD.idx(W, W.layer, b.x, b.y)]) continue; // 没见过的黑暗里也不画
-      drawBug(W, b, 0.55 + 0.25 * Math.sin(time * 9));
-    }
-  }
+  /** 海森堡虫的「黑暗显形」已经取消 —— 甲虫总是可见，不再需要单独一层 */
 
   function drawScreenFx(W) {
     /* 全屏暗角 */
