@@ -24,7 +24,8 @@
    剧本只能写 `tools/jsdata.py` 认识的**数据子集**：字面量、数组、对象、`N()/CHOICE()/opt()` 这类速写函数调用；
    一旦写了循环、条件、模板字符串之类，校验器会直接报"剧本解析失败"，不会静默算错。
 5. **生成文件不手改。** `assets/manifest.js` 由 `python tools/make_manifest.py > assets/manifest.js` 生成。
-6. **小游戏 `game/` 同样受 1~4 条约束**，而且**存档必须与主线隔离**：它只写 `localStorage` 的 `ea_bugfix_progress`，
+6. **小游戏 `game/` 同样受 1~4 条约束**，而且**存档必须与主线隔离**：它只写 `localStorage` 的 `ea_bugfix_*`
+   （`ea_bugfix_progress` 存档 + `ea_bugfix_progress_backup` 清空前的备份），
    不碰 `ea_blob:` / `ea_save_` / `ea_endings`。关卡（`game/src/levels.js`）和地块 / 虫种表都是纯数据，
    世界状态要能整份 `JSON.stringify` 快照（commit 回档靠这个），别往里塞函数、DOM 引用。
 

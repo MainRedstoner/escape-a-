@@ -159,7 +159,7 @@ SAVE.importFile(file)  → 校验后写入槽位
 - 如果阶段 1 要拆 `engine.js`，`pet.js` 直接按新结构写，避免写两遍。
 - 剧本可以先行：没有素材时引擎显示占位卡，不阻塞。
 
-### 4.5 支线：小游戏「修复屎山」【进行中 · feat/bugfix-game】
+### 4.5 支线：小游戏「修复屎山」【进行中 · dev】
 
 独立目录 `game/`，双击 `game/index.html` 即玩；设计、操作与关卡数据结构见 [game/README.md](game/README.md)，issue #11。
 

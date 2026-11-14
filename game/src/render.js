@@ -39,8 +39,10 @@ window.RENDER = (() => {
     cv.style.width = w + "px"; cv.style.height = h + "px";
     view = { w, h };
   }
-  function kick(power) { fx.shake = Math.max(fx.shake, power); }
-  function flash(kind, power) { fx[kind] = Math.max(fx[kind], power); }
+  /* 系统开了「减少动效」就不震屏、不闪屏；扫描线由 game.css 的媒体查询一起关掉 */
+  const REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  function kick(power) { if (REDUCED) return; fx.shake = Math.max(fx.shake, power); }
+  function flash(kind, power) { if (REDUCED) return; fx[kind] = Math.max(fx[kind], power); }
 
   /* ---------------- 主入口 ---------------- */
   function draw(W, dt) {
@@ -864,9 +866,18 @@ window.RENDER = (() => {
       ctx.fillStyle = "rgba(255,90,80,.85)";
       ctx.font = "bold " + Math.floor(view.h * 0.14) + "px monospace";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const glitchOff = Math.sin(time * 30) * 4;
+      const glitchOff = REDUCED ? 0 : Math.sin(time * 30) * 4;
       ctx.fillText("BUG", view.w / 2 + glitchOff, view.h / 2);
     }
+  }
+
+  /** 回标题时把画布擦干净，别让上一关的最后一帧留在标题卡后面 */
+  function clear() {
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, view.w, view.h);
+    ctx.fillStyle = "#05070a";
+    ctx.fillRect(0, 0, view.w, view.h);
   }
 
   function reset() {
@@ -883,5 +894,5 @@ window.RENDER = (() => {
     return showBox;
   }
 
-  return { attach, resize, draw, kick, flash, reset, debugBox, view: () => view };
+  return { attach, resize, draw, clear, kick, flash, reset, debugBox, view: () => view };
 })();

@@ -156,8 +156,18 @@ window.WORLD = (() => {
       if (probeTicks) W.reveal[i] = Math.max(W.reveal[i], probeTicks);
     }
   }
-  function light(W) {
+  /** 进场光圈：黑暗关卡开局 2 秒内从 1.6 格张开到 cfg.r ——
+   *  一进门就是一整块黑布，玩家会以为加载失败了。只改「可见半径」，不动 cfg.r 本身。 */
+  function fogR(W) {
     const r = W.cfg.r;
+    if (r <= 0) return r;
+    const ramp = Math.round(2 * STEP_HZ);
+    if (W.tick >= ramp) return r;
+    const from = Math.min(1.6, r);
+    return from + (r - from) * (W.tick / ramp);
+  }
+  function light(W) {
+    const r = fogR(W);
     if (r > 0) lightCircle(W, W.player.x, W.player.y, r, 0);
     else {                                            // 全图常亮（教学关）
       for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, W.layer, x, y); W.lit[i] = W.tick; W.seen[i] = 1; }
@@ -167,8 +177,9 @@ window.WORLD = (() => {
   }
   /** 此刻是否被「观测」——只算实时光源，记忆不算 */
   function observed(W, x, y) {
-    if (W.cfg.r <= 0) return true;
-    if (cellDist(W, x, y) <= W.cfg.r + 0.35) return true;
+    const r = fogR(W);
+    if (r <= 0) return true;
+    if (cellDist(W, x, y) <= r + 0.35) return true;
     for (const f of W.flashes) if (U.dist(x + 0.5, y + 0.5, f.x + 0.5, f.y + 0.5) <= f.r + 0.35) return true;
     for (const l of W.lamps) if (U.dist(x + 0.5, y + 0.5, l.x + 0.5, l.y + 0.5) <= l.r + 0.35) return true;
     return false;
@@ -643,10 +654,14 @@ window.WORLD = (() => {
   function restore(W, text) {
     const obj = JSON.parse(text);
     if (obj.sv !== SNAP_V) retime(obj);
+    /* 辅助模式是玩家设置，不该被快照里的旧值覆盖 —— 先留住，恢复后写回 */
+    const assist = W.cfg ? W.cfg.assist : false;
     const keep = { api: W.api, lampCov: W.lampCov, toasts: W.toasts, commitLog: W.commitLog,
-                   onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast };
+                   onCommit: W.onCommit, onDeath: W.onDeath, onWin: W.onWin, onToast: W.onToast,
+                   onTut: W.onTut };
     for (const k in obj) W[k] = obj[k];
     for (const k in keep) if (keep[k] !== undefined) W[k] = keep[k];
+    if (W.cfg) W.cfg.assist = assist;
     syncCell(W.player);
     W.trail = [];
     for (const g of W.ghosts) g.i = 0;
@@ -1428,6 +1443,8 @@ window.WORLD = (() => {
       default: return true;
     }
   }
+  /** 教学推进时把进度交给宿主存档（续关不重来） */
+  function syncTut(W) { if (W.onTut) W.onTut(W.tutStep, W.tutFlags); }
   function runTut(W) {
     if (W.tutStep >= W.tut.length) {
       /* 教学走完时如果正站在 PR 门前等着，就直接放行，不用再踩一次 */
@@ -1436,11 +1453,11 @@ window.WORLD = (() => {
     }
     const st = W.tut[W.tutStep];
     if (st.wait) return;                      // 等玩家按空格确认（UI 调 tutAck）
-    if (tutDone(W, st)) W.tutStep++;
+    if (tutDone(W, st)) { W.tutStep++; syncTut(W); }
   }
   function tutAck(W) {
     if (W.tutStep >= W.tut.length) return;
-    if (W.tut[W.tutStep].wait) { W.tutStep++; W.tutFlags.tutAck = 1; sfx("uiOk"); }
+    if (W.tut[W.tutStep].wait) { W.tutStep++; W.tutFlags.tutAck = 1; sfx("uiOk"); syncTut(W); }
   }
   function tutNow(W) { return W.tutStep < W.tut.length ? W.tut[W.tutStep] : null; }
 

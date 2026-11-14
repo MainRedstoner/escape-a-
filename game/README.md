@@ -19,7 +19,7 @@
 | 键 | 动作 |
 | --- | --- |
 | `WASD` | 移动（`方向键` 同效）。**实时制**：你平滑地跑，虫和机关按自己的节奏动 |
-| `H` | 修虫（fix）。靠近它（判定箱中心距 ≤1.6 格，对角贴着也算）按住引导 0.4 秒；引导期间可以移动，只要完成那一刻不出这个圈就算修好，跑远了会提示重贴 |
+| `H` | 修虫（fix）。靠近它（判定箱中心距 ≤1.6 格，对角贴着也算）按住引导 0.375 秒；引导期间可以移动，只要完成那一刻不出这个圈就算修好，跑远了会提示重贴 |
 | `K` | 盖测试（配额）。祖传虫必须先盖测试再删，否则当场变两只 |
 | `J` | 丢 `console.log` 探针：照亮前方 + 让假墙 / 假地板现形 |
 | `空格` | 站在 `-o-` 上落一个 commit（`Enter` 同效，菜单里它也是确认键）；教学提示也要按它确认 |
@@ -71,7 +71,8 @@ game/src/game.js      主循环 + 状态机 + 按键路由 + 存档接线 + BUGF
 
 ## 四、存档隔离
 
-小游戏只写 `localStorage` 的 **`ea_bugfix_progress`** 一个键；
+小游戏只写 `localStorage` 的 **`ea_bugfix_*`** 两个键：`ea_bugfix_progress`（存档）和
+`ea_bugfix_progress_backup`（"清空进度"前的旧档备份，标题页"恢复上次清空的进度"会把它换回来）；
 主线用的是 `ea_blob:` / `ea_save_` / `ea_endings`，两边互不影响，也不需要后端。
 `game/src/save.js` 里 `MAX_COMMITS = 3`：每关只有**最近三个** commit 会写盘，下次打开游戏从它们中间接着打。
 局内的 commit 数不受这个限制，被 `stash` 事件吃掉的那些只是回不去了。
@@ -83,7 +84,7 @@ python tools/check_js.py            # 会连 game/src/*.js 一起扫
 python tools/validate_game.py       # 关卡静态校验：行宽、图例、虫位、配额、几何可达、事件动作
 ```
 
-URL 参数：`game/index.html?level=3` 直跳某关简报（未解锁会被拽回第 1 关），`?assist=1` 开辅助模式，`?box=1` 启动即显示判定箱（调试）。
+URL 参数：`game/index.html?level=3` 直跳某关简报（未解锁会被拽回第 1 关），`?assist=1` 开辅助模式，`?box=1` 启动即显示判定箱（调试），`?perf=1` 右上角显示帧率与 `RENDER.draw` 耗时。
 
 控制台句柄：`BUGFIX.state` / `BUGFIX.world`（世界状态）/ `BUGFIX.ctl.*`（切状态），
 算法在 `WORLD.*`（如 `WORLD.brightness(BUGFIX.world, x, y)`），进度在 `GSAVE`。

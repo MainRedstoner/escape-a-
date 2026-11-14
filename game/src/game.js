@@ -32,6 +32,22 @@ window.BUGFIX = (() => {
     return q;
   })();
 
+  /* ?perf=1：右上角显示实测帧率与 RENDER.draw 耗时（只读，不碰玩法） */
+  const perfOn = params.perf != null && !/^(0|off|no)$/i.test(params.perf);
+  let perfEl = null, perfN = 0, perfDraw = 0, perfT = 0;
+  function perfFrame(dt, drawMs) {
+    if (!perfOn) return;
+    if (!perfEl) perfEl = document.getElementById("gf-perf");
+    if (!perfEl) return;
+    perfEl.style.display = "";
+    perfN++; perfDraw += drawMs; perfT += dt;
+    if (perfT >= 0.5) {
+      const fps = Math.round(perfN / Math.max(perfT, 0.001));
+      perfEl.textContent = "fps " + fps + " · draw " + (perfDraw / perfN).toFixed(2) + "ms";
+      perfN = 0; perfDraw = 0; perfT = 0;
+    }
+  }
+
   /* ---------------- 启动 ---------------- */
   function boot() {
     const app = document.getElementById("gf-app");
@@ -102,7 +118,13 @@ window.BUGFIX = (() => {
       UI.objective(W);
       UI.log(W);
     }
-    if (W) RENDER.draw(W, dt);
+    if (W) {
+      if (perfOn) {
+        const t0 = performance.now();
+        RENDER.draw(W, dt);
+        perfFrame(dt, performance.now() - t0);
+      } else RENDER.draw(W, dt);
+    } else RENDER.clear();          // 回标题时把上一关的最后一帧擦掉，别留在标题卡后面
   }
 
   /* ---------------- 输入 ---------------- */
@@ -174,6 +196,8 @@ window.BUGFIX = (() => {
     openTitle() {
       W = null; state = "title"; UI.logReset();
       UI.hint(null);
+      UI.objective(null);         // 目标栏 / HUD 都跟着清，标题页不该看到上一关的战绩
+      UI.hud(null);
       try { GSFX.stopHum(); } catch (e) {}
       const p = GSAVE.load(), t = p.total;
       UI.show("m-title");
@@ -193,6 +217,8 @@ window.BUGFIX = (() => {
       const lv = LEVELS[li];
       const saved = GSAVE.commits(lv.id);
       W = WORLD.create(li, { assist: assist });
+      /* 教学进度一推进就写进存档 —— 快照不带它（回档不退），但关掉浏览器不能丢 */
+      W.onTut = (step, flags) => GSAVE.setTut(lv.id, step, flags);
       W.onToast = (text, tone) => { UI.toast(text, tone); if (tone === "tut") RENDER.flash("white", 0.1); };
       W.onCommit = entry => { GSAVE.recordCommit(lv.id, entry); RENDER.flash("white", 0.25); RENDER.kick(4); };
       W.onDeath = why => {
@@ -222,6 +248,12 @@ window.BUGFIX = (() => {
         }
         W.commitLog = W.commitLog.slice(0, 1).concat(saved);
         UI.toast("从上一个 commit " + saved[saved.length - 1].hash + " 继续", "good");
+      }
+      /* 教学进度从存档接回来：快照故意不带 tutStep/tutFlags，所以要在恢复之后再写 */
+      const tut = GSAVE.levelState(lv.id).tut;
+      if (tut) {
+        W.tutStep = Math.min(tut.step | 0, W.tut.length);
+        W.tutFlags = Object.assign({}, tut.flags || {});
       }
       state = "play";
       UI.show(null);

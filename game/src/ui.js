@@ -12,7 +12,7 @@ window.UI = (() => {
   const IDS = ["app", "stage", "canvas", "hud", "lvl", "bugs", "tests", "commits",
                "reverts", "mode", "layer", "time", "toasts", "objective", "log", "hint",
                "m-title", "m-pick", "m-brief", "m-death", "m-win", "m-end", "m-codex", "m-menu", "m-revert",
-               "start", "pick", "wipe", "levels", "pick-back", "pick-commits", "title-commits",
+               "start", "pick", "wipe", "undo-wipe", "levels", "pick-back", "pick-commits", "title-commits",
                "brief-name", "brief-text", "brief-new", "brief-go",
                "death-title", "death-why", "death-commits", "death-latest", "death-restart", "death-title-btn",
                "win-stats", "win-note", "win-next", "win-replay", "win-title",
@@ -23,6 +23,7 @@ window.UI = (() => {
   const el = {};
   let G = null;                 // 控制器：game.js 提供的回调集合
   let lastNote = 0;             // 日志渲染到第几条了
+  let wipeArmed = 0;            // 清空进度的二次确认截止时间戳（0 = 未武装）
 
   function node(k) { return document.getElementById("gf-" + k); }
 
@@ -32,7 +33,29 @@ window.UI = (() => {
     for (const k of IDS) el[k] = node(k);
     on("start", () => G.firstLevel());
     on("pick", () => G.openPick());
-    on("wipe", () => G.wipeProgress());
+    /* 清空进度要连点两次（4 秒内），第一次只把按钮改成确认态 —— 误点一下不该直接删档 */
+    on("wipe", () => {
+      const btn = el.wipe;
+      if (!btn) return;
+      const now = Date.now();
+      if (wipeArmed && now - wipeArmed < 4000) {
+        wipeArmed = 0;
+        btn.textContent = "清空进度";
+        G.wipeProgress();
+        return;
+      }
+      wipeArmed = now;
+      btn.textContent = "再点一次确认清空";
+      setTimeout(() => {
+        if (wipeArmed === now) { wipeArmed = 0; btn.textContent = "清空进度"; }
+      }, 4000);
+    });
+    on("undo-wipe", () => {
+      if (window.GSAVE && GSAVE.restoreBackup()) {
+        G.openTitle();
+        toast("上次清空的档已恢复", "good");
+      }
+    });
     on("pick-back", () => G.openTitle());
     on("brief-go", () => G.enterLevel());
     on("death-latest", () => G.revertLatest());
@@ -72,6 +95,9 @@ window.UI = (() => {
     }
     /* 弹窗开着就把触屏按键层收起来（gf-touch 类在 touch.js 里打） */
     if (el.app) el.app.classList.toggle("gf-ui-open", !!which);
+    /* 有清空前的备份时，标题页才露出「恢复上次清空的进度」 */
+    if (el["undo-wipe"]) el["undo-wipe"].style.display =
+      (which === "m-title" && window.GSAVE && GSAVE.hasBackup()) ? "" : "none";
     hint(which === "m-title" ? null : "on");
   }
   function hint(state) {
@@ -86,7 +112,18 @@ window.UI = (() => {
 
   /* ---------------- HUD ---------------- */
   function hud(W) {
-    if (!W || !el.lvl) return;
+    if (!el.lvl) return;
+    if (!W) {                       // 回标题：把上一关的战绩擦干净
+      el.lvl.textContent = "—";
+      el.bugs.textContent = "0"; el.bugs.className = "gf-val";
+      el.tests.textContent = "0";
+      el.commits.textContent = "0";
+      el.reverts.textContent = "—";
+      el.mode.textContent = "—";
+      el.layer.textContent = "—";
+      el.time.textContent = "00:00";
+      return;
+    }
     const left = W.bugs.length;
     el.lvl.textContent = W.name;
     el.bugs.textContent = left;
@@ -151,7 +188,7 @@ window.UI = (() => {
     }
     if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 空格 落一个 commit。");
     if (W.layers.length > 1) lines.push("按 I 在 main / hotfix 之间切图层。");
-    if (W.player.cast) lines.push("施法中…… 别动，动了就打断。");
+    if (W.player.cast) lines.push("施法中…… 可以移动，别跑出 1.6 格。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
   }
   function isHeadHere(W) {
@@ -180,11 +217,18 @@ window.UI = (() => {
     if (W.notes.length === lastNote && box.childNodes.length) return;
     lastNote = W.notes.length;
     box.textContent = "";
-    const from = Math.max(0, W.notes.length - 7);
+    const MAX_LINES = 4;            // 默认只留最近 4 条，其余收成一行；否则第 5 关开场是一整墙字
+    const from = Math.max(0, W.notes.length - MAX_LINES);
     for (let i = W.notes.length - 1; i >= from; i--) {
       const d = document.createElement("div");
       if (i === W.notes.length - 1) d.className = "gf-new";
       d.textContent = U.mmss(W.notes[i].t) + "  " + W.notes[i].text;
+      box.appendChild(d);
+    }
+    if (from > 0) {
+      const d = document.createElement("div");
+      d.className = "gf-more";
+      d.textContent = "…另有 " + from + " 条";
       box.appendChild(d);
     }
   }
