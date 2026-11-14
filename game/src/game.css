@@ -268,9 +268,8 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
 }
 #gf-app.gf-ui-open #gf-touch { display: none; }   /* 弹窗开着时收起按键 */
 .gf-tjoy {
-  position: absolute;
-  left: calc(12px + env(safe-area-inset-left, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  position: absolute;               /* left/top/transform 由 touch.js 按布局写入 */
+  transform-origin: 50% 50%;
   width: 104px; height: 104px; border-radius: 50%;
   border: 1px solid rgba(124,243,176,.4);
   background: rgba(10,16,13,.5);
@@ -310,21 +309,9 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   transition: transform .14s ease-out;   /* 松手平滑回中；握住时下面关掉，跟手不拖影 */
 }
 .gf-tjoy.gf-hold .gf-tknob { transition: none; }
-.gf-tacts {
-  position: absolute;
-  right: calc(10px + env(safe-area-inset-right, 0px));
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
-  pointer-events: none;
-}
-.gf-tmini { display: flex; gap: 5px; }
-.gf-tgrid {
-  display: grid;
-  grid-template-columns: repeat(2, 66px);
-  grid-auto-rows: 56px;
-  gap: 6px;
-}
 .gf-tbtn {
+  position: absolute;               /* left/top/transform 由 touch.js 按布局写入 */
+  transform-origin: 50% 50%;
   pointer-events: auto;
   border: 1px solid rgba(124,243,176,.45);
   border-radius: 10px;
@@ -335,11 +322,39 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   -webkit-tap-highlight-color: transparent;
   padding: 0;
 }
+.gf-tbtn.gf-act { width: 66px; height: 56px; font-size: 15px; }
+.gf-tbtn.gf-mini { width: 38px; height: 34px; font-size: 13px; opacity: .85; }
 .gf-tbtn.gf-hold { background: rgba(28,58,43,.9); border-color: #7cf3b0; }
-.gf-tmini .gf-tbtn { width: 38px; height: 34px; font-size: 13px; opacity: .85; }
-.gf-tgrid .gf-tbtn { font-size: 15px; }
 .gf-tbtn.gf-commit { color: #ffd479; border-color: rgba(255,212,121,.55); }
 .gf-tbtn.gf-commit.gf-hold { border-color: #ffd479; }
+
+/* ---------------- 键位布局调试（touch.js 的编辑模式） ---------------- */
+#gf-tlayout {
+  position: absolute; top: 40px; right: 8px; z-index: 13;
+  pointer-events: auto; touch-action: none;
+  font: inherit; font-size: 12px; font-weight: 700;
+  padding: 6px 10px; color: #ffd479;
+  background: rgba(10,16,13,.7); border: 1px solid rgba(255,212,121,.5); border-radius: 6px;
+  -webkit-tap-highlight-color: transparent;
+}
+#gf-touch.gf-edit .gf-tjoy, #gf-touch.gf-edit .gf-tbtn {
+  outline: 2px dashed rgba(255,212,121,.75); outline-offset: 3px; cursor: move;
+}
+#gf-touch.gf-edit .gf-sel { outline: 2px solid #7cf3b0; }
+#gf-tlayout-bar {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  display: none; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
+  max-width: 94vw; padding: 8px 10px; z-index: 14; pointer-events: auto;
+  background: rgba(10,16,13,.94); border: 1px solid #33503f; border-radius: 8px;
+  font-size: 12px;
+}
+#gf-tlayout-bar button {
+  font: inherit; font-size: 12px; padding: 7px 10px; color: #ccffe6;
+  background: #12201a; border: 1px solid #33503f; border-radius: 4px;
+}
+#gf-tlayout-bar .gf-tl-size { display: flex; align-items: center; gap: 6px; color: #8fa99a; }
+#gf-tlayout-bar input[type="range"] { width: 110px; accent-color: #7cf3b0; }
+#gf-tl-name { color: #ffd479; font-weight: 700; min-width: 3em; text-align: center; }
 
 /* 触屏模式下重排 HUD：提示行没意义了；目标挪到左上、日志右上、飘字让开顶部 */
 #gf-app.gf-touch #gf-hint { display: none; }

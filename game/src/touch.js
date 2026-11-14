@@ -1,45 +1,100 @@
 /* ============================================================
- * Escape A÷ · game/src/touch.js —— 小游戏触屏控件层
+ * Escape A÷ · game/src/touch.js —— 小游戏触屏控件层 + 键位布局调试
  *
- * 在 canvas 上叠一层 DOM 虚拟控件：左下万向摇杆移动，右下动作键。
- * 摇杆是**模拟量**：角度 = 移动方向（360° 万向，不再切八向扇区），
- * 推杆幅度 = 油门（推得越远跑得越快，带死区防手心误触），外圈速度环实时显示。
- * 向量汇进 U.Input.setStick → moveVec，与键盘共用同一张键位表 ——
- * 键位被打乱事件打乱时摇杆向量跟着旋转，体验一致；横版上推跳、下拉下穿
- * 由 Input 按滞回合成 up/down，和按键一样。检测到触屏（或 ?touch=1 强开）
- * 才挂出来；不碰存档、不碰世界状态。
+ * 在 canvas 上叠一层 DOM 虚拟控件：万向摇杆移动 + 动作键。
+ * 摇杆是**模拟量**：角度 = 移动方向（360° 万向），推杆幅度 = 油门
+ * （带死区防手心误触），外圈速度环实时显示；向量汇进 U.Input.setStick →
+ * moveVec，与键盘共用键位表，打乱事件按同一张方向表旋转向量；横版上推跳、
+ * 下拉下穿由 Input 按滞回合成 up/down。
+ *
+ * 每个控件独立绝对定位（中心锚点百分比 + 缩放），因此带一个**布局调试**：
+ * 点右上「布局」（或 ?layout=1）进入编辑，手机上直接拖动改位置、滑杆调大小，
+ * 存 localStorage 的 ea_bugfix_touchlayout（只碰 ea_bugfix_* 前缀，不进世界快照）。
+ * 检测到触屏（或 ?touch=1 强开）才挂出来；不碰存档进度、不碰世界状态。
  * ============================================================ */
 "use strict";
 
 window.GTOUCH = (() => {
 
-  /* 按键表：code 必须是 U.Input.base 里已有的物理键名，不许发明新的 */
-  const ACTS = [
-    { code: "KeyH", label: "修", title: "修掉挨着的甲虫（H）" },
-    { code: "KeyK", label: "测", title: "给挨着的甲虫盖测试（K）" },
-    { code: "KeyJ", label: "log", title: "丢 console.log（J）" },
-    { code: "Space", label: "commit", title: "落 commit（空格）", cls: "commit" }
+  /* 按键表：code 必须是 U.Input.base 里已有的物理键名，不许发明新的。
+   * kind 决定默认尺寸：act 大键 / mini 小键。def 为默认中心位置（见 defaultLayout）。 */
+  const CONTROLS = [
+    { id: "joy", kind: "joy", label: "摇杆" },
+    { id: "fix", kind: "act", code: "KeyH", label: "修", title: "修掉挨着的甲虫（H）" },
+    { id: "test", kind: "act", code: "KeyK", label: "测", title: "给挨着的甲虫盖测试（K）" },
+    { id: "log", kind: "act", code: "KeyJ", label: "log", title: "丢 console.log（J）" },
+    { id: "commit", kind: "act", code: "Space", label: "commit", title: "落 commit（空格）", cls: "commit" },
+    { id: "revert", kind: "mini", code: "KeyU", label: "回", title: "回档（U）" },
+    { id: "help", kind: "mini", code: "KeyO", label: "图", title: "图鉴（O）" },
+    { id: "box", kind: "mini", code: "KeyB", label: "箱", title: "判定箱显隐（调试）" },
+    { id: "menu", kind: "mini", code: "Escape", label: "菜", title: "菜单（Esc）" }
   ];
-  const MINI = [
-    { code: "KeyU", label: "回", title: "回档（U）" },
-    { code: "KeyO", label: "图", title: "图鉴（O）" },
-    { code: "KeyB", label: "箱", title: "判定箱显隐（调试）" },
-    { code: "Escape", label: "菜", title: "菜单（Esc）" }
-  ];
+  const LAYOUT_KEY = "ea_bugfix_touchlayout";
+  const SCALE_MIN = 0.6, SCALE_MAX = 1.8;
 
   const JOY_DEAD = 0.28;     // 死区（占可拉半径的比例），防手心搭上去就乱走
   const RING_R = 48;         // 速度环半径（viewBox 104 坐标）
   const RING_C = 2 * Math.PI * RING_R;
 
   let inited = false;
+  let host = null;
+  const els = {};            // id → DOM
+  let layout = null;         // id → {x,y,s}（中心百分比 + 缩放）
+  let saved = false;         // 是否有用户存过的布局（没有则跟随窗口尺寸重算默认）
+  let editing = false;
+  let sel = null;
+  let bar = null, barName = null, barSize = null;
 
+  /* ---------------- 布局存取 ---------------- */
+  /* 默认摆位复刻原来的「左下摇杆 + 右下 2x2 大键 + 上一排小键」，
+   * 用像素从边缘推再转百分比，任何屏幕都不重叠、不出界。 */
+  function defaultLayout() {
+    const W = host.clientWidth || window.innerWidth;
+    const H = host.clientHeight || window.innerHeight;
+    const px = (x, y) => ({ x: x / W * 100, y: y / H * 100, s: 1 });
+    return {
+      joy: px(64, H - 64),
+      fix: px(W - 115, H - 100), test: px(W - 43, H - 100),
+      log: px(W - 115, H - 38), commit: px(W - 43, H - 38),
+      revert: px(W - 158, H - 151), help: px(W - 115, H - 151),
+      box: px(W - 72, H - 151), menu: px(W - 29, H - 151)
+    };
+  }
+  function loadLayout() {
+    const def = defaultLayout();
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null"); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== "object") return def;
+    saved = true;
+    for (const c of CONTROLS) {
+      const v = raw[c.id];
+      if (v && isFinite(v.x) && isFinite(v.y) && isFinite(v.s)) {
+        def[c.id] = { x: U.clamp(v.x, 0, 100), y: U.clamp(v.y, 0, 100), s: U.clamp(v.s, SCALE_MIN, SCALE_MAX) };
+      }
+    }
+    return def;
+  }
+  function persist() {
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); saved = true; } catch (e) { /* 隐私模式等：忽略 */ }
+  }
+  function applyOne(id) {
+    const el = els[id], v = layout[id];
+    if (!el || !v) return;
+    el.style.left = v.x + "%";
+    el.style.top = v.y + "%";
+    el.style.transform = "translate(-50%,-50%) scale(" + v.s + ")";
+  }
+  function applyAll() { for (const c of CONTROLS) applyOne(c.id); }
+
+  /* ---------------- 控件 ---------------- */
   function makeBtn(def) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "gf-tbtn" + (def.cls ? " gf-" + def.cls : "");
+    b.className = "gf-tbtn gf-" + def.kind + (def.cls ? " gf-" + def.cls : "");
     b.textContent = def.label;
     if (def.title) b.title = def.title;      // 桌面 ?touch=1 调试时能看懂
     b.addEventListener("pointerdown", e => {
+      if (editing) return;                   // 编辑模式下只拖拽，不触发按键
       e.preventDefault();                    // 不触发兼容鼠标事件，也不让页面滚动 / 双击缩放
       try { b.setPointerCapture(e.pointerId); } catch (err) {}
       b.classList.add("gf-hold");
@@ -47,7 +102,7 @@ window.GTOUCH = (() => {
     });
     const release = () => {
       b.classList.remove("gf-hold");
-      if (window.BUGFIX) window.BUGFIX.keyUp(def.code);
+      if (!editing && window.BUGFIX) window.BUGFIX.keyUp(def.code);
     };
     b.addEventListener("pointerup", release);
     b.addEventListener("pointercancel", release);
@@ -110,7 +165,7 @@ window.GTOUCH = (() => {
       U.Input.setStick(null);
     }
     base.addEventListener("pointerdown", e => {
-      if (joyId != null) return;
+      if (editing || joyId != null) return;   // 编辑模式下摇杆也只拖拽
       joyId = e.pointerId;
       try { base.setPointerCapture(e.pointerId); } catch (err) {}
       base.classList.add("gf-hold");
@@ -128,21 +183,102 @@ window.GTOUCH = (() => {
     return base;
   }
 
+  /* ---------------- 布局编辑（拖拽 / 缩放） ---------------- */
+  function select(id) {
+    sel = id;
+    for (const c of CONTROLS) els[c.id].classList.toggle("gf-sel", c.id === id);
+    const def = CONTROLS.filter(c => c.id === id)[0];
+    if (barName) barName.textContent = def ? def.label : id;
+    if (barSize) barSize.value = Math.round(layout[id].s * 100);
+  }
+  function wireDrag(el, id) {
+    let pid = null, sx = 0, sy = 0, ox = 0, oy = 0;
+    el.addEventListener("pointerdown", e => {
+      if (!editing) return;
+      e.preventDefault();
+      select(id);
+      pid = e.pointerId;
+      try { el.setPointerCapture(pid); } catch (err) {}
+      sx = e.clientX; sy = e.clientY; ox = layout[id].x; oy = layout[id].y;
+    });
+    el.addEventListener("pointermove", e => {
+      if (!editing || e.pointerId !== pid) return;
+      const r = host.getBoundingClientRect();
+      const hw = (el.offsetWidth * layout[id].s / 2) / r.width * 100;
+      const hh = (el.offsetHeight * layout[id].s / 2) / r.height * 100;
+      layout[id].x = U.clamp(ox + (e.clientX - sx) / r.width * 100, hw, 100 - hw);
+      layout[id].y = U.clamp(oy + (e.clientY - sy) / r.height * 100, hh, 100 - hh);
+      applyOne(id);
+    });
+    const up = e => { if (e.pointerId === pid) pid = null; };
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("lostpointercapture", up);
+  }
+  function setEditing(on) {
+    editing = !!on;
+    if (host) host.classList.toggle("gf-edit", editing);
+    if (bar) bar.style.display = editing ? "flex" : "none";
+    if (editing) {
+      U.Input.setStick(null);                 // 编辑时别让摇杆继续走
+      select(sel || "joy");
+    } else {
+      for (const c of CONTROLS) els[c.id].classList.remove("gf-sel");
+      persist();                              // 完成即保存，手机上不用额外点
+    }
+  }
+  function buildBar() {
+    bar = document.createElement("div");
+    bar.id = "gf-tlayout-bar";
+    bar.innerHTML =
+      '<span id="gf-tl-name"></span>' +
+      '<label class="gf-tl-size">大小<input id="gf-tl-size" type="range" min="60" max="180" step="5"></label>' +
+      '<button type="button" id="gf-tl-reset">重置此键</button>' +
+      '<button type="button" id="gf-tl-save">保存</button>' +
+      '<button type="button" id="gf-tl-all">全部重置</button>' +
+      '<button type="button" id="gf-tl-done">完成</button>';
+    barName = bar.querySelector("#gf-tl-name");
+    barSize = bar.querySelector("#gf-tl-size");
+    barSize.addEventListener("input", () => {
+      if (!sel) return;
+      layout[sel].s = U.clamp(+barSize.value / 100, SCALE_MIN, SCALE_MAX);
+      applyOne(sel);
+    });
+    bar.querySelector("#gf-tl-reset").addEventListener("click", () => {
+      if (!sel) return;
+      layout[sel] = defaultLayout()[sel];
+      applyOne(sel); select(sel);
+    });
+    bar.querySelector("#gf-tl-save").addEventListener("click", persist);
+    bar.querySelector("#gf-tl-all").addEventListener("click", () => {
+      layout = defaultLayout(); saved = false;
+      try { localStorage.removeItem(LAYOUT_KEY); } catch (e) {}
+      applyAll(); if (sel) select(sel);
+    });
+    bar.querySelector("#gf-tl-done").addEventListener("click", () => setEditing(false));
+    /* 滑杆 / 按钮自己吃掉指针，别被当成拖拽 */
+    bar.addEventListener("pointerdown", e => e.stopPropagation());
+    return bar;
+  }
+
   function build() {
-    const host = document.createElement("div");
+    host = document.createElement("div");
     host.id = "gf-touch";
-    host.appendChild(makeJoy());
-    const side = document.createElement("div");
-    side.className = "gf-tacts";
-    const mini = document.createElement("div");
-    mini.className = "gf-tmini";
-    for (const m of MINI) mini.appendChild(makeBtn(m));
-    const grid = document.createElement("div");
-    grid.className = "gf-tgrid";
-    for (const a of ACTS) grid.appendChild(makeBtn(a));
-    side.appendChild(mini);
-    side.appendChild(grid);
-    host.appendChild(side);
+    for (const c of CONTROLS) {
+      const el = c.kind === "joy" ? makeJoy() : makeBtn(c);
+      el.dataset.tid = c.id;
+      els[c.id] = el;
+      wireDrag(el, c.id);
+      host.appendChild(el);
+    }
+    const entry = document.createElement("button");
+    entry.type = "button";
+    entry.id = "gf-tlayout";
+    entry.textContent = "布局";
+    entry.title = "调试：编辑触屏键位布局（拖动 / 调大小）";
+    entry.addEventListener("pointerdown", e => { e.preventDefault(); setEditing(!editing); });
+    host.appendChild(entry);
+    host.appendChild(buildBar());
     return host;
   }
 
@@ -154,8 +290,13 @@ window.GTOUCH = (() => {
     inited = true;
     app.classList.add("gf-touch");
     app.appendChild(build());
+    layout = loadLayout();
+    applyAll();
+    /* 没存过布局时跟随窗口尺寸重算默认摆位（转屏 / 改窗口不跑偏） */
+    window.addEventListener("resize", () => { if (!saved && !editing) { layout = defaultLayout(); applyAll(); } });
     const note = document.getElementById("gf-touch-note");
     if (note) note.style.display = "";       // 标题页那句触屏说明
+    if (/[?&]layout=1/.test(window.location.search)) setEditing(true);
   }
 
   function init() {
@@ -173,5 +314,5 @@ window.GTOUCH = (() => {
     window.addEventListener("touchstart", enable, { once: true, passive: true });
   }
 
-  return { init, enable };
+  return { init, enable, setEditing, get editing() { return editing; }, get layout() { return layout; } };
 })();
