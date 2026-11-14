@@ -10,19 +10,20 @@
 window.UI = (() => {
 
   const IDS = ["app", "stage", "canvas", "hud", "lvl", "bugs", "tests", "commits",
-               "reverts", "mode", "layer", "time", "toasts", "objective", "log", "hint",
+               "reverts", "mode", "time", "toasts", "objective", "log", "hint",
                "m-title", "m-pick", "m-brief", "m-death", "m-win", "m-end", "m-codex", "m-menu", "m-revert",
-               "start", "pick", "wipe", "levels", "pick-back", "pick-commits", "title-commits",
+               "start", "pick", "wipe", "undo-wipe", "levels", "pick-back", "pick-commits", "title-commits",
                "brief-name", "brief-text", "brief-new", "brief-go",
                "death-title", "death-why", "death-commits", "death-latest", "death-restart", "death-title-btn",
                "win-stats", "win-note", "win-next", "win-replay", "win-title",
                "end-stats", "end-title", "end-again",
                "codex-bugs", "codex-tiles", "codex-back",
-               "menu-resume", "menu-revert", "menu-replay", "menu-assist", "menu-sound", "menu-pick", "menu-title",
+               "menu-resume", "menu-revert", "menu-replay", "menu-pick", "menu-title",
                "revert-commits", "revert-back"];
   const el = {};
   let G = null;                 // 控制器：game.js 提供的回调集合
   let lastNote = 0;             // 日志渲染到第几条了
+  let wipeArmed = 0;            // 清空进度的二次确认截止时间戳（0 = 未武装）
 
   function node(k) { return document.getElementById("gf-" + k); }
 
@@ -32,7 +33,29 @@ window.UI = (() => {
     for (const k of IDS) el[k] = node(k);
     on("start", () => G.firstLevel());
     on("pick", () => G.openPick());
-    on("wipe", () => G.wipeProgress());
+    /* 清空进度要连点两次（4 秒内），第一次只把按钮改成确认态 —— 误点一下不该直接删档 */
+    on("wipe", () => {
+      const btn = el.wipe;
+      if (!btn) return;
+      const now = Date.now();
+      if (wipeArmed && now - wipeArmed < 4000) {
+        wipeArmed = 0;
+        btn.textContent = "清空进度";
+        G.wipeProgress();
+        return;
+      }
+      wipeArmed = now;
+      btn.textContent = "再点一次确认清空";
+      setTimeout(() => {
+        if (wipeArmed === now) { wipeArmed = 0; btn.textContent = "清空进度"; }
+      }, 4000);
+    });
+    on("undo-wipe", () => {
+      if (window.GSAVE && GSAVE.restoreBackup()) {
+        G.openTitle();
+        toast("上次清空的档已恢复", "good");
+      }
+    });
     on("pick-back", () => G.openTitle());
     on("brief-go", () => G.enterLevel());
     on("death-latest", () => G.revertLatest());
@@ -47,8 +70,6 @@ window.UI = (() => {
     on("menu-resume", () => G.closeOverlay());
     on("menu-revert", () => G.openRevert());
     on("menu-replay", () => G.restartLevel());
-    on("menu-assist", () => G.toggleAssist());
-    on("menu-sound", () => G.toggleSound());
     on("menu-pick", () => G.openPick());
     on("menu-title", () => G.openTitle());
     on("revert-back", () => G.closeOverlay());
@@ -72,6 +93,9 @@ window.UI = (() => {
     }
     /* 弹窗开着就把触屏按键层收起来（gf-touch 类在 touch.js 里打） */
     if (el.app) el.app.classList.toggle("gf-ui-open", !!which);
+    /* 有清空前的备份时，标题页才露出「恢复上次清空的进度」 */
+    if (el["undo-wipe"]) el["undo-wipe"].style.display =
+      (which === "m-title" && window.GSAVE && GSAVE.hasBackup()) ? "" : "none";
     hint(which === "m-title" ? null : "on");
   }
   function hint(state) {
@@ -80,13 +104,23 @@ window.UI = (() => {
     if (state === null) { el.hint.textContent = touch ? "" : "WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱"; return; }
     el.hint.textContent = state === "on"
       ? (touch ? "左下摇杆：万向移动 · 推远加速 · 上推跳 / 下拉下穿 · 右下 修 / 测 / log / commit"
-               : "Esc 菜单 · O 图鉴 · P 辅助模式 · M 音效 · B 判定箱")
+               : "Esc 菜单 · O 图鉴 · B 判定箱")
       : "";
   }
 
   /* ---------------- HUD ---------------- */
   function hud(W) {
-    if (!W || !el.lvl) return;
+    if (!el.lvl) return;
+    if (!W) {                       // 回标题：把上一关的战绩擦干净
+      el.lvl.textContent = "—";
+      el.bugs.textContent = "0"; el.bugs.className = "gf-val";
+      el.tests.textContent = "0";
+      el.commits.textContent = "0";
+      el.reverts.textContent = "—";
+      el.mode.textContent = "—";
+      el.time.textContent = "00:00";
+      return;
+    }
     const left = W.bugs.length;
     el.lvl.textContent = W.name;
     el.bugs.textContent = left;
@@ -95,7 +129,6 @@ window.UI = (() => {
     el.commits.textContent = Math.max(0, W.commitLog.length - 1);
     el.reverts.textContent = W.reverted + " / 熵 " + W.entropy;
     el.mode.textContent = W.mode === "side" ? (W.gravity > 0 ? "横版" : "横版·倒立") : "俯视";
-    el.layer.textContent = W.layers.length > 1 ? (W.layer === 0 ? "main" : "hotfix") : "main";
     el.time.textContent = U.mmss(W.tick * WORLD.DT);
   }
 
@@ -150,8 +183,7 @@ window.UI = (() => {
       lines.push(W.prReady ? "甲虫清零了 —— 去踩亮着的 PR 门过关。" : "继续清虫。");
     }
     if (WORLD.atCommitTile(W) && !isHeadHere(W)) lines.push("脚下就是 -o-：按 空格 落一个 commit。");
-    if (W.layers.length > 1) lines.push("按 I 在 main / hotfix 之间切图层。");
-    if (W.player.cast) lines.push("施法中…… 别动，动了就打断。");
+    if (W.player.cast) lines.push("施法中…… 可以移动，别跑出 1.6 格。");
     for (const s of lines) { const d = document.createElement("div"); keyNodes(s, d); box.appendChild(d); }
   }
   function isHeadHere(W) {
@@ -180,11 +212,18 @@ window.UI = (() => {
     if (W.notes.length === lastNote && box.childNodes.length) return;
     lastNote = W.notes.length;
     box.textContent = "";
-    const from = Math.max(0, W.notes.length - 7);
+    const MAX_LINES = 4;            // 默认只留最近 4 条，其余收成一行；否则第 5 关开场是一整墙字
+    const from = Math.max(0, W.notes.length - MAX_LINES);
     for (let i = W.notes.length - 1; i >= from; i--) {
       const d = document.createElement("div");
       if (i === W.notes.length - 1) d.className = "gf-new";
       d.textContent = U.mmss(W.notes[i].t) + "  " + W.notes[i].text;
+      box.appendChild(d);
+    }
+    if (from > 0) {
+      const d = document.createElement("div");
+      d.className = "gf-more";
+      d.textContent = "…另有 " + from + " 条";
       box.appendChild(d);
     }
   }
@@ -206,7 +245,6 @@ window.UI = (() => {
       const d = document.createElement("span");
       d.className = "gf-d";
       d.textContent = (lv.mode === "side" ? "横版" : "俯视")
-        + (lv.rowsB ? " · 双分支" : "")
         + " · 虫 " + ((lv.bugs || []).length)
         + " · 事件 " + ((lv.events || []).length)
         + (st.done ? " · 最好 " + U.mmss(st.bestSec) : st.deaths ? " · 死了 " + st.deaths + " 次" : "");
@@ -272,9 +310,7 @@ window.UI = (() => {
       el["win-stats"].textContent =
         "用时 " + U.mmss(stats.sec) + " · 死亡 " + stats.deaths + " 次 · 回档 " + stats.reverts +
         " 次（熵 " + stats.entropy + "）· 修掉 " + stats.kills + " 只甲虫";
-      el["win-note"].textContent = stats.assist
-        ? "你开了辅助模式：记忆不过期。玩得开心就好。"
-        : (hasNext ? "下一关会更阴 —— 山是有记忆的。" : "");
+      el["win-note"].textContent = hasNext ? "下一关会更阴 —— 山是有记忆的。" : "";
       el["win-next"].style.display = hasNext ? "" : "none";
       el["win-next"].textContent = hasNext ? "下一关（Enter）" : "已到底";
     }
@@ -333,12 +369,6 @@ window.UI = (() => {
     show("m-codex");
   }
 
-  /* ---------------- 菜单上的开关文字 ---------------- */
-  function toggles(assist, sound) {
-    if (el["menu-assist"]) el["menu-assist"].textContent = "辅助模式：" + (assist ? "开（记忆不过期）" : "关");
-    if (el["menu-sound"]) el["menu-sound"].textContent = "音效：" + (sound ? "开" : "关");
-  }
-
   /* ---------------- 标题页的进度 ---------------- */
   function progressLine(W0, text) {
     const box = el["title-commits"] || el["pick-commits"];
@@ -348,5 +378,5 @@ window.UI = (() => {
   function pickProgress(text) { if (el["pick-commits"]) el["pick-commits"].textContent = text; }
 
   return { init, show, hud, objective, toast, log, logReset, renderLevels, brief, briefLabel,
-           commitRows, death, win, end, codex, toggles, progressLine, pickProgress, hint, el: () => el };
+           commitRows, death, win, end, codex, progressLine, pickProgress, hint, el: () => el };
 })();

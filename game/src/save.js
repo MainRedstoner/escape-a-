@@ -22,8 +22,7 @@ window.GSAVE = (() => {
     return {
       format: FORMAT, version: VERSION, unlocked: 0,
       levels: {}, codex: {},
-      total: { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 },
-      settings: { assist: false, sound: true }
+      total: { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 }
     };
   }
 
@@ -44,7 +43,6 @@ window.GSAVE = (() => {
     if (!p.levels) p.levels = {};
     if (!p.codex) p.codex = {};
     if (!p.total) p.total = { deaths: 0, reverts: 0, commits: 0, kills: 0, playSec: 0 };
-    if (!p.settings) p.settings = { assist: false, sound: true };
     if (typeof p.unlocked !== "number") p.unlocked = 0;
     p.version = VERSION;
     return p;
@@ -82,8 +80,16 @@ window.GSAVE = (() => {
 
   function levelState(id) {
     const p = load();
-    if (!p.levels[id]) p.levels[id] = { done: false, deaths: 0, reverts: 0, bestSec: 0, assist: false, commits: [] };
+    if (!p.levels[id]) p.levels[id] = { done: false, deaths: 0, reverts: 0, bestSec: 0, commits: [], tut: null };
     return p.levels[id];
+  }
+
+  /** 教学进度随关卡存进 GSAVE —— 续关不会从第 1 步重来。
+   *  故意不进 commit 快照：回档还原世界，但不该把「已经学会的东西」退回。 */
+  function setTut(levelId, step, flags) {
+    const st = levelState(levelId);
+    st.tut = { step: step | 0, flags: Object.assign({}, flags || {}) };
+    save();
   }
 
   /** 玩家落一个 commit：连快照一起存进磁盘，最多留最近 MAX_COMMITS 个 */
@@ -106,26 +112,45 @@ window.GSAVE = (() => {
   function finishLevel(levelId, stats) {
     const p = load(), st = levelState(levelId);
     st.done = true;
-    st.deaths += stats.deaths; st.reverts += stats.reverts;
+    /* 死亡在 onDeath 里已经逐次 bumpDeath 过了，这里再加一次就会翻倍 */
+    st.reverts += stats.reverts;
     if (!st.bestSec || stats.sec < st.bestSec) st.bestSec = stats.sec;
-    st.assist = st.assist || stats.assist;
     if (p.unlocked < stats.nextIndex) p.unlocked = stats.nextIndex;
-    p.total.deaths += stats.deaths; p.total.reverts += stats.reverts; p.total.kills += stats.kills;
+    p.total.reverts += stats.reverts; p.total.kills += stats.kills;
     p.total.playSec += stats.sec;
     st.commits = [];                 // 过关了就不再占空间
+    st.tut = null;                   // 下一轮重打时重新教
     save();
   }
   function bumpDeath(levelId) { levelState(levelId).deaths++; load().total.deaths++; save(); }
 
-  function settings() { return load().settings; }
-  function setSettings(patch) { Object.assign(load().settings, patch); save(); }
+  const BACKUP_KEY = "ea_bugfix_progress_backup";
 
+  /** 清空前留一份旧档 —— 误点了还能 restoreBackup() 找回来 */
   function clearAll() {
+    try {
+      const old = localStorage.getItem(KEY);
+      if (old) localStorage.setItem(BACKUP_KEY, old);
+    } catch (e) { /* 空间不足也不能因为备份失败挡住清档 */ }
     try { localStorage.removeItem(KEY); } catch (e) { /* 忽略 */ }
     for (const k of OLD_KEYS) { try { localStorage.removeItem(k); } catch (e) {} }
     cache = null;
   }
+  function hasBackup() {
+    try { return !!localStorage.getItem(BACKUP_KEY); } catch (e) { return false; }
+  }
+  function restoreBackup() {
+    try {
+      const text = localStorage.getItem(BACKUP_KEY);
+      if (!text) return false;
+      localStorage.setItem(KEY, text);
+      localStorage.removeItem(BACKUP_KEY);
+      cache = null;
+      return true;
+    } catch (e) { return false; }
+  }
 
   return { load, save, levelState, recordCommit, commits, noteCodex, finishLevel,
-           bumpDeath, settings, setSettings, clearAll, KEY, VERSION };
+           bumpDeath, setTut, clearAll, hasBackup, restoreBackup,
+           KEY, BACKUP_KEY, VERSION };
 })();

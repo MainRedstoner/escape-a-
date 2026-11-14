@@ -58,16 +58,16 @@ window.U = (() => {
     _su: false, _sd: false, // 摇杆纵向合成 跳 / 下穿 的滞回状态
     base: {
       /* 左手 WASD 走路（方向键留着一起用），右手一整个功能块：
-       *   U 回档   I 图层   O 图鉴   P 辅助
+       *   U 回档   O 图鉴   Esc 菜单
        *      H 修   J log   K 测试
-       *                       M 音效   B 判定箱（调试）
+       *                       B 判定箱（调试）
        * 空格 = 落 commit（横版里跳是 W / ↑），Enter 与空格同义（菜单里它本来就是确认）。 */
       ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
       KeyA: "left", KeyD: "right", KeyW: "up", KeyS: "down",
       Space: "commit", Enter: "commit",
-      KeyH: "fix", KeyJ: "log", KeyK: "test", KeyI: "layer",
+      KeyH: "fix", KeyJ: "log", KeyK: "test",
       KeyU: "revert",
-      KeyO: "help", KeyP: "assist", KeyM: "volume", Escape: "menu",
+      KeyO: "help", Escape: "menu",
       KeyB: "box"
     },
     /** 物理键 → 逻辑动作名（没映射到就返回 null） */

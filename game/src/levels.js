@@ -5,12 +5,12 @@
  *   id/name/brief      编号、标题、开场白
  *   w/h                图的宽高（必须等于 rows 的行宽 / 行数，校验器会管）
  *   mode               "top" 俯视 · "side" 横版（事件可以中途翻）
- *   fog {r,mem,ghost}  r=光圈半径（0=全图常亮）· mem=记忆秒数 · ghost=记忆过期后的残影强度
+ *   fog {r,mem}        r=光圈半径（0=全图常亮）· mem=记忆窗口秒数（最近 mem 秒更新过的光照保留）
  *   tools {test} 配额
  *   jump               起跳能升几格（横版：跑动中按跳，固定高度，可跨 2 格坑）
  *   pDeadly            踩没解锁的 PR 门是否当场暴毙（教学两关关着）
  *   requireTut         教学不走完不给过关
- *   rows / rowsB       图层（rowsB = 另一条分支，按 I 切；机关只认 rows 那一份）
+ *   rows               地图（单层；机关只认这一份）
  *   bugs[]            {at:[x,y], kind, dir, range}
  *   movers/pads/belts/ci/leak/ghosts[]  地形机关
  *     · ci {at,dir,speed,onT,offT}  红光带。onT/offT = 亮 / 熄各几个 tick，缺省 10/6
@@ -34,7 +34,7 @@ window.GAME_LEVELS = [
   {
     id: "l1", name: "第 1 关 · onboarding", mode: "top", w: 24, h: 14,
     brief: "接手第一天。仓库里没有 README、没有 CI、没有测试，只有一座山和一堆虫。\n这一关灯全亮着 —— 之后不会了。",
-    fog: { r: 0, mem: 0, ghost: 0.35 },
+    fog: { r: 0, mem: 0 },
     tools: { test: 1 },
     requireTut: true, pDeadly: false, jump: 2,
     rows: [
@@ -71,7 +71,7 @@ window.GAME_LEVELS = [
       { when: "log", text: "按 J 丢一条 console.log：它会照亮前方，还能让「假墙 / 假地板」现形。现在灯还亮着，先习惯这个键。" },
       { when: "nearCommit", text: "看到地上那个 -o- 了吗？走过去。" },
       { when: "commit", text: "对，按 空格 就落了一个 commit（Enter 同效）。它是存档，也是你的棺材板 —— 死了就从这里回。" },
-      { when: "kill", text: "旁边贴着一只甲虫就按 H 修掉它（要站着引导 0.4 秒，一动就打断）。" },
+      { when: "kill", text: "旁边贴着一只甲虫就按 H 修掉它（按住约 0.375 秒；引导期间可以移动，别跑出圈）。" },
       { when: "dead", text: "往下那条路会让虫钻出来咬死你。这不是意外，是课程。" },
       { when: "revert", text: "回档把地形、虫群、记忆一起还原到那个 commit。但每两次回档，屎山自己会长一层。" },
       { when: "test", text: "最后这只是祖传虫：先按 K 给它盖测试再按 H 删。裸删 = 改 1 行炸 47 处，它会当场变成两只。" },
@@ -85,7 +85,7 @@ window.GAME_LEVELS = [
   {
     id: "l2", name: "第 2 关 · context 丢了", mode: "top", w: 28, h: 16,
     brief: "灯被拔了。你只能看清身边一圈，看过的地方也只亮 60 秒。\n记住：commit 点会穿过黑暗发光，那是你的灯塔。",
-    fog: { r: 3.3, mem: 60, ghost: 0.22 },
+    fog: { r: 3.3, mem: 20 },
     tools: { test: 2 },
     pDeadly: false, jump: 2,
     rows: [
@@ -139,7 +139,7 @@ window.GAME_LEVELS = [
   {
     id: "l3", name: "第 3 关 · 换个角度看屎山", mode: "side", w: 35, h: 16,
     brief: "这一关是横版：A / D 跑，W / ↑ 跳，脚下没东西就会掉。跳固定 2 格高，2 格宽的窟窿跑起来跳得过去，3 格就别试了。\n按住 S 可以快速下落，也能从单杠平台（＋）上直接跳下去。\n中途有人会「重构坐标系」，重力说翻就翻。",
-    fog: { r: 4.2, mem: 60, ghost: 0.2 },
+    fog: { r: 4.2, mem: 20 },
     tools: { test: 2 },
     jump: 2,
     rows: [
@@ -190,9 +190,9 @@ window.GAME_LEVELS = [
    * 第 4 关 · 分支：地图有两层，靠 I 切；海森堡虫只在黑暗里存在
    * ============================================================ */
   {
-    id: "l4", name: "第 4 关 · 两条分支", mode: "top", w: 30, h: 16,
-    brief: "按 I 在 main 和 hotfix 两条分支之间切图层：同一格在另一条分支上可能是墙，也可能是路。\n这一关还有只能在黑暗里看见的虫，和一条必须按顺序踩的依赖地砖。",
-    fog: { r: 3.6, mem: 55, ghost: 0.16 },
+    id: "l4", name: "第 4 关 · 黑暗分支", mode: "top", w: 30, h: 16,
+    brief: "这一关有只能在黑暗里看见的虫，和一条必须按顺序踩的依赖地砖。\n踩错顺序会长虫 —— 想清楚再下脚。",
+    fog: { r: 3.6, mem: 20 },
     tools: { test: 2 },
     jump: 2,
     rows: [
@@ -213,24 +213,6 @@ window.GAME_LEVELS = [
       "#.......#..xo...bb#..........#",
       "##############################"
     ],
-    rowsB: [
-      "##############################",
-      "#.........#.........#........#",
-      "#..##.o...#................P.#",
-      "#..##.....#.........#....l...#",
-      "#.........#.....&...#........#",
-      "#...................#........#",
-      "#.........#.........#........#",
-      "######.#########.#######.#####",
-      "#...........#...........#....#",
-      "#.l..l......#..##.......#....#",
-      "#...........#...........#....#",
-      "##.###########.######.########",
-      "#.....#...........#......##..#",
-      "#.@...#..............&&..##.l#",
-      "#.....#....xo.....#..........#",
-      "##############################"
-    ],
     pads: [0, 2, 1],
     bugs: [
       { at: [7, 2], kind: "heisen" },
@@ -242,19 +224,16 @@ window.GAME_LEVELS = [
     ],
     movers: [{ at: [24, 9], axis: "x", span: 3, rate: 9 }],
     events: [
-      { when: "tick", at: 8, act: "msg", tone: "tut", text: "按 I 切分支。切之前想清楚：你站的那一格在另一条分支上是不是实心的" },
       { when: "tick", at: 45, acts: [{ act: "fakePr", at: [11, 13] }],
         msg: "前面多了一个 PR 门 —— 这条路太顺了，顺得不正常", tone: "warn" },
       { when: "onEnter", onEnter: [26, 9, 0], act: "blackout", r: 2.8, msg: "你踩进了它的窝：GC 把整个区域的记忆吞了" },
       { when: "onCommit", onCommit: 2, acts: [{ act: "spawn", kind: "heisen" }],
         msg: "每存一次档，黑暗里就多一只看不见的虫", tone: "bad" },
       { when: "tick", at: 110, act: "stash", msg: "有人 git stash 了你上一个 commit" },
-      { when: "tick", at: 150, acts: [{ act: "layerSwap", to: 1 }], msg: "hotfix 被强制合了：图层自己翻了", tone: "bad" },
       { when: "onBug", onBug: 2, act: "bugRush", turns: 10, msg: "还剩两只 —— 剩下的虫全部狂暴" }
     ],
     mutate: [{ at: [3, 9], kind: "walk" }, { at: [24, 13], kind: "chase" }, { at: [10, 13], kind: "heisen" }],
     tut: [
-      { when: "layer", text: "图层切对了。注意依赖地砖上的数字：按顺序踩才开，踩错会长虫。" },
       { when: "kill", n: 1, text: "海森堡虫只有在被光照到、当场卡住的时候才修得掉；黑暗里它才显形。" },
       { when: "bugsLeft", n: 0, text: "清完了。右上角那个 P 才是真的门 —— 中间多出来的那个别踩。" }
     ]
@@ -268,7 +247,7 @@ window.GAME_LEVELS = [
   {
     id: "l5", name: "第 5 关 · 流水线", mode: "side", w: 38, h: 18,
     brief: "这座山开始自己跑起来了：内存泄漏在涨，CI 在扫，流水线一触发全仓的虫一起动。\n下层是另一套虫群，跳板 + 单杠是唯一的上行路。",
-    fog: { r: 3.8, mem: 50, ghost: 0.14 },
+    fog: { r: 3.8, mem: 20 },
     tools: { test: 3 },
     jump: 2,
     rows: [
@@ -333,7 +312,7 @@ window.GAME_LEVELS = [
   {
     id: "l6", name: "第 6 关 · code review", mode: "top", w: 30, h: 17,
     brief: "最后一关是纯黑的：看过的地方 45 秒就忘，残影也关掉了。\n山的最深处坐着祖传本体，它有三管血，每管都要先盖测试。",
-    fog: { r: 2.5, mem: 45, ghost: 0 },
+    fog: { r: 2.5, mem: 20 },
     tools: { test: 3 },
     jump: 2,
     rows: [

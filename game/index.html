@@ -29,7 +29,6 @@
       <span><span class="gf-tag">回档 </span><span class="gf-warn" id="gf-reverts">0</span></span>
       <span class="gf-sp"></span>
       <span class="gf-badge" id="gf-mode">俯视</span>
-      <span class="gf-badge" id="gf-layer">main</span>
       <span class="gf-badge" id="gf-time">00:00</span>
     </div>
 
@@ -37,6 +36,7 @@
     <div id="gf-objective" style="display:none"></div>
     <div id="gf-log"></div>
     <div id="gf-hint">WASD 移动 · 横版 A/D 跑 W 跳 S 下穿 · H 修 · K 测试 · J console.log · 空格 commit · U 回档 · O 图鉴 · Esc 菜单 · B 判定箱</div>
+    <div id="gf-perf" style="display:none"></div>
 
     <!-- 标题 -->
     <div class="gf-modal gf-on" id="gf-m-title">
@@ -52,19 +52,17 @@
           <div><span class="k">J</span>丢一条 console.log：点亮远处 + 看穿假地块</div>
           <div><span class="k">空格</span>在 <b>-o-</b> 上落一个 commit（<b>Enter</b> 同效）</div>
           <div><span class="k">U</span>回到以前的 commit（有代价）</div>
-          <div><span class="k">I</span>切换分支图层（有的关卡才有）</div>
           <div><span class="k">O</span>甲虫图鉴 / 地块图鉴</div>
-          <div><span class="k">P</span>辅助模式：记忆不再过期</div>
           <div><span class="k">Esc</span>菜单</div>
-          <div><span class="k">M</span>音效开关</div>
           <div><span class="k">B</span>调试：显示 / 隐藏判定箱（或 <b>?box=1</b> 启动）</div>
         </div>
         <div class="gf-btns">
           <button class="gf-btn gf-primary" id="gf-start">开始 · 第 1 关（教学）</button>
           <button class="gf-btn" id="gf-pick">选关</button>
           <button class="gf-btn gf-ghost" id="gf-wipe">清空进度</button>
+          <button class="gf-btn" id="gf-undo-wipe" style="display:none">恢复上次清空的进度</button>
         </div>
-        <p class="gf-sub" id="gf-touch-note" style="display:none">触屏可玩：左下摇杆<b>万向移动</b>，推得越远跑得越快（外圈速度环显示油门），横版上推跳、下拉下穿；右下是修 / 测 / log / commit，最上一排小键是图层 / 回档 / 图鉴 / 判定箱 / 菜单。</p>
+        <p class="gf-sub" id="gf-touch-note" style="display:none">触屏可玩：左下摇杆<b>万向移动</b>，推得越远跑得越快（外圈速度环显示油门），横版上推跳、下拉下穿；右下是修 / 测 / log / commit，最上一排小键是回档 / 图鉴 / 判定箱 / 菜单。</p>
         <div id="gf-title-commits" class="gf-sub" style="margin-top:12px"></div>
       </div>
     </div>
@@ -158,8 +156,6 @@
           <button class="gf-btn gf-primary" id="gf-menu-resume">继续（Esc）</button>
           <button class="gf-btn" id="gf-menu-revert">打开回档列表</button>
           <button class="gf-btn" id="gf-menu-replay">重打本关</button>
-          <button class="gf-btn" id="gf-menu-assist">辅助模式：关</button>
-          <button class="gf-btn" id="gf-menu-sound">音效：开</button>
           <button class="gf-btn gf-ghost" id="gf-menu-pick">选关</button>
           <button class="gf-btn gf-ghost" id="gf-menu-title">回标题</button>
         </div>
