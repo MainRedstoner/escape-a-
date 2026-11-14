@@ -794,32 +794,31 @@ window.RENDER = (() => {
       ctx.fillText("HEAD~", px, py - TS * 0.4);
       ctx.globalAlpha = 1;
     }
-    for (const f of W.flashes) {
-      const px = (f.x + 0.5) * TS, py = (f.y + 0.5) * TS;
-      ctx.globalAlpha = Math.min(0.5, f.ticks / WORLD.STEP_HZ * 0.2);
-      ctx.strokeStyle = "#7cf3b0"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(px, py, f.r * TS * (1 - (f.ticks / (5 * WORLD.STEP_HZ))), 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "rgba(124,243,176,.9)"; ctx.font = Math.floor(TS * 0.24) + "px monospace";
-      ctx.textAlign = "center";
-      ctx.fillText("console.log", px, py - TS * 0.5);
-    }
+    /* 探针不再画扩散光环：它不再是光源，只保留「看穿假地块」的逻辑标记 */
   }
 
   /* ---------------- 光照遮罩 ----------------
-   * 地形先按本色全画，再盖一层整屏黑；玩家 / 灯 / 探针用径向渐变擦出光圈，
-   * 记忆窗口内的格子再擦掉一层（比实时暗）。这样光圈是圆的，灯也不再是方块。 */
+   * 地形先按本色全画，再盖一层整屏黑；只有玩家光圈是光源，
+   * 记忆窗口内的格子再擦掉一层（比实时暗）。 */
   let fogCv = null, fogCtx = null;
   function fogLayer() {
     if (!fogCv) { fogCv = document.createElement("canvas"); fogCtx = fogCv.getContext("2d"); }
-    if (fogCv.width !== view.w || fogCv.height !== view.h) { fogCv.width = view.w; fogCv.height = view.h; }
+    const w = Math.max(1, Math.round(view.w * dpr)), h = Math.max(1, Math.round(view.h * dpr));
+    if (fogCv.width !== w || fogCv.height !== h) { fogCv.width = w; fogCv.height = h; }
     return fogCtx;
   }
   function eraseRadial(f, cx, cy, r) {
     const rr = TS * (r + 0.6);
-    const grd = f.createRadialGradient(cx, cy, TS * r * 0.55, cx, cy, rr);
+    const grd = f.createRadialGradient(cx, cy, TS * r * 0.45, cx, cy, rr);
+    /* 多段色标：只给 0/1 两段的话，8 位色深会在光圈边缘出现一圈圈色带 */
     grd.addColorStop(0, "rgba(0,0,0,1)");
-    grd.addColorStop(0.7, "rgba(0,0,0,1)");
+    grd.addColorStop(0.42, "rgba(0,0,0,1)");
+    grd.addColorStop(0.58, "rgba(0,0,0,.985)");
+    grd.addColorStop(0.70, "rgba(0,0,0,.93)");
+    grd.addColorStop(0.80, "rgba(0,0,0,.80)");
+    grd.addColorStop(0.88, "rgba(0,0,0,.60)");
+    grd.addColorStop(0.94, "rgba(0,0,0,.34)");
+    grd.addColorStop(0.98, "rgba(0,0,0,.12)");
     grd.addColorStop(1, "rgba(0,0,0,0)");
     f.fillStyle = grd;
     f.beginPath(); f.arc(cx, cy, rr, 0, Math.PI * 2); f.fill();
@@ -827,16 +826,14 @@ window.RENDER = (() => {
   function drawFog(W) {
     if (!W.cfg.r || W.cfg.r <= 0) return;          // 教学关全图常亮
     const f = fogLayer();
-    f.setTransform(1, 0, 0, 1, 0, 0);
+    f.setTransform(dpr, 0, 0, dpr, 0, 0);
     f.globalCompositeOperation = "source-over";
     f.clearRect(0, 0, view.w, view.h);
     f.fillStyle = "rgba(2,3,5,.86)";               // 没去过的地方：一层几乎不透光的黑
     f.fillRect(0, 0, view.w, view.h);
     f.globalCompositeOperation = "destination-out";
     const ox = -cam.x, oy = -cam.y;                // 世界坐标 → 遮罩画布坐标
-    eraseRadial(f, W.player.x * TS + ox, W.player.y * TS + oy, W.cfg.r);
-    for (const l of W.lamps) eraseRadial(f, (l.x + 0.5) * TS + ox, (l.y + 0.5) * TS + oy, l.r);
-    for (const fl of W.flashes) eraseRadial(f, (fl.x + 0.5) * TS + ox, (fl.y + 0.5) * TS + oy, fl.r);
+    eraseRadial(f, W.player.x * TS + ox, W.player.y * TS + oy, WORLD.fogR(W));
     /* 记忆窗口内的格子：只擦掉六成，比实时可见暗一档 */
     f.fillStyle = "rgba(0,0,0,.62)";
     const gx0 = Math.floor(-ox / TS) - 1, gy0 = Math.floor(-oy / TS) - 1;

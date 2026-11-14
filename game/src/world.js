@@ -166,23 +166,20 @@ window.WORLD = (() => {
     const from = Math.min(1.6, r);
     return from + (r - from) * (W.tick / ramp);
   }
+  /** 光照只跟玩家走：灯 / 探针 / commit 点都不再自发照亮地形。
+   *  （commit 点与 PR 门仍是穿黑暗可见的标记，但不贡献光照。） */
   function light(W) {
     const r = fogR(W);
     if (r > 0) lightCircle(W, W.player.x, W.player.y, r, 0);
     else {                                            // 全图常亮（教学关）
       for (let y = 0; y < W.h; y++) for (let x = 0; x < W.w; x++) { const i = idx(W, W.layer, x, y); W.lit[i] = W.tick; W.seen[i] = 1; }
     }
-    for (const l of W.lamps) lightCircle(W, l.x + 0.5, l.y + 0.5, l.r, 0);
-    for (const f of W.flashes) lightCircle(W, f.x + 0.5, f.y + 0.5, f.r, f.probe ? f.ticks : 0);
   }
-  /** 此刻是否被「观测」——只算实时光源，记忆不算 */
+  /** 此刻是否被「观测」——只算玩家光圈，记忆不算 */
   function observed(W, x, y) {
     const r = fogR(W);
     if (r <= 0) return true;
-    if (cellDist(W, x, y) <= r + 0.35) return true;
-    for (const f of W.flashes) if (U.dist(x + 0.5, y + 0.5, f.x + 0.5, f.y + 0.5) <= f.r + 0.35) return true;
-    for (const l of W.lamps) if (U.dist(x + 0.5, y + 0.5, l.x + 0.5, l.y + 0.5) <= l.r + 0.35) return true;
-    return false;
+    return cellDist(W, x, y) <= r + 0.35;
   }
   /** 渲染亮度：1 实时可见 · MEM_HOLD 窗口内的记忆（保持不衰减）· FOG_DARK 黑色遮罩。
    *  记忆 = 「最近 mem 秒更新过的光照」的滑动窗口：光圈每 tick 都往里写，
@@ -529,6 +526,15 @@ window.WORLD = (() => {
       tx = nx; ty = ny;
     }
     W.flashes.push({ x: tx, y: ty, r: 3.6, ticks: 5 * STEP_HZ, probe: true });
+    /* 探针不再是光源：只把「看穿假地块」的标记打进它覆盖的那圈格子，
+       玩家走进自己光圈时才能看到真相 */
+    const fr = 3.6;
+    for (let y = Math.floor(ty - fr); y <= Math.ceil(ty + fr); y++) for (let x = Math.floor(tx - fr); x <= Math.ceil(tx + fr); x++) {
+      if (!inb(W, x, y)) continue;
+      if (U.dist(x + 0.5, y + 0.5, tx + 0.5, ty + 0.5) > fr + 0.35) continue;
+      const i = idx(W, W.layer, x, y);
+      W.reveal[i] = Math.max(W.reveal[i], 5 * STEP_HZ);
+    }
     p.logCd = 1.375;
     sfx("log");
     flag(W, "log");
@@ -1460,7 +1466,7 @@ window.WORLD = (() => {
   return {
     STEP_HZ, DT, BUG_HIT, bindLevels, create, tick, act, tutAck, tutNow,
     revert, snap, restore, pushCommit, doCommit, atCommitTile,
-    tile, look, setTile, dyn, observed, brightness, memLeft, FOG_DARK, MEM_HOLD, solidAt, bugBlock, isPitAt, supportAt,
+    tile, look, setTile, dyn, observed, brightness, memLeft, fogR, FOG_DARK, MEM_HOLD, solidAt, bugBlock, isPitAt, supportAt,
     spawn, removeBug, killBug, bugAt, adjacentBug, explode, die, light, inb, idx, keyOf,
     stepPlayer, resolvePlayer, doLog, mutate, act1, fire, checkPr, jump,
     bugs: () => BUGS, level: W => LEVELS[W.li], levels: () => LEVELS
