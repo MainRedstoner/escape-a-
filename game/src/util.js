@@ -53,6 +53,9 @@ window.U = (() => {
     map: null,            // 键位打乱表（阴间事件用）：{ 物理键: 逻辑名 }
     heldBy: new Map(),    // 物理键 code → 它按下那一刻映射到的逻辑名。松手按这份账删，
                           // 键位打乱中途恢复也不会把"right"残留在 held 里卡死方向
+    stick: null,          // 摇杆模拟向量 {x,y}（模长 ≤1，y 向下）；null = 没碰摇杆，走键盘
+    dirMap: null,         // 打乱时的「逻辑方向 → 逻辑方向」表，用来旋转摇杆向量（和按键一致）
+    _su: false, _sd: false, // 摇杆纵向合成 跳 / 下穿 的滞回状态
     base: {
       /* 左手 WASD 走路（方向键留着一起用），右手一整个功能块：
        *   U 回档   I 图层   O 图鉴   P 辅助
@@ -72,9 +75,60 @@ window.U = (() => {
       const m = this.map || this.base;
       return m[code] || null;
     },
-    clear() { this.held.clear(); this.pressed.clear(); this.heldBy.clear(); },
+    clear() {
+      this.held.clear(); this.pressed.clear(); this.heldBy.clear();
+      this._su = this._sd = false;
+      this._stickKeys();   // 摇杆还推着就把跳 / 下穿重新挂上：回档清键盘，不该把正在走的人定住
+    },
     down(name) { return this.held.has(name); },
     hit(name) { return this.pressed.has(name); },
+    /** 移动向量（逻辑坐标，y 向下，模长 ≤1）—— 俯视 / 横版唯一的速度来源。
+     *  摇杆推着就走摇杆（万向 + 调速，模长就是油门）；否则键盘八向（斜走归一化）。
+     *  键位打乱时摇杆向量按同一张表旋转 / 镜像，和按键体验一致。 */
+    moveVec() {
+      if (!this.stick) {
+        let x = 0, y = 0;
+        if (this.held.has("left")) x -= 1;
+        if (this.held.has("right")) x += 1;
+        if (this.held.has("up")) y -= 1;
+        if (this.held.has("down")) y += 1;
+        if (x && y) { x /= Math.SQRT2; y /= Math.SQRT2; }
+        return { x: x, y: y };
+      }
+      let x = this.stick.x, y = this.stick.y;
+      const t = this.dirMap;
+      if (t) {
+        /* 四个物理方向的分量各自映射到打乱后的逻辑方向再求和：
+         * 这几张表都是方向的置换，等价于整体旋转 / 镜像，模长不变。 */
+        let nx = 0, ny = 0;
+        const comp = [["right", x], ["left", -x], ["down", y], ["up", -y]];
+        for (let i = 0; i < 4; i++) {
+          const m = comp[i][1];
+          if (m <= 0) continue;
+          const to = t[comp[i][0]] || comp[i][0];
+          if (to === "right") nx += m;
+          else if (to === "left") nx -= m;
+          else if (to === "down") ny += m;
+          else ny -= m;
+        }
+        x = nx; y = ny;
+      }
+      return { x: x, y: y };
+    },
+    /** 触屏摇杆入口。v = {x,y}：死区与调速已在 touch.js 处理好（模长 = 油门，y 向下）；
+     *  v = null 松手。纵向分量顺带合成 跳 / 下穿 的按住与边沿（横版用），带滞回防抖，
+     *  走 T: 假物理码 —— 键位打乱时和键盘一起乱。 */
+    setStick(v) {
+      this.stick = v ? { x: v.x, y: v.y } : null;
+      this._stickKeys();
+    },
+    _stickKeys() {
+      const y = this.stick ? this.stick.y : 0;
+      const up = this._su ? y < -0.30 : y < -0.50;   // 上推过半才跳，回中到 0.3 以内才算松
+      const dn = this._sd ? y > 0.30 : y > 0.50;
+      if (up !== this._su) { this._su = up; if (up) this.touchDown("KeyW"); else this.touchUp("KeyW"); }
+      if (dn !== this._sd) { this._sd = dn; if (dn) this.touchDown("KeyS"); else this.touchUp("KeyS"); }
+    },
     onKeyDown(e) {
       const name = this.logical(e.code);
       if (!name) return;
@@ -122,9 +176,10 @@ window.U = (() => {
         m[code] = table[logical] || logical;
       }
       this.map = m;
+      this.dirMap = table;   // 摇杆向量按同一张方向表旋转
     },
     /** 恢复键位。held 故意不动：已经按住的键继续它按下那一刻的动作，松手时按物理键的账清理 */
-    unscramble() { this.map = null; }
+    unscramble() { this.map = null; this.dirMap = null; }
   };
 
   /* ---------------- 小工具 ---------------- */

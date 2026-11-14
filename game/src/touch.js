@@ -1,11 +1,13 @@
 /* ============================================================
  * Escape A÷ · game/src/touch.js —— 小游戏触屏控件层
  *
- * 在 canvas 上叠一层 DOM 虚拟控件：左下摇杆（八向、带死区）移动，
- * 右下动作键。摇杆推过死区 = 按下方向键，推回死区 = 松开，
- * 和触屏按键一样汇进 U.Input（走 BUGFIX.key / keyUp），与键盘共用
- * 同一张键位表 —— 键位被打乱事件打乱时触屏也跟着乱，体验一致。
- * 检测到触屏（或 ?touch=1 强开）才挂出来；不碰存档、不碰世界状态。
+ * 在 canvas 上叠一层 DOM 虚拟控件：左下万向摇杆移动，右下动作键。
+ * 摇杆是**模拟量**：角度 = 移动方向（360° 万向，不再切八向扇区），
+ * 推杆幅度 = 油门（推得越远跑得越快，带死区防手心误触），外圈速度环实时显示。
+ * 向量汇进 U.Input.setStick → moveVec，与键盘共用同一张键位表 ——
+ * 键位被打乱事件打乱时摇杆向量跟着旋转，体验一致；横版上推跳、下拉下穿
+ * 由 Input 按滞回合成 up/down，和按键一样。检测到触屏（或 ?touch=1 强开）
+ * 才挂出来；不碰存档、不碰世界状态。
  * ============================================================ */
 "use strict";
 
@@ -26,10 +28,9 @@ window.GTOUCH = (() => {
     { code: "Escape", label: "菜", title: "菜单（Esc）" }
   ];
 
-  /* 摇杆：八向扇区。atan2 按 45° 一档取整，推过死区才认方向，
-   * 俯视的斜走和横版的跑 / 跳 / 下穿刚好各占一个扇区。 */
-  const JOY_CODES = ["KeyD", "KeyS", "KeyA", "KeyW"];   // 四个方向对应的假物理码
-  const JOY_DEAD = 0.3;      // 死区（占可拉半径的比例），防手心搭上去就乱走
+  const JOY_DEAD = 0.28;     // 死区（占可拉半径的比例），防手心搭上去就乱走
+  const RING_R = 48;         // 速度环半径（viewBox 104 坐标）
+  const RING_C = 2 * Math.PI * RING_R;
 
   let inited = false;
 
@@ -59,47 +60,55 @@ window.GTOUCH = (() => {
   function makeJoy() {
     const base = document.createElement("div");
     base.className = "gf-tjoy";
+    /* 万向刻度：十字准线 + 死区圈 + 外圈速度环（SVG，老 WebView 也认） */
+    base.innerHTML =
+      '<svg class="gf-tjoy-ring" viewBox="0 0 104 104" aria-hidden="true">' +
+        '<circle class="gf-tjoy-track" cx="52" cy="52" r="' + RING_R + '"></circle>' +
+        '<circle class="gf-tjoy-arc" cx="52" cy="52" r="' + RING_R + '"></circle>' +
+      '</svg>' +
+      '<div class="gf-tjoy-cross"></div>' +
+      '<div class="gf-tjoy-dead"></div>';
     const knob = document.createElement("div");
     knob.className = "gf-tknob";
+    const speed = document.createElement("div");
+    speed.className = "gf-tjoy-speed";
     base.appendChild(knob);
-    const on = { KeyD: false, KeyS: false, KeyA: false, KeyW: false };
+    base.appendChild(speed);
+    const arc = base.querySelector(".gf-tjoy-arc");
+    arc.style.strokeDasharray = RING_C.toFixed(1);
+    arc.style.strokeDashoffset = RING_C.toFixed(1);
     let joyId = null;
 
-    /* dir: -1 = 死区；0..7 = 从右起每 45° 一档，顺时针（屏幕 y 向下）。
-     * 每个方向键覆盖自己两侧的斜扇区：↗ = KeyD + KeyW，以此类推。 */
-    function apply(dir) {
-      const want = {
-        KeyD: dir === 7 || dir === 0 || dir === 1,
-        KeyS: dir === 1 || dir === 2 || dir === 3,
-        KeyA: dir === 3 || dir === 4 || dir === 5,
-        KeyW: dir === 5 || dir === 6 || dir === 7
-      };
-      for (const code of JOY_CODES) {
-        if (want[code] === on[code]) continue;
-        on[code] = want[code];
-        if (!window.BUGFIX) continue;
-        if (want[code]) window.BUGFIX.key(code);
-        else window.BUGFIX.keyUp(code);
-      }
+    /* spd ∈ [0,1] 是油门：环、辉光、百分比一起跟着走，调速一眼可见 */
+    function paint(spd) {
+      arc.style.strokeDashoffset = (RING_C * (1 - spd)).toFixed(1);
+      knob.style.background = "rgba(124,243,176," + (0.16 + spd * 0.34).toFixed(3) + ")";
+      knob.style.boxShadow = "0 0 " + (3 + spd * 15).toFixed(1) + "px rgba(124,243,176," + (0.2 + spd * 0.55).toFixed(3) + ")";
+      speed.textContent = spd > 0.001 ? Math.round(spd * 100) + "%" : "";
+      base.classList.toggle("gf-moving", spd > 0.001);
     }
-
     function move(e) {
       const r = base.getBoundingClientRect();
       const R = r.width / 2;
       const dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
-      const len = Math.hypot(dx, dy) || 1;
-      const reach = R * 0.62;                  // 杆头最多拉到 62%，留点视觉余量
-      knob.style.transform = "translate(" + (dx / len * reach).toFixed(1) + "px," + (dy / len * reach).toFixed(1) + "px)";
-      if (len < reach * JOY_DEAD) { apply(-1); return; }
-      const step = Math.PI / 4;
-      apply(((Math.round(Math.atan2(dy, dx) / step) % 8) + 8) % 8);
+      const len = Math.hypot(dx, dy);
+      const reach = R * 0.62;                 // 杆头最多拉到 62%，留点视觉余量
+      const nx = len ? dx / len : 0, ny = len ? dy / len : 0;
+      const mag = Math.min(1, len / reach);
+      const spd = mag > JOY_DEAD ? (mag - JOY_DEAD) / (1 - JOY_DEAD) : 0;   // 死区外线性调速
+      const k = Math.min(len, reach);
+      knob.style.transform = "translate(" + (nx * k).toFixed(1) + "px," + (ny * k).toFixed(1) + "px)";
+      paint(spd);
+      /* 死区里也保持「握住」状态（{0,0}），不让键盘趁虚而入；松手才 setStick(null) */
+      U.Input.setStick({ x: nx * spd, y: ny * spd });
     }
     function end(e) {
-      if (e.pointerId !== joyId) return;
+      if (e && joyId != null && e.pointerId !== joyId) return;
       joyId = null;
-      base.classList.remove("gf-hold");
-      knob.style.transform = "translate(0,0)";
-      apply(-1);
+      base.classList.remove("gf-hold", "gf-moving");
+      knob.style.transform = "translate(0,0)";   // CSS 过渡让它平滑回中
+      paint(0);
+      U.Input.setStick(null);
     }
     base.addEventListener("pointerdown", e => {
       if (joyId != null) return;
@@ -114,6 +123,9 @@ window.GTOUCH = (() => {
     base.addEventListener("pointercancel", end);
     base.addEventListener("lostpointercapture", end);
     base.addEventListener("contextmenu", e => e.preventDefault());
+    /* 失焦 / 切后台：手指可能没抬就丢了事件，主动松杆，回来不会带着油门一路走 */
+    window.addEventListener("blur", () => end(null));
+    document.addEventListener("visibilitychange", () => { if (document.hidden) end(null); });
     return base;
   }
 
