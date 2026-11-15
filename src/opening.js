@@ -1176,6 +1176,20 @@ const OPENING = (() => {
     c.moveTo(cx + s * 0.02, cy + s * 0.24); c.lineTo(cx + s * 0.22, cy + s * 0.24);
     c.stroke();
   }
+  function icEdit(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    c.beginPath();
+    c.moveTo(cx - s * 0.34, cy + s * 0.34);
+    c.lineTo(cx - s * 0.22, cy + s * 0.06);
+    c.lineTo(cx + s * 0.26, cy - s * 0.42);
+    c.lineTo(cx + s * 0.44, cy - s * 0.24);
+    c.lineTo(cx - s * 0.04, cy + s * 0.24);
+    c.closePath(); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.34, cy + s * 0.34);
+    c.lineTo(cx - s * 0.04, cy + s * 0.24);
+    c.stroke();
+  }
   function icThink(c, cx, cy, s, col) {
     c.strokeStyle = col; c.lineWidth = 0.55;
     rr(c, cx - s * 0.44, cy - s * 0.44, s * 0.88, s * 0.88, s * 0.2); c.stroke();
@@ -1507,6 +1521,7 @@ const OPENING = (() => {
         if (r.icon === "run") icTerm(c, x + 4, cy, 7.4, DC.fg3);
         else if (r.icon === "search") icMagnifier(c, x + 4, cy, 7.4, DC.fg3);
         else if (r.icon === "web") icWeb(c, x + 4, cy, 7.4, DC.fg3);
+        else if (r.icon === "edit") icEdit(c, x + 4, cy, 7.4, DC.fg3);
         else icDoc(c, x + 4, cy, 7.4, DC.fg3);
         setFont(c, 6.4, "400", UI);
         ink(c, r.title, x + 10, midBase(y, r.h, 6.4), DC.fg2, false);

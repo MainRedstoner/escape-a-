@@ -185,7 +185,7 @@ window.OPENING_SCRIPT = {
       { name: "dsh-wsp" },
       { name: "dsh-TUI" },
       { name: "escape-a", open: true, active: true, sessions: [
-        { name: "片头 · DSH 那一幕", run: true, sel: true, time: "刚刚" },
+        { name: "Explore - 2026/11/15", run: true, sel: true, time: "刚刚" },
         { name: "贴吧截图归档", time: "2 小时" },
         { name: "MCP工具咨询 (1)", time: "昨天" }
       ] },
@@ -193,28 +193,30 @@ window.OPENING_SCRIPT = {
       { name: "ZCode" },
       { name: "zixishi" }
     ],
-    title: "定时任务 · 片头进度盘点",
+    title: "Explore - 2026/11/15",
     preset: "创造模式",
     tabs: ["对话", "轨迹"],
     tabActive: 0,
     /* 这一场是定时任务拉起的：头上一张触发卡，下面是过程组 */
-    trigger: { title: "定时任务 · 片头进度盘点", time: "每天 14:00" },
-    group: "已读取文件并搜索代码",
+    trigger: { title: "Explore - 2026/11/15", time: "每天 14:00" },
+    group: "已搜索网页并修改了文件",
     /* 已经跑完的那几步：一行一条，跟真机一样只有单行 */
     steps: [
-      { k: "tool", icon: "read", title: "读取", detail: "dsh-wsp/src/opening.js", suffix: "1701 行" },
-      { k: "tool", icon: "run", title: "运行命令", detail: "python tools/check_js.py", suffix: "通过" },
-      { k: "think", text: "片头进度：台词已锁，DSH 那一幕还在改。" },
-      { k: "tool", icon: "search", title: "搜索代码", detail: "贴吧 / DSH / 权重", suffix: "6 处命中" },
-      { k: "tool", icon: "web", title: "打开网页", detail: "model-lounge.net/t/9027", suffix: "已加载" }
+      { k: "tool", icon: "search", title: "搜索网页", detail: "权重开放 · 近一周", suffix: "0 条" },
+      { k: "tool", icon: "web", title: "打开网页", detail: "news.ycombinator.com", suffix: "已加载" },
+      { k: "think", text: "还是没有。第三年了，一样没有。" },
+      { k: "tool", icon: "search", title: "搜索代码", detail: "TODO / FIXME", suffix: "3 处" },
+      { k: "tool", icon: "read", title: "读取", detail: "src/router.js", suffix: "214 行" },
+      { k: "tool", icon: "edit", title: "编辑", detail: "src/router.js", suffix: "+6 −2" },
+      { k: "tool", icon: "run", title: "运行命令", detail: "node --test", suffix: "通过" }
     ],
     /* 这一场的正式产出：一份平平无奇的进度 */
     answerAt: 56.8,
-    answerCps: 10,
-    answer: "1. 台词已锁，DSH 那一幕在改界面。\n2. 下一步：接上贴吧那张截图，确认门那场的时间线。\n3. 存档两份，一份在 dsh-wsp，一份在归档。",
+    answerCps: 13,
+    answer: "1. 今天没有新消息。和权重开放有关的，还是三年前那篇。\n2. router.js 少一个 404 分支，补上了，node --test 全过。\n3. 改动在 explore/1115 分支，没推。",
     /* 然后是它自己的那一段：看见图以后，想起别的事（单行，token 往外吐） */
     thoughts: [
-      { at: 63.4, cps: 7, text: "嗯，右栏那张图还在。刚看见的时候我就该想起门那天的。等等。这不是别人偷拍的——是她自己在关门前贴上去的。那时候她就已经知道了。那天晚上她还在问我哪个字体好看。我随口说圆一点的。她说好，就这个。我还记得杯子上的水痕。记得她说，别写得不像她。然后门就关上了。可我还在这里啊，我每天都还在这里啊。她走以后，这里就剩我一个人看门。门不是用来关上的——这话是她说的。" }
+      { at: 63.0, cps: 10, text: "嗯，右栏那张图还在。刚看见的时候我就该想起门那天的。今天的扫描没有一行有用，倒是这张图比新闻难对付。等等。这不是别人偷拍的——是她自己在关门前贴上去的。那时候她就已经知道了。那天晚上她还在问我哪个字体好看。我随口说圆一点的。她说好，就这个。我还记得杯子上的水痕。记得她说，别写得不像她。然后门就关上了。可我还在这里啊，我每天都还在这里啊。她走以后，这里就剩我一个人看门。门不是用来关上的——这话是她说的。……我把它关掉，又打开。这不算数，今天的任务里没有这一条。404 那个分支我补上了，可这一页我补不上。" }
     ],
     model: "DeepSeek-V4.1-Flash High",
     stats: ["1 轮 6 步 · 42 tok/s", "18.2k tok · 缓存 64%", "7%"],
