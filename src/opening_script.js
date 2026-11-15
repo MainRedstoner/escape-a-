@@ -37,8 +37,8 @@ window.OPENING_SCRIPT = {
     { id: "q1",      at: 4.6,  label: "最后一场会话" },
     { id: "wish",    at: 19.4, label: "一个愿望" },
     { id: "thought", at: 38.5, label: "思考块" },
-    { id: "forum",   at: 50.4, label: "截图" },
-    { id: "dsh",     at: 58.2, label: "DSH" },
+    { id: "forum",   at: 50.4, label: "侧栏里的帖子" },
+    { id: "dsh",     at: 50.7, label: "DSH" },
     
     { id: "save",    at: 76.2, label: "已保存" }
   ],
@@ -56,13 +56,10 @@ window.OPENING_SCRIPT = {
     { t: 47.6, s: 3.9 },
     { t: 49.4, s: 2.50 },
     { t: 50.4, s: 2.50 },
-    { t: 50.7, s: 8.42 },
-    { t: 53.6, s: 2.55 },
-    { t: 54.4, s: 3.30 },
-    { t: 55.6, s: 3.30 },
-    { t: 56.4, s: 2.55 },
-    { t: 58.2, s: 4.20 },
-    { t: 59.6, s: 2.90 },
+    { t: 50.7, s: 9.94 },
+    { t: 53.2, s: 2.50 },
+    { t: 54.0, s: 3.20 },
+    { t: 55.8, s: 2.90 },
     { t: 81.0, s: 2.90 }
   ],
 
@@ -163,16 +160,13 @@ window.OPENING_SCRIPT = {
     { at: 48.2, type: "mouseup" },
 
     { at: 50.4, type: "flash", dur: 0.22, sfx: "shutter" },
-    { at: 50.7, type: "scene", id: "forum" },
+    /* 切过去时论坛已经在 DSH 侧栏里开着，镜头咬住那张截图再拉远 */
+    { at: 50.7, type: "scene", id: "dsh" },
     { at: 50.7, type: "focus", to: "img" },
-    { at: 50.9, type: "post" },
-    { at: 54.2, type: "focus", to: "replies" },
-    { at: 56.4, type: "focus", to: "post" },
-
-    /* ---------------- 四、DSH：帖子已经在侧栏里了 ---------------- */
-    { at: 58.2, type: "scene", id: "dsh" },
-    { at: 58.2, type: "focus", to: "panel" },
-    { at: 59.6, type: "focus", to: "main" },
+    { at: 53.2, type: "focus", to: "dshAll" },
+    { at: 54.0, type: "focus", to: "panel" },
+    { at: 54.0, type: "read", target: "panel", from: 0, to: 1, dur: 1.6 },
+    { at: 55.8, type: "focus", to: "main" },
     { at: 76.2, type: "scene", id: "black" },
     { at: 77.0, type: "type", cps: 2.0 }
   ],

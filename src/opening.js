@@ -917,7 +917,9 @@ const OPENING = (() => {
       pan: dshPan(tt),
       anchors: {
         dshAll: { x: 320, y: 180 },
-        panel: { x: PANEL_X + PANEL_W / 2, y: 186 },
+        /* 侧栏里那张截图的中心：面板起于 (PANEL_X+1, 17)，按 0.85 缩放，图在页面 (24,90,190,107) */
+        img: { x: PANEL_X + 1 + (24 + 95) * 0.85, y: 17 + (90 + 53.5) * 0.85 },
+        panel: { x: PANEL_X + PANEL_W / 2, y: 150 },
         main: { x: RAIL + 130, y: 176 },
         think: { x: RAIL + 120, y: 200 }
       }
