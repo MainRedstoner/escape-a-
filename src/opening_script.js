@@ -61,12 +61,9 @@ window.OPENING_SCRIPT = {
     { t: 54.4, s: 3.30 },
     { t: 55.6, s: 3.30 },
     { t: 56.4, s: 2.55 },
-    { t: 58.2, s: 2.55 },
-    { t: 58.9, s: 2.50 },
-    { t: 60.0, s: 3.30 },
-    { t: 62.2, s: 3.30 },
-    { t: 63.8, s: 2.50 },
-    { t: 81.0, s: 2.50 }
+    { t: 58.2, s: 4.20 },
+    { t: 59.6, s: 2.90 },
+    { t: 81.0, s: 2.90 }
   ],
 
   /* 正式回答也分段：段落之间空一行 */
@@ -172,10 +169,10 @@ window.OPENING_SCRIPT = {
     { at: 54.2, type: "focus", to: "replies" },
     { at: 56.4, type: "focus", to: "post" },
 
-    /* ---------------- 四、DSH：侧栏里的帖子，和看着它的人 ---------------- */
+    /* ---------------- 四、DSH：帖子已经在侧栏里了 ---------------- */
     { at: 58.2, type: "scene", id: "dsh" },
-    { at: 59.4, type: "read", target: "panel", from: 0, to: 1, dur: 2.6 },
-    { at: 63.4, type: "read", target: "main", from: 0, to: 1, dur: 1.0 },
+    { at: 58.2, type: "focus", to: "panel" },
+    { at: 59.6, type: "focus", to: "main" },
     { at: 76.2, type: "scene", id: "black" },
     { at: 77.0, type: "type", cps: 2.0 }
   ],
