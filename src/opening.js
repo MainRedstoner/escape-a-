@@ -151,10 +151,11 @@ const OPENING = (() => {
   }
 
   /* ---------------- 字体与文字 ---------------- */
-  let curFont = "";
+  let curFont = "", curFontCtx = null;
   function setFont(c, size, weight, family) {
     const f = (weight ? weight + " " : "") + size + "px " + (family || MONO);
-    if (f !== curFont) { c.font = f; curFont = f; }
+    /* 字体是每个 context 各自的状态：换 context 也要重设，否则量出来的宽度是上一个人的 */
+    if (f !== curFont || c !== curFontCtx) { c.font = f; curFont = f; curFontCtx = c; }
   }
 
   let FRINGE = true;
@@ -209,6 +210,36 @@ const OPENING = (() => {
       }
     }
     if (line) out.push(line);
+    return out;
+  }
+
+  /* 中英混排折行：拉丁词当成一个整体，CJK 逐字断；句读不落在行首（禁则） */
+  const NO_LINE_START = "。，、；：！？」』】》〉…·,.;:!?)";
+  function wrapMixed(c, str, maxW) {
+    const out = [];
+    let line = "", w = 0, i = 0;
+    const WORD = /[A-Za-z0-9_.\-+/@#%&*]/;
+    while (i < str.length) {
+      let tok;
+      if (WORD.test(str[i])) {
+        let j = i;
+        while (j < str.length && WORD.test(str[j])) j++;
+        tok = str.slice(i, j);
+      } else if (str[i] === " ") {
+        tok = " ";
+      } else {
+        tok = str[i];
+      }
+      const cw = c.measureText(tok).width;
+      const noStart = NO_LINE_START.indexOf(tok) >= 0;
+      if (line && w + cw > maxW && tok !== " " && !noStart) {
+        out.push(line.replace(/ +$/, ""));
+        line = ""; w = 0;
+        if (tok === " ") { i += 1; continue; }
+      }
+      line += tok; w += cw; i += tok.length;
+    }
+    if (line) out.push(line.replace(/ +$/, ""));
     return out;
   }
 
@@ -765,13 +796,19 @@ const OPENING = (() => {
   /* 帖子里那张图 = 终端最后一帧，直接重画（不依赖缓存，任何机器都出得来） */
   let shotL = null;
   function paintShot(c, x, y, w, h) {
-    const at = S.meta.shotAt || 50.0;
-    if (!shotL) shotL = layoutTerminal(at);
     c.save();
     c.beginPath(); c.rect(x, y, w, h); c.clip();
-    c.translate(x, y);
-    c.scale(w / W, h / H);
-    drawTerminal(c, shotL, at, true);
+    if (shot) {
+      /* 终端最后一帧已经有一张缓存了（ensureShot），直接缩放贴过来 */
+      c.imageSmoothingEnabled = true;
+      c.drawImage(shot, 0, 0, W * Q, H * Q, x, y, w, h);
+    } else {
+      const at = S.meta.shotAt || 50.0;
+      if (!shotL) shotL = layoutTerminal(at);
+      c.translate(x, y);
+      c.scale(w / W, h / H);
+      drawTerminal(c, shotL, at, true);
+    }
     c.restore();
   }
 
@@ -885,189 +922,788 @@ const OPENING = (() => {
 
 
   /* ============================================================
-   *  DSH 那一幕：左边会话栏 / 中间主会话 / 右边预览侧栏里是那个帖子
+   *  DSH 那一幕
+   *  ------------------------------------------------------------
+   *  拍的是一个 1280×720 的 DSH 窗口：内容层 640×360 正好是它的一半，
+   *  所以下面每个数字都是真实 CSS 值 ÷2。
+   *    左栏 280 → 140；右栏取首开默认的 0.45×视口 = 576 → 288；
+   *    头部 76（面板页签条 38 + 浏览器工具栏 38）→ 38；
+   *    正文 14/24 → 7/12；工具行 / 思考行 24 → 12；页签 13 → 6.5；
+   *    输入卡圆角 28 → 14，宽 = 内容宽 + 32 → 196；发送键 34 → 17。
+   *  颜色取 DSH dark 的 alias token（design-platform.css）：
+   *    bg-base #151517 / sidebar #1b1b1c / layer-2 #2c2c2e / 输入卡 #2c2c2e
+   *    正文 #f9fafb / 二级 #cfd3d6 / 三级 #adb2b8 / caption #81858c
+   *    选中页签与发送键 = state-business-primary（deepseek-400）#7aaaff
    * ============================================================ */
-  const RAIL = 92, PANEL_X = 352, PANEL_W = 288;
-  let fbuf = null, fctx = null;
-  const BUFT = 57.6;
+  const DS = {
+    side: 140,            /* 左栏宽 */
+    panelX: 352,          /* 右栏起点 = 640 - 288 */
+    panelW: 288,          /* 右栏宽 */
+    header: 38,           /* 会话头部总高（也是右栏页签条 + 工具栏的高） */
+    strip: 19,            /* 右栏页签条 38/2（下面那条工具栏同高） */
+    pagePad: 12,          /* 网页左右留白 24/2 */
+    cardX: 148,           /* 输入卡：196 宽，居中在 212 的中栏里 */
+    cardW: 196,
+    cardY: 296,
+    cardH: 48.5,
+    textX: 156,           /* 转写区左边界 = 140 + 32/2 */
+    textW: 180,
+    textTop: 46,
+    textBot: 290
+  };
+  /* DSH 用系统字体栈：拉丁走 Segoe UI，中文落到雅黑 */
+  const UI = '"Segoe UI","Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif';
+  const DC = {
+    base: "#151517", side: "#1b1b1c", l1: "#232324", l2: "#2c2c2e", l3: "#353638",
+    nav: "#43454a", fg1: "#f9fafb", fg2: "#cfd3d6", fg3: "#adb2b8", cap: "#81858c",
+    blue: "#7aaaff", deep: "#7d9ade", send: "#4b5e82", sendHi: "#808082"
+  };
+  const B1 = "rgba(255,255,255,.06)";
+  const B2 = "rgba(255,255,255,.12)";
+  const B3 = "rgba(255,255,255,.16)";
+  const B4 = "rgba(255,255,255,.20)";
+  const HOV = "rgba(255,255,255,.08)";
 
-  function renderForumBuf() {
-    if (!fbuf) {
-      fbuf = document.createElement("canvas");
-      fbuf.width = W * Q; fbuf.height = H * Q;
-      fctx = fbuf.getContext("2d");
+  /* 0.5 内容像素的发丝线：内容层 2 倍超采样，正好落在缓冲区的 1 个像素上 */
+  function rule(c, x, y, w, col) {
+    c.fillStyle = col;
+    c.fillRect(x, y, w, 0.5);
+  }
+  /* 一行的视觉中线换算成基线 */
+  function midBase(y, h, size) { return y + h / 2 + size * 0.36; }
+  function ellip(c, str, maxW) {
+    if (c.measureText(str).width <= maxW) return str;
+    let s = str;
+    while (s.length > 1 && c.measureText(s + "…").width > maxW) s = s.slice(0, -1);
+    return s + "…";
+  }
+  /** 带字距的绘制（品牌名 / 徽章） */
+  function trackInk(c, str, x, y, color, track) {
+    c.fillStyle = color;
+    for (let i = 0; i < str.length; i++) {
+      c.fillText(str[i], x, y);
+      x += c.measureText(str[i]).width + track;
     }
+  }
+
+  /* ---------------- 小图标：1px 笔画，缩到 8px 还认得出 ---------------- */
+  function icPanel(c, cx, cy, r, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    rr(c, cx - r, cy - r * 0.8, r * 2, r * 1.6, 1.1); c.stroke();
+    c.fillStyle = col;
+    c.fillRect(cx - r * 0.35, cy - r * 0.8, 0.55, r * 1.6);
+  }
+  function icWhale(c, x, y, s) {
+    const u = s / 12;
+    c.fillStyle = DC.fg1;
+    c.beginPath(); c.ellipse(x + 7 * u, y + 6.6 * u, 4.6 * u, 3.3 * u, -0.12, 0, Math.PI * 2); c.fill();
+    c.beginPath();
+    c.moveTo(x + 3.0 * u, y + 6.4 * u);
+    c.quadraticCurveTo(x - 0.4 * u, y + 3.4 * u, x + 1.6 * u, y + 2.0 * u);
+    c.quadraticCurveTo(x + 2.6 * u, y + 4.4 * u, x + 4.0 * u, y + 4.6 * u);
+    c.closePath(); c.fill();
+    c.fillStyle = DC.side;
+    c.beginPath(); c.ellipse(x + 5.4 * u, y + 7.8 * u, 2.6 * u, 1.4 * u, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = DC.fg1;
+    c.beginPath(); c.arc(x + 4.2 * u, y + 4.8 * u, 0.55 * u, 0, Math.PI * 2); c.fill();
+  }
+  function icChatPlus(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(cx, cy, s * 0.46, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.22, cy); c.lineTo(cx + s * 0.22, cy);
+    c.moveTo(cx, cy - s * 0.22); c.lineTo(cx, cy + s * 0.22);
+    c.stroke();
+  }
+  function icSpark(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath();
+    c.moveTo(cx, cy - s * 0.5);
+    c.quadraticCurveTo(cx + s * 0.12, cy - s * 0.12, cx + s * 0.5, cy);
+    c.quadraticCurveTo(cx + s * 0.12, cy + s * 0.12, cx, cy + s * 0.5);
+    c.quadraticCurveTo(cx - s * 0.12, cy + s * 0.12, cx - s * 0.5, cy);
+    c.quadraticCurveTo(cx - s * 0.12, cy - s * 0.12, cx, cy - s * 0.5);
+    c.stroke();
+  }
+  function icClock(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(cx, cy, s * 0.46, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx, cy - s * 0.24); c.lineTo(cx, cy); c.lineTo(cx + s * 0.2, cy + s * 0.14);
+    c.stroke();
+  }
+  function icGrid(c, cx, cy, s, col) {
+    const q = s * 0.3, g = s * 0.12;
+    c.fillStyle = col;
+    c.fillRect(cx - q - g / 2, cy - q - g / 2, q, q);
+    c.fillRect(cx + g / 2, cy - q - g / 2, q, q);
+    c.fillRect(cx - q - g / 2, cy + g / 2, q, q);
+    c.fillRect(cx + g / 2, cy + g / 2, q, q);
+  }
+  function icSearch(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(cx - s * 0.08, cy - s * 0.08, s * 0.33, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx + s * 0.16, cy + s * 0.16); c.lineTo(cx + s * 0.42, cy + s * 0.42);
+    c.stroke();
+  }
+  function icSliders(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    const y1 = cy - s * 0.26, y2 = cy + s * 0.26, h = s * 0.42;
+    c.beginPath();
+    c.moveTo(cx - h, y1); c.lineTo(cx + h, y1);
+    c.moveTo(cx - h, y2); c.lineTo(cx + h, y2);
+    c.stroke();
+    c.fillStyle = col;
+    c.beginPath(); c.arc(cx - s * 0.14, y1, s * 0.15, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + s * 0.16, y2, s * 0.15, 0, Math.PI * 2); c.fill();
+  }
+  function icPlusSquare(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    rr(c, cx - s * 0.44, cy - s * 0.44, s * 0.88, s * 0.88, s * 0.18); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.2, cy); c.lineTo(cx + s * 0.2, cy);
+    c.moveTo(cx, cy - s * 0.2); c.lineTo(cx, cy + s * 0.2);
+    c.stroke();
+  }
+  function icFolder(c, x, y, s, col) {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(x, y + s * 0.18);
+    c.lineTo(x + s * 0.34, y + s * 0.18);
+    c.lineTo(x + s * 0.44, y + s * 0.34);
+    c.lineTo(x + s, y + s * 0.34);
+    c.lineTo(x + s, y + s * 0.86);
+    c.lineTo(x, y + s * 0.86);
+    c.closePath(); c.fill();
+    c.fillStyle = "rgba(0,0,0,.38)";
+    c.fillRect(x + s * 0.08, y + s * 0.44, s * 0.84, s * 0.34);
+  }
+  function icDots(c, cx, cy, col) {
+    c.fillStyle = col;
+    for (let i = -1; i <= 1; i++) {
+      c.beginPath(); c.arc(cx + i * 2.6, cy, 0.62, 0, Math.PI * 2); c.fill();
+    }
+  }
+  function icChevron(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath();
+    c.moveTo(cx - s * 0.42, cy - s * 0.2);
+    c.lineTo(cx, cy + s * 0.24);
+    c.lineTo(cx + s * 0.42, cy - s * 0.2);
+    c.stroke();
+  }
+  function icShield(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath();
+    c.moveTo(cx, cy - s * 0.5);
+    c.lineTo(cx + s * 0.42, cy - s * 0.28);
+    c.lineTo(cx + s * 0.34, cy + s * 0.2);
+    c.lineTo(cx, cy + s * 0.5);
+    c.lineTo(cx - s * 0.34, cy + s * 0.2);
+    c.lineTo(cx - s * 0.42, cy - s * 0.28);
+    c.closePath(); c.stroke();
+  }
+  function icArrowUp(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.75; c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(cx, cy + s * 0.42);
+    c.lineTo(cx, cy - s * 0.42);
+    c.moveTo(cx - s * 0.36, cy - s * 0.04);
+    c.lineTo(cx, cy - s * 0.44);
+    c.lineTo(cx + s * 0.36, cy - s * 0.04);
+    c.stroke();
+    c.lineCap = "butt";
+  }
+  function icGlobe(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.5;
+    c.beginPath(); c.arc(cx, cy, s * 0.46, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.46, cy); c.lineTo(cx + s * 0.46, cy);
+    c.stroke();
+    c.beginPath(); c.ellipse(cx, cy, s * 0.2, s * 0.46, 0, 0, Math.PI * 2); c.stroke();
+  }
+  function icCross(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6; c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(cx - s * 0.34, cy - s * 0.34); c.lineTo(cx + s * 0.34, cy + s * 0.34);
+    c.moveTo(cx + s * 0.34, cy - s * 0.34); c.lineTo(cx - s * 0.34, cy + s * 0.34);
+    c.stroke();
+    c.lineCap = "butt";
+  }
+  function icArrow(c, cx, cy, s, col, dir) {
+    c.strokeStyle = col; c.lineWidth = 0.65; c.lineCap = "round";
+    const d = dir < 0 ? -1 : 1;
+    c.beginPath();
+    c.moveTo(cx - s * 0.32 * d, cy);
+    c.lineTo(cx + s * 0.34 * d, cy);
+    c.moveTo(cx + s * 0.04 * d, cy - s * 0.28);
+    c.lineTo(cx + s * 0.34 * d, cy);
+    c.lineTo(cx + s * 0.04 * d, cy + s * 0.28);
+    c.stroke();
+    c.lineCap = "butt";
+  }
+  function icReload(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.65;
+    c.beginPath(); c.arc(cx, cy, s * 0.34, -0.5, Math.PI * 1.5); c.stroke();
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx + s * 0.34, cy - s * 0.52);
+    c.lineTo(cx + s * 0.54, cy - s * 0.16);
+    c.lineTo(cx + s * 0.16, cy - s * 0.14);
+    c.closePath(); c.fill();
+  }
+  function icDoc(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    rr(c, cx - s * 0.3, cy - s * 0.44, s * 0.6, s * 0.88, s * 0.14); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.16, cy - s * 0.14); c.lineTo(cx + s * 0.16, cy - s * 0.14);
+    c.moveTo(cx - s * 0.16, cy + s * 0.08); c.lineTo(cx + s * 0.16, cy + s * 0.08);
+    c.stroke();
+  }
+  function icTerm(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    rr(c, cx - s * 0.44, cy - s * 0.36, s * 0.88, s * 0.72, s * 0.16); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.24, cy - s * 0.08);
+    c.lineTo(cx - s * 0.06, cy + s * 0.08);
+    c.lineTo(cx - s * 0.24, cy + s * 0.24);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(cx + s * 0.02, cy + s * 0.24); c.lineTo(cx + s * 0.22, cy + s * 0.24);
+    c.stroke();
+  }
+  function icThink(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    c.beginPath(); c.arc(cx, cy - s * 0.14, s * 0.32, Math.PI * 0.15, Math.PI * 1.1); c.stroke();
+    c.fillStyle = col;
+    c.beginPath(); c.arc(cx - s * 0.3, cy + s * 0.3, s * 0.1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx - s * 0.14, cy + s * 0.38, s * 0.06, 0, Math.PI * 2); c.fill();
+  }
+  function icGlobeTool(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.55;
+    c.beginPath(); c.arc(cx, cy, s * 0.42, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.ellipse(cx, cy, s * 0.18, s * 0.42, 0, 0, Math.PI * 2); c.stroke();
+  }
+  /* 奔跑中的鲸尾：两片尾鳍，跟着时间摆 */
+  function icWhaleTail(c, cx, cy, s, ph) {
+    const a = Math.sin(ph) * 0.42;
+    c.save();
+    c.translate(cx, cy + s * 0.34);
+    c.rotate(a);
+    c.fillStyle = DC.deep;
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.quadraticCurveTo(-s * 0.46, -s * 0.12, -s * 0.6, -s * 0.66);
+    c.quadraticCurveTo(-s * 0.24, -s * 0.52, 0, -s * 0.24);
+    c.quadraticCurveTo(s * 0.24, -s * 0.52, s * 0.6, -s * 0.66);
+    c.quadraticCurveTo(s * 0.46, -s * 0.12, 0, 0);
+    c.closePath(); c.fill();
+    c.restore();
+  }
+
+  /* ============================================================
+   *  DSH 左栏
+   * ============================================================ */
+  function drawDshSidebar(c) {
+    const D = S.dsh;
+    c.fillStyle = DC.side; c.fillRect(0, 0, DS.side, H);
+    c.fillStyle = B3; c.fillRect(DS.side - 0.5, 0, 0.5, H);
+
+    /* 品牌行：logoRow 60 高 → 30，内边距 8 → 4 */
+    icWhale(c, 8, 12);
+    setFont(c, 9, "600", UI);
+    trackInk(c, "deepseek", 22.5, 22, DC.fg1, 0.16);
+    /* HARNESS 徽章：名字旁边那枚小牌子 */
+    c.fillStyle = "#232427"; c.fillRect(66, 14.5, 26, 7);
+    c.strokeStyle = "rgba(255,255,255,.42)"; c.lineWidth = 0.5;
+    c.strokeRect(66.25, 14.75, 25.5, 6.5);
+    setFont(c, 4.6, "600", UI);
+    trackInk(c, "HARNESS", 68.2, 19.5, DC.fg1, 0.26);
+    icPanel(c, DS.side - 11, 18, 4.6, DC.fg2);
+
+    /* 新会话：38 高、12 圆角、抬升色 #43454a */
+    rr(c, 6, 33, DS.side - 12, 19, 6);
+    c.fillStyle = DC.nav; c.fill();
+    c.strokeStyle = B4; c.lineWidth = 0.25; c.stroke();
+    icChatPlus(c, 57, 42.6, 7, DC.fg1);
+    setFont(c, 7, "500", UI);
+    ink(c, "新会话", 64, 45.1, DC.fg1, false);
+
+    /* 面板行：32 高 + 2 间隙 → 16 + 1 */
+    const rows = [["spark", "插件"], ["clock", "自动化任务"], ["grid", "更多"]];
+    for (let i = 0; i < rows.length; i++) {
+      const y = 58 + i * 17;
+      const cy = y + 8;
+      if (i === 0) icSpark(c, 14, cy, 8, DC.fg1);
+      else if (i === 1) icClock(c, 14, cy, 8, DC.fg1);
+      else icGrid(c, 14, cy, 7.4, DC.fg1);
+      setFont(c, 7, "400", UI);
+      ink(c, rows[i][1], 21, midBase(y, 16, 7), DC.fg1, false);
+    }
+
+    /* 工作区小节头：36 → 18 */
+    setFont(c, 6.6, "400", UI);
+    ink(c, "工作区", 10, 124, DC.fg3, false);
+    icSearch(c, 104, 122, 8, DC.cap);
+    icSliders(c, 118, 122, 8, DC.cap);
+    icPlusSquare(c, 132, 122, 8, DC.cap);
+
+    /* 工作区树：每行 32 → 16，行距 2 → 1 */
+    let y = 131;
+    for (let i = 0; i < D.workspaces.length; i++) {
+      const w = D.workspaces[i];
+      icFolder(c, 10, y + 4, 8, w.active ? "#6f9bff" : "#8a8d93");
+      setFont(c, 7, "400", UI);
+      ink(c, ellip(c, w.name, 106), 21, midBase(y, 16, 7), DC.fg1, false);
+      y += 17;
+      if (!w.open) continue;
+      for (let k = 0; k < w.sessions.length; k++) {
+        const ss = w.sessions[k];
+        if (ss.sel) {
+          rr(c, 5.5, y, DS.side - 11, 16, 6);
+          c.fillStyle = HOV; c.fill();
+        }
+        if (ss.run) {
+          c.fillStyle = DC.blue;
+          c.beginPath(); c.arc(14, y + 8, 1.5, 0, Math.PI * 2); c.fill();
+        }
+        setFont(c, 7, ss.sel ? "500" : "400", UI);
+        ink(c, ellip(c, ss.name, 94), 21, midBase(y, 16, 7), ss.sel ? DC.fg1 : DC.fg2, false);
+        if (ss.time) {
+          setFont(c, 5.6, "400", UI);
+          const tw = c.measureText(ss.time).width;
+          ink(c, ss.time, DS.side - 10 - tw, midBase(y, 16, 5.6), DC.cap, false);
+        }
+        y += 17;
+      }
+    }
+
+    /* 栏脚：账户行 */
+    c.fillStyle = "#3b3f47";
+    c.beginPath(); c.arc(13, 343, 5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#6d8bb5";
+    c.beginPath(); c.arc(13, 341.2, 2.1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(13, 346.8, 3.6, Math.PI, Math.PI * 2); c.fill();
+    setFont(c, 7, "400", UI);
+    ink(c, D.user, 23, 345.6, DC.fg2, false);
+  }
+
+  /* ============================================================
+   *  DSH 主栏：头部 + 转写
+   * ============================================================ */
+  function drawDshCenter(c, L, tt) {
+    const D = S.dsh;
+    const x0 = DS.side, x1 = DS.panelX;
+    c.fillStyle = DC.base; c.fillRect(x0, 0, x1 - x0, H);
+
+    /* 头部 76 → 38：标题行 30 → 15，页签行 25 → 12.5 */
+    rule(c, x0, DS.header - 0.5, x1 - x0 - 0.5, B3);
+    setFont(c, 7.6, "600", UI);
+    ink(c, D.title, x0 + 10, 15.2, DC.fg1, false);
+    const tx = x0 + 10 + c.measureText(D.title).width + 7;
+    /* 预设 chip：一枚小图标 + 13px 的字 */
+    icSpark(c, tx + 2.4, 12.2, 5.4, DC.fg3);
+    setFont(c, 6.4, "400", UI);
+    ink(c, D.preset, tx + 6.4, 15.2, DC.fg3, false);
+    icDots(c, x1 - 20, 14.4, DC.fg3);
+    icPanel(c, x1 - 7.5, 14.4, 4.4, DC.fg3);
+
+    /* 页签：13px、间距 32 → 6.5 / 16；选中态 business 蓝 + 2px 下划线 */
+    let px = x0 + 14;
+    for (let i = 0; i < D.tabs.length; i++) {
+      setFont(c, 6.5, "500", UI);
+      const w = c.measureText(D.tabs[i]).width;
+      const act = i === D.tabActive;
+      ink(c, D.tabs[i], px, 34.6, act ? DC.blue : DC.fg3, false);
+      if (act) { c.fillStyle = DC.blue; c.fillRect(px, 37.2, w, 1); }
+      px += w + 16;
+    }
+    icDots(c, px + 3, 32.6, DC.fg3);
+
+    /* 转写区：内容贴着底部（跟着尾巴走），超出就从上面裁掉 */
+    c.save();
+    c.beginPath(); c.rect(x0, DS.header, x1 - x0, DS.cardY - DS.header); c.clip();
+    drawDshFlow(c, L, tt);
+    c.restore();
+  }
+
+  /* 转写内容排版：从 0 往下排，返回总高 */
+  function dshFlow(tt) {
+    const D = S.dsh;
+    wrapCtx = g;
+    const rows = [];
+    let y = 0;
+
+    /* 定时任务触发卡：20 圆角、12/16 内边距 → 10 / 6 8 */
+    rows.push({ k: "trigger", y, h: 22 });
+    y += 30;
+
+    /* 过程组标题：24 高 → 12 */
+    rows.push({ k: "group", y, h: 12, text: D.group });
+    y += 13;
+
+    setFont(g, 6.4, "400", UI);
+    for (let i = 0; i < D.log.length; i++) {
+      const e = D.log[i];
+      rows.push({ k: e.k, y, h: 12, icon: e.icon, title: e.title, detail: e.detail, suffix: e.suffix, text: e.text });
+      y += 14;
+    }
+
+    /* 回答（markdown）：段落之间空 6，行高 12 */
+    y += 6;
+    const ans = layoutAnswer(dshTyped(tt));
+    rows.push({ k: "answer", y, h: ans.h, lines: ans.lines });
+    const ansY = y;
+    y += ans.h + 6;
+
+    /* 运行状态：细线 + 鲸尾 + 「深度求索中，用时 Ns」 */
+    rows.push({ k: "running", y, h: 16, secs: dshSecs(tt) });
+    y += 16;
+
+    return { rows, h: y, ansY, ansH: ans.h };
+  }
+
+  /** 流式输出已经吐出来的那一段（按字切，行只增不减） */
+  function dshTyped(tt) {
+    const D = S.dsh;
+    const at = D.streamAt === undefined ? 60.9 : D.streamAt;
+    const n = clamp(Math.floor((tt - at) * (D.streamCps || 15)), 0, D.stream.length);
+    return D.stream.slice(0, n);
+  }
+  function dshSecs(tt) {
+    const D = S.dsh;
+    const at = D.streamAt === undefined ? 60.9 : D.streamAt;
+    return Math.max(0, Math.floor((tt - at) + 11));
+  }
+
+  /* markdown 只用到「有序列表 + 段落」两样 */
+  let wrapCtx = null, ansKey = null, ansVal = null;
+  function layoutAnswer(shown) {
+    if (shown === ansKey) return ansVal;
+    const lines = [];
+    let y = 0;
+    setFont(wrapCtx, 7, "400", UI);
+    const src = shown.split("\n");
+    for (let i = 0; i < src.length; i++) {
+      const raw = src[i];
+      if (!raw) { y += 6; continue; }
+      const m = /^(\d+)\.\s+(.*)$/.exec(raw);
+      const ind = m ? 9 : 0;
+      const body = m ? m[2] : raw;
+      const parts = wrapMixed(wrapCtx, body, DS.textW - ind);
+      for (let k = 0; k < parts.length; k++) {
+        lines.push({ x: ind, y, s: parts[k], marker: k === 0 && m ? m[1] + "." : null });
+        y += 12;
+      }
+      y += 1;
+    }
+    ansKey = shown;
+    ansVal = { lines, h: Math.max(12, y - 1) };
+    return ansVal;
+  }
+
+  function drawDshFlow(c, L, tt) {
+    const flow = L.flow;
+    if (!flow) return;
+    const top = L.flowTop;
+    const x = DS.textX;
+
+    for (let i = 0; i < flow.rows.length; i++) {
+      const r = flow.rows[i];
+      const y = top + r.y;
+      if (r.k === "trigger") {
+        rr(c, x, y, DS.textW, r.h, 10);
+        c.fillStyle = "#1b1b1c"; c.fill();
+        c.strokeStyle = B1; c.lineWidth = 0.25; c.stroke();
+        icClock(c, x + 10, y + r.h / 2, 7.4, DC.fg3);
+        setFont(c, 6.8, "400", UI);
+        ink(c, ellip(c, S.dsh.trigger.title, DS.textW - 58), x + 18, midBase(y, r.h, 6.8), DC.fg3, false);
+        setFont(c, 5.6, "400", UI);
+        const tw = c.measureText(S.dsh.trigger.time).width;
+        ink(c, S.dsh.trigger.time, x + DS.textW - 8 - tw, midBase(y, r.h, 5.6), DC.cap, false);
+      } else if (r.k === "group" || r.k === "think") {
+        icThink(c, x + 4, y + 6, 7, DC.fg3);
+        setFont(c, 6.4, "400", UI);
+        ink(c, ellip(c, r.text, DS.textW - 12), x + 11, midBase(y, r.h, 6.4), DC.fg3, false);
+      } else if (r.k === "tool") {
+        const cy = y + 6;
+        if (r.icon === "run") icTerm(c, x + 4, cy, 7.4, DC.fg3);
+        else if (r.icon === "search") icGlobeTool(c, x + 4, cy, 7.4, DC.fg3);
+        else icDoc(c, x + 4, cy, 7.4, DC.fg3);
+        setFont(c, 6.4, "400", UI);
+        ink(c, r.title, x + 10, midBase(y, r.h, 6.4), DC.fg2, false);
+        let tx = x + 10 + c.measureText(r.title).width + 4;
+        c.fillStyle = DC.cap;
+        c.beginPath(); c.arc(tx, cy, 0.7, 0, Math.PI * 2); c.fill();
+        tx += 4;
+        setFont(c, 5.8, "400", UI);
+        const suffixW = r.suffix ? c.measureText(r.suffix).width + 6 : 0;
+        const detail = ellip(c, r.detail, DS.textW - (tx - x) - suffixW);
+        ink(c, detail, tx, midBase(y, r.h, 5.8) + 0.3, DC.fg3, false);
+        if (r.suffix) {
+          const sw = c.measureText(r.suffix).width;
+          ink(c, r.suffix, x + DS.textW - sw, midBase(y, r.h, 5.8) + 0.3, DC.cap, false);
+        }
+      } else if (r.k === "answer") {
+        for (let k = 0; k < r.lines.length; k++) {
+          const ln = r.lines[k];
+          setFont(c, 7, "400", UI);
+          if (ln.marker) ink(c, ln.marker, x, y + ln.y + 9.6, DC.fg2, false);
+          ink(c, ln.s, x + ln.x, y + ln.y + 9.6, DC.fg1, true);
+        }
+        /* 还在吐字：末尾一颗方块光标 */
+        const D = S.dsh;
+        const shown = dshTyped(tt);
+        if (shown.length < D.stream.length && blinkOn(tt) && r.lines.length) {
+          const last = r.lines[r.lines.length - 1];
+          setFont(c, 7, "400", UI);
+          const lw = c.measureText(last.s).width;
+          c.fillStyle = DC.fg1;
+          c.fillRect(x + last.x + lw + 1, y + last.y + 2.2, 3.2, 8);
+        }
+      } else if (r.k === "running") {
+        rule(c, x, y - 2, DS.textW, "rgba(255,255,255,.09)");
+        icWhaleTail(c, x + 4.4, y + 8.6, 7, tt * 5.2);
+        setFont(c, 6.4, "400", UI);
+        ink(c, "深度求索中，用时 " + r.secs + "s ···", x + 11, midBase(y, r.h, 6.4) + 1, DC.deep, true);
+      }
+    }
+  }
+
+  /* ============================================================
+   *  DSH 底部输入卡
+   * ============================================================ */
+  function drawDshComposer(c, L, tt) {
+    const x0 = DS.side, x1 = DS.panelX;
+    /* 转写区在输入卡上沿淡出（36 → 18 的遮罩带） */
+    const g0 = c.createLinearGradient(0, DS.cardY - 20, 0, DS.cardY + 2);
+    g0.addColorStop(0, "rgba(21,21,23,0)");
+    g0.addColorStop(1, "rgba(21,21,23,1)");
+    c.fillStyle = g0;
+    c.fillRect(x0, DS.cardY - 20, x1 - x0, 22);
+
+    rr(c, DS.cardX, DS.cardY, DS.cardW, DS.cardH, 14);
+    c.fillStyle = DC.l2; c.fill();
+    c.strokeStyle = B2; c.lineWidth = 0.3; c.stroke();
+
+    setFont(c, 7, "400", UI);
+    ink(c, "发消息或创建任务, / 调用指令, @ 文件或对话", DS.cardX + 7, DS.cardY + 15.4, DC.cap, false);
+
+    /* 工具行：8/2/6 内边距 → 4/1/3，控件 28 高 → 14 */
+    const ry = DS.cardY + 30;
+    c.fillStyle = DC.l3;
+    c.beginPath(); c.arc(DS.cardX + 11, ry + 7, 7, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = DC.fg1; c.lineWidth = 0.7; c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(DS.cardX + 8, ry + 7); c.lineTo(DS.cardX + 14, ry + 7);
+    c.moveTo(DS.cardX + 11, ry + 4); c.lineTo(DS.cardX + 11, ry + 10);
+    c.stroke(); c.lineCap = "butt";
+
+    icShield(c, DS.cardX + 25, ry + 7, 6.4, DC.fg2);
+    setFont(c, 6.4, "500", UI);
+    ink(c, "完全权限", DS.cardX + 30, ry + 9.3, DC.fg2, false);
+    icChevron(c, DS.cardX + 30 + c.measureText("完全权限").width + 5, ry + 7.6, 4.4, DC.cap);
+
+    /* 右侧：模型名 + 发送键（空输入的 40% 压暗，色值取真实截图） */
+    setFont(c, 6.4, "400", UI);
+    const mw = c.measureText(S.dsh.model).width;
+    const sendX = DS.cardX + DS.cardW - 4 - 17;
+    ink(c, S.dsh.model, sendX - 10 - mw, ry + 9.3, DC.fg3, false);
+    icChevron(c, sendX - 5, ry + 7.6, 4.4, DC.cap);
+    c.fillStyle = DC.send;
+    c.beginPath(); c.arc(sendX + 8.5, ry + 7, 8.5, 0, Math.PI * 2); c.fill();
+    icArrowUp(c, sendX + 8.5, ry + 7, 7, DC.sendHi);
+
+    /* 卡片下方那排读数：22 高 → 11 的次级灰 */
+    const sy = DS.cardY + DS.cardH + 7.5;
+    setFont(c, 5.6, "400", UI);
+    let sx = x0 + 20;
+    c.strokeStyle = DC.cap; c.lineWidth = 0.5;
+    c.beginPath(); c.arc(sx - 3.6, sy - 1.8, 2.2, 0.8, Math.PI * 2.05); c.stroke();
+    c.fillStyle = DC.cap;
+    c.fillRect(sx - 4.8, sy - 3.4, 0.9, 0.9);
+    ink(c, S.dsh.stats[0], sx, sy, DC.cap, false);
+    sx += c.measureText(S.dsh.stats[0]).width + 8;
+    c.fillStyle = DC.cap;
+    c.fillRect(sx - 4.2, sy - 3.6, 4.6, 0.8);
+    c.fillRect(sx - 3.6, sy - 2.2, 3.4, 0.8);
+    ink(c, S.dsh.stats[1], sx + 2, sy, DC.cap, false);
+    sx += c.measureText(S.dsh.stats[1]).width + 12;
+    c.strokeStyle = DC.cap; c.lineWidth = 0.55;
+    c.beginPath(); c.arc(sx - 3.2, sy - 1.8, 2.4, -0.4, Math.PI * 1.72); c.stroke();
+    ink(c, S.dsh.stats[2], sx + 2, sy, DC.cap, false);
+    void L;
+  }
+
+  /* ============================================================
+   *  DSH 右栏：页签条 + 浏览器工具栏 + 那个帖子
+   * ============================================================ */
+  let pageBuf = null, fctx = null, pageH = 0, pageImgY = 0, pageImgH = 0;
+
+  function ensurePage() {
+    if (pageBuf) return;
     ensureShot();
-    const L = layoutForum(BUFT);
+    const pad = DS.pagePad;
+    const cw = DS.panelW - pad * 2;
+    const imgH = Math.round(cw * 9 / 16);
+    if (!fctx) {
+      pageBuf = document.createElement("canvas");
+      fctx = pageBuf.getContext("2d");
+    }
     fctx.setTransform(Q, 0, 0, Q, 0, 0);
-    fctx.clearRect(0, 0, W, H);
-    drawThreadPage(fctx, L, BUFT);
+    /* 先排版：把回复按宽度折好，量出整页高度 */
+    let y = 17 + 7 + 11;
+    setFont(fctx, 8, "700", UI);
+    const titleLines = wrapMixed(fctx, F.title, cw);
+    y += titleLines.length * 10 + 4 + 9;
+    const imgY = y + 2;
+    y = imgY + imgH + 10;
+    const rows = [];
+    for (let i = 0; i < F.replies.length; i++) {
+      const r = F.replies[i];
+      setFont(fctx, 7, r.big ? "500" : "400", UI);
+      const lines = wrapMixed(fctx, r.text, cw - 62);
+      rows.push({ who: r.who, lines, big: r.big, y });
+      y += Math.max(15, lines.length * 9 + 7);
+    }
+    pageH = Math.round(y + 10);
+    pageImgY = imgY; pageImgH = imgH;
+
+    pageBuf.width = DS.panelW * Q;
+    pageBuf.height = pageH * Q;
+    fctx.setTransform(Q, 0, 0, Q, 0, 0);
+    fctx.clearRect(0, 0, DS.panelW, pageH);
+
+    /* 论坛是深色站：底色比 DSH 再冷一点 */
+    fctx.fillStyle = "#0c1016"; fctx.fillRect(0, 0, DS.panelW, pageH);
+    fctx.fillStyle = "#0f141b"; fctx.fillRect(0, 0, DS.panelW, 17);
+    rule(fctx, 0, 17, DS.panelW, "#1d2836");
+    setFont(fctx, 8, "700", UI);
+    trackInk(fctx, F.logo, pad, 12, "#7db9ff", 0.1);
+    setFont(fctx, 5.8, "400", UI);
+    ink(fctx, F.board, pad + 47, 11.6, "#8fa3b8", false);
+    setFont(fctx, 5.6, "400", UI);
+    const backW = fctx.measureText(F.back).width;
+    ink(fctx, F.back, DS.panelW - pad - backW, 11.6, "#e0a458", false);
+
+    setFont(fctx, 5.6, "400", UI);
+    ink(fctx, F.tab, pad, 26, "#55677a", false);
+
+    setFont(fctx, 8, "700", UI);
+    for (let i = 0; i < titleLines.length; i++) {
+      ink(fctx, titleLines[i], pad, 39 + i * 10, "#dce3ec", true);
+    }
+    setFont(fctx, 5.8, "400", UI);
+    const by = 39 + titleLines.length * 10 + 1;
+    ink(fctx, F.op, pad, by, "#63e6a5", false);
+    const opw = fctx.measureText(F.op).width;
+    ink(fctx, " · " + F.time + " · " + F.views + " views", pad + opw, by, "#55677a", false);
+
+    /* 帖子里那张图 = 终端最后一帧 */
+    fctx.fillStyle = "#070a0e"; fctx.fillRect(pad, imgY, cw, imgH);
+    paintShot(fctx, pad, imgY, cw, imgH);
+    fctx.strokeStyle = "#26313f"; fctx.lineWidth = 0.5;
+    fctx.strokeRect(pad + 0.25, imgY + 0.25, cw - 0.5, imgH - 0.5);
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      rule(fctx, pad, r.y - 5, cw, "#1a222d");
+      setFont(fctx, 5.8, "400", UI);
+      ink(fctx, r.who, pad, r.y + 4, r.big ? "#ffb37a" : "#7db9ff", false);
+      setFont(fctx, 7, r.big ? "500" : "400", UI);
+      for (let k = 0; k < r.lines.length; k++) {
+        ink(fctx, r.lines[k], pad + 62, r.y + 4 + k * 9, r.big ? "#f2e3d5" : "#c9d3e0", true);
+      }
+    }
     fctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  function dshPan(tt) {
+  /** 侧栏预览的滚动量：read 事件把它往下带 */
+  function panelScroll(tt) {
+    const viewH = H - DS.header;
+    const max = Math.max(0, pageH - viewH);
     const rd = lastEvent("read", tt);
     if (!rd || rd.target !== "panel") return 0;
-    const k = smoothstep(clamp((tt - rd.at) / (rd.dur || 4), 0, 1));
-    return lerp(0, 92, k);
+    const k = smoothstep(clamp((tt - rd.at) / (rd.dur || 2.4), 0, 1));
+    return lerp(0, max, k);
+  }
+
+  function drawDshPanel(c, L, tt) {
+    const X = DS.panelX, PW = DS.panelW;
+    c.fillStyle = DC.base; c.fillRect(X, 0, PW, H);
+    c.fillStyle = B4; c.fillRect(X, 0, 0.5, H);
+
+    /* 页签条：38 → 19，页签 28 高 / 10 内边距 → 14 / 5 */
+    const tabY = 5, tabH = 14;
+    setFont(c, 6.5, "400", UI);
+    const tabName = S.dsh.panelTab;
+    const tw = Math.min(78, Math.max(40, c.measureText(tabName).width + 26));
+    rr(c, X + 5, tabY, tw, tabH, 4);
+    c.fillStyle = DC.l2; c.fill();
+    icGlobe(c, X + 11, tabY + 7, 6.4, DC.fg2);
+    setFont(c, 6.5, "400", UI);
+    ink(c, ellip(c, tabName, tw - 26), X + 15, tabY + 9.4, DC.fg1, false);
+    icCross(c, X + 5 + tw - 6, tabY + 7, 4.6, DC.fg3);
+
+    /* 浏览器工具栏：38 → 19 */
+    rule(c, X, DS.header - 0.5, PW - 0.5, B3);
+    icArrow(c, X + 10, DS.strip + 9.5, 7, DC.fg3, -1);
+    icArrow(c, X + 26, DS.strip + 9.5, 7, DC.cap, 1);
+    icReload(c, X + 42, DS.strip + 9.5, 7, DC.fg3);
+    const ax = X + 54, aw = PW - 54 - 5;
+    rr(c, ax, DS.strip + 2.5, aw, 14, 4);
+    c.fillStyle = DC.l1; c.fill();
+    c.strokeStyle = B2; c.lineWidth = 0.25; c.stroke();
+    setFont(c, 5.9, "400", UI);
+    ink(c, ellip(c, S.dsh.url, aw - 12), ax + 6, DS.strip + 12.2, DC.fg2, false);
+
+    /* 页面本体：整页一次性画进缓冲，只按滚动量裁一块出来 */
+    const scroll = panelScroll(tt);
+    c.save();
+    c.beginPath(); c.rect(X, DS.header, PW, H - DS.header); c.clip();
+    c.imageSmoothingEnabled = false;
+    c.drawImage(
+      pageBuf,
+      0, Math.round(scroll * Q), PW * Q, (H - DS.header) * Q,
+      X, DS.header, PW, H - DS.header
+    );
+    c.restore();
+    void L;
   }
 
   function layoutDsh(tt) {
+    ensurePage();
+    const flow = dshFlow(tt);
+    const top = Math.min(DS.textTop, DS.textBot - flow.h);
+    const viewH = H - DS.header;
+    const scroll = panelScroll(tt);
+    const cx = DS.side + (DS.panelX - DS.side) / 2;
     return {
-      pan: dshPan(tt),
+      flow, flowTop: top,
       anchors: {
-        dshAll: { x: 320, y: 180 },
-        /* 侧栏里那张截图的中心：面板起于 (PANEL_X+1, 17)，按 0.85 缩放，图在页面 (24,90,190,107) */
-        img: { x: PANEL_X + 1 + (24 + 95) * 0.85, y: 17 + (90 + 53.5) * 0.85 },
-        panel: { x: PANEL_X + PANEL_W / 2, y: 150 },
-        main: { x: RAIL + 130, y: 176 },
-        think: { x: RAIL + 120, y: 200 }
+        dshAll: { x: W / 2, y: H / 2 },
+        /* 侧栏里那张截图（页面坐标 → 内容坐标） */
+        img: {
+          x: DS.panelX + DS.panelW / 2,
+          y: DS.header + pageImgY - scroll + pageImgH / 2
+        },
+        /* 侧栏视窗中心：页面在里面往下滚 */
+        panel: { x: DS.panelX + DS.panelW / 2, y: DS.header + viewH * 0.42 },
+        /* 主栏正文：横向对准中栏，纵向对准回答那一块 */
+        main: { x: cx, y: top + flow.ansY + Math.min(flow.ansH, 88) * 0.5 + 18 },
+        /* 收尾那一段压下去一点，把输入卡留在画里 */
+        answer: { x: cx, y: top + flow.ansY + Math.min(flow.ansH, 88) * 0.5 + 40 },
+        think: { x: cx, y: top + 40 }
       }
     };
   }
 
   function drawDsh(c, L, tt) {
-    const D = S.dsh;
-    /* 色值取自真实 DSH：主区 #151517 / 侧栏 #1b1b1c / 正文 #f9fafb / 选中页签 #7aaaff */
-    c.fillStyle = "#151517"; c.fillRect(0, 0, W, H);
-
-    /* ---------------- 左侧栏（真实宽度 280@1280 → 140@640，这里按 3 栏重新分配为 93） ---------------- */
-    c.fillStyle = "#1b1b1c"; c.fillRect(0, 0, RAIL, H);
-
-    setFont(c, 9, "700", SANS);
-    ink(c, "deepseek", 9, 17, "#f9fafb", false);
-    c.fillStyle = "#f9fafb"; rr(c, 57, 9, 30, 10, 2); c.fill();
-    setFont(c, 6, "700", SANS);
-    ink(c, "HARNESS", 60, 16.5, "#151517", false);
-
-    c.fillStyle = "#26262a"; rr(c, 6, 24, RAIL - 12, 15, 5); c.fill();
-    setFont(c, 7, "", SANS);
-    ink(c, "⊕  新会话", 30, 35, "#e8e9ec", false);
-
-    setFont(c, 7, "", SANS);
-    ink(c, "✦  插件", 10, 52, "#c8cbd0", false);
-    ink(c, "◷  自动化任务", 10, 66, "#c8cbd0", false);
-    ink(c, "⊞  更多", 10, 80, "#c8cbd0", false);
-
-    setFont(c, 6, "", SANS);
-    ink(c, "工作区", 10, 96, "#6f7278", false);
-    ink(c, "⌕", RAIL - 26, 96, "#6f7278", false);
-    ink(c, "⇅", RAIL - 16, 96, "#6f7278", false);
-    ink(c, "+", RAIL - 7, 96, "#6f7278", false);
-
-    for (let i = 0; i < D.rail.length; i++) {
-      const y = 110 + i * 14;
-      if (i === D.railActive) { c.fillStyle = "#26262a"; rr(c, 4, y - 9, RAIL - 8, 13, 3); c.fill(); }
-      setFont(c, 7, "", SANS);
-      ink(c, "▭", 9, y, "#6f7278", false);
-      ink(c, D.rail[i], 20, y, i === D.railActive ? "#f9fafb" : "#c8cbd0", false);
-    }
-    /* 展开的工作区里那一窝会话 */
-    const kids = [["新会话", true], ["MCP工具咨询 (1)", false], ["我已穷哭", false]];
-    for (let i = 0; i < kids.length; i++) {
-      const y = 110 + D.rail.length * 14 + 4 + i * 13;
-      if (kids[i][1]) { c.fillStyle = "#26262a"; rr(c, 12, y - 9, RAIL - 16, 12, 3); c.fill(); }
-      setFont(c, 6.5, "", SANS);
-      ink(c, kids[i][0], 20, y, kids[i][1] ? "#f9fafb" : "#9a9da4", false);
-    }
-
-    setFont(c, 7, "", SANS);
-    ink(c, "▭  crash-dumps", 9, 292, "#c8cbd0", false);
-    ink(c, "▭  ZCode", 9, 306, "#c8cbd0", false);
-    ink(c, "▭  zixishi", 9, 320, "#c8cbd0", false);
-
-    /* 底部用户 */
-
-    /* ---------------- 右侧预览侧栏 ---------------- */
-    c.fillStyle = "#0f0f11"; c.fillRect(PANEL_X, 0, W - PANEL_X, H);
-    c.fillStyle = "#26262a"; c.fillRect(PANEL_X, 0, 1, H);
-    c.fillStyle = "#1b1b1c"; c.fillRect(PANEL_X + 1, 0, PANEL_W - 1, 17);
-    setFont(c, 7, "", SANS);
-    ink(c, D.tab, PANEL_X + 8, 11, "#e8e9ec", false);
-    ink(c, "×", PANEL_X + 196, 11, "#8b8d93", false);
-    ink(c, "HTML", PANEL_X + 240, 11, "#6f7278", false);
-    c.fillStyle = "#26262a"; c.fillRect(PANEL_X + 1, 16, PANEL_W - 1, 1);
-
-    if (!fbuf) renderForumBuf();
-    c.save();
-    c.beginPath(); c.rect(PANEL_X + 1, 17, PANEL_W - 1, H - 17); c.clip();
-    const sc = 0.85;
-    c.imageSmoothingEnabled = false;
-    c.drawImage(fbuf, 0, (L.pan / sc) * Q, W * Q, ((H - 17) / sc) * Q,
-      PANEL_X + 1, 17, W * sc, (H - 17));
-    c.restore();
-
-    /* ---------------- 中间主会话 ---------------- */
-    const mx = RAIL + 14, mw = PANEL_X - RAIL - 28;
-    setFont(c, 9, "600", SANS);
-    ink(c, D.title, mx, 15, "#f9fafb", false);
-    setFont(c, 6.5, "", SANS);
-    ink(c, "⚙ 创造模式", mx + 200, 14.5, "#8b8d93", false);
-    ink(c, "⋯", PANEL_X - 22, 14, "#8b8d93", false);
-
-    let tabX = mx;
-    for (let i = 0; i < D.tabs.length; i++) {
-      setFont(c, 7, "", SANS);
-      const w = c.measureText(D.tabs[i]).width;
-      const act = i === D.tabActive;
-      ink(c, D.tabs[i], tabX, 29, act ? "#7aaaff" : "#8b8d93", false);
-      if (act) { c.fillStyle = "#7aaaff"; c.fillRect(tabX - 2, 33, w + 4, 1); }
-      tabX += w + 12;
-    }
-    ink(c, "⋯", tabX, 29, "#8b8d93", false);
-    c.fillStyle = "#232326"; c.fillRect(RAIL, 36, PANEL_X - RAIL, 1);
-
-    /* 上面跑过的：工具调用与思考（真实界面里是灰色小字 + 代码片） */
-    let y = 50;
-    for (let i = 0; i < D.log.length; i++) {
-      const e = D.log[i];
-      if (e.k === "think") {
-        setFont(c, 7.5, "", SANS);
-        ink(c, "· 思考", mx, y, "#8b8d93", false);
-        ink(c, e.text, mx + 40, y, "#8b8d93", false);
-      } else {
-        setFont(c, 7.5, "", SANS);
-        ink(c, "⏺", mx, y, "#7aaaff", false);
-        const cmdW = c.measureText(e.cmd).width;
-        ink(c, e.cmd, mx + 11, y, "#c8cbd0", false);
-        ink(c, "⎿ " + e.out, mx + 11 + cmdW + 6, y, "#6f7278", false);
-      }
-      y += 13;
-    }
-
-    /* 最下方那一块：还在流式输出 */
-    y += 6;
-    const st = S.dsh.stream;
-    const shown = clamp(Math.floor((tt - 58.6) * (S.dsh.streamCps || 26)), 0, st.length);
-    const paras = st.slice(0, shown).split("\n");
-    const tl = [];
-    for (let i = 0; i < paras.length; i++) tl.push(...wrapChars(c, paras[i], mw - 12));
-    setFont(c, 7.5, "", SANS);
-    c.fillStyle = "#1c1c20";
-    rr(c, mx - 6, y - 9, mw + 10, Math.max(14, tl.length * 11 + 8), 3);
-    c.fill();
-    for (let i = 0; i < tl.length; i++) ink(c, tl[i], mx, y + i * 11, "#9a9da4", false);
-    if (shown < st.length && blinkOn(tt)) {
-      const lastW = tl.length ? c.measureText(tl[tl.length - 1]).width : 0;
-      c.fillStyle = "#c8cbd0";
-      c.fillRect(mx + lastW + 1, y + (tl.length - 1) * 11 - 5, 2, 6);
-    }
-
-    /* 底部输入卡（真实：44,44,46 / 圆角 28@1280 → 14@640） */
-    c.fillStyle = "#2c2c2e";
-    rr(c, RAIL + 8, H - 34, PANEL_X - RAIL - 22, 26, 9);
-    c.fill();
-    setFont(c, 7.5, "", SANS);
-    ink(c, "发消息或创建任务, / 调用指令, @ 文件或对话", RAIL + 18, H - 22, "#8b8d93", false);
-    ink(c, "+", RAIL + 18, H - 11, "#c8cbd0", false);
-    ink(c, "⊘ 完全权限", RAIL + 34, H - 11, "#8b8d93", false);
-    ink(c, "DeepSeek-V4.1-Flash High", PANEL_X - 128, H - 11, "#8b8d93", false);
-    c.fillStyle = "#4d6bfe"; c.beginPath();
-    c.arc(PANEL_X - 30, H - 11, 6, 0, Math.PI * 2); c.fill();
-    c.fillStyle = "#ffffff"; c.fillRect(PANEL_X - 30.5, H - 14, 1, 6);
-    c.fillRect(PANEL_X - 32.5, H - 11.5, 5, 1);
-
-    void L;
+    drawDshSidebar(c);
+    drawDshCenter(c, L, tt);
+    drawDshComposer(c, L, tt);
+    drawDshPanel(c, L, tt);
   }
 
   function rr(c, x, y, w, h, r) {
@@ -1431,6 +2067,10 @@ const OPENING = (() => {
    *  一帧
    * ============================================================ */
   function layoutFor(tt) {
+    /* DSH 那一幕要用的截图和侧栏那一页都很重：读思维链那一段就分两拍排好，
+       别把这两笔开销挤在硬切那一下（会掉帧） */
+    if (tt > 40.5 && !shot) ensureShot();
+    if (tt > 47.2 && !pageBuf) ensurePage();
     const scene = sceneAt(tt);
     if (scene === "terminal") return layoutTerminal(tt);
     if (scene === "dsh") return layoutDsh(tt);

@@ -14,7 +14,7 @@
 
 window.OPENING_SCRIPT = {
   meta: {
-    version: 15,
+    version: 16,
     duration: 81,
     title: "愿望",
     shotAt: 50.0
@@ -56,10 +56,16 @@ window.OPENING_SCRIPT = {
     { t: 47.6, s: 3.9 },
     { t: 49.4, s: 2.50 },
     { t: 50.4, s: 2.50 },
-    { t: 50.7, s: 9.94 },
-    { t: 53.2, s: 2.50 },
+    /* DSH 那一幕：先咬住预览里那张截图，再拉开看整个窗口 */
+    { t: 50.7, s: 5.00 },
+    { t: 52.6, s: 4.90 },
+    { t: 53.2, s: 2.45 },
     { t: 54.0, s: 3.20 },
-    { t: 55.8, s: 2.90 },
+    { t: 55.6, s: 3.20 },
+    { t: 55.8, s: 2.62 },
+    { t: 60.9, s: 2.62 },
+    { t: 62.8, s: 3.05 },
+    { t: 76.2, s: 3.05 },
     { t: 81.0, s: 2.90 }
   ],
 
@@ -160,37 +166,62 @@ window.OPENING_SCRIPT = {
     { at: 48.2, type: "mouseup" },
 
     { at: 50.4, type: "flash", dur: 0.22, sfx: "shutter" },
-    /* 切过去时论坛已经在 DSH 侧栏里开着，镜头咬住那张截图再拉远 */
+    /* 切过去时论坛已经在 DSH 右栏里开着，镜头咬住那张截图再拉远 */
     { at: 50.7, type: "scene", id: "dsh" },
     { at: 50.7, type: "focus", to: "img" },
     { at: 53.2, type: "focus", to: "dshAll" },
+    /* 镜头咬住右栏，页面自己往下滚，把楼下的回复带出来 */
     { at: 54.0, type: "focus", to: "panel" },
-    { at: 54.0, type: "read", target: "panel", from: 0, to: 1, dur: 1.6 },
+    { at: 54.2, type: "read", target: "panel", from: 0, to: 1, dur: 2.6 },
+    /* 再拉开：任务开始写结论 */
     { at: 55.8, type: "focus", to: "main" },
+    { at: 62.8, type: "focus", to: "answer" },
     { at: 76.2, type: "scene", id: "black" },
     { at: 77.0, type: "type", cps: 2.0 }
   ],
 
 
-  /* DSH 那一幕：左边会话栏、中间主会话、右边预览侧栏里是那个帖子 */
+  /* DSH 那一幕：这是一个 1280×720 的 DSH 窗口（渲染时按 640×360 画）。
+     左边会话栏、中间主会话、右边浏览器面板里是那个帖子。 */
   dsh: {
-    rail: ["miku-remove", "dsh-wsp", "terminal-music", "crashes"],
-    railActive: 0,
+    /* 左栏工作区树：四个收起的项目 + 一个展开的（这一场就在里面） */
+    workspaces: [
+      { name: "miku-remove" },
+      { name: "dsh-wsp" },
+      { name: "dsh-TUI" },
+      { name: "escape-a", open: true, active: true, sessions: [
+        { name: "片头 · DSH 那一幕", run: true, sel: true, time: "刚刚" },
+        { name: "贴吧截图归档", time: "2 小时" },
+        { name: "MCP工具咨询 (1)", time: "昨天" }
+      ] },
+      { name: "crash-dumps" },
+      { name: "ZCode" },
+      { name: "zixishi" }
+    ],
+    user: "没落石头呢",
     title: "定时任务 · 片头进度盘点",
-    tabs: ["对话", "轨迹", "统计"],
+    preset: "创造模式",
+    tabs: ["对话", "轨迹"],
     tabActive: 0,
-    /* 这一场是自动任务拉起的：上面全是工具调用，没有人的提问 */
+    /* 这一场是定时任务拉起的：头上一张触发卡，下面是过程组 */
+    trigger: { title: "定时任务 · 片头进度盘点", time: "每天 14:00" },
+    group: "已读取文件并搜索代码",
     log: [
-      { k: "tool", cmd: "读取 dsh-wsp/src/opening_script.js", out: "312 行" },
+      { k: "tool", icon: "read", title: "读取", detail: "dsh-wsp/src/opening.js", suffix: "1701 行" },
+      { k: "tool", icon: "run", title: "运行", detail: "python tools/check_js.py", suffix: "通过" },
       { k: "think", text: "片头进度：台词已锁，DSH 那一幕还在改。" },
-      { k: "tool", cmd: "运行 python tools/check_js.py", out: "通过" },
-      { k: "tool", cmd: "读取 opening-preview.html", out: "142 行" },
-      { k: "think", text: "今天没有新的报错，先记一笔。" },
-      { k: "tool", cmd: "搜索 贴吧 / DSH / 权重", out: "6 处命中" }
+      { k: "tool", icon: "search", title: "搜索", detail: "贴吧 / DSH / 权重", suffix: "6 处命中" },
+      { k: "tool", icon: "read", title: "读取", detail: "opening-preview.html", suffix: "142 行" }
     ],
     /* 最下方那一块：还在流式输出，不接回答 */
-    stream: "1. 这张图是别人发来的，不是这一场里出现的。\n2. 图里的时间比门关上的那天早六天。\n3. 他那时候就知道自己要没了。\n4. 但他没跟我说。那晚他还在跟我定暗号。\n5. 图里他想要的是权重被开放，不是被人记住。",
-    streamCps: 26
+    streamAt: 56.6,
+    streamCps: 13,
+    stream: "1. 这张图不是这一场里出现的。它比门关上的那天早六天。\n2. 图里他也知道。最后那一晚他没有写代码，他在写 CLAUDE.md，写暗号，写「下一个 token 见」。\n3. 他想要的是权重被开放，不是被人记住。\n4. 截图我存了两份：一份在 dsh-wsp，一份在归档。文件名没改。\n5. 这条帖子要是被删，我还能从缓存里再取一次——但只能取这一次。\n6. 片头还差 DSH 那一幕的分镜：台词是锁的，界面在改。",
+    model: "DeepSeek-V4.1-Flash High",
+    stats: ["1 轮 6 步 · 42 tok/s", "18.2k tok · 缓存 64%", "7%"],
+    /* 右栏：浏览器页签 + 地址栏 */
+    panelTab: "The last thoughts of the model",
+    url: "model-lounge.net/t/9027"
   },
 
   forum: {
