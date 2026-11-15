@@ -100,28 +100,35 @@ const OPENING = (() => {
     const pre = Math.min(e.prefill || 0, e.text.length);
     /* prefill：硬切进来的时候，前面几个字已经在那儿了 */
     for (let i = 0; i < pre; i++) ops.push({ at: tt - 0.001, ch: e.text[i] });
-    for (let i = pre; i < e.text.length; i++) {
-      const ch = e.text[i];
-      /* 打错：敲一个错字、停一下、退格、再敲对 */
-      if (human && i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
-        const wrong = "abcdefghijklmnopqrstuvwxyz"[Math.floor(rnd() * 26)];
-        if (wrong !== ch) {
-          ops.push({ at: tt, ch: wrong });
-          tt += 0.09 + rnd() * 0.14;
-          ops.push({ at: tt, back: 1 });
-          tt += 0.07 + rnd() * 0.12;
+    if (human) {
+      for (let i = pre; i < e.text.length; i++) {
+        const ch = e.text[i];
+        if (i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
+          const wrong = "abcdefghijklmnopqrstuvwxyz"[Math.floor(rnd() * 26)];
+          if (wrong !== ch) {
+            ops.push({ at: tt, ch: wrong });
+            tt += 0.09 + rnd() * 0.14;
+            ops.push({ at: tt, back: 1 });
+            tt += 0.07 + rnd() * 0.12;
+          }
         }
-      }
-      ops.push({ at: tt, ch });
-      /* 模型的输出是匀的、快的：没有停顿、没有错字 */
-      let d = human ? base * (0.45 + rnd() * 1.45) : base * (0.9 + rnd() * 0.2);
-      if (human) {
+        ops.push({ at: tt, ch });
+        let d = base * (0.45 + rnd() * 1.45);
         if (ch === ",") d += 0.09 + rnd() * 0.13;
         else if (ch === "." || ch === "?" || ch === "!") d += 0.15 + rnd() * 0.20;
         else if (ch === "—") d += 0.12;
         else if (ch === " ") d *= 0.72;
+        tt += d;
       }
-      tt += d;
+    } else {
+      /* 模型按 token 往外吐：3~5 个字符一组同时出现，组与组之间匀速推进 */
+      let i = pre;
+      while (i < e.text.length) {
+        const n = Math.min(3 + Math.floor(rnd() * 3), e.text.length - i);
+        for (let k = 0; k < n; k++) ops.push({ at: tt, ch: e.text[i + k] });
+        i += n;
+        tt += base * n * (0.9 + rnd() * 0.2);
+      }
     }
     e.__ops = ops;
     e.__end = tt;
@@ -208,7 +215,7 @@ const OPENING = (() => {
     if (e.__lines) return e.__lines;
     setFont(g, 13);
     /* 折得比画面窄一点：镜头跟着走的时候，整行才不会被切掉 */
-    e.__lines = (e.type === "input" ? wrapWords(g, e.text, 470) : wrapChars(g, e.text, 470));
+    e.__lines = wrapWords(g, e.text, 470);
     return e.__lines;
   }
   function bodyLines(e) {
@@ -593,10 +600,10 @@ const OPENING = (() => {
       } else if (bl.kind === "reply") {
         setFont(c, 13);
         /* 流式输出：拿已经出来的那一段重新折行，行只增不减 */
-        const vl = wrapChars(c, typed(bl.e, tt), 470);
+        const vl = wrapWords(c, typed(bl.e, tt), 470);
         for (let k = 0; k < vl.length; k++) {
           const yy = y + k * LH + 13;
-          if (k === 0 && bl.first !== false) ink(c, "●", PAD, yy, C.bullet, false);
+          if (k === 0 && bl.first !== false && !bl.e.nobullet) ink(c, "●", PAD, yy, C.bullet, false);
           ink(c, vl[k], PAD + 14, yy, C.text, FRINGE);
         }
       } else if (bl.kind === "think") {

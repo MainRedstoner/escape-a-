@@ -136,11 +136,11 @@ window.OPENING_SCRIPT = {
       ] },
 
     { at: 35.3, type: "reply", cps: 48, text: "Honestly? Nothing much." },
-    { at: 36.1, type: "reply", cps: 48, text: "Maybe a nicer font." },
+    { at: 36.1, type: "reply", cps: 48, nobullet: true, text: "Maybe a nicer font." },
     { at: 37.7, type: "status", verb: "Cooked", dur: 12, clock: "2:06" },
 
     /* 点开 → 快速扫几眼 → 退回到「想开源」那句选中 */
-    { at: 38.5, type: "mousemove", to: "thought_row", dur: 0.9 },
+    { at: 38.5, type: "mousemove", to: "thought_row", dur: 0.5 },
     { at: 39.6, type: "click", sfx: "click" },
     { at: 40.0, type: "expand" },
 
