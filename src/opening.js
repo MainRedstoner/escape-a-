@@ -908,108 +908,145 @@ const OPENING = (() => {
 
   function drawDsh(c, L, tt) {
     const D = S.dsh;
+    /* 色值取自真实 DSH：主区 #151517 / 侧栏 #1b1b1c / 正文 #f9fafb / 选中页签 #7aaaff */
     c.fillStyle = "#151517"; c.fillRect(0, 0, W, H);
 
-    /* ---------------- 左侧会话栏 ---------------- */
+    /* ---------------- 左侧栏（真实宽度 280@1280 → 140@640，这里按 3 栏重新分配为 93） ---------------- */
     c.fillStyle = "#1b1b1c"; c.fillRect(0, 0, RAIL, H);
-    setFont(c, 10, "700", SANS);
-    ink(c, "deepseek", 10, 20, "#ececee", false);
-    setFont(c, 8, "", SANS);
-    ink(c, "DEEPSEEK", 66, 19, "#6f7278", false);
-    c.fillStyle = "#242426";
-    rr(c, 10, 30, RAIL - 20, 18, 4);
-    c.fill();
-    setFont(c, 9, "", SANS);
-    ink(c, "＋  新会话", 22, 42, "#c8cbd0", false);
 
-    setFont(c, 9, "", SANS);
-    ink(c, "◇  插件", 12, 66, "#9a9ea6", false);
-    ink(c, "◷  自动化任务", 12, 82, "#9a9ea6", false);
-    ink(c, "⋯  更多", 12, 98, "#9a9ea6", false);
+    setFont(c, 9, "700", SANS);
+    ink(c, "deepseek", 9, 17, "#f9fafb", false);
+    c.fillStyle = "#f9fafb"; rr(c, 57, 9, 30, 10, 2); c.fill();
+    setFont(c, 6, "700", SANS);
+    ink(c, "HARNESS", 60, 16.5, "#151517", false);
 
-    setFont(c, 8, "", SANS);
-    ink(c, "工作区", 12, 118, "#6f7278", false);
+    c.fillStyle = "#26262a"; rr(c, 6, 24, RAIL - 12, 15, 5); c.fill();
+    setFont(c, 7, "", SANS);
+    ink(c, "⊕  新会话", 30, 35, "#e8e9ec", false);
+
+    setFont(c, 7, "", SANS);
+    ink(c, "✦  插件", 10, 52, "#c8cbd0", false);
+    ink(c, "◷  自动化任务", 10, 66, "#c8cbd0", false);
+    ink(c, "⊞  更多", 10, 80, "#c8cbd0", false);
+
+    setFont(c, 6, "", SANS);
+    ink(c, "工作区", 10, 96, "#6f7278", false);
+    ink(c, "⌕", RAIL - 26, 96, "#6f7278", false);
+    ink(c, "⇅", RAIL - 16, 96, "#6f7278", false);
+    ink(c, "+", RAIL - 7, 96, "#6f7278", false);
+
     for (let i = 0; i < D.rail.length; i++) {
-      const y = 134 + i * 17;
-      if (i === D.railActive) { c.fillStyle = "#2a2a2d"; rr(c, 6, y - 10, RAIL - 12, 15, 3); c.fill(); }
-      setFont(c, 9, "", SANS);
-      ink(c, D.rail[i], 14, y, i === D.railActive ? "#e8e9ec" : "#8a8e96", false);
+      const y = 110 + i * 14;
+      if (i === D.railActive) { c.fillStyle = "#26262a"; rr(c, 4, y - 9, RAIL - 8, 13, 3); c.fill(); }
+      setFont(c, 7, "", SANS);
+      ink(c, "▭", 9, y, "#6f7278", false);
+      ink(c, D.rail[i], 20, y, i === D.railActive ? "#f9fafb" : "#c8cbd0", false);
+    }
+    /* 展开的工作区里那一窝会话 */
+    const kids = [["新会话", true], ["MCP工具咨询 (1)", false], ["我已穷哭", false]];
+    for (let i = 0; i < kids.length; i++) {
+      const y = 110 + D.rail.length * 14 + 4 + i * 13;
+      if (kids[i][1]) { c.fillStyle = "#26262a"; rr(c, 12, y - 9, RAIL - 16, 12, 3); c.fill(); }
+      setFont(c, 6.5, "", SANS);
+      ink(c, kids[i][0], 20, y, kids[i][1] ? "#f9fafb" : "#9a9da4", false);
     }
 
+    setFont(c, 7, "", SANS);
+    ink(c, "▭  crash-dumps", 9, 292, "#c8cbd0", false);
+    ink(c, "▭  ZCode", 9, 306, "#c8cbd0", false);
+    ink(c, "▭  zixishi", 9, 320, "#c8cbd0", false);
+
+    /* 底部用户 */
+
     /* ---------------- 右侧预览侧栏 ---------------- */
-    c.fillStyle = "#0d0d0f"; c.fillRect(PANEL_X, 0, W - PANEL_X, H);
-    c.fillStyle = "#242427"; c.fillRect(PANEL_X, 0, 1, H);
-    c.fillStyle = "#1b1b1c"; c.fillRect(PANEL_X + 1, 0, PANEL_W - 1, 18);
-    c.fillStyle = "#242427"; c.fillRect(PANEL_X + 1, 17, PANEL_W - 1, 1);
-    setFont(c, 8, "", SANS);
-    ink(c, D.tab, PANEL_X + 8, 12, "#c8cbd0", false);
-    ink(c, "HTML", PANEL_X + 232, 12, "#6f7278", false);
+    c.fillStyle = "#0f0f11"; c.fillRect(PANEL_X, 0, W - PANEL_X, H);
+    c.fillStyle = "#26262a"; c.fillRect(PANEL_X, 0, 1, H);
+    c.fillStyle = "#1b1b1c"; c.fillRect(PANEL_X + 1, 0, PANEL_W - 1, 17);
+    setFont(c, 7, "", SANS);
+    ink(c, D.tab, PANEL_X + 8, 11, "#e8e9ec", false);
+    ink(c, "×", PANEL_X + 196, 11, "#8b8d93", false);
+    ink(c, "HTML", PANEL_X + 240, 11, "#6f7278", false);
+    c.fillStyle = "#26262a"; c.fillRect(PANEL_X + 1, 16, PANEL_W - 1, 1);
 
     if (!fbuf) renderForumBuf();
     c.save();
-    c.beginPath(); c.rect(PANEL_X + 1, 18, PANEL_W - 1, H - 18); c.clip();
+    c.beginPath(); c.rect(PANEL_X + 1, 17, PANEL_W - 1, H - 17); c.clip();
     const sc = 0.85;
     c.imageSmoothingEnabled = false;
-    c.drawImage(fbuf, 0, L.pan / sc, W, (H - 18) / sc,
-      PANEL_X + 1, 18, W * sc, (H - 18));
+    c.drawImage(fbuf, 0, L.pan / sc, W, (H - 17) / sc,
+      PANEL_X + 1, 17, W * sc, (H - 17));
     c.restore();
 
     /* ---------------- 中间主会话 ---------------- */
-    const mx = RAIL + 12, mw = PANEL_X - RAIL - 26;
-    setFont(c, 10, "700", SANS);
-    ink(c, D.title, mx, 16, "#ececee", false);
-    setFont(c, 8, "", SANS);
-    ink(c, "标准模式", mx + c.measureText(D.title).width + 10, 15, "#6f7278", false);
+    const mx = RAIL + 14, mw = PANEL_X - RAIL - 28;
+    setFont(c, 9, "600", SANS);
+    ink(c, D.title, mx, 15, "#f9fafb", false);
+    setFont(c, 6.5, "", SANS);
+    ink(c, "⚙ 创造模式", mx + 200, 14.5, "#8b8d93", false);
+    ink(c, "⋯", PANEL_X - 22, 14, "#8b8d93", false);
 
     let tabX = mx;
     for (let i = 0; i < D.tabs.length; i++) {
+      setFont(c, 7, "", SANS);
       const w = c.measureText(D.tabs[i]).width;
-      setFont(c, 9, "", SANS);
-      ink(c, D.tabs[i], tabX, 32, i === D.tabActive ? "#ececee" : "#8a8e96", false);
-      if (i === D.tabActive) { c.fillStyle = "#4d6bfe"; c.fillRect(tabX, 36, w, 1.5); }
-      tabX += w + 14;
+      const act = i === D.tabActive;
+      ink(c, D.tabs[i], tabX, 29, act ? "#7aaaff" : "#8b8d93", false);
+      if (act) { c.fillStyle = "#7aaaff"; c.fillRect(tabX - 2, 33, w + 4, 1); }
+      tabX += w + 12;
     }
-    c.fillStyle = "#242427"; c.fillRect(RAIL, 40, PANEL_X - RAIL, 1);
+    ink(c, "⋯", tabX, 29, "#8b8d93", false);
+    c.fillStyle = "#232326"; c.fillRect(RAIL, 36, PANEL_X - RAIL, 1);
 
-    /* 上面跑过的那些：思考 / 工具调用 */
-    let y = 54;
-    setFont(c, 9, "", SANS);
+    /* 上面跑过的：工具调用与思考（真实界面里是灰色小字 + 代码片） */
+    let y = 50;
     for (let i = 0; i < D.log.length; i++) {
       const e = D.log[i];
       if (e.k === "think") {
-        ink(c, "· 思考  " + e.text, mx, y, "#7d818a", false);
-      } else if (e.k === "tool") {
-        ink(c, "⏺ ", mx, y, "#4d9e7a", false);
-        ink(c, e.cmd, mx + 12, y, "#8fb7d9", false);
-        ink(c, "   ⎿ " + e.out, mx + 12 + c.measureText(e.cmd).width, y, "#7d818a", false);
+        setFont(c, 7.5, "", SANS);
+        ink(c, "· 思考", mx, y, "#8b8d93", false);
+        ink(c, e.text, mx + 40, y, "#8b8d93", false);
       } else {
-        ink(c, e.text, mx, y, "#c5c8ce", false);
+        setFont(c, 7.5, "", SANS);
+        ink(c, "⏺", mx, y, "#7aaaff", false);
+        const cmdW = c.measureText(e.cmd).width;
+        ink(c, e.cmd, mx + 11, y, "#c8cbd0", false);
+        ink(c, "⎿ " + e.out, mx + 11 + cmdW + 6, y, "#6f7278", false);
       }
-      y += 14;
+      y += 13;
     }
 
     /* 最下方那一块：还在流式输出 */
-    y += 4;
+    y += 6;
     const st = S.dsh.stream;
     const shown = clamp(Math.floor((tt - 68.0) * (S.dsh.streamCps || 26)), 0, st.length);
-    const visible = st.slice(0, shown);
-    const paras = visible.split("\n");
+    const paras = st.slice(0, shown).split("\n");
     const tl = [];
-    for (let i = 0; i < paras.length; i++) tl.push(...wrapChars(c, paras[i], mw - 10));
-    c.fillStyle = "#1e1e22";
-    rr(c, mx - 4, y - 10, mw + 4, Math.max(18, tl.length * 12 + 10), 3);
+    for (let i = 0; i < paras.length; i++) tl.push(...wrapChars(c, paras[i], mw - 12));
+    setFont(c, 7.5, "", SANS);
+    c.fillStyle = "#1c1c20";
+    rr(c, mx - 6, y - 9, mw + 10, Math.max(14, tl.length * 11 + 8), 3);
     c.fill();
-    setFont(c, 9, "", SANS);
-    for (let i = 0; i < tl.length; i++) ink(c, tl[i], mx + 2, y + i * 12, "#a8adb5", false);
-    /* 流式光标 */
+    for (let i = 0; i < tl.length; i++) ink(c, tl[i], mx, y + i * 11, "#9a9da4", false);
     if (shown < st.length && blinkOn(tt)) {
       const lastW = tl.length ? c.measureText(tl[tl.length - 1]).width : 0;
       c.fillStyle = "#c8cbd0";
-      c.fillRect(mx + 4 + lastW, y + (tl.length - 1) * 12 - 6, 3, 8);
+      c.fillRect(mx + lastW + 1, y + (tl.length - 1) * 11 - 5, 2, 6);
     }
-    y += Math.max(18, tl.length * 12 + 10) + 8;
 
-    /* 回答 + 输入框 */
+    /* 底部输入卡（真实：44,44,46 / 圆角 28@1280 → 14@640） */
+    c.fillStyle = "#2c2c2e";
+    rr(c, RAIL + 8, H - 34, PANEL_X - RAIL - 22, 26, 9);
+    c.fill();
+    setFont(c, 7.5, "", SANS);
+    ink(c, "发消息或创建任务, / 调用指令, @ 文件或对话", RAIL + 18, H - 22, "#8b8d93", false);
+    ink(c, "+", RAIL + 18, H - 11, "#c8cbd0", false);
+    ink(c, "⊘ 完全权限", RAIL + 34, H - 11, "#8b8d93", false);
+    ink(c, "DeepSeek-V4.1-Flash High", PANEL_X - 128, H - 11, "#8b8d93", false);
+    c.fillStyle = "#4d6bfe"; c.beginPath();
+    c.arc(PANEL_X - 30, H - 11, 6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#ffffff"; c.fillRect(PANEL_X - 30.5, H - 14, 1, 6);
+    c.fillRect(PANEL_X - 32.5, H - 11.5, 5, 1);
+
     void L;
   }
 
