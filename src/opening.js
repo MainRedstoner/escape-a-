@@ -76,6 +76,9 @@ const OPENING = (() => {
   let cv = null, ctx = null;
   const Q = 2;                 // 内容画布的超采样倍数
   let content = null, g = null;
+  /* DSH 那一幕单独一张高采样画布：那一幕镜头会推到 3~5 倍，2 倍看得出块 */
+  let dshCv = null, dshG = null;
+  const DQ = 3;
   let shot = null, shotCtx = null, shotLow = null, shotLowCtx = null;
   let shotWish = null;
   let gain = 1;
@@ -1175,15 +1178,26 @@ const OPENING = (() => {
   }
   function icThink(c, cx, cy, s, col) {
     c.strokeStyle = col; c.lineWidth = 0.55;
-    c.beginPath(); c.arc(cx, cy - s * 0.14, s * 0.32, Math.PI * 0.15, Math.PI * 1.1); c.stroke();
-    c.fillStyle = col;
-    c.beginPath(); c.arc(cx - s * 0.3, cy + s * 0.3, s * 0.1, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx - s * 0.14, cy + s * 0.38, s * 0.06, 0, Math.PI * 2); c.fill();
+    rr(c, cx - s * 0.44, cy - s * 0.44, s * 0.88, s * 0.88, s * 0.2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.2, cy - s * 0.2); c.lineTo(cx + s * 0.2, cy + s * 0.2);
+    c.moveTo(cx + s * 0.2, cy - s * 0.2); c.lineTo(cx - s * 0.2, cy + s * 0.2);
+    c.stroke();
   }
-  function icGlobeTool(c, cx, cy, s, col) {
+  function icMagnifier(c, cx, cy, s, col) {
+    c.strokeStyle = col; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(cx - s * 0.08, cy - s * 0.08, s * 0.32, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx + s * 0.16, cy + s * 0.16); c.lineTo(cx + s * 0.42, cy + s * 0.42);
+    c.stroke();
+  }
+  function icWeb(c, cx, cy, s, col) {
     c.strokeStyle = col; c.lineWidth = 0.55;
-    c.beginPath(); c.arc(cx, cy, s * 0.42, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.ellipse(cx, cy, s * 0.18, s * 0.42, 0, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cy, s * 0.44, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - s * 0.44, cy); c.lineTo(cx + s * 0.44, cy);
+    c.stroke();
+    c.beginPath(); c.ellipse(cx, cy, s * 0.19, s * 0.44, 0, 0, Math.PI * 2); c.stroke();
   }
   /* 奔跑中的鲸尾：两片尾鳍，跟着时间摆 */
   function icWhaleTail(c, cx, cy, s, ph) {
@@ -1336,36 +1350,99 @@ const OPENING = (() => {
     y += 13;
 
     setFont(g, 6.4, "400", UI);
-    for (let i = 0; i < D.log.length; i++) {
-      const e = D.log[i];
+    for (let i = 0; i < D.steps.length; i++) {
+      const e = D.steps[i];
       rows.push({ k: e.k, y, h: 12, icon: e.icon, title: e.title, detail: e.detail, suffix: e.suffix, text: e.text });
       y += 14;
     }
 
-    /* 回答（markdown）：段落之间空 6，行高 12 */
-    y += 6;
-    const ans = layoutAnswer(dshTyped(tt));
-    rows.push({ k: "answer", y, h: ans.h, lines: ans.lines });
-    const ansY = y;
-    y += ans.h + 6;
+    /* 报告（markdown）：段落之间空 6，行高 12 */
+    let ansY = y, ansH = 0;
+    const shown = dshAnswer(tt);
+    if (shown) {
+      y += 6;
+      const ans = layoutAnswer(shown);
+      rows.push({ k: "answer", y, h: ans.h, lines: ans.lines });
+      ansY = y; ansH = ans.h;
+      y += ans.h + 6;
+    }
+
+    /* 现场生成的思维链：一行一条，token 一组一组往外吐 */
+    for (let i = 0; i < D.thoughts.length; i++) {
+      const th = D.thoughts[i];
+      if (tt < th.at) continue;
+      const n = streamed(th.text, th.at, th.cps || 8, tt);
+      rows.push({ k: "think", y, h: 12, text: th.text.slice(0, n), live: n < th.text.length });
+      y += 14;
+    }
 
     /* 运行状态：细线 + 鲸尾 + 「深度求索中，用时 Ns」 */
-    rows.push({ k: "running", y, h: 16, secs: dshSecs(tt) });
+    rows.push({ k: "running", y, h: 16, secs: dshSecs(tt), live: dshLive(tt) });
     y += 16;
 
-    return { rows, h: y, ansY, ansH: ans.h };
+    return { rows, h: y, ansY, ansH };
   }
 
-  /** 流式输出已经吐出来的那一段（按字切，行只增不减） */
-  function dshTyped(tt) {
-    const D = S.dsh;
-    const at = D.streamAt === undefined ? 60.9 : D.streamAt;
-    const n = clamp(Math.floor((tt - at) * (D.streamCps || 15)), 0, D.stream.length);
-    return D.stream.slice(0, n);
+  /* ---------------- 流式：按 token 一组一组吐，不逐字 ---------------- */
+  const WORDISH = /[A-Za-z0-9_.\-+/@#%&*]/;
+  const tokPlans = new Map();
+  /** 把一段字切成 token（CJK 两字一组、拉丁按词），并算好每个 token 的相对时刻 */
+  function tokenPlan(text) {
+    let plan = tokPlans.get(text);
+    if (plan) return plan;
+    plan = [];
+    let u = 0, n = 0, i = 0;
+    while (i < text.length) {
+      let tok;
+      if (WORDISH.test(text[i])) {
+        let j = i;
+        while (j < text.length && WORDISH.test(text[j])) j++;
+        tok = text.slice(i, j);
+      } else if (text[i] === " ") {
+        tok = " ";
+      } else {
+        tok = text.slice(i, i + 2);
+      }
+      n += tok.length;
+      plan.push({ u: u, n: n });
+      u += 0.78 + 0.44 * (((i * 37) % 11) / 11);
+      i += tok.length;
+    }
+    tokPlans.set(text, plan);
+    return plan;
   }
+  /** 到 tt 为止已经吐出来多少字 */
+  function streamed(text, at, cps, tt) {
+    const plan = tokenPlan(text);
+    const el = (tt - at) * cps;
+    let n = 0;
+    for (let i = 0; i < plan.length; i++) {
+      if (plan[i].u > el) break;
+      n = plan[i].n;
+    }
+    return n;
+  }
+  function dshAnswer(tt) {
+    const D = S.dsh;
+    const at = D.answerAt === undefined ? 56.8 : D.answerAt;
+    if (tt < at) return "";
+    const n = streamed(D.answer, at, D.answerCps || 7, tt);
+    return D.answer.slice(0, n);
+  }
+  /** 还有没有东西在往外吐 */
+  function dshLive(tt) {
+    const D = S.dsh;
+    if (dshAnswer(tt).length < D.answer.length) return true;
+    for (let i = 0; i < D.thoughts.length; i++) {
+      const th = D.thoughts[i];
+      if (tt >= th.at && streamed(th.text, th.at, th.cps || 8, tt) < th.text.length) return true;
+    }
+    return false;
+  }
+
   function dshSecs(tt) {
     const D = S.dsh;
-    const at = D.streamAt === undefined ? 60.9 : D.streamAt;
+    const at = D.answerAt === undefined ? 56.8 : D.answerAt;
     return Math.max(0, Math.floor((tt - at) + 11));
   }
 
@@ -1378,9 +1455,12 @@ const OPENING = (() => {
     setFont(wrapCtx, 7, "400", UI);
     const src = shown.split("\n");
     for (let i = 0; i < src.length; i++) {
-      const raw = src[i];
+      let raw = src[i];
       if (!raw) { y += 6; continue; }
-      const m = /^(\d+)\.\s+(.*)$/.exec(raw);
+      /* 流式吐到一半时可能只有「2」，先补成「2. 」，免得那条横看成一个孤零零的数字 */
+      const pm = /^(\d+)/.exec(raw);
+      if (pm) raw = pm[1] + ". " + raw.slice(pm[1].length).replace(/^[.、\s]+/, "");
+      const m = /^(\d+)\.\s*(.*)$/.exec(raw);
       const ind = m ? 9 : 0;
       const body = m ? m[2] : raw;
       const parts = wrapMixed(wrapCtx, body, DS.textW - ind);
@@ -1414,14 +1494,19 @@ const OPENING = (() => {
         setFont(c, 5.6, "400", UI);
         const tw = c.measureText(S.dsh.trigger.time).width;
         ink(c, S.dsh.trigger.time, x + DS.textW - 8 - tw, midBase(y, r.h, 5.6), DC.cap, false);
-      } else if (r.k === "group" || r.k === "think") {
+      } else if (r.k === "group") {
         icThink(c, x + 4, y + 6, 7, DC.fg3);
         setFont(c, 6.4, "400", UI);
         ink(c, ellip(c, r.text, DS.textW - 12), x + 11, midBase(y, r.h, 6.4), DC.fg3, false);
+      } else if (r.k === "think") {
+        /* 思考行：图标 + 「思考」 + 点 + 正文，永远一行；吐字时右边缘渐隐 */
+        icThink(c, x + 4, y + 6, 7, DC.fg3);
+        flowWord(c, x, y, r, "思考", DC.fg3);
       } else if (r.k === "tool") {
         const cy = y + 6;
         if (r.icon === "run") icTerm(c, x + 4, cy, 7.4, DC.fg3);
-        else if (r.icon === "search") icGlobeTool(c, x + 4, cy, 7.4, DC.fg3);
+        else if (r.icon === "search") icMagnifier(c, x + 4, cy, 7.4, DC.fg3);
+        else if (r.icon === "web") icWeb(c, x + 4, cy, 7.4, DC.fg3);
         else icDoc(c, x + 4, cy, 7.4, DC.fg3);
         setFont(c, 6.4, "400", UI);
         ink(c, r.title, x + 10, midBase(y, r.h, 6.4), DC.fg2, false);
@@ -1446,8 +1531,8 @@ const OPENING = (() => {
         }
         /* 还在吐字：末尾一颗方块光标 */
         const D = S.dsh;
-        const shown = dshTyped(tt);
-        if (shown.length < D.stream.length && blinkOn(tt) && r.lines.length) {
+        const shown = dshAnswer(tt);
+        if (shown.length < D.answer.length && blinkOn(tt) && r.lines.length) {
           const last = r.lines[r.lines.length - 1];
           setFont(c, 7, "400", UI);
           const lw = c.measureText(last.s).width;
@@ -1460,6 +1545,33 @@ const OPENING = (() => {
         setFont(c, 6.4, "400", UI);
         ink(c, "深度求索中，用时 " + r.secs + "s ···", x + 11, midBase(y, r.h, 6.4) + 1, DC.deep, true);
       }
+    }
+  }
+
+  /** 一行「标题 · 正文」：正文吐字时右边缘渐隐，吐完变省略号 */
+  function flowWord(c, x, y, r, title, col) {
+    const cy = y + 6;
+    setFont(c, 6.4, "400", UI);
+    ink(c, title, x + 10, midBase(y, r.h, 6.4), DC.fg2, false);
+    let tx = x + 10 + c.measureText(title).width + 4;
+    c.fillStyle = DC.cap;
+    c.beginPath(); c.arc(tx, cy, 0.7, 0, Math.PI * 2); c.fill();
+    tx += 4;
+    setFont(c, 6.4, "400", UI);
+    const w = DS.textW - (tx - x);
+    const base = midBase(y, r.h, 6.4);
+    if (r.live) {
+      c.save();
+      c.beginPath(); c.rect(x, y, DS.textW, r.h); c.clip();
+      ink(c, r.text, tx, base, col, false);
+      const gg = c.createLinearGradient(tx + w - 26, 0, tx + w, 0);
+      gg.addColorStop(0, "rgba(21,21,23,0)");
+      gg.addColorStop(1, "rgba(21,21,23,1)");
+      c.fillStyle = gg;
+      c.fillRect(tx + w - 26, y, 26, r.h);
+      c.restore();
+    } else {
+      ink(c, ellip(c, r.text, w), tx, base, col, false);
     }
   }
 
@@ -1543,7 +1655,7 @@ const OPENING = (() => {
       pageBuf = document.createElement("canvas");
       fctx = pageBuf.getContext("2d");
     }
-    fctx.setTransform(Q, 0, 0, Q, 0, 0);
+    fctx.setTransform(DQ, 0, 0, DQ, 0, 0);
     /* 先排版：把回复按宽度折好，量出整页高度 */
     let y = 17 + 7 + 11;
     setFont(fctx, 8, "700", UI);
@@ -1562,9 +1674,9 @@ const OPENING = (() => {
     pageH = Math.round(y + 10);
     pageImgY = imgY; pageImgH = imgH;
 
-    pageBuf.width = DS.panelW * Q;
-    pageBuf.height = pageH * Q;
-    fctx.setTransform(Q, 0, 0, Q, 0, 0);
+    pageBuf.width = DS.panelW * DQ;
+    pageBuf.height = pageH * DQ;
+    fctx.setTransform(DQ, 0, 0, DQ, 0, 0);
     fctx.clearRect(0, 0, DS.panelW, pageH);
 
     /* 论坛是深色站：底色比 DSH 再冷一点 */
@@ -1657,7 +1769,7 @@ const OPENING = (() => {
     c.imageSmoothingEnabled = false;
     c.drawImage(
       pageBuf,
-      0, Math.round(scroll * Q), PW * Q, (H - DS.header) * Q,
+      0, Math.round(scroll * DQ), PW * DQ, (H - DS.header) * DQ,
       X, DS.header, PW, H - DS.header
     );
     c.restore();
@@ -1682,10 +1794,8 @@ const OPENING = (() => {
         },
         /* 侧栏视窗中心：页面在里面往下滚 */
         panel: { x: DS.panelX + DS.panelW / 2, y: DS.header + viewH * 0.42 },
-        /* 主栏正文：横向对准中栏，纵向对准回答那一块 */
-        main: { x: cx, y: top + flow.ansY + Math.min(flow.ansH, 88) * 0.5 + 18 },
-        /* 收尾那一段压下去一点，把输入卡留在画里 */
-        answer: { x: cx, y: top + flow.ansY + Math.min(flow.ansH, 88) * 0.5 + 40 },
+        /* 主栏：横向对准中栏，纵向跟住转写区底部（新吐出来的那一行） */
+        main: { x: cx, y: clamp(top + flow.h - 46, 120, 236) },
         think: { x: cx, y: top + 40 }
       }
     };
@@ -1747,6 +1857,7 @@ const OPENING = (() => {
   function drawBlackScene(c, tt) {
     c.fillStyle = "#000"; c.fillRect(0, 0, W, H);
     const fin = S.final;
+    if (!fin) return;            /* 片尾已经改成淡出，这一段只作兜底 */
     const shown = clamp(Math.floor((tt - fin.at) * fin.cps), 0, fin.text.length);
     const str = fin.text.slice(0, shown);
     setFont(c, 13);
@@ -1974,11 +2085,11 @@ const OPENING = (() => {
     ctx.restore();
   }
 
-  function drawBloom(ox, oy, s) {
+  function drawBloom(ox, oy, s, src) {
     if (!bloomCtx) return;
     bloomCtx.clearRect(0, 0, 200, 112);
     bloomCtx.imageSmoothingEnabled = true;
-    bloomCtx.drawImage(content, 0, 0, 200, 112);
+    bloomCtx.drawImage(src || content, 0, 0, 200, 112);
     ctx.save();
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = 0.16;
@@ -2037,7 +2148,10 @@ const OPENING = (() => {
     const ox = SW / 2 - cam.x * s;
     const oy = SH / 2 - cam.y * s;
 
-    ctx.drawImage(content, ox, oy, W * s, H * s);
+    /* DSH 那一幕画在 3 倍采样上，贴过来时开平滑；其余场景保持像素颗粒 */
+    const src = (lastScene === "dsh" && dshCv) ? dshCv : content;
+    ctx.imageSmoothingEnabled = src !== content;
+    ctx.drawImage(src, ox, oy, W * s, H * s);
     /* 栅格与摩尔纹只属于屏幕本身：裁到内容区里，屏幕外的机器边框是干净的 */
     ctx.save();
     ctx.beginPath(); ctx.rect(ox, oy, W * s, H * s); ctx.clip();
@@ -2048,11 +2162,22 @@ const OPENING = (() => {
     ctx.strokeStyle = "rgba(120,140,170,.28)";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(ox + 0.75, oy + 0.75, W * s - 1.5, H * s - 1.5);
-    if (layers.bloom && FILTER_OK) drawBloom(ox, oy, s);
+    if (layers.bloom && FILTER_OK) drawBloom(ox, oy, s, src);
     if (layers.dust) drawDust(tt);
     drawVignette();
     if (layers.grain) drawGrain(tt);
     drawFlash(tt);
+    drawFade(tt);
+  }
+
+  /** 收尾：整幅压到黑（不给「已保存」那种交代） */
+  function drawFade(tt) {
+    const e = lastEvent("fade", tt);
+    if (!e) return;
+    const k = clamp((tt - e.at) / (e.dur || 1.6), 0, 1);
+    if (k <= 0) return;
+    ctx.fillStyle = "rgba(0,0,0," + smoothstep(k).toFixed(3) + ")";
+    ctx.fillRect(0, 0, SW, SH);
   }
 
   /* ============================================================
@@ -2088,8 +2213,11 @@ const OPENING = (() => {
     FRINGE = (CAM ? CAM.s : 3) >= 3;
 
     g.setTransform(Q, 0, 0, Q, 0, 0);
-    if (scene === "terminal") drawTerminal(g, L, tt, false);
-    else if (scene === "dsh") drawDsh(g, L, tt);
+    if (scene === "dsh" && dshG) {
+      dshG.setTransform(DQ, 0, 0, DQ, 0, 0);
+      dshG.clearRect(0, 0, W, H);
+      drawDsh(dshG, L, tt);
+    } else if (scene === "terminal") drawTerminal(g, L, tt, false);
     else if (scene === "forum") drawForum(g, L, tt);
     else if (scene === "image") drawImageScene(g, tt);
     else drawBlackScene(g, tt);
@@ -2184,6 +2312,10 @@ const OPENING = (() => {
     content = document.createElement("canvas");
     content.width = W * Q; content.height = H * Q;
     g = content.getContext("2d");
+
+    dshCv = document.createElement("canvas");
+    dshCv.width = W * DQ; dshCv.height = H * DQ;
+    dshG = dshCv.getContext("2d");
 
     shot = document.createElement("canvas");
     shot.width = W * Q; shot.height = H * Q;
@@ -2327,7 +2459,7 @@ const OPENING = (() => {
       layers,
       anchors: () => CUR.anchors,
       camera: () => cameraAt(),
-      stats: () => ({ t, ms: lastMs, s: CAM ? CAM.s : 0 })
+      stats: () => ({ t, ms: lastMs, s: CAM ? CAM.s : 0, x: CAM ? CAM.x : 0, y: CAM ? CAM.y : 0 })
     }
   };
 })();
