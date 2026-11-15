@@ -82,7 +82,7 @@ const OPENING = (() => {
   let t = 0, last = 0, rafId = 0, doneCb = null;
   let startedAt = 0, cueIdx = 0, prevT = 0, lastKeyT = -1, lastMs = 0;
   let lastBlink = true, lastReveal = 0;
-  const layers = { grid: true, sub: true, moire: true, bloom: true, dust: true, grain: true };
+  const layers = { grid: true, sub: true, moire: true, bloom: true, dust: false, grain: true };
   let CUR = { anchors: {} };
   let CAM = null;                  // 平滑后的镜头 { x, y, s }
   let lastScene = "";
@@ -404,14 +404,15 @@ const OPENING = (() => {
     /* 光标永远住在底部输入框里：打字时在已输入的文字后面，空闲时在提示符后面 */
     const act = activeInput(tt);
     setFont(g, 13);
-    let cx = PAD + 18, cy = BOX_TOP + 21;
-    if (act) {
-      const vl = wrapChars(g, typed(act, tt), 470);
-      const last = vl.length ? vl[vl.length - 1] : "";
-      cx = PAD + 18 + g.measureText(last).width;
-      cy = BOX_TOP + 21 + Math.max(0, vl.length - 1) * LH;
-    }
-    A.cursor = { x: cx, y: cy };
+    const vl = act ? wrapChars(g, typed(act, tt), 470) : [""];
+    const boxLines = Math.max(1, vl.length);
+    /* 输入框跟着输出走：内容少的时候贴着上面的输出，内容多了才沉到底部 */
+    const boxTop = Math.min(VTOP + b.contentH + 10, BOX_TOP - (boxLines - 1) * LH);
+    const last = vl.length ? vl[vl.length - 1] : "";
+    A.cursor = {
+      x: PAD + 18 + g.measureText(last).width,
+      y: boxTop + 21 + (boxLines - 1) * LH
+    };
 
     if (!A.prompt) A.prompt = A.cursor;
     if (!A.reply) A.reply = A.prompt;
@@ -420,7 +421,7 @@ const OPENING = (() => {
     if (!A.last_reply) A.last_reply = A.reply;
     if (!A.thought_row) A.thought_row = A.think_row;
 
-    return { blocks: b.blocks, scroll, base, anchors: A, wishRect, lastBody: b.lastBody };
+    return { blocks: b.blocks, scroll, base, anchors: A, wishRect, lastBody: b.lastBody, boxTop, boxLines };
   }
 
   /* ============================================================
@@ -503,11 +504,13 @@ const OPENING = (() => {
     const a = uiA === undefined ? 1 : uiA;
     setFont(c, 13);
     const act = activeInput(tt);
-    let bl = null, boxTop = BOX_TOP;
+    const boxTop = L.boxTop !== undefined ? L.boxTop : BOX_TOP;
+    const boxLines = Math.max(1, L.boxLines || 1);
+    const boxBot = boxTop + 40 + (boxLines - 1) * LH;
+    let bl = null;
     if (act) {
       bl = wrapChars(c, typed(act, tt), 470);
       if (!bl.length) bl = [""];
-      boxTop = BOX_TOP - (bl.length - 1) * LH;
     }
     /* 输入框往上长的时候，先把底下这块铺成底色，别让转写区的字透出来 */
     c.fillStyle = C.bg;
@@ -517,7 +520,7 @@ const OPENING = (() => {
     c.globalAlpha = a;
     c.fillStyle = C.rule;
     c.fillRect(0, boxTop, W, 1);
-    c.fillRect(0, BOX_BOT, W, 1);
+    c.fillRect(0, boxBot, W, 1);
     c.restore();
 
     c.save();
@@ -535,7 +538,7 @@ const OPENING = (() => {
       }
     } else if (!capture && blinkOn(tt)) {
       c.fillStyle = C.white;
-      c.fillRect(PAD + 18, BOX_TOP + 13, 7, 16);
+      c.fillRect(PAD + 18, boxTop + 13, 7, 16);
     }
 
     c.save();
@@ -943,7 +946,7 @@ const OPENING = (() => {
       const w = g.measureText(last).width;
       return {
         x: clamp(PAD + 18 + w / 2, 60, W - 60),
-        y: BOX_TOP + 21 + Math.max(0, vl.length - 1) * LH
+        y: (L.anchors.cursor ? L.anchors.cursor.y : BOX_TOP + 21)
       };
     }
     /* 思考中：盯着那句 Thought */
@@ -1179,8 +1182,16 @@ const OPENING = (() => {
     const oy = SH / 2 - cam.y * s;
 
     ctx.drawImage(content, ox, oy, W * s, H * s);
+    /* 栅格与摩尔纹只属于屏幕本身：裁到内容区里，屏幕外的机器边框是干净的 */
+    ctx.save();
+    ctx.beginPath(); ctx.rect(ox, oy, W * s, H * s); ctx.clip();
     if (layers.grid) drawGrid(ox, oy, s);
     if (layers.moire) drawGrille(tt, s);
+    ctx.restore();
+    /* 屏幕边缘：一条极细的亮边 + 外面压暗，看得出这是一块屏 */
+    ctx.strokeStyle = "rgba(120,140,170,.28)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(ox + 0.75, oy + 0.75, W * s - 1.5, H * s - 1.5);
     if (layers.bloom && FILTER_OK) drawBloom(ox, oy, s);
     if (layers.dust) drawDust(tt);
     drawVignette();
