@@ -135,20 +135,25 @@ const A3DDecor = (() => {
     }
   }
 
-  /** 枕头：方→圆映射的蓬松网格，顶面 + 底面共用一圈边环，没有球极的放射状接缝。
-   *  中心蓬松、外圈一道平边法兰（枕套边），四角收捏、顶面带布纹褶皱。
-   *  cy 是枕芯（法兰）高度，hw / hd 是半宽 / 半深，hT / hB 是上 / 下蓬松高度。 */
+  /** 枕头：方形网格→超椭圆（圆角矩形）映射的蓬松网格，顶面 + 底面共用一圈边环，
+   *  没有球极接缝。顶视是圆角矩形而非椭圆；中心蓬松、外圈一道窄缝边、四角收捏，
+   *  顶面是低频多方向的自然布纹（不是平行条纹）。
+   *  cy 是枕芯（缝边）高度，hw / hd 是半宽 / 半深，hT / hB 是上 / 下蓬松高度。 */
   function pillow(b, m, x, cy, z, hw, hd, hT, hB, col, seg) {
     const n = seg || 16;
     const surf = (a, bb, top) => {
-      const px = hw * a * Math.sqrt(1 - 0.5 * bb * bb);
-      const pz = hd * bb * Math.sqrt(1 - 0.5 * a * a);
-      const r2 = a * a + bb * bb - a * a * bb * bb;   // 边界上恒为 1
-      const core = smooth01((0.88 - r2) / 0.14);      // 蓬松芯 → 外圈一道窄缝边
-      const dome = Math.pow(Math.max(0, 1 - r2), 0.55) * core;
-      const pinch = 1 - 0.18 * a * a * bb * bb;       // 四角收捏
-      const wr = top ? (0.006 * Math.sin(a * 7 + bb * 2) + 0.005 * Math.sin(bb * 8 + a * 1.5)) * core : 0;
-      const crease = top ? 0.010 * Math.exp(-(pz * pz) / 0.002) * core : 0;
+      const ax = Math.abs(a), az = Math.abs(bb);
+      const mx = Math.max(ax, az);
+      const s = Math.pow(Math.pow(ax, 4) + Math.pow(az, 4), 0.25) || 1e-6;
+      const f = mx / s;                       // 方形网格 → 圆角矩形平面
+      const px = hw * a * f, pz = hd * bb * f;
+      const core = smooth01((0.90 - mx) / 0.10);   // 蓬松芯 → 外圈窄缝边
+      const dome = Math.sqrt(Math.max(0, 1 - mx * mx)) * core;
+      const pinch = 1 - 0.10 * ax * ax * az * az;  // 四角收捏
+      const wr = top ? (0.004 * Math.sin(a * 3.1 + bb * 1.7 + 0.5)
+                      + 0.003 * Math.sin(a * 1.3 - bb * 4.2 + 1.0)
+                      + 0.0025 * Math.sin(a * 5.7 + bb * 2.9)) * core : 0;
+      const crease = top ? 0.008 * Math.exp(-(pz * pz) / 0.003) * core : 0;
       const y = cy + (top ? hT : -hB) * dome * pinch + wr - crease;
       return [x + px, y, z + pz];
     };
@@ -179,18 +184,19 @@ const A3DDecor = (() => {
     }
   }
 
-  /** 被头翻边：搭在被头边上的一道白色折布（不是圆棍），中段微鼓、自由边带波浪、两头收软。 */
+  /** 被头翻边：搭在被头上的一道白色折布（不是圆棍），中段微鼓、自由边是低频软波、
+   *  两端衰减收软，整体压在被面之上，避免和被面相交出锯齿。 */
   function fold(b, m, w, matTop, zHead) {
-    const hw = w / 2 - 0.05, cols = 20, rows = 8;
-    const topY = matTop + 0.055;
+    const hw = w / 2 - 0.05, cols = 24, rows = 10;
+    const topY = matTop + 0.085;
     const P = (u, v) => {
-      const end = smooth01(u / 0.10) * smooth01((1 - u) / 0.10);
-      const wave = 0.010 * Math.sin(u * Math.PI * 3.0 + 0.6) * (0.3 + 0.7 * v);
+      const end = smooth01(u / 0.08) * smooth01((1 - u) / 0.08);
+      const wave = 0.004 * Math.sin(u * Math.PI * 1.5 + 0.4) * v * end;
       const ridge = Math.sin(v * Math.PI);
       const x = -hw + 2 * hw * u;
-      const y = topY + 0.030 * ridge - 0.020 * v * v + wave - 0.012 * (1 - end);
-      const z = zHead + 0.11 - 0.18 * v + 0.006 * Math.sin(u * Math.PI * 2.0);
-      return { p: [x, y, z], k: 0.92 + 0.10 * ridge };
+      const y = topY + 0.024 * ridge - 0.012 * v * v + wave;
+      const z = zHead + 0.15 - 0.20 * v;
+      return { p: [x, y, z], k: 0.94 + 0.08 * ridge };
     };
     const grid = [];
     for (let i = 0; i <= cols; i++) {
