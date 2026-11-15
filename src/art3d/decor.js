@@ -84,6 +84,8 @@ const A3DDecor = (() => {
     const cols = 22, rows = 18;
     const P = (s, v) => {
       let x, y, k;
+      const hemT = s < sL ? s / sL : s > 1 - sL ? (1 - s) / sL : 1;
+      const hem = 0.009 * Math.sin(v * Math.PI * 4.2 + s * 5.0) * (1 - hemT);  // 下摆轻微波浪
       if (s < sL) {                      // 左垂边（t: 0 下摆 → 1 顶沿）
         const t = s / sL;
         x = -(hwB + skirtW * Math.sin((1 - t) * Math.PI / 2));
@@ -110,7 +112,7 @@ const A3DDecor = (() => {
         kk *= 1 - 0.22 * t;
       }
       const crease = (s < sL || s > 1 - sL) ? 0.008 * Math.sin(v * Math.PI * 5.0) : 0;
-      return { p: [x + (x < 0 ? -crease : crease), y, z], k: kk };
+      return { p: [x + (x < 0 ? -crease : crease), y + hem, z], k: kk };
     };
 
     const grid = [];
@@ -138,6 +140,24 @@ const A3DDecor = (() => {
         b._pushQuad(b.count - 4);
       }
     }
+    /* 下摆滚边：沿左垂边 → 床尾 → 右垂边的一道暗色窄包边（取网格边缘一行往内收） */
+    const hemPts = [], hemOff = [];
+    const inward = (outer, inner) => [
+      (inner[0] - outer[0]) * 0.42, (inner[1] - outer[1]) * 0.42, (inner[2] - outer[2]) * 0.42
+    ];
+    for (let j = 0; j <= rows; j++) {
+      const p = grid[0][j].p;
+      hemPts.push(p); hemOff.push(inward(p, grid[1][j].p));
+    }
+    for (let i = 1; i <= cols; i++) {
+      const p = grid[i][rows].p;
+      hemPts.push(p); hemOff.push(inward(p, grid[i][rows - 1].p));
+    }
+    for (let j = rows - 1; j >= 0; j--) {
+      const p = grid[cols][j].p;
+      hemPts.push(p); hemOff.push(inward(p, grid[cols - 1][j].p));
+    }
+    strip(b, m, hemPts, hemOff, [0.72, 0.78, 0.92], false);
   }
 
   /** 枕头：方形网格→超椭圆（圆角矩形）映射的蓬松网格，顶面 + 底面共用一圈边环，
@@ -186,6 +206,26 @@ const A3DDecor = (() => {
         b._pushQuad(b.count - 4);
       }
     }
+    /* 枕套法兰边：沿枕芯一圈向外 4.5cm 的平布边，带轻微波浪；内缘再压一道细缝线 */
+    const edge = [];
+    for (let j = 0; j <= n; j++) edge.push([-1, j / n * 2 - 1]);
+    for (let i = 1; i <= n; i++) edge.push([i / n * 2 - 1, 1]);
+    for (let j = n - 1; j >= 0; j--) edge.push([1, j / n * 2 - 1]);
+    for (let i = n - 1; i >= 1; i--) edge.push([i / n * 2 - 1, -1]);
+    edge.push([-1, -1]);                       // 闭合
+    const rimPts = [], rimOff = [], seamPts = [], seamOff = [];
+    for (const [a, bb] of edge) {
+      const p = surf(a, bb, true);
+      const dx = p[0] - x, dz = p[2] - z;
+      const r = Math.hypot(dx, dz) || 1;
+      const wave = 0.0025 * Math.sin((a + bb) * 8.0);
+      rimPts.push(p);
+      rimOff.push([dx / r * 0.045, -0.005 + wave, dz / r * 0.045]);
+      seamPts.push([p[0] - dx / r * 0.008, p[1] + 0.0012, p[2] - dz / r * 0.008]);
+      seamOff.push([dx / r * 0.008, 0, dz / r * 0.008]);
+    }
+    strip(b, m, rimPts, rimOff, [0.68, 0.71, 0.79], true);
+    strip(b, m, seamPts, seamOff, [0.48, 0.52, 0.62], true);
   }
 
   /** 被头翻边：白色被里折回来的一道低矮软布带，贴着蓬松被面走。
@@ -237,6 +277,14 @@ const A3DDecor = (() => {
       }
       b._pushQuad(b.count - 4);
     }
+    /* 自由边折口：一道 1.8cm 的竖直折面（布是有厚度的，不是纸片）+ 内缘细缝线 */
+    const lipPts = [], lipOff = [], seamP = [], seamO = [];
+    for (let i = 0; i <= cols; i++) {
+      lipPts.push(grid[i][0].p); lipOff.push([0, -0.018, -0.004]);
+      seamP.push(grid[i][1].p); seamO.push([0, 0.0008, 0.010]);
+    }
+    strip(b, m, lipPts, lipOff, [0.60, 0.64, 0.74], false);
+    strip(b, m, seamP, seamO, [0.54, 0.58, 0.68], true);
   }
 
   /** 四角可各自带色的四边形（p0 左下 → p1 右下 → p2 右上 → p3 左上） */
@@ -253,6 +301,66 @@ const A3DDecor = (() => {
       b._v(b.d, m, nm, p[0], p[1], p[2], nx, ny, nz, t[0], t[1], c, 0);
     }
     b._pushQuad(b.count - 4);
+  }
+
+  /** 沿折线生成一条窄带（滚边 / 缝线 / 折口）：pts 是内缘折线，
+   *  offs 是每点对应的带宽向量（已含宽度与方向），flip 取反法线。
+   *  法线用 (折线切线 × 带宽方向) 的叉积，调用方按条带朝向决定 flip。 */
+  function strip(b, m, pts, offs, col, flip) {
+    const nm = M.normalMat(m);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const A = pts[i], B = pts[i + 1], oA = offs[i], oB = offs[i + 1];
+      const P = [A, B,
+        [B[0] + oB[0], B[1] + oB[1], B[2] + oB[2]],
+        [A[0] + oA[0], A[1] + oA[1], A[2] + oA[2]]];
+      const tx = B[0] - A[0], ty = B[1] - A[1], tz = B[2] - A[2];
+      let nx = ty * oA[2] - tz * oA[1],
+          ny = tz * oA[0] - tx * oA[2],
+          nz = tx * oA[1] - ty * oA[0];
+      if (flip) { nx = -nx; ny = -ny; nz = -nz; }
+      const l = Math.hypot(nx, ny, nz) || 1;
+      const U = [[i * 0.4, 0], [(i + 1) * 0.4, 0], [(i + 1) * 0.4, 1], [i * 0.4, 1]];
+      for (let k = 0; k < 4; k++)
+        b._v(b.d, m, nm, P[k][0], P[k][1], P[k][2], nx / l, ny / l, nz / l,
+          U[k][0], U[k][1], col, 0);
+      b._pushQuad(b.count - 4);
+    }
+  }
+
+  /** 竖直软包格：圆角矩形网格，中心朝 +Z 微微鼓起、拉扣处局部凹陷。
+   *  (cx,cy,cz) 是格中心，hw/hh 是半宽 / 半高，depth 是鼓起深度。 */
+  function paddedPanel(b, m, cx, cy, cz, hw, hh, depth, col) {
+    const n = 12;
+    const P = (a, bb) => {
+      const ax = Math.abs(a), az = Math.abs(bb), mx = Math.max(ax, az);
+      const s = Math.pow(Math.pow(ax, 4) + Math.pow(az, 4), 0.25) || 1e-6;
+      const f = mx / s;
+      const dome = Math.pow(Math.max(0, 1 - mx * mx), 0.6);
+      const tuft = Math.exp(-(a * a + bb * bb) / 0.05);   // 拉扣压出的凹点
+      return [cx + hw * a * f, cy + hh * bb * f, cz + depth * (dome - 0.5 * tuft)];
+    };
+    const nm = M.normalMat(m);
+    const grid = [];
+    for (let i = 0; i <= n; i++) {
+      grid[i] = [];
+      for (let j = 0; j <= n; j++) grid[i][j] = P(i / n * 2 - 1, j / n * 2 - 1);
+    }
+    const N = (i, j) => {
+      const a = grid[Math.min(n, i + 1)][j], b0 = grid[Math.max(0, i - 1)][j];
+      const c = grid[i][Math.min(n, j + 1)], d0 = grid[i][Math.max(0, j - 1)];
+      const tx = a[0] - b0[0], ty = a[1] - b0[1], tz = a[2] - b0[2];
+      const ux = c[0] - d0[0], uy = c[1] - d0[1], uz = c[2] - d0[2];
+      let nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      return [-nx / l, -ny / l, -nz / l];       // 取反，法线朝 +Z（面向床尾）
+    };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      for (const [ii, jj] of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+        const p = grid[ii][jj], nn = N(ii, jj);
+        b._v(b.d, m, nm, p[0], p[1], p[2], nn[0], nn[1], nn[2], ii / n * 0.5, jj / n * 0.5, col, 0);
+      }
+      b._pushQuad(b.count - 4);
+    }
   }
 
   /** 水平圆环带（法线朝上），y 是离 m 原点的高度 */
@@ -729,13 +837,17 @@ const A3DDecor = (() => {
     const zHead = -len / 2 + 0.45;       // 被头：床头留出 0.45m 给枕头
     const hbZ = -len / 2 - 0.02;         // 床头板所在 z
 
-    /* 四条金属腿 */
+    /* 四条金属腿 + 脚垫 */
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.09), 0, sz * (len / 2 - 0.12)),
-        0.03, 0.024, legH, 8, C.metalDark, true);
+      const lx = sx * (w / 2 - 0.09), lz = sz * (len / 2 - 0.12);
+      bWood.cyl.call(bWood, at(m, lx, 0, lz), 0.03, 0.024, legH, 8, C.metalDark, true);
+      bWood.cyl.call(bWood, at(m, lx, 0, lz), 0.037, 0.037, 0.012, 10, C.metal, true);
     }
-    /* 白漆床架 + 低床尾板（被子能搭过去） */
+    /* 白漆床架 + 低床尾板（被子能搭过去）+ 两侧一道凹槽线 */
     G.box.call(bSheet, at(m, 0, legH + frameT / 2, 0), w, frameT, len, C.fabricLit, 1.4);
+    for (const sz of [-1, 1])
+      G.box.call(bSheet, at(m, 0, 0.178, sz * (len / 2 + 0.002)),
+        w - 0.07, 0.010, 0.004, [0.58, 0.62, 0.70], 1.0);
     G.box.call(bSheet, at(m, 0, 0.24, len / 2), w, 0.18, 0.05, C.fabricLit, 1.5);
     /* 床垫 */
     G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
@@ -746,19 +858,22 @@ const A3DDecor = (() => {
     /* 一个枕头：扁而宽的白色软枕，居中靠床头，缝边略微埋进床单、不露深色底圈 */
     pillow(bSheet, m, 0, matTop - 0.005, -len / 2 + 0.29, w * 0.40, 0.17, 0.075, 0.05, C.rim, 20);
 
-    /* 床头软包：三格浅蓝亚麻 + 上缘圆滚边；立柱挪到床架外侧，不再穿过床垫 */
-    const padBot = 0.30, padTop = 0.86, padH = padTop - padBot;
-    G.box.call(bFabric, at(m, 0, (padBot + padTop) / 2, hbZ),
-      w - 0.04, padH, 0.07, [1.22, 1.28, 1.42], 1.6);
-    for (const sx of [-1, 1]) {          // 两道绗缝凹线，分出三格
-      G.box.call(bFabric, at(m, sx * w / 6, (padBot + padTop) / 2, hbZ + 0.037),
-        0.008, padH - 0.05, 0.004, [0.52, 0.58, 0.70], 1.0);
+    /* 床头软包：三格圆角矩形软包（中心拉扣凹点）+ 底板格缝 + 上缘圆滚边 */
+    const padBot = 0.30, padTop = 0.86, padH = padTop - padBot, padMid = (padBot + padTop) / 2;
+    G.box.call(bFabric, at(m, 0, padMid, hbZ), w - 0.04, padH, 0.055, [0.78, 0.84, 0.96], 1.6);
+    for (let k = -1; k <= 1; k++) {
+      const cx = k * w / 3;
+      paddedPanel(bFabric, m, cx, padMid, hbZ + 0.030,
+        w / 6 - 0.012, padH / 2 - 0.026, 0.018, [1.16, 1.22, 1.36]);
+      bSheet.sphere.call(bSheet, at(m, cx, padMid, hbZ + 0.039), 0.009, 8, 5, [0.50, 0.56, 0.68]);
     }
     bFabric.cyl.call(bFabric, at(m, -(w / 2 - 0.01), padTop, hbZ, 0, 0, -Math.PI / 2),
       0.03, 0.03, w - 0.02, 10, [1.22, 1.28, 1.42], true);
     for (const sx of [-1, 1]) {
-      bSheet.cyl.call(bSheet, at(m, sx * (w / 2 + 0.018), 0, hbZ), 0.032, 0.028, 0.98, 8, C.fabricLit, true);
-      bWood.sphere.call(bWood, at(m, sx * (w / 2 + 0.018), 1.0, hbZ), 0.033, 8, 5, C.metalLit);
+      const px = sx * (w / 2 + 0.018);
+      bSheet.cyl.call(bSheet, at(m, px, 0, hbZ), 0.032, 0.028, 0.98, 8, C.fabricLit, true);
+      bSheet.torus.call(bSheet, at(m, px, 0.965, hbZ), 0.034, 0.006, 10, 5, C.metalLit);
+      bWood.sphere.call(bWood, at(m, px, 1.0, hbZ), 0.033, 8, 5, C.metalLit);
     }
   }
 
