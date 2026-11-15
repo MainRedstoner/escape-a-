@@ -184,27 +184,27 @@ const A3DDecor = (() => {
     }
   }
 
-  /** 被头翻边：搭在被头上的一道白色折布，按真软布建——圆润卷折截面、自由边软扇贝波
-   *  并末端微卷、两端搭过床侧自然垂下（不直切）、细布纹、柔和明暗；网格加密让轮廓顺滑。
-   *  后沿掖进被面、前沿垂到床垫上，z 随 v 单调，无自交碎片。 */
+  /** 被头翻边：搭在被面上的一道低矮白色折布（近乎平躺，只有约 2cm 轻卷），
+   *  自由边软扇贝波 + 末端微卷、两端轻微垂下（不直切也不挂大 flap）、细布纹、柔和明暗；
+   *  网格加密让轮廓顺滑。整道压在蓬松被面之上，前沿搭过被头边，z 随 v 单调无自交。 */
   function fold(b, m, w, matTop, zHead) {
     const hw = w / 2 - 0.03, cols = 48, rows = 18;
-    const baseY = matTop + 0.05;
+    const baseY = matTop + 0.085;
     const P = (u, v) => {
       const end = smooth01(u / 0.06) * smooth01((1 - u) / 0.06);   // 中段 1、两端 0
       const droop = 1 - end;
-      const x = (-hw + 2 * hw * u) * (1 - 0.05 * droop);           // 两端往内收
-      const roll = Math.sin(Math.min(1, v / 0.82) * Math.PI);      // 卷峰在 v≈0.4
-      const crest = 0.052 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
-      const freeDrape = 0.034 * smooth01((v - 0.55) / 0.45);       // 自由边下垂
-      const curl = 0.016 * smooth01((v - 0.86) / 0.14);            // 末端往下卷
-      const scallop = 0.011 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((v - 0.45) / 0.55) * end;
-      const wr = (0.0035 * Math.sin(u * 7.0 + v * 3.1)
-                + 0.0028 * Math.sin(u * 4.3 - v * 5.2 + 1.0)
-                + 0.0020 * Math.sin(u * 11.0 + v * 1.7 + 0.5)) * (0.4 + 0.6 * end);
-      const y = baseY + crest - freeDrape - curl + scallop + wr - 0.055 * droop;
-      const z = zHead + 0.15 - 0.22 * v + 0.008 * Math.sin(u * Math.PI * 1.5) * v;
-      const k = 0.93 + 0.11 * roll - 0.05 * smooth01((v - 0.6) / 0.4) + 0.025 * Math.sin(u * 6.0 + v * 2.0);
+      const x = (-hw + 2 * hw * u) * (1 - 0.04 * droop);           // 两端往内收
+      const roll = Math.sin(Math.min(1, v / 0.9) * Math.PI);       // 低卷峰在 v≈0.45
+      const crest = 0.020 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
+      const frontDrape = 0.022 * smooth01((v - 0.75) / 0.25);      // 前沿搭过被头边
+      const curl = 0.006 * smooth01((v - 0.90) / 0.10);            // 末端微卷
+      const scallop = 0.006 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((v - 0.5) / 0.5) * end;
+      const wr = (0.0022 * Math.sin(u * 7.0 + v * 3.1)
+                + 0.0018 * Math.sin(u * 4.3 - v * 5.2 + 1.0)
+                + 0.0013 * Math.sin(u * 11.0 + v * 1.7 + 0.5)) * (0.4 + 0.6 * end);
+      const y = baseY + crest - frontDrape - curl + scallop + wr - 0.018 * droop;
+      const z = zHead + 0.20 - 0.18 * v + 0.006 * Math.sin(u * Math.PI * 1.5) * v;
+      const k = 0.94 + 0.08 * roll - 0.04 * smooth01((v - 0.7) / 0.3) + 0.02 * Math.sin(u * 6.0 + v * 2.0);
       return { p: [x, y, z], k };
     };
     const grid = [];
