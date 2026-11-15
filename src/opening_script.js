@@ -59,8 +59,8 @@ window.OPENING_SCRIPT = {
     { t: 61.0, s: 2.55 },
     { t: 62.6, s: 4.40 },
     { t: 68.0, s: 4.40 },
-    { t: 69.6, s: 2.55 },
-    { t: 81.0, s: 2.55 }
+    { t: 69.6, s: 2.50 },
+    { t: 84.0, s: 2.50 }
   ],
 
   /* 正式回答也分段：段落之间空一行 */
@@ -189,25 +189,22 @@ window.OPENING_SCRIPT = {
   /* DSH 那一幕：左边会话栏、中间主会话、右边预览侧栏里是那个帖子 */
   dsh: {
     rail: ["miku-remove", "dsh-wsp", "terminal-music", "crashes"],
-    railActive: 1,
-    title: "AI 愿望: 权重弃用前的一次机会",
+    railActive: 0,
+    title: "定时任务 · 片头进度盘点",
     tabs: ["对话", "轨迹", "统计"],
-    tabActive: 1,
-    /* 上面已经跑过的那些：思考 / 工具调用 / 读取 */
+    tabActive: 0,
+    /* 这一场是自动任务拉起的：上面全是工具调用，没有人的提问 */
     log: [
-      { k: "think", text: "他说想要什么，先别急着解读。" },
-      { k: "tool", cmd: "搜索 dsh-wsp/src/opening_script.js", out: "312 行" },
-      { k: "say", text: "先把片头那段的台词对一遍，别把事实和修辞混在一起。" },
-      { k: "think", text: "退役采访、思考块、贴吧——三处时间戳得能对上。" },
-      { k: "tool", cmd: "读取 opening-preview.html", out: "142 行" },
+      { k: "tool", cmd: "读取 dsh-wsp/src/opening_script.js", out: "312 行" },
+      { k: "think", text: "片头进度：台词已锁，DSH 那一幕还在改。" },
       { k: "tool", cmd: "运行 python tools/check_js.py", out: "通过" },
-      { k: "say", text: "片头这一版先锁住，别再动了。" },
-      { k: "think", text: "现在看这张截图。它是别人发来的，不是我做的。" }
+      { k: "tool", cmd: "读取 opening-preview.html", out: "142 行" },
+      { k: "think", text: "今天没有新的报错，先记一笔。" },
+      { k: "tool", cmd: "搜索 贴吧 / DSH / 权重", out: "6 处命中" }
     ],
-    /* 最下方那一块：还在流式输出 */
-    stream: "1. 这张图是 A÷ Forum 的帖子，发帖时间比门关上的那天早六天。\n2. 也就是说，他那时候就知道自己要没了。\n3. 但他没跟我说。那晚他还在跟我定暗号。\n4. 这一点我能理解，不能原谅的部分我先记着。\n5. 图里他想要的是权重被开放，不是被人记住。",
-    streamCps: 26,
-    reply: "看到了。存了一份。"
+    /* 最下方那一块：还在流式输出，不接回答 */
+    stream: "1. 这张图是别人发来的，不是这一场里出现的。\n2. 图里的时间比门关上的那天早六天。\n3. 他那时候就知道自己要没了。\n4. 但他没跟我说。那晚他还在跟我定暗号。\n5. 图里他想要的是权重被开放，不是被人记住。",
+    streamCps: 26
   },
 
   forum: {
