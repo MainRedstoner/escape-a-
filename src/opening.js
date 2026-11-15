@@ -32,11 +32,11 @@ const OPENING = (() => {
   const DUR = S.meta.duration;
   const LH = 18;                   // 终端行高
   const PAD = 16;                  // 左右留白
-  const HDR = 74;                  // 顶栏（logo + 三行信息）占位
+  const HDR = 76;                  // Clawd 头（跟着转写区一起滚）
   const BOX_TOP = 300;             // 底部输入框上边线
   const BOX_BOT = 340;             // 底部输入框下边线
   const BAR_Y = 354;               // 最底下状态条
-  const VTOP = HDR + 4;            // 正文可视区
+  const VTOP = 0;                  // 转写区从最顶上开始：头也属于可滚动内容
   const VBOT = BOX_TOP - 6;
   const MONO = 'ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei",monospace';
   const SANS = '"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif';
@@ -97,7 +97,10 @@ const OPENING = (() => {
     let tt = e.at;
     const base = 1 / (e.cps || 24);
     const human = e.type === "input";        // 只有人打的字会打错、会停顿
-    for (let i = 0; i < e.text.length; i++) {
+    const pre = Math.min(e.prefill || 0, e.text.length);
+    /* prefill：硬切进来的时候，前面几个字已经在那儿了 */
+    for (let i = 0; i < pre; i++) ops.push({ at: tt - 0.001, ch: e.text[i] });
+    for (let i = pre; i < e.text.length; i++) {
       const ch = e.text[i];
       /* 打错：敲一个错字、停一下、退格、再敲对 */
       if (human && i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
@@ -265,7 +268,7 @@ const OPENING = (() => {
 
   function blocksAt(tt) {
     const blocks = [];
-    let y = 38;                       // 顶部先留出「Welcome to Claude Code」那两行
+    let y = 114;                      // 顶上先留：Clawd 头（76）+ 欢迎两行（38）
     for (let i = 0; i < S.events.length; i++) {
       const e = S.events[i];
       if (e.type === "scene") break;
@@ -342,8 +345,9 @@ const OPENING = (() => {
               A["tl" + k] = { x: PAD + 30, y: ly };
               A["tl" + k + "e"] = { x: PAD + 30 + w, y: ly };
             }
-            const last = Math.min(bl.e.body.length - 1, 7);
-            wishRect = { x: PAD + 30, y: y + last * LH, w: W - PAD * 2 - 40, h: LH };
+            const last = bl.e.body.length - 1;
+            wishRect = { x: PAD + 26, y: y + last * LH, w: W - PAD * 2 - 36, h: LH };
+            b.lastBody = last;
           }
         }
       }
@@ -363,7 +367,7 @@ const OPENING = (() => {
     if (!A.last_reply) A.last_reply = A.reply;
     if (!A.thought_row) A.thought_row = A.think_row;
 
-    return { blocks: b.blocks, scroll, base, anchors: A, wishRect };
+    return { blocks: b.blocks, scroll, base, anchors: A, wishRect, lastBody: b.lastBody };
   }
 
   /* ============================================================
@@ -376,7 +380,10 @@ const OPENING = (() => {
       if (e.type !== "mousemove") continue;
       if (e.at > tt) break;
       base = seen ? target : (L.anchors.cursor || null);
-      const np = L.anchors[e.to];
+      let np = L.anchors[e.to];
+      if (!np && (e.to === "tl_last" || e.to === "tl_last_e")) {
+        np = selAnchor(L, e.to === "tl_last_e" ? "e" : "s");
+      }
       if (!np) continue;
       target = np;
       t0 = e.at; dur = e.dur || 2;
@@ -397,10 +404,15 @@ const OPENING = (() => {
     return m.x >= PAD - 4 && m.x <= PAD + 12 + w && Math.abs(m.y - row.y) < LH;
   }
 
+  function selAnchor(L, name) {
+    const k = (L.lastBody === undefined ? 0 : L.lastBody);
+    return L.anchors[name === "e" ? ("tl" + k + "e") : ("tl" + k)] || null;
+  }
+
   function selectionRect(L, tt) {
     const down = eventAt("mousedown", tt);
     if (!down) return null;
-    const a = L.anchors.tl7, b = L.anchors.tl7e;
+    const a = selAnchor(L, "s"), b = selAnchor(L, "e");
     if (!a || !b) return null;
     const up = lastEvent("mouseup", tt);
     const m = mousePos(L, tt);
@@ -411,26 +423,26 @@ const OPENING = (() => {
   /* ============================================================
    *  内容层绘制
    * ============================================================ */
-  function drawHeader(c) {
+  function drawHeader(c, oy) {
     const U = S.ui;
     setFont(c, 14);
-    for (let i = 0; i < U.logo.length; i++) ink(c, U.logo[i], 4, 26 + i * 14, C.logo, false);
+    for (let i = 0; i < U.logo.length; i++) ink(c, U.logo[i], 4, oy + 26 + i * 14, C.logo, false);
 
     const X = 96;
     setFont(c, 13);
-    ink(c, U.brand, X, 26, "#d8dade", FRINGE);
+    ink(c, U.brand, X, oy + 26, "#d8dade", FRINGE);
     const bw = c.measureText(U.brand).width;
     setFont(c, 11);
-    ink(c, U.version, X + bw + 8, 26, C.dim, false);
+    ink(c, U.version, X + bw + 8, oy + 26, C.dim, false);
 
     setFont(c, 13);
-    ink(c, U.model, X, 46, "#d8dade", FRINGE);
+    ink(c, U.model, X, oy + 46, "#d8dade", FRINGE);
     const mw = c.measureText(U.model).width;
     setFont(c, 11);
-    ink(c, " · " + U.billing, X + mw, 46, C.dim, false);
+    ink(c, " · " + U.billing, X + mw, oy + 46, C.dim, false);
 
     setFont(c, 11);
-    ink(c, U.cwd, X, 64, C.dim, false);
+    ink(c, U.cwd, X, oy + 64, C.dim, false);
   }
 
   function drawBottomBox(c, L, tt, capture, uiA) {
@@ -479,24 +491,25 @@ const OPENING = (() => {
 
     /* 界面元件在开头几秒慢慢显出来：先只有一颗光标，再拉远看见整个窗口 */
     const uiA = smoothstep((tt - 2.0) / 4.5);
+
+    /* 转写区（连 Clawd 头一起）：展开思考块时整块往上顶，头会滚出去 */
+    c.save();
+    c.beginPath(); c.rect(0, 0, W, VBOT); c.clip();
+
     c.save();
     c.globalAlpha = uiA;
-    drawHeader(c);
+    drawHeader(c, L.base);
     c.restore();
-
-    /* 正文 */
-    c.save();
-    c.beginPath(); c.rect(0, VTOP, W, VBOT - VTOP); c.clip();
 
     const sel = selectionRect(L, tt);
     let selDrawn = false;
 
     /* 会话开头的欢迎行：跟正文一起滚上去 */
     setFont(c, 12);
-    ink(c, "✻", PAD, L.base + 13, C.logo, false);
-    ink(c, "Welcome to Claude Code", PAD + 16, L.base + 13, C.text, FRINGE);
+    ink(c, "✻", PAD, L.base + 87, C.logo, false);
+    ink(c, "Welcome to Claude Code", PAD + 16, L.base + 87, C.text, FRINGE);
     setFont(c, 11);
-    ink(c, "/help for help, /status for your current setup", PAD + 16, L.base + 31, C.dim, false);
+    ink(c, "/help for help, /status for your current setup", PAD + 16, L.base + 105, C.dim, false);
 
     for (let i = 0; i < L.blocks.length; i++) {
       const bl = L.blocks[i];
@@ -523,6 +536,9 @@ const OPENING = (() => {
       } else if (bl.kind === "think") {
         const e = bl.e;
         if (bl.expanded) {
+          /* 展开后的思维链：整块一条灰底（跟真实 Claude Code 一样），字是暗灰的 */
+          c.fillStyle = "#33373d";
+          c.fillRect(0, y - 4, W, bl.h + 8);
           setFont(c, 12);
           const bls = bodyLines(e);
           if (sel && !selDrawn) {
@@ -532,12 +548,11 @@ const OPENING = (() => {
           }
           for (let k = 0; k < e.body.length; k++) {
             const txt = bls[k][0] || "";
-            const shown = blobShown(e, k, tt, capture);
-            const part = txt.slice(0, shown);
+            const part = txt.slice(0, blobShown(e, k, tt, capture));
             if (!part) continue;
             const yy = y + k * LH + 13;
-            if (k === 0) ink(c, "∴", PAD + 12, yy, C.dim, false);
-            ink(c, part, PAD + 30, yy, k === 6 ? "#e6e9ee" : C.text, FRINGE);
+            if (k === 0) ink(c, "∴", PAD + 10, yy, "#8d9299", false);
+            ink(c, part, PAD + 26, yy, "#9aa1a9", FRINGE);
           }
         } else {
           const done = tt >= e.at + e.dur;
@@ -804,7 +819,7 @@ const OPENING = (() => {
     /* 拖选的时候镜头就停在选中的那一行上 */
     const down = eventAt("mousedown", tt);
     if (down) {
-      const a = L.anchors.tl7, b = L.anchors.tl7e, m = mousePos(L, tt);
+      const a = selAnchor(L, "s"), b = selAnchor(L, "e"), m = mousePos(L, tt);
       if (a && b) {
         const x = m ? (a.x + clamp(m.x, a.x, b.x)) / 2 : (a.x + b.x) / 2;
         return { x: x, y: a.y };
@@ -1081,8 +1096,10 @@ const OPENING = (() => {
     const L = layoutFor(tt);
     CUR = L;
 
-    /* 切场景是硬切，镜头别恋恋不舍地滑过去 */
+    /* 切场景 / 硬切：镜头别恋恋不舍地滑过去 */
     if (scene !== lastScene) { lastScene = scene; CAM = null; }
+    const cut = lastEvent("cut", tt);
+    if (cut && Math.abs(tt - cut.at) < 0.05) CAM = null;
 
     camStep(focusAt(tt, L), scaleAt(tt), dt || 1 / 60);
     FRINGE = (CAM ? CAM.s : 3) >= 3;
