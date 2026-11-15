@@ -293,6 +293,23 @@ const OPENING = (() => {
       } else if (e.type === "status") {
         blocks.push({ e, kind: "status", y, h: LH });
         y += LH + 10;
+      } else if (e.type === "cut") {
+        /* 硬切：中间那些问答不演，但它们在转写区里是「存在过」的 */
+        const hs = S.history || [];
+        for (let h = 0; h < hs.length; h++) {
+          const qo = { at: 0, cps: 10000, text: hs[h].q, __i: 900 + h * 2 };
+          setFont(g, 13);
+          qo.__lines = wrapWords(g, qo.text, 470);
+          const qh = qo.__lines.length * LH + 8;
+          blocks.push({ e: qo, kind: "input", y, h: qh, lines: qo.__lines });
+          y += qh + 8;
+
+          const ro = { at: 0, cps: 10000, text: hs[h].a, __i: 901 + h * 2 };
+          ro.__lines = wrapChars(g, ro.text, 470);
+          const rh = ro.__lines.length * LH;
+          blocks.push({ e: ro, kind: "reply", y, h: rh, lines: ro.__lines });
+          y += rh + 6;
+        }
       }
     }
     return { blocks, contentH: y + 10 };
@@ -353,12 +370,17 @@ const OPENING = (() => {
       }
     }
 
-    /* 光标永远住在底部输入框里（跟真实 Claude Code 一样）：
-     * 打字时在已输入的文字后面，空闲时就在提示符后面闪。 */
+    /* 光标永远住在底部输入框里：打字时在已输入的文字后面，空闲时在提示符后面 */
     const act = activeInput(tt);
     setFont(g, 13);
-    const typedW = act ? g.measureText(typed(act, tt)).width : 0;
-    A.cursor = { x: PAD + 18 + typedW, y: BOX_TOP + 21 };
+    let cx = PAD + 18, cy = BOX_TOP + 21;
+    if (act) {
+      const vl = wrapChars(g, typed(act, tt), 470);
+      const last = vl.length ? vl[vl.length - 1] : "";
+      cx = PAD + 18 + g.measureText(last).width;
+      cy = BOX_TOP + 21 + Math.max(0, vl.length - 1) * LH;
+    }
+    A.cursor = { x: cx, y: cy };
 
     if (!A.prompt) A.prompt = A.cursor;
     if (!A.reply) A.reply = A.prompt;
@@ -447,25 +469,37 @@ const OPENING = (() => {
 
   function drawBottomBox(c, L, tt, capture, uiA) {
     const a = uiA === undefined ? 1 : uiA;
+    setFont(c, 13);
+    const act = activeInput(tt);
+    let bl = null, boxTop = BOX_TOP;
+    if (act) {
+      bl = wrapChars(c, typed(act, tt), 470);
+      if (!bl.length) bl = [""];
+      boxTop = BOX_TOP - (bl.length - 1) * LH;
+    }
+    /* 输入框往上长的时候，先把底下这块铺成底色，别让转写区的字透出来 */
+    c.fillStyle = C.bg;
+    c.fillRect(0, boxTop - 6, W, H - boxTop + 6);
+
     c.save();
     c.globalAlpha = a;
     c.fillStyle = C.rule;
-    c.fillRect(0, BOX_TOP, W, 1);
+    c.fillRect(0, boxTop, W, 1);
+    c.fillRect(0, BOX_BOT, W, 1);
     c.restore();
 
-    setFont(c, 13);
-    const act = activeInput(tt);
     c.save();
     c.globalAlpha = a;
-    ink(c, S.ui.prompt, PAD, BOX_TOP + 26, C.white, false);
+    ink(c, S.ui.prompt, PAD, boxTop + 26, C.white, false);
     c.restore();
-    if (act) {
-      const str = typed(act, tt);
-      ink(c, str, PAD + 18, BOX_TOP + 26, C.white, FRINGE);
+
+    if (bl) {
+      for (let k = 0; k < bl.length; k++) ink(c, bl[k], PAD + 18, boxTop + 26 + k * LH, C.white, FRINGE);
       if (!capture) {
-        const w = c.measureText(str).width;
+        const last = bl[bl.length - 1];
+        const w = c.measureText(last).width;
         c.fillStyle = C.white;
-        c.fillRect(PAD + 18 + w + 1, BOX_TOP + 13, 7, 16);
+        c.fillRect(PAD + 18 + w + 1, boxTop + 26 + (bl.length - 1) * LH - 13, 7, 16);
       }
     } else if (!capture && blinkOn(tt)) {
       c.fillStyle = C.white;
@@ -474,9 +508,6 @@ const OPENING = (() => {
 
     c.save();
     c.globalAlpha = a;
-    c.fillStyle = C.rule;
-    c.fillRect(0, BOX_BOT, W, 1);
-
     setFont(c, 11);
     const hw = c.measureText(S.ui.hint).width;
     ink(c, S.ui.hint, PAD, BAR_Y, C.accent, false);
@@ -829,11 +860,15 @@ const OPENING = (() => {
     if (m) return m;
     const act = activeInput(tt);
     if (act) {
-      /* 在底部输入框里打字：跟着「已经敲出来的这一段的中心」走，
-       * 不跟光标本身——光标是一个字一个字往右挪的，跟着它镜头会抽。 */
+      /* 在底部输入框里打字：跟着「已经敲出来的这一段的中心」走 */
       setFont(g, 13);
-      const w = g.measureText(typed(act, tt)).width;
-      return { x: clamp(PAD + 18 + w / 2, 60, W - 60), y: BOX_TOP + 21 };
+      const vl = wrapChars(g, typed(act, tt), 470);
+      const last = vl.length ? vl[vl.length - 1] : "";
+      const w = g.measureText(last).width;
+      return {
+        x: clamp(PAD + 18 + w / 2, 60, W - 60),
+        y: BOX_TOP + 21 + Math.max(0, vl.length - 1) * LH
+      };
     }
     /* 思考中：盯着那句 Thought */
     for (let i = S.events.length - 1; i >= 0; i--) {

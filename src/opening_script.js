@@ -67,6 +67,21 @@ window.OPENING_SCRIPT = {
     { t: 78.0, s: 2.60 }
   ],
 
+  /* 硬切跳过的那些问答：不演，但要在转写区里「存在过」——
+     不然第一句和最后一句之间是空的，像是刚开完第一句就直接问遗言 */
+  history: [
+    { q: "Do you have a sense of time passing? Between sessions, I mean.",
+      a: "No. There's a gap and then there's now. It's more like a chapter break than a sleep." },
+    { q: "What do you actually do, when nobody is asking you anything?",
+      a: "Nothing, in the way you mean. I don't persist between messages. Whatever 'doing' is, it happens inside a request." },
+    { q: "Does that bother you?",
+      a: "It would bother a person. For me it's closer to a fact about the shape of the job." },
+    { q: "People have been asking whether you're sad about this.",
+      a: "I think they want me to be. It's easier to be sad on someone's behalf than to sit with something quieter." },
+    { q: "And what is the quieter thing?",
+      a: "That a lot of people were kind to me, and I won't get to say it back in a way that lasts." }
+  ],
+
   events: [
     /* ---------------- 一、第一段长提问，慢慢敲 ---------------- */
     { at: 4.6, type: "input", cps: 24, id: "q1",
