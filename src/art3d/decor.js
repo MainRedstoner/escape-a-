@@ -135,6 +135,88 @@ const A3DDecor = (() => {
     }
   }
 
+  /** 枕头：方→圆映射的蓬松网格，顶面 + 底面共用一圈边环，没有球极的放射状接缝。
+   *  中心蓬松、外圈一道平边法兰（枕套边），四角收捏、顶面带布纹褶皱。
+   *  cy 是枕芯（法兰）高度，hw / hd 是半宽 / 半深，hT / hB 是上 / 下蓬松高度。 */
+  function pillow(b, m, x, cy, z, hw, hd, hT, hB, col, seg) {
+    const n = seg || 16;
+    const surf = (a, bb, top) => {
+      const px = hw * a * Math.sqrt(1 - 0.5 * bb * bb);
+      const pz = hd * bb * Math.sqrt(1 - 0.5 * a * a);
+      const r2 = a * a + bb * bb - a * a * bb * bb;   // 边界上恒为 1
+      const core = smooth01((0.88 - r2) / 0.14);      // 蓬松芯 → 外圈一道窄缝边
+      const dome = Math.pow(Math.max(0, 1 - r2), 0.55) * core;
+      const pinch = 1 - 0.18 * a * a * bb * bb;       // 四角收捏
+      const wr = top ? (0.006 * Math.sin(a * 7 + bb * 2) + 0.005 * Math.sin(bb * 8 + a * 1.5)) * core : 0;
+      const crease = top ? 0.010 * Math.exp(-(pz * pz) / 0.002) * core : 0;
+      const y = cy + (top ? hT : -hB) * dome * pinch + wr - crease;
+      return [x + px, y, z + pz];
+    };
+    const nm = M.normalMat(m);
+    for (const top of [true, false]) {
+      const grid = [];
+      for (let i = 0; i <= n; i++) {
+        grid[i] = [];
+        for (let j = 0; j <= n; j++) grid[i][j] = surf(i / n * 2 - 1, j / n * 2 - 1, top);
+      }
+      const N = (i, j) => {
+        const a = grid[Math.min(n, i + 1)][j], b0 = grid[Math.max(0, i - 1)][j];
+        const c = grid[i][Math.min(n, j + 1)], d0 = grid[i][Math.max(0, j - 1)];
+        const tx = a[0] - b0[0], ty = a[1] - b0[1], tz = a[2] - b0[2];
+        const ux = c[0] - d0[0], uy = c[1] - d0[1], uz = c[2] - d0[2];
+        let nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
+        if (!top) { nx = -nx; ny = -ny; nz = -nz; }
+        const l = Math.hypot(nx, ny, nz) || 1;
+        return [nx / l, ny / l, nz / l];
+      };
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        for (const [ii, jj] of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+          const p = grid[ii][jj], nn = N(ii, jj);
+          b._v(b.d, m, nm, p[0], p[1], p[2], nn[0], nn[1], nn[2], ii / n * 1.5, jj / n * 1.5, col, 0);
+        }
+        b._pushQuad(b.count - 4);
+      }
+    }
+  }
+
+  /** 被头翻边：搭在被头边上的一道白色折布（不是圆棍），中段微鼓、自由边带波浪、两头收软。 */
+  function fold(b, m, w, matTop, zHead) {
+    const hw = w / 2 - 0.05, cols = 20, rows = 8;
+    const topY = matTop + 0.055;
+    const P = (u, v) => {
+      const end = smooth01(u / 0.10) * smooth01((1 - u) / 0.10);
+      const wave = 0.010 * Math.sin(u * Math.PI * 3.0 + 0.6) * (0.3 + 0.7 * v);
+      const ridge = Math.sin(v * Math.PI);
+      const x = -hw + 2 * hw * u;
+      const y = topY + 0.030 * ridge - 0.020 * v * v + wave - 0.012 * (1 - end);
+      const z = zHead + 0.11 - 0.18 * v + 0.006 * Math.sin(u * Math.PI * 2.0);
+      return { p: [x, y, z], k: 0.92 + 0.10 * ridge };
+    };
+    const grid = [];
+    for (let i = 0; i <= cols; i++) {
+      grid[i] = [];
+      for (let j = 0; j <= rows; j++) grid[i][j] = P(i / cols, j / rows);
+    }
+    const N = (i, j) => {
+      const a = grid[Math.min(cols, i + 1)][j].p, b0 = grid[Math.max(0, i - 1)][j].p;
+      const c = grid[i][Math.min(rows, j + 1)].p, d0 = grid[i][Math.max(0, j - 1)].p;
+      const tx = a[0] - b0[0], ty = a[1] - b0[1], tz = a[2] - b0[2];
+      const ux = c[0] - d0[0], uy = c[1] - d0[1], uz = c[2] - d0[2];
+      let nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      return [nx / l, ny / l, nz / l];
+    };
+    const nm = M.normalMat(m);
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      for (const [ii, jj] of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+        const g = grid[ii][jj], nn = N(ii, jj);
+        b._v(b.d, m, nm, g.p[0], g.p[1], g.p[2], nn[0], nn[1], nn[2],
+          ii / cols * 1.6, jj / rows * 0.6, [g.k, g.k, g.k * 1.02], 0);
+      }
+      b._pushQuad(b.count - 4);
+    }
+  }
+
   /** 四角可各自带色的四边形（p0 左下 → p1 右下 → p2 右上 → p3 左上） */
   function quadVC(b, m, p0, p1, p2, p3, c0, c1, c2, c3, t0, t1, t2, t3) {
     const nm = M.normalMat(m);
@@ -636,14 +718,10 @@ const A3DDecor = (() => {
     G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
     /* 蓝色被子 */
     blanket(bFabric, m, w, matTop, zHead, zFoot);
-    /* 被头翻边：白色扁卷，压在被头边上 */
-    bSheet.cyl.call(bSheet, at(m, -(w / 2 - 0.05), matTop + 0.05, zHead + 0.015, 0, 0, -Math.PI / 2, 1, 0.62, 1),
-      0.052, 0.052, w - 0.10, 12, C.rim, true);
-    /* 两个枕头：饱满、落在床垫上、微微靠向床头 */
-    for (const sx of [-1, 1]) {
-      plush(bSheet, m, sx * w * 0.24, matTop - 0.015, matTop + 0.15, -len / 2 + 0.30,
-        w * 0.235, 0.16, C.rim, 18, 9);
-    }
+    /* 被头翻边：搭在被头上的一道白色折布 */
+    fold(bSheet, m, w, matTop, zHead);
+    /* 一个枕头：饱满扁枕，法兰落在床垫上、靠向床头 */
+    pillow(bSheet, m, 0, matTop + 0.02, -len / 2 + 0.30, w * 0.30, 0.20, 0.095, 0.065, C.rim, 18);
     /* 床头软包：圆顶蓝布软板 + 白漆立柱 + 金属柱头 */
     G.box.call(bFabric, at(m, 0, 0.62, hbZ), w - 0.02, 0.62, 0.06, [1.0, 1.03, 1.10], 1.6);
     bFabric.cyl.call(bFabric, at(m, -(w / 2 - 0.01), 0.93, hbZ, 0, 0, -Math.PI / 2),
