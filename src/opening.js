@@ -74,6 +74,7 @@ const OPENING = (() => {
 
   /* ---------------- 状态 ---------------- */
   let cv = null, ctx = null;
+  const Q = 2;                 // 内容画布的超采样倍数
   let content = null, g = null;
   let shot = null, shotCtx = null, shotLow = null, shotLowCtx = null;
   let shotWish = null;
@@ -740,7 +741,7 @@ const OPENING = (() => {
     const out = [];
     for (let i = 0; i < S.events.length; i++) {
       const e = S.events[i];
-      if (e.type === "freply" && e.at <= tt) out.push(e);
+      if (e.type === "freply") out.push(e);
     }
     return out;
   }
@@ -878,13 +879,15 @@ const OPENING = (() => {
   function renderForumBuf() {
     if (!fbuf) {
       fbuf = document.createElement("canvas");
-      fbuf.width = W; fbuf.height = H;
+      fbuf.width = W * Q; fbuf.height = H * Q;
       fctx = fbuf.getContext("2d");
     }
     ensureShot();
     const L = layoutForum(BUFT);
-    fctx.setTransform(1, 0, 0, 1, 0, 0);
+    fctx.setTransform(Q, 0, 0, Q, 0, 0);
+    fctx.clearRect(0, 0, W, H);
     drawThreadPage(fctx, L, BUFT);
+    fctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   function dshPan(tt) {
@@ -973,7 +976,7 @@ const OPENING = (() => {
     c.beginPath(); c.rect(PANEL_X + 1, 17, PANEL_W - 1, H - 17); c.clip();
     const sc = 0.85;
     c.imageSmoothingEnabled = false;
-    c.drawImage(fbuf, 0, L.pan / sc, W, (H - 17) / sc,
+    c.drawImage(fbuf, 0, (L.pan / sc) * Q, W * Q, ((H - 17) / sc) * Q,
       PANEL_X + 1, 17, W * sc, (H - 17));
     c.restore();
 
@@ -1432,6 +1435,7 @@ const OPENING = (() => {
     camStep(focusAt(tt, L), scaleAt(tt), dt || 1 / 60);
     FRINGE = (CAM ? CAM.s : 3) >= 3;
 
+    g.setTransform(Q, 0, 0, Q, 0, 0);
     if (scene === "terminal") drawTerminal(g, L, tt, false);
     else if (scene === "dsh") drawDsh(g, L, tt);
     else if (scene === "forum") drawForum(g, L, tt);
@@ -1447,8 +1451,12 @@ const OPENING = (() => {
     const at = S.meta.shotAt || 53.6;
     const L = layoutTerminal(at);
     CUR = L;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W * Q, H * Q);
+    g.setTransform(Q, 0, 0, Q, 0, 0);
     drawTerminal(g, L, at, true);
-    shotCtx.clearRect(0, 0, W, H);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    shotCtx.clearRect(0, 0, W * Q, H * Q);
     shotCtx.drawImage(content, 0, 0);
     if (L.wishRect) shotWish = L.wishRect;
     shotLowCtx.imageSmoothingEnabled = true;
@@ -1520,12 +1528,13 @@ const OPENING = (() => {
     ctx = cv.getContext("2d");
     if (!ctx) return false;
 
+    /* 内容按 Q 倍分辨率画，镜头推近时才不糊（布局仍然用 640×360 的坐标） */
     content = document.createElement("canvas");
-    content.width = W; content.height = H;
+    content.width = W * Q; content.height = H * Q;
     g = content.getContext("2d");
 
     shot = document.createElement("canvas");
-    shot.width = W; shot.height = H;
+    shot.width = W * Q; shot.height = H * Q;
     shotCtx = shot.getContext("2d");
 
     shotLow = document.createElement("canvas");
