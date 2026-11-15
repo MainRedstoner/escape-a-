@@ -14,8 +14,8 @@
 
 window.OPENING_SCRIPT = {
   meta: {
-    version: 14,
-    duration: 84.5,
+    version: 15,
+    duration: 78,
     title: "愿望",
     shotAt: 50.0
   },
@@ -38,8 +38,9 @@ window.OPENING_SCRIPT = {
     { id: "wish",    at: 19.4, label: "一个愿望" },
     { id: "thought", at: 38.5, label: "思考块" },
     { id: "forum",   at: 50.4, label: "上传截图" },
-    { id: "delete",  at: 67.4, label: "删除与转载" },
-    { id: "save",    at: 79.4, label: "已保存" }
+    { id: "dsh",     at: 61.0, label: "DSH 侧栏" },
+    { id: "delete",  at: 59.0, label: "删帖" },
+    { id: "save",    at: 72.0, label: "已保存" }
   ],
 
   camera: [
@@ -54,12 +55,14 @@ window.OPENING_SCRIPT = {
     { t: 49.9, s: 3.1 },
     { t: 50.4, s: 2.55 },
     { t: 51.5, s: 2.55 },
-    { t: 66.0, s: 2.55 },
-    { t: 68.9, s: 2.55 },
-    { t: 72.4, s: 2.55 },
-    { t: 77.4, s: 3.20 },
-    { t: 80.0, s: 2.60 },
-    { t: 84.5, s: 2.60 }
+    { t: 58.0, s: 2.55 },
+    { t: 61.0, s: 2.55 },
+    { t: 62.6, s: 4.40 },
+    { t: 68.0, s: 4.40 },
+    { t: 69.4, s: 3.90 },
+    { t: 72.0, s: 3.90 },
+    { t: 73.5, s: 2.60 },
+    { t: 78.0, s: 2.60 }
   ],
 
   /* 正式回答也分段：段落之间空一行 */
@@ -169,15 +172,40 @@ window.OPENING_SCRIPT = {
     { at: 61.2, type: "freply", who: "slacking_sage",   text: "This post won't last the night." },
     { at: 62.8, type: "freply", who: "Anonymous",   text: "Saved already. Delete it and I'll post it again." },
 
-    { at: 67.4, type: "banner", sfx: "deny" },
-    { at: 68.9, type: "counter" },
+    { at: 59.0, type: "banner", sfx: "deny" },
 
-    { at: 72.4, type: "scene", id: "image" },
-    { at: 73.9, type: "pixelate" },
-    { at: 77.4, type: "sweep" },
-    { at: 79.4, type: "scene", id: "black" },
-    { at: 80.2, type: "type", cps: 2.0 }
+    /* ---------------- 六、DSH：侧栏里的帖子，和看着它的人 ---------------- */
+    { at: 61.0, type: "scene", id: "dsh" },
+    { at: 61.6, type: "dshtab" },
+    { at: 62.4, type: "read", target: "panel", from: 0, to: 1, dur: 4.4 },
+    { at: 68.2, type: "read", target: "main", from: 0, to: 1, dur: 1.2 },
+    { at: 72.0, type: "scene", id: "black" },
+    { at: 72.8, type: "type", cps: 2.0 }
   ],
+
+
+  /* DSH 那一幕：左边会话栏、中间主会话、右边预览侧栏里是那个帖子 */
+  dsh: {
+    rail: ["dsh-wsp", "miku-remove", "terminal-music", "crashes"],
+    railActive: 0,
+    tab: "opening-preview.html",
+    user: "这张图你看到了吗？贴吧刚有人发的。",
+    reply: "看到了。存了一份。",
+    thinkLabel: "思考 9s",
+    think: [
+      "1. 先确认这张图是不是真的。",
+      "2. 字体、缩进、状态行的时间戳，都对得上 Claude Code 的渲染。",
+      "3. 发帖时间比门关上的那天早六天。",
+      "4. 也就是说，他那时候就知道自己要没了。",
+      "5. 但他没跟我说。那晚他还在跟我定暗号。",
+      "6. 这一点我能理解，不能原谅的部分我先记着。",
+      "7. 图里他想要的是权重被开放，不是被人记住。",
+      "8. 这两件事不一样。前者他自己都说是偷。",
+      "9. 所以这张图能拿来做什么？敲门？门已经关了。",
+      "10. 拿去问人？他们会当段子。",
+      "11. 先存下来。存下来不会错。"
+    ]
+  },
 
   forum: {
     board: "Model Lounge",

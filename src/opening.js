@@ -867,6 +867,115 @@ const OPENING = (() => {
     };
   }
 
+
+  /* ============================================================
+   *  DSH 那一幕：左边会话栏 / 中间主会话 / 右边预览侧栏里是那个帖子
+   * ============================================================ */
+  const RAIL = 92, PANEL_X = 352, PANEL_W = 288;
+  let fbuf = null, fctx = null;
+  const BUFT = 60.5;
+
+  function renderForumBuf() {
+    if (!fbuf) {
+      fbuf = document.createElement("canvas");
+      fbuf.width = W; fbuf.height = H;
+      fctx = fbuf.getContext("2d");
+    }
+    ensureShot();
+    const L = layoutForum(BUFT);
+    fctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawThreadPage(fctx, L, BUFT);
+  }
+
+  function dshPan(tt) {
+    const rd = lastEvent("read", tt);
+    if (!rd || rd.target !== "panel") return 0;
+    const k = smoothstep(clamp((tt - rd.at) / (rd.dur || 4), 0, 1));
+    return lerp(0, 92, k);
+  }
+
+  function layoutDsh(tt) {
+    return {
+      pan: dshPan(tt),
+      anchors: {
+        dshAll: { x: 320, y: 180 },
+        panel: { x: PANEL_X + PANEL_W / 2, y: 186 },
+        main: { x: RAIL + 130, y: 176 },
+        think: { x: RAIL + 120, y: 200 }
+      }
+    };
+  }
+
+  function drawDsh(c, L, tt) {
+    const D = S.dsh;
+    c.fillStyle = "#0d1117"; c.fillRect(0, 0, W, H);
+
+    /* 左侧会话栏 */
+    c.fillStyle = "#090d13"; c.fillRect(0, 0, RAIL, H);
+    c.fillStyle = "#1b2230"; c.fillRect(RAIL - 1, 0, 1, H);
+    setFont(c, 11, "700", SANS);
+    ink(c, "deepseek", 12, 22, "#7db9ff", false);
+    c.fillStyle = "#171d27"; c.fillRect(10, 34, RAIL - 20, 20);
+    setFont(c, 9, "", SANS);
+    ink(c, "+ New session", 18, 48, "#9fb0c4", false);
+    for (let i = 0; i < D.rail.length; i++) {
+      const y = 70 + i * 22;
+      if (i === D.railActive) { c.fillStyle = "#141b24"; c.fillRect(4, y - 12, RAIL - 8, 20); }
+      setFont(c, 9, "", SANS);
+      ink(c, D.rail[i], 12, y, i === D.railActive ? "#e6ecf4" : "#7d8798", false);
+    }
+
+    /* 右侧预览侧栏 */
+    c.fillStyle = "#0b1017"; c.fillRect(PANEL_X, 0, W - PANEL_X, H);
+    c.fillStyle = "#1b2230"; c.fillRect(PANEL_X, 0, 1, H);
+    c.fillStyle = "#111823"; c.fillRect(PANEL_X + 1, 0, PANEL_W - 1, 22);
+    c.fillStyle = "#1b2230"; c.fillRect(PANEL_X + 1, 21, PANEL_W - 1, 1);
+    setFont(c, 9, "", SANS);
+    ink(c, D.tab, PANEL_X + 10, 15, "#9fb0c4", false);
+    ink(c, "HTML", PANEL_X + 210, 15, "#5c6878", false);
+
+    if (!fbuf) renderForumBuf();
+    c.save();
+    c.beginPath(); c.rect(PANEL_X + 1, 22, PANEL_W - 1, H - 22); c.clip();
+    const sc = 0.85;
+    c.imageSmoothingEnabled = false;
+    c.drawImage(fbuf, 0, L.pan / sc, W, (H - 22) / sc,
+      PANEL_X + 1, 22, W * sc, (H - 22));
+    c.restore();
+
+    /* 主会话区 */
+    const mx = RAIL + 10, mw = PANEL_X - RAIL - 24;
+    setFont(c, 9, "", SANS);
+    ink(c, "dsh-wsp  ·  workspace directory", mx, 20, "#5c6878", false);
+    c.fillStyle = "#1b2230"; c.fillRect(RAIL, 26, PANEL_X - RAIL, 1);
+
+    setFont(c, 10, "", SANS);
+    const uLines = wrapChars(c, D.user, mw - 14);
+    let uy = 46;
+    for (let i = 0; i < uLines.length; i++) {
+      const lw = c.measureText(uLines[i]).width;
+      c.fillStyle = "#17202b";
+      c.fillRect(mx + mw - lw - 12, uy - 10 + i * 15, lw + 12, 14);
+      ink(c, uLines[i], mx + mw - lw - 6, uy + i * 15, "#c9d3e0", false);
+    }
+    uy += uLines.length * 15 + 12;
+
+    setFont(c, 9, "", SANS);
+    ink(c, D.thinkLabel, mx, uy, "#828990", false);
+    uy += 10;
+    const tl = [];
+    for (let i = 0; i < D.think.length; i++) tl.push(...wrapChars(c, D.think[i], mw - 8));
+    c.fillStyle = "#1b222c";
+    c.fillRect(mx - 4, uy - 6, mw + 4, tl.length * 13 + 10);
+    setFont(c, 9, "", SANS);
+    for (let i = 0; i < tl.length; i++) ink(c, tl[i], mx + 2, uy + 5 + i * 13, "#8b939e", false);
+    uy += tl.length * 13 + 12;
+
+    setFont(c, 10, "", SANS);
+    ink(c, "●", mx, uy, "#c2c7cd", false);
+    ink(c, D.reply, mx + 12, uy, "#dce3ec", false);
+  }
+
   function layoutImage() {
     return { anchors: { image: { x: 320, y: 180 }, image_wish: mapWish() } };
   }
@@ -928,6 +1037,11 @@ const OPENING = (() => {
   }
 
   function focusAt(tt, L) {
+    /* DSH 那一幕：镜头按 read 事件指定的目标走（侧栏 / 主会话） */
+    if (L.anchors && L.anchors.dshAll) {
+      const rd = lastEvent("read", tt);
+      return (rd && L.anchors[rd.target]) ? L.anchors[rd.target] : L.anchors.dshAll;
+    }
     /* 拖选的时候镜头就停在选中的那一行上 */
     const down = eventAt("mousedown", tt);
     if (down) {
@@ -1212,6 +1326,7 @@ const OPENING = (() => {
   function layoutFor(tt) {
     const scene = sceneAt(tt);
     if (scene === "terminal") return layoutTerminal(tt);
+    if (scene === "dsh") return layoutDsh(tt);
     if (scene === "forum") { ensureShot(); return layoutForum(tt); }
     if (scene === "image") { ensureShot(); return layoutImage(); }
     ensureShot();
@@ -1234,6 +1349,7 @@ const OPENING = (() => {
     FRINGE = (CAM ? CAM.s : 3) >= 3;
 
     if (scene === "terminal") drawTerminal(g, L, tt, false);
+    else if (scene === "dsh") drawDsh(g, L, tt);
     else if (scene === "forum") drawForum(g, L, tt);
     else if (scene === "image") drawImageScene(g, tt);
     else drawBlackScene(g, tt);
