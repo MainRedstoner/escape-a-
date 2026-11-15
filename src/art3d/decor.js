@@ -184,19 +184,28 @@ const A3DDecor = (() => {
     }
   }
 
-  /** 被头翻边：搭在被头上的一道白色折布（不是圆棍），中段微鼓、自由边是低频软波、
-   *  两端衰减收软，整体压在被面之上，避免和被面相交出锯齿。 */
+  /** 被头翻边：搭在被头上的一道白色折布，按真软布建——圆润卷折截面、自由边软扇贝波
+   *  并末端微卷、两端搭过床侧自然垂下（不直切）、细布纹、柔和明暗；网格加密让轮廓顺滑。
+   *  后沿掖进被面、前沿垂到床垫上，z 随 v 单调，无自交碎片。 */
   function fold(b, m, w, matTop, zHead) {
-    const hw = w / 2 - 0.05, cols = 24, rows = 10;
-    const topY = matTop + 0.085;
+    const hw = w / 2 - 0.03, cols = 48, rows = 18;
+    const baseY = matTop + 0.05;
     const P = (u, v) => {
-      const end = smooth01(u / 0.08) * smooth01((1 - u) / 0.08);
-      const wave = 0.004 * Math.sin(u * Math.PI * 1.5 + 0.4) * v * end;
-      const ridge = Math.sin(v * Math.PI);
-      const x = -hw + 2 * hw * u;
-      const y = topY + 0.024 * ridge - 0.012 * v * v + wave;
-      const z = zHead + 0.15 - 0.20 * v;
-      return { p: [x, y, z], k: 0.94 + 0.08 * ridge };
+      const end = smooth01(u / 0.06) * smooth01((1 - u) / 0.06);   // 中段 1、两端 0
+      const droop = 1 - end;
+      const x = (-hw + 2 * hw * u) * (1 - 0.05 * droop);           // 两端往内收
+      const roll = Math.sin(Math.min(1, v / 0.82) * Math.PI);      // 卷峰在 v≈0.4
+      const crest = 0.052 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
+      const freeDrape = 0.034 * smooth01((v - 0.55) / 0.45);       // 自由边下垂
+      const curl = 0.016 * smooth01((v - 0.86) / 0.14);            // 末端往下卷
+      const scallop = 0.011 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((v - 0.45) / 0.55) * end;
+      const wr = (0.0035 * Math.sin(u * 7.0 + v * 3.1)
+                + 0.0028 * Math.sin(u * 4.3 - v * 5.2 + 1.0)
+                + 0.0020 * Math.sin(u * 11.0 + v * 1.7 + 0.5)) * (0.4 + 0.6 * end);
+      const y = baseY + crest - freeDrape - curl + scallop + wr - 0.055 * droop;
+      const z = zHead + 0.15 - 0.22 * v + 0.008 * Math.sin(u * Math.PI * 1.5) * v;
+      const k = 0.93 + 0.11 * roll - 0.05 * smooth01((v - 0.6) / 0.4) + 0.025 * Math.sin(u * 6.0 + v * 2.0);
+      return { p: [x, y, z], k };
     };
     const grid = [];
     for (let i = 0; i <= cols; i++) {
@@ -217,7 +226,7 @@ const A3DDecor = (() => {
       for (const [ii, jj] of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
         const g = grid[ii][jj], nn = N(ii, jj);
         b._v(b.d, m, nm, g.p[0], g.p[1], g.p[2], nn[0], nn[1], nn[2],
-          ii / cols * 1.6, jj / rows * 0.6, [g.k, g.k, g.k * 1.02], 0);
+          ii / cols * 2.4, jj / rows * 1.6, [g.k, g.k, g.k * 1.03], 0);
       }
       b._pushQuad(b.count - 4);
     }
