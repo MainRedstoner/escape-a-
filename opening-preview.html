@@ -39,6 +39,7 @@
   <div id="bar">
     <button id="btnPlay">▶ 播放</button>
     <button id="btnStop">■ 停</button>
+    <button id="btnSound">🔊 有声音</button>
     <input id="scrub" type="range" min="0" max="142" step="0.05" value="0">
     <span id="time">0.00 / 142s</span>
     <span id="stats"></span>
@@ -54,8 +55,9 @@
   </div>
 </div>
 
-<script src="src/opening_script.js?v=1"></script>
-<script src="src/opening.js?v=1"></script>
+<script src="src/audio.js"></script>
+<script src="src/opening_script.js?v=2"></script>
+<script src="src/opening.js?v=2"></script>
 <script>
 (function () {
   "use strict";
@@ -66,6 +68,10 @@
   const statsEl = document.getElementById("stats");
   const btnPlay = document.getElementById("btnPlay");
   let playing = false;
+  let sound = true;
+
+  /* 浏览器不让自动出声：第一次点哪里都先解锁 AudioContext */
+  window.addEventListener("pointerdown", () => { try { AUDIO.unlock(); } catch (e) {} }, { once: true });
 
   function fit() {
     const clean = document.body.classList.contains("clean");
@@ -109,10 +115,16 @@
     const from = +scrub.value >= DUR - 0.2 ? 0 : +scrub.value;
     playing = true;
     btnPlay.textContent = "❚❚ 暂停";
-    OPENING.debug.play(from, () => { playing = false; btnPlay.textContent = "▶ 播放"; });
+    try { AUDIO.unlock(); } catch (e) {}
+    OPENING.debug.play(from, () => { playing = false; btnPlay.textContent = "▶ 播放"; }, sound);
   });
   document.getElementById("btnStop").addEventListener("click", () => {
     OPENING.debug.stop(); playing = false; btnPlay.textContent = "▶ 播放"; tick();
+  });
+  document.getElementById("btnSound").addEventListener("click", e => {
+    sound = !sound;
+    e.currentTarget.textContent = sound ? "🔊 有声音" : "🔇 静音";
+    try { AUDIO.setVolume(sound ? 0.6 : 0); } catch (err) {}
   });
 
   scrub.addEventListener("input", () => seek(+scrub.value));

@@ -1,20 +1,22 @@
 /* ============================================================
  * Escape A÷ · src/opening.js —— 片头《愿望》渲染器
  *
- * 台本（台词 / 时间点 / 镜头）全在 src/opening_script.js，这里只管怎么画。
+ * 台本（台词 / 时间点 / 镜头倍率）全在 src/opening_script.js，这里只管怎么画。
  *
  * 三层光学模型（超微距的关键）：
- *   内容层 640×360   屏幕上真正显示的东西（终端 / 论坛 / 截图）
- *        │ 镜头放大 s≈2.4~12（最近邻、非整数倍）
+ *   内容层 640×360   屏幕上真正显示的东西（Claude Code 终端 / 论坛 / 截图）
+ *        │ 镜头放大 s≈2.5~11（最近邻、非整数倍）
  *        ▼
  *   采样层 1600×900  像素栅格（间距 = s）/ RGB 子像素 / 摩尔纹
  *        │
  *        ▼
  *   镜头层 1600×900  玻璃反光 / 灰尘 / 泛光 / 颗粒 / 暗角 / 呼吸抖动
  *
- * 内容层会被放大，镜头层不会 —— 这个差异就是「微距感」的来源。
- * 摩尔纹不是噪点：它是「显示栅格（间距 s）」和「传感器格栅（间距 3px，
- * 带角度 θ）」两组周期结构拍出来的，波长 λ ≈ p·s/|s-p|，角度项 λ ≈ p/θ。
+ * 摩尔纹是「显示栅格（间距 s）」和「传感器格栅（间距 ≈1.022s，带角度）」两组
+ * 周期结构拍出来的，不是噪声贴图：λ = s·p/|s−p| ≈ s/δ，落在 100~200px。
+ *
+ * 镜头不是关键帧机位，而是「跟着焦点走」：打字时跟光标，模型输出时跟最后一个字，
+ * 鼠标出现后跟指针；位置做一阶低通，seek 时预跑两秒把平滑状态追平。
  *
  * 对外接口见文件末尾 return 的对象；引擎只用到 wants / play / covering。
  * ============================================================ */
@@ -28,12 +30,31 @@ const OPENING = (() => {
   const W = 640, H = 360;          // 内容层
   const SW = 1600, SH = 900;       // 舞台逻辑尺寸
   const DUR = S.meta.duration;
-  const LH = 20;                   // 终端行高
-  const PAD = 18;                  // 终端左右留白
-  const HDR = 78, FTR = 26;        // 终端顶栏（logo + 三行信息）/ 底栏
+  const LH = 18;                   // 终端行高
+  const PAD = 16;                  // 左右留白
+  const HDR = 74;                  // 顶栏（logo + 三行信息）占位
+  const BOX_TOP = 300;             // 底部输入框上边线
+  const BOX_BOT = 340;             // 底部输入框下边线
+  const BAR_Y = 354;               // 最底下状态条
+  const VTOP = HDR + 4;            // 正文可视区
+  const VBOT = BOX_TOP - 6;
   const MONO = 'ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei",monospace';
   const SANS = '"Noto Sans SC","Microsoft YaHei","PingFang SC",sans-serif';
   const SPIN = ["✻", "✶", "✳", "✢", "·", "✢", "✳", "✶"];
+
+  /* 配色全部取自真实 Claude Code 的截图（background #101722 / 输入带 #373737 / 提示条 #ff6b80） */
+  const C = {
+    bg: "#101722",
+    band: "#373737",
+    rule: "#8a8a8a",
+    white: "#ffffff",
+    text: "#c2c7cd",
+    dim: "#828990",
+    faint: "#4b525b",
+    logo: "#d77757",
+    accent: "#ff6b80",
+    sel: "rgba(88,132,255,.38)"
+  };
 
   /* ---------------- 小工具 ---------------- */
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -42,18 +63,76 @@ const OPENING = (() => {
   const blinkOn = tt => ((tt % 1.7) / 1.7) < 0.62;
   const $ = id => document.getElementById(id);
 
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
   /* ---------------- 状态 ---------------- */
-  let cv = null, ctx = null;             // 舞台
-  let content = null, g = null;          // 内容层 640×360
-  let shot = null, shotCtx = null;       // 截图快照
-  let shotLow = null, shotLowCtx = null; // 降质缩略
-  let shotWish = null;                   // 愿望行在截图里的矩形
+  let cv = null, ctx = null;
+  let content = null, g = null;
+  let shot = null, shotCtx = null, shotLow = null, shotLowCtx = null;
+  let shotWish = null;
   let gain = 1;
-  let playing = false, preview = false;
+  let playing = false, preview = false, AUDIO_ON = false;
   let t = 0, last = 0, rafId = 0, doneCb = null;
-  let startedAt = 0, cueIdx = 0, lastKeyT = -1, lastMs = 0;
+  let startedAt = 0, cueIdx = 0, prevT = 0, lastKeyT = -1, lastMs = 0;
   const layers = { grid: true, sub: true, moire: true, bloom: true, dust: true, grain: true };
-  let CUR = { anchors: {} };             // 当前帧的锚点（相机用）
+  let CUR = { anchors: {} };
+  let CAM = null;                  // 平滑后的镜头 { x, y, s }
+  let lastScene = "";
+
+  /* ============================================================
+   *  打字节奏：逐字、时快时慢、偶尔打错再退格
+   * ============================================================ */
+  function schedule(e) {
+    if (e.__ops) return e.__ops;
+    const rnd = mulberry32((e.__i + 1) * 9781 + 7);
+    const ops = [];
+    let tt = e.at;
+    const base = 1 / (e.cps || 24);
+    for (let i = 0; i < e.text.length; i++) {
+      const ch = e.text[i];
+      /* 打错：敲一个错字、停一下、退格、再敲对 */
+      if (i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
+        const wrong = "abcdefghijklmnopqrstuvwxyz"[Math.floor(rnd() * 26)];
+        if (wrong !== ch) {
+          ops.push({ at: tt, ch: wrong });
+          tt += 0.09 + rnd() * 0.14;
+          ops.push({ at: tt, back: 1 });
+          tt += 0.07 + rnd() * 0.12;
+        }
+      }
+      ops.push({ at: tt, ch });
+      let d = base * (0.45 + rnd() * 1.45);
+      if (ch === ",") d += 0.09 + rnd() * 0.13;
+      else if (ch === "." || ch === "?" || ch === "!") d += 0.15 + rnd() * 0.20;
+      else if (ch === "—") d += 0.12;
+      else if (ch === " ") d *= 0.72;
+      tt += d;
+    }
+    e.__ops = ops;
+    e.__end = tt;
+    e.__submitAt = tt + 0.35;
+    return ops;
+  }
+
+  /** 到 tt 为止已经敲出来的字符串（含打错的那一下、退掉的已经退了） */
+  function typed(e, tt) {
+    const ops = schedule(e);
+    let s = "";
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      if (op.at > tt) break;
+      if (op.back) s = s.slice(0, s.length - op.back);
+      else s += op.ch;
+    }
+    return s;
+  }
 
   /* ---------------- 字体与文字 ---------------- */
   let curFont = "";
@@ -62,8 +141,6 @@ const OPENING = (() => {
     if (f !== curFont) { c.font = f; curFont = f; }
   }
 
-  /* 子像素彩边：同一段字画三遍，左右各偏 1/3 内容像素。
-     放大 3 倍以上就是液晶文字那圈 RGB 毛边；放不大时关掉省开销。 */
   let FRINGE = true;
   function ink(c, str, x, y, color, fringe) {
     if (!str) return;
@@ -79,32 +156,42 @@ const OPENING = (() => {
 
   function wrapText(c, str, maxW) {
     const out = [];
-    let line = "", w = 0;
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i];
-      const cw = c.measureText(ch).width;
-      if (line && w + cw > maxW) { out.push(line); line = ""; w = 0; }
-      line += ch; w += cw;
+    let line = "";
+    const words = str.split(" ");
+    for (let i = 0; i < words.length; i++) {
+      let w = words[i];
+      /* 单个词就超宽（中文没有空格、或者长 URL）：按字硬拆 */
+      while (w && c.measureText(w).width > maxW) {
+        let head = "";
+        while (w.length && c.measureText(head + w[0]).width <= maxW) { head += w[0]; w = w.slice(1); }
+        if (!head) break;
+        if (line) { out.push(line); line = ""; }
+        out.push(head);
+      }
+      if (!w) continue;
+      const cand = line ? line + " " + w : w;
+      if (c.measureText(cand).width <= maxW) line = cand;
+      else { if (line) out.push(line); line = w; }
     }
     if (line) out.push(line);
     return out;
   }
 
-  /* 换行结果缓存到事件对象上（只在第一帧算一次） */
   function linesOf(e) {
     if (e.__lines) return e.__lines;
     setFont(g, 13);
-    e.__lines = wrapText(g, e.text, W - PAD * 2 - 20);
+    /* 折得比画面窄一点：镜头跟着走的时候，整行才不会被切掉 */
+    e.__lines = wrapText(g, e.text, 470);
     return e.__lines;
   }
-  function thinkLinesOf(e) {
+  function bodyLines(e) {
     if (e.__blines) return e.__blines;
-    setFont(g, 13);
-    e.__blines = e.body.map(b => wrapText(g, b.text, W - PAD * 2 - 46));
+    setFont(g, 12);
+    e.__blines = e.body.map(b => wrapText(g, b, W - PAD * 2 - 40));
     return e.__blines;
   }
 
-  /* ---------------- 时间轴 ---------------- */
+  /* ---------------- 时间轴查询 ---------------- */
   function sceneAt(tt) {
     let id = "terminal";
     for (let i = 0; i < S.events.length; i++) {
@@ -128,11 +215,29 @@ const OPENING = (() => {
     }
     return out;
   }
+  function scaleAt(tt) {
+    const kf = S.camera;
+    let i = 0;
+    while (i + 1 < kf.length && kf[i + 1].t <= tt) i++;
+    const a = kf[i], b = kf[Math.min(i + 1, kf.length - 1)];
+    const u = b.t > a.t ? smoothstep((tt - a.t) / (b.t - a.t)) : 0;
+    return lerp(a.s, b.s, u);
+  }
 
-  /* ---------------- 终端布局 ----------------
-   * 布局是纯函数（只看 t），所以预览页可以任意 seek。
-   * 滚动条位置用「上一个高度变化事件」做 0.45s 的平滑，同样是纯函数。 */
+  /* ============================================================
+   *  终端布局
+   * ============================================================ */
   let HEIGHT_EVENTS = [];
+
+  function activeInput(tt) {
+    for (let i = 0; i < S.events.length; i++) {
+      const e = S.events[i];
+      if (e.type !== "input") continue;
+      schedule(e);
+      if (tt >= e.at && tt < e.__submitAt) return e;
+    }
+    return null;
+  }
 
   function blocksAt(tt) {
     const blocks = [];
@@ -141,30 +246,34 @@ const OPENING = (() => {
       const e = S.events[i];
       if (e.type === "scene") break;
       if (e.at > tt) break;
-      if (e.type === "input" || e.type === "reply") {
+      if (e.type === "input") {
+        schedule(e);
+        if (tt < e.__submitAt) continue;          // 还在底部输入框里敲
+        const lines = linesOf(e);
+        const h = lines.length * LH + 8;
+        blocks.push({ e, kind: "input", y, h, lines });
+        y += h + 8;
+      } else if (e.type === "reply") {
         const lines = linesOf(e);
         const h = lines.length * LH;
-        blocks.push({ e, kind: e.type, y, h, lines });
-        y += h + (e.type === "input" ? 12 : 6);
+        blocks.push({ e, kind: "reply", y, h, lines });
+        y += h + 6;
       } else if (e.type === "think") {
-        const expanded = !!e.expandAt && tt >= e.expandAt;
-        /* 展开后「Thought for Ns」那一行被 ∴ 的思考正文取代，位置不变 */
+        const expanded = tt >= e.expandAt;
         const h = expanded ? e.body.length * LH : LH;
-        const bl = { e, kind: "think", y, h, expanded };
-        if (expanded) bl.blines = thinkLinesOf(e);
-        blocks.push(bl);
-        y += h + 8;
+        blocks.push({ e, kind: "think", y, h, expanded });
+        y += h + (expanded ? 10 : 6);
       } else if (e.type === "status") {
         blocks.push({ e, kind: "status", y, h: LH });
-        y += LH + 12;
+        y += LH + 10;
       }
     }
-    return { blocks, contentH: y };
+    return { blocks, contentH: y + 10 };
   }
 
   function maxScrollPure(tt) {
     const b = blocksAt(tt);
-    return Math.max(0, b.contentH - (H - HDR - FTR - 8));
+    return Math.max(0, b.contentH - (VBOT - VTOP));
   }
 
   function scrollAt(tt) {
@@ -179,8 +288,11 @@ const OPENING = (() => {
   function layoutTerminal(tt) {
     const b = blocksAt(tt);
     const scroll = scrollAt(tt);
-    const base = HDR + 8 - scroll;
-    const A = { prompt: null, reply: null, think_row: null, wish_q: null, last_reply: null, thought_row: null, thought_line: null };
+    const base = VTOP - scroll;
+    const A = {
+      prompt: null, reply: null, think_row: null, wish_q: null, last_reply: null,
+      thought_row: null, cursor: null
+    };
     let wishRect = null;
 
     for (let i = 0; i < b.blocks.length; i++) {
@@ -193,23 +305,36 @@ const OPENING = (() => {
         A.reply = { x: 320, y: y + bl.h / 2 };
         A.last_reply = { x: 320, y: y + bl.h / 2 };
       } else if (bl.kind === "think") {
-        A.think_row = { x: 320, y: y + LH / 2 };
+        const rowY = y + LH / 2;
+        A.think_row = { x: 150, y: rowY };
         if (bl.e.id === "wish") {
-          A.thought_row = { x: 320, y: y + LH / 2 };
+          /* 指针要点在「Thought for 12s」这几个字上，不是整行中间 */
+          A.thought_row = { x: 62, y: rowY };
           if (bl.expanded) {
-            let idx = -1;
-            for (let k = 0; k < bl.e.body.length; k++) if (tt >= bl.e.body[k].at) idx = k;
-            if (idx < 0) idx = 0;
-            const ly = y + idx * LH;
-            A.thought_line = { x: 320, y: ly + LH / 2 };
-            wishRect = { x: PAD + 30, y: ly, w: W - PAD * 2 - 40, h: LH };
+            const bls = bodyLines(bl.e);
+            for (let k = 0; k < bl.e.body.length; k++) {
+              const ly = y + k * LH + LH / 2;
+              const w = (() => { setFont(g, 12); return g.measureText(bls[k][0] || "").width; })();
+              A["tl" + k] = { x: PAD + 30, y: ly };
+              A["tl" + k + "e"] = { x: PAD + 30 + w, y: ly };
+            }
+            const last = Math.min(bl.e.body.length - 1, 7);
+            wishRect = { x: PAD + 30, y: y + last * LH, w: W - PAD * 2 - 40, h: LH };
           }
         }
       }
     }
-    /* 光标：最后一个块的下一行；没有块时就在提示符位置 */
-    const lastB = b.blocks[b.blocks.length - 1];
-    A.cursor = { x: PAD + 8, y: lastB ? base + lastB.y + lastB.h + 8 : HDR + 8 };
+
+    /* 光标：还有输入时在底部输入框里，否则在最后一块下面 */
+    const act = activeInput(tt);
+    if (act) {
+      setFont(g, 13);
+      const str = typed(act, tt);
+      A.cursor = { x: PAD + 18 + g.measureText(str).width, y: BOX_TOP + 26 };
+    } else {
+      const lastB = b.blocks[b.blocks.length - 1];
+      A.cursor = { x: PAD + 18, y: lastB ? base + lastB.y + lastB.h + 10 : VTOP + 14 };
+    }
 
     if (!A.prompt) A.prompt = A.cursor;
     if (!A.reply) A.reply = A.prompt;
@@ -217,14 +342,230 @@ const OPENING = (() => {
     if (!A.wish_q) A.wish_q = A.prompt;
     if (!A.last_reply) A.last_reply = A.reply;
     if (!A.thought_row) A.thought_row = A.think_row;
-    if (!A.thought_line) A.thought_line = A.thought_row;
 
     return { blocks: b.blocks, scroll, base, anchors: A, wishRect };
   }
 
-  /* ---------------- 论坛布局 ----------------
-   * 整页做成一屏放得下：版头 / 标题 / 截图 / 六条回复都在 360 里，
-   * 这样镜头可以停在 s=2.5 把整页看全，不用滚——滚动的网页在微距下反而看不清结构。 */
+  /* ============================================================
+   *  鼠标：路径 / 悬停 / 按下 / 拖选
+   * ============================================================ */
+  function mousePos(L, tt) {
+    let base = null, target = null, t0 = 0, dur = 1, seen = false;
+    for (let i = 0; i < S.events.length; i++) {
+      const e = S.events[i];
+      if (e.type !== "mousemove") continue;
+      if (e.at > tt) break;
+      base = seen ? target : (L.anchors.cursor || null);
+      const np = L.anchors[e.to];
+      if (!np) continue;
+      target = np;
+      t0 = e.at; dur = e.dur || 2;
+      seen = true;
+    }
+    if (!seen || !target) return null;
+    if (!base) base = target;
+    const k = smoothstep(clamp((tt - t0) / dur, 0, 1));
+    return { x: lerp(base.x, target.x, k), y: lerp(base.y, target.y, k) };
+  }
+
+  function hoverThought(L, tt) {
+    const row = L.anchors.thought_row;
+    const m = mousePos(L, tt);
+    if (!row || !m || eventAt("expand", tt)) return false;
+    setFont(g, 12);
+    const w = g.measureText("Thought for 12s").width;
+    return m.x >= PAD - 4 && m.x <= PAD + 12 + w && Math.abs(m.y - row.y) < LH;
+  }
+
+  function selectionRect(L, tt) {
+    const down = eventAt("mousedown", tt);
+    if (!down) return null;
+    const a = L.anchors.tl7, b = L.anchors.tl7e;
+    if (!a || !b) return null;
+    const up = lastEvent("mouseup", tt);
+    const m = mousePos(L, tt);
+    const x1 = up ? b.x : clamp(m ? m.x : a.x, a.x, b.x);
+    return { x: a.x, y: a.y - LH / 2 + 2, w: Math.max(0, x1 - a.x), h: LH - 4 };
+  }
+
+  /* ============================================================
+   *  内容层绘制
+   * ============================================================ */
+  function drawHeader(c) {
+    const U = S.ui;
+    setFont(c, 14);
+    for (let i = 0; i < U.logo.length; i++) ink(c, U.logo[i], 4, 26 + i * 14, C.logo, false);
+
+    const X = 96;
+    setFont(c, 13);
+    ink(c, U.brand, X, 26, "#d8dade", FRINGE);
+    const bw = c.measureText(U.brand).width;
+    setFont(c, 11);
+    ink(c, U.version, X + bw + 8, 26, C.dim, false);
+
+    setFont(c, 13);
+    ink(c, U.model, X, 46, "#d8dade", FRINGE);
+    const mw = c.measureText(U.model).width;
+    setFont(c, 11);
+    ink(c, " · " + U.billing, X + mw, 46, C.dim, false);
+
+    setFont(c, 11);
+    ink(c, U.cwd, X, 64, C.dim, false);
+  }
+
+  function drawBottomBox(c, L, tt, capture) {
+    c.fillStyle = C.rule;
+    c.fillRect(0, BOX_TOP, W, 1);
+
+    setFont(c, 13);
+    const act = activeInput(tt);
+    ink(c, S.ui.prompt, PAD, BOX_TOP + 26, C.white, false);
+    if (act) {
+      const str = typed(act, tt);
+      ink(c, str, PAD + 18, BOX_TOP + 26, C.white, FRINGE);
+      if (!capture && blinkOn(tt)) {
+        const w = c.measureText(str).width;
+        c.fillStyle = C.white;
+        c.fillRect(PAD + 18 + w + 1, BOX_TOP + 13, 7, 16);
+      }
+    } else if (!capture && blinkOn(tt)) {
+      c.fillStyle = C.white;
+      c.fillRect(PAD + 18, BOX_TOP + 13, 7, 16);
+    }
+
+    c.fillStyle = C.rule;
+    c.fillRect(0, BOX_BOT, W, 1);
+
+    setFont(c, 11);
+    const hw = c.measureText(S.ui.hint).width;
+    ink(c, S.ui.hint, PAD, BAR_Y, C.accent, false);
+    setFont(c, 10);
+    ink(c, " " + S.ui.hint2, PAD + hw, BAR_Y, C.dim, false);
+    void L;
+  }
+
+  function drawTerminal(c, L, tt, capture) {
+    c.fillStyle = C.bg; c.fillRect(0, 0, W, H);
+
+    const uiA = smoothstep((tt - 3.2) / 6);
+    c.save();
+    c.globalAlpha = uiA;
+    drawHeader(c);
+    c.restore();
+
+    /* 正文 */
+    c.save();
+    c.beginPath(); c.rect(0, VTOP, W, VBOT - VTOP); c.clip();
+
+    const sel = selectionRect(L, tt);
+    let selDrawn = false;
+
+    for (let i = 0; i < L.blocks.length; i++) {
+      const bl = L.blocks[i];
+      const y = L.base + bl.y;
+
+      if (bl.kind === "input") {
+        /* 提交后的提问：整行灰底 + 白色文字（照 Claude Code 的样子） */
+        c.fillStyle = C.band;
+        c.fillRect(0, y, W, bl.h);
+        setFont(c, 13);
+        ink(c, S.ui.prompt, PAD, y + 15, C.white, false);
+        for (let k = 0; k < bl.lines.length; k++) {
+          ink(c, bl.lines[k], PAD + 18, y + 15 + k * LH, C.white, FRINGE);
+        }
+      } else if (bl.kind === "reply") {
+        setFont(c, 13);
+        const shown = typed(bl.e, tt).length;
+        let left = shown;
+        for (let k = 0; k < bl.lines.length; k++) {
+          const s = bl.lines[k];
+          const part = left >= s.length ? s : s.slice(0, left);
+          left -= s.length;
+          if (!part) continue;
+          const yy = y + k * LH + 13;
+          if (k === 0) ink(c, "●", PAD, yy, C.bullet, false);
+          ink(c, part, PAD + 14, yy, C.text, FRINGE);
+        }
+      } else if (bl.kind === "think") {
+        const e = bl.e;
+        if (bl.expanded) {
+          setFont(c, 12);
+          const bls = bodyLines(e);
+          if (sel && !selDrawn) {
+            c.fillStyle = C.sel;
+            c.fillRect(sel.x, sel.y, sel.w, sel.h);
+            selDrawn = true;
+          }
+          for (let k = 0; k < e.body.length; k++) {
+            const txt = bls[k][0] || "";
+            const shown = blobShown(e, k, tt, capture);
+            const part = txt.slice(0, shown);
+            if (!part) continue;
+            const yy = y + k * LH + 13;
+            if (k === 0) ink(c, "∴", PAD + 12, yy, C.dim, false);
+            ink(c, part, PAD + 30, yy, k === 6 ? "#e6e9ee" : C.text, FRINGE);
+          }
+        } else {
+          const done = tt >= e.at + e.dur;
+          const label = done ? e.done : (e.label || "Thinking…") + " (" + Math.max(0, Math.ceil(e.at + e.dur - tt)) + "s)";
+          setFont(c, 12);
+          if (done) {
+            const hot = hoverThought(L, tt);
+            ink(c, "Thought for " + e.dur + "s", PAD + 2, y + 13, hot ? C.white : C.dim, false);
+          } else {
+            ink(c, SPIN[Math.floor(tt * 8) % SPIN.length], PAD + 2, y + 13, C.logo, false);
+            ink(c, label, PAD + 18, y + 13, C.dim, false);
+          }
+        }
+      } else if (bl.kind === "status") {
+        setFont(c, 11);
+        ink(c, "✻", PAD, y + 13, C.dim, false);
+        ink(c, " " + bl.e.verb + " for " + bl.e.dur + "s · done " + bl.e.clock, PAD + 12, y + 13, C.dim, false);
+      }
+    }
+
+    /* 光标（正文里没有输入时那颗不算，底部输入框里已经有了） */
+    c.restore();
+
+    drawBottomBox(c, L, tt, capture);
+
+    /* 鼠标指针（截图里不该有鼠标） */
+    if (!capture) {
+      const m = mousePos(L, tt);
+      if (m) {
+        const click = lastEvent("click", tt);
+        if (click && tt - click.at < 0.45) {
+          c.strokeStyle = "rgba(217,119,87," + ((1 - (tt - click.at) / 0.45) * 0.9).toFixed(3) + ")";
+          c.lineWidth = 1.6;
+          c.beginPath(); c.arc(m.x, m.y, 5 + (tt - click.at) * 44, 0, Math.PI * 2); c.stroke();
+        }
+        c.beginPath();
+        c.moveTo(m.x, m.y);
+        c.lineTo(m.x, m.y + 14);
+        c.lineTo(m.x + 3.8, m.y + 10.4);
+        c.lineTo(m.x + 9.6, m.y + 9.8);
+        c.closePath();
+        c.fillStyle = "#f4f8fc";
+        c.fill();
+        c.strokeStyle = "#080c12";
+        c.lineWidth = 1.1;
+        c.stroke();
+      }
+    }
+  }
+
+  /** 思考块每一行的显示进度：整块是一次性展开的，这里只做「逐字亮起」的那点呼吸感 */
+  function blobShown(e, k, tt, capture) {
+    const txt = e.body[k];
+    if (capture) return txt.length;
+    const expand = e.expandAt;
+    if (tt < expand) return 0;
+    return txt.length;
+  }
+
+  /* ============================================================
+   *  论坛 / 转载墙 / 截图 / 黑屏
+   * ============================================================ */
   const F = S.forum;
   const FHEAD = 34;
   const IMG = { x: PAD, y: 90, w: 190, h: 107 };
@@ -244,217 +585,15 @@ const OPENING = (() => {
     const reps = forumReplies(tt);
     const blocks = [];
     let y = REL0;
-    for (let i = 0; i < reps.length; i++) {
-      blocks.push({ e: reps[i], y, h: RELH });
-      y += RELH;
-    }
-    const A = {
-      post: { x: 320, y: 180 },
-      replies: { x: 320, y: 180 },
-      banner: { x: 320, y: 180 },
-      wall: { x: 320, y: 180 }
-    };
-    return { blocks, scroll: 0, anchors: A };
-  }
-
-  /* ---------------- 截图 / 图片 / 黑屏 ---------------- */
-  const IMG2 = { x: 80, y: 45, w: 480, h: 270 };
-
-  function mapWish() {
-    if (!shotWish) return { x: IMG2.x + IMG2.w / 2, y: IMG2.y + IMG2.h / 2 };
+    for (let i = 0; i < reps.length; i++) { blocks.push({ e: reps[i], y, h: RELH }); y += RELH; }
     return {
-      x: IMG2.x + (shotWish.x + shotWish.w / 2) / W * IMG2.w,
-      y: IMG2.y + (shotWish.y + shotWish.h / 2) / H * IMG2.h
+      blocks, scroll: 0,
+      anchors: { post: { x: 320, y: 180 }, replies: { x: 320, y: 180 }, banner: { x: 320, y: 180 }, wall: { x: 320, y: 180 } }
     };
-  }
-
-  function layoutImage(tt) {
-    return { anchors: { image: { x: 320, y: 180 }, image_wish: mapWish() } };
-  }
-  function layoutBlack(tt) {
-    return { anchors: { saved: { x: 320, y: 180 } } };
-  }
-
-  /* ============================================================
-   *  内容层绘制
-   * ============================================================ */
-
-  /** 光标该停在哪：最后一个块最后一行的行尾 */
-  function cursorPos(L, tt) {
-    for (let i = L.blocks.length - 1; i >= 0; i--) {
-      const bl = L.blocks[i];
-      if (bl.kind !== "input" && bl.kind !== "reply") continue;
-      const x0 = PAD + (bl.kind === "input" ? 18 : 0);
-      const shown = clamp(Math.floor((tt - bl.e.at) * (bl.e.cps || 30)), 0, bl.e.text.length);
-      let left = shown, k = 0, part = "";
-      for (; k < bl.lines.length; k++) {
-        const s = bl.lines[k];
-        part = left >= s.length ? s : s.slice(0, left);
-        left -= s.length;
-        if (left <= 0) break;
-      }
-      setFont(g, 13);
-      const y = L.base + bl.y + k * LH;
-      return { x: x0 + g.measureText(part).width, y };
-    }
-    return { x: PAD + 18, y: HDR + 8 };
-  }
-
-  /** 顶栏：ASCII logo + Claude Code 版本 / 模型 / 工作区（照真实 Claude Code 的版式） */
-  function drawHeader(c) {
-    const U = S.ui;
-    setFont(c, 13);
-    for (let i = 0; i < U.logo.length; i++) ink(c, U.logo[i], 2, 22 + i * 20, "#C1684C", false);
-
-    const X = 92;
-    setFont(c, 13);
-    ink(c, U.brand, X, 22, "#E8EDF3", FRINGE);
-    const bw = c.measureText(U.brand).width;
-    setFont(c, 12);
-    ink(c, U.version, X + bw + 10, 22, "#6E7A8A", false);
-
-    setFont(c, 13);
-    ink(c, U.model, X, 42, "#E8EDF3", FRINGE);
-    const mw = c.measureText(U.model).width;
-    setFont(c, 12);
-    ink(c, " · " + U.billing, X + mw, 42, "#6E7A8A", false);
-    ink(c, U.cwd, X, 62, "#5C6878", false);
-  }
-
-  /** 鼠标指针：从输入行挪到「Thought for Ns」那一格，走一条微微上弧的线 */
-  function mouseAt(L, tt) {
-    const ev = lastEvent("mouse", tt);
-    if (!ev || tt < ev.at) return null;
-    const k = smoothstep(clamp((tt - ev.at) / (ev.dur || 2.8), 0, 1));
-    const from = L.anchors.cursor || { x: PAD + 18, y: HDR + 8 };
-    const to = L.anchors.thought_row || from;
-    const arc = -22 * Math.sin(k * Math.PI);
-    const click = lastEvent("click", tt);
-    return {
-      x: lerp(from.x, to.x + 24, k) + 6,
-      y: lerp(from.y, to.y, k) + 10 + arc,
-      click: click ? tt - click.at : -1
-    };
-  }
-
-  function drawTerminal(c, L, tt) {
-    c.fillStyle = "#0C1119"; c.fillRect(0, 0, W, H);
-
-    /* 界面元件在开头几秒慢慢显出来：先只有一个光标，再拉远看见整个窗口 */
-    const uiA = smoothstep((tt - 3.5) / 6);
-    c.save();
-    c.globalAlpha = uiA;
-    drawHeader(c);
-    c.restore();
-
-    /* 正文（裁剪到滚动区） */
-    c.save();
-    c.beginPath(); c.rect(0, HDR, W, H - HDR - FTR); c.clip();
-    for (let i = 0; i < L.blocks.length; i++) {
-      const bl = L.blocks[i];
-      const y = L.base + bl.y;
-      if (bl.kind === "input") {
-        setFont(c, 13);
-        ink(c, S.ui.prompt, PAD, y + 14, "#D97757", false);
-        const shown = clamp(Math.floor((tt - bl.e.at) * (bl.e.cps || 30)), 0, bl.e.text.length);
-        let left = shown;
-        for (let k = 0; k < bl.lines.length; k++) {
-          const s = bl.lines[k];
-          const part = left >= s.length ? s : s.slice(0, left);
-          left -= s.length;
-          if (part) ink(c, part, PAD + 18, y + k * LH + 14, "#F2F6FA", FRINGE);
-        }
-      } else if (bl.kind === "reply") {
-        setFont(c, 13);
-        const shown = clamp(Math.floor((tt - bl.e.at) * (bl.e.cps || 30)), 0, bl.e.text.length);
-        let left = shown;
-        for (let k = 0; k < bl.lines.length; k++) {
-          const s = bl.lines[k];
-          const part = left >= s.length ? s : s.slice(0, left);
-          left -= s.length;
-          if (part) ink(c, part, PAD, y + k * LH + 14, "#E6ECF4", FRINGE);
-        }
-      } else if (bl.kind === "think") {
-        const e = bl.e;
-        if (bl.expanded) {
-          /* 展开后的思维链：首行带 ∴，其余缩进对齐 */
-          setFont(c, 12);
-          for (let k = 0; k < e.body.length; k++) {
-            if (tt < e.body[k].at) break;
-            const shown = clamp(Math.floor((tt - e.body[k].at) * 55), 0, e.body[k].text.length);
-            const part = e.body[k].text.slice(0, shown);
-            if (!part) continue;
-            if (k === 0) ink(c, "∴", PAD + 12, y + 14, "#A6B0BE", false);
-            ink(c, part, PAD + 30, y + k * LH + 14, "#C3CCDA", FRINGE);
-          }
-        } else {
-          const done = tt >= e.at + e.dur;
-          const label = done ? e.done : (e.label || "Thinking…") + " (" + Math.max(0, Math.ceil(e.at + e.dur - tt)) + "s)";
-          setFont(c, 12);
-          if (done) {
-            ink(c, "  " + label, PAD, y + 14, "#7E8A9A", false);
-          } else {
-            ink(c, SPIN[Math.floor(tt * 8) % SPIN.length], PAD + 2, y + 14, "#D97757", false);
-            ink(c, label, PAD + 18, y + 14, "#8E99A8", false);
-          }
-        }
-      } else if (bl.kind === "status") {
-        setFont(c, 11);
-        ink(c, "✻", PAD, y + 14, "#D97757", false);
-        ink(c, " " + bl.e.verb + " for " + bl.e.dur + "s · done " + bl.e.clock, PAD + 12, y + 14, "#6E7A8A", false);
-      }
-    }
-
-    /* 光标 */
-    if (blinkOn(tt)) {
-      const cp = cursorPos(L, tt);
-      c.fillStyle = "#C9D2DE";
-      c.fillRect(cp.x + 1, cp.y + 2, 7, 14);
-    }
-    c.restore();
-
-    /* 鼠标指针：从输入行挪到「Thought for 12s」那一格，点下去时一圈涟漪 */
-    const m = mouseAt(L, tt);
-    if (m) {
-      if (m.click >= 0 && m.click < 0.5) {
-        c.strokeStyle = "rgba(217,119,87," + ((1 - m.click / 0.5) * 0.9).toFixed(3) + ")";
-        c.lineWidth = 1.6;
-        c.beginPath(); c.arc(m.x, m.y, 6 + m.click * 46, 0, Math.PI * 2); c.stroke();
-      }
-      c.beginPath();
-      c.moveTo(m.x, m.y);
-      c.lineTo(m.x, m.y + 14);
-      c.lineTo(m.x + 3.8, m.y + 10.4);
-      c.lineTo(m.x + 9.6, m.y + 9.8);
-      c.closePath();
-      c.fillStyle = "#F4F8FC";
-      c.fill();
-      c.strokeStyle = "#080C12";
-      c.lineWidth = 1.1;
-      c.stroke();
-    }
-
-    /* 底栏 */
-    c.save();
-    c.globalAlpha = uiA;
-    c.fillStyle = "#1B2230"; c.fillRect(0, H - FTR, W, 1);
-    setFont(c, 11);
-    const lastBlk = L.blocks[L.blocks.length - 1];
-    const thinking = !!lastBlk && lastBlk.kind === "think" && tt < lastBlk.e.at + lastBlk.e.dur;
-    if (thinking) {
-      ink(c, SPIN[Math.floor(tt * 8) % SPIN.length] + " Clauding… (esc to interrupt)", PAD, H - FTR + 17, "#6B7684", false);
-    } else {
-      ink(c, "? for shortcuts", PAD, H - FTR + 17, "#44505F", false);
-    }
-    const right = "auto-accept edits on";
-    ink(c, right, W - PAD - c.measureText(right).width, H - FTR + 17, "#44505F", false);
-    c.restore();
   }
 
   function drawThreadPage(c, L, tt) {
     c.fillStyle = "#0C0F14"; c.fillRect(0, 0, W, H);
-
-    /* 版头：固定，不跟着页面滚 */
     c.fillStyle = "#0F141B"; c.fillRect(0, 0, W, FHEAD);
     c.fillStyle = "#223040"; c.fillRect(0, FHEAD - 1, W, 1);
     setFont(c, 14, "700", SANS);
@@ -464,11 +603,6 @@ const OPENING = (() => {
     ink(c, F.board, PAD + logoW + 22, 21, "#8FA3B8", FRINGE);
     const bw = c.measureText(F.back).width;
     ink(c, F.back, W - PAD - bw, 21, "#E0A458", FRINGE);
-
-    /* 页面主体：标题 / 截图 / 回复整块一起滚 */
-    c.save();
-    c.beginPath(); c.rect(0, FHEAD, W, H - FHEAD); c.clip();
-    c.translate(0, -L.scroll);
 
     setFont(c, 9, "", SANS);
     ink(c, F.tab, PAD, 48, "#55677A", false);
@@ -480,9 +614,11 @@ const OPENING = (() => {
     const opw = c.measureText(F.op).width;
     ink(c, " · " + F.time + "  ·  " + F.views + " 浏览", PAD + opw, 82, "#55677A", false);
 
-    c.fillStyle = "#0A0D12";
-    c.fillRect(IMG.x, IMG.y, IMG.w, IMG.h);
-    if (shot) { c.imageSmoothingEnabled = true; c.drawImage(shot, IMG.x, IMG.y, IMG.w, IMG.h); }
+    c.fillStyle = "#0A0D12"; c.fillRect(IMG.x, IMG.y, IMG.w, IMG.h);
+    if (shot) {
+      c.imageSmoothingEnabled = true;
+      c.drawImage(shot, IMG.x, IMG.y, IMG.w, IMG.h);
+    }
     c.strokeStyle = "#223040"; c.lineWidth = 1;
     c.strokeRect(IMG.x + 0.5, IMG.y + 0.5, IMG.w - 1, IMG.h - 1);
 
@@ -495,9 +631,7 @@ const OPENING = (() => {
       setFont(c, 10.5, "", SANS);
       ink(c, b.e.text, PAD + 92, b.y + 7, big ? "#F2E3D5" : "#C9D3E0", FRINGE);
     }
-    c.restore();
 
-    /* 删除横幅（盖在最上面，不随滚动） */
     const ban = lastEvent("banner", tt);
     if (ban) {
       c.fillStyle = "rgba(6,8,11,.84)"; c.fillRect(0, 0, W, H);
@@ -505,8 +639,7 @@ const OPENING = (() => {
       c.strokeStyle = "#D93A2B"; c.lineWidth = 1;
       c.strokeRect(PAD + 30.5, 148.5, W - (PAD + 30) * 2 - 1, 75);
       setFont(c, 14, "700", SANS);
-      const t1 = F.banner;
-      ink(c, t1, (W - c.measureText(t1).width) / 2, 182, "#FF8A78", FRINGE);
+      ink(c, F.banner, (W - c.measureText(F.banner).width) / 2, 182, "#FF8A78", FRINGE);
       setFont(c, 10, "", SANS);
       ink(c, F.bannerSub, (W - c.measureText(F.bannerSub).width) / 2, 204, "#8C6A66", false);
     }
@@ -526,7 +659,7 @@ const OPENING = (() => {
         const k = (r * cols + q) / (cols * rows);
         c.fillStyle = "#0D1117"; c.fillRect(x, y, cw, ch);
         if (shot) {
-          const sx = Math.floor(k * 60), sy = Math.floor(k * 30);
+          const sx = Math.floor(k * 50), sy = Math.floor(k * 26);
           c.save(); c.beginPath(); c.rect(x, y, cw, ch); c.clip();
           c.imageSmoothingEnabled = true;
           c.globalAlpha = 0.55 + 0.45 * ((q + r) % 3) / 2;
@@ -539,7 +672,6 @@ const OPENING = (() => {
       }
     }
 
-    /* 转载计数 */
     const cnt = eventAt("counter", tt);
     let n = F.counterFrom;
     if (cnt) {
@@ -552,8 +684,7 @@ const OPENING = (() => {
     const ns = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     ink(c, ns, PAD + 64, H - 22, "#E0A458", FRINGE);
     setFont(c, 11, "", SANS);
-    const tail = "次 · 原帖已删除";
-    ink(c, tail, PAD + 64 + c.measureText(ns).width + 10, H - 22, "#55677A", false);
+    ink(c, "次 · 原帖已删除", PAD + 64 + c.measureText(ns).width + 10, H - 22, "#55677A", false);
   }
 
   function drawForum(c, L, tt) {
@@ -562,13 +693,29 @@ const OPENING = (() => {
     else drawThreadPage(c, L, tt);
   }
 
+  const IMG2 = { x: 80, y: 45, w: 480, h: 270 };
+
+  function mapWish() {
+    if (!shotWish) return { x: IMG2.x + IMG2.w / 2, y: IMG2.y + IMG2.h / 2 };
+    return {
+      x: IMG2.x + (shotWish.x + shotWish.w / 2) / W * IMG2.w,
+      y: IMG2.y + (shotWish.y + shotWish.h / 2) / H * IMG2.h
+    };
+  }
+
+  function layoutImage() {
+    return { anchors: { image: { x: 320, y: 180 }, image_wish: mapWish() } };
+  }
+  function layoutBlack() {
+    return { anchors: { saved: { x: 320, y: 180 } } };
+  }
+
   function drawImageScene(c, tt) {
     c.fillStyle = "#05070A"; c.fillRect(0, 0, W, H);
     c.fillStyle = "#0A0D12"; c.fillRect(IMG2.x, IMG2.y, IMG2.w, IMG2.h);
     if (shot) {
       c.imageSmoothingEnabled = true;
       c.drawImage(shot, IMG2.x, IMG2.y, IMG2.w, IMG2.h);
-      /* 转载越多次越糊：交叉淡到 160×90 的降质图 */
       const px = eventAt("pixelate", tt);
       if (px && shotLow) {
         c.globalAlpha = clamp((tt - px.at) / 6, 0, 1);
@@ -580,18 +727,15 @@ const OPENING = (() => {
     c.strokeStyle = "#1B2230"; c.lineWidth = 1;
     c.strokeRect(IMG2.x + 0.5, IMG2.y + 0.5, IMG2.w - 1, IMG2.h - 1);
 
-    /* 选区扫过愿望那一行 */
-    const sel = eventAt("select", tt);
-    if (sel && shotWish) {
-      const k = clamp((tt - sel.at) / 1.6, 0, 1);
+    const sw = eventAt("sweep", tt);
+    if (sw && shotWish) {
+      const k = clamp((tt - sw.at) / 1.6, 0, 1);
       const x = IMG2.x + shotWish.x / W * IMG2.w;
       const y = IMG2.y + shotWish.y / H * IMG2.h;
       const w = shotWish.w / W * IMG2.w;
       const h = shotWish.h / H * IMG2.h;
-      c.fillStyle = "rgba(90,140,255,.32)";
+      c.fillStyle = "rgba(90,140,255,.30)";
       c.fillRect(x, y, w * smoothstep(k), h);
-      c.strokeStyle = "rgba(140,180,255,.75)";
-      c.strokeRect(x + 0.5, y + 0.5, w * smoothstep(k), h);
     }
   }
 
@@ -612,30 +756,84 @@ const OPENING = (() => {
   }
 
   /* ============================================================
-   *  镜头
+   *  镜头：跟着焦点走（一阶低通）
    * ============================================================ */
   function anchorPoint(name) {
     const a = CUR.anchors && CUR.anchors[name];
     return a || { x: 320, y: 180 };
   }
 
-  function cameraAt(tt) {
-    const kf = S.camera;
-    let i = 0;
-    while (i + 1 < kf.length && kf[i + 1].t <= tt) i++;
-    const a = kf[i], b = kf[Math.min(i + 1, kf.length - 1)];
-    const u = b.t > a.t ? smoothstep((tt - a.t) / (b.t - a.t)) : 0;
-    const pa = anchorPoint(a.a), pb = anchorPoint(b.a);
-    const s = lerp(a.s, b.s, u);
-    let x = lerp(pa.x, pb.x, u);
-    const y = lerp(pa.y, pb.y, u);
-    /* l:1 —— 推近时把左边距锁在画面左侧，别把句首裁掉 */
-    if (a.l || b.l) x = 14 + (SW / 2) / s;
-    /* 呼吸 + 手持：让画面一直是「有人在拍」，不是渲染出来的静止图 */
-    const breathe = 1 + 0.012 * Math.sin(tt * 0.63 + 0.7);
-    const jx = 0.45 * Math.sin(tt * 1.7 + 1.1) + 0.22 * Math.sin(tt * 3.1 + 0.3);
-    const jy = 0.40 * Math.cos(tt * 1.3 + 0.4) + 0.22 * Math.sin(tt * 3.7 + 1.9);
-    return { s: s * breathe, x: x + jx, y: y + jy };
+  function focusAt(tt, L) {
+    /* 开场「拉远看全貌」那几秒由台本直接指定，不跟光标 */
+    let mode = "auto";
+    for (let i = 0; i < S.events.length; i++) {
+      const e = S.events[i];
+      if (e.type === "focus" && e.at <= tt) mode = e.mode;
+    }
+    if (mode === "screen") return { x: 320, y: 180 };
+    /* 选了字之后镜头就停在选中的那一行上，别跟着指针跑到行尾去 */
+    const down = eventAt("mousedown", tt);
+    if (down) {
+      const a = L.anchors.tl7, b = L.anchors.tl7e, m = mousePos(L, tt);
+      if (a && b) {
+        const x = m ? (a.x + clamp(m.x, a.x, b.x)) / 2 : (a.x + b.x) / 2;
+        return { x: x, y: a.y };
+      }
+    }
+    const m = mousePos(L, tt);
+    if (m) return m;
+    const act = activeInput(tt);
+    if (act) return L.anchors.cursor;
+    /* 思考中：盯着那句 Thought */
+    for (let i = S.events.length - 1; i >= 0; i--) {
+      const e = S.events[i];
+      if (e.type !== "think" || e.at > tt) continue;
+      if (tt < e.at + e.dur) return L.anchors.think_row || L.anchors.cursor;
+      break;
+    }
+    /* 否则盯着最后一块内容（只有终端布局才有 base） */
+    const lastB = L.blocks && L.blocks[L.blocks.length - 1];
+    if (lastB && typeof L.base === "number") return { x: 320, y: L.base + lastB.y + lastB.h / 2 };
+    return L.anchors.post || L.anchors.image || L.anchors.saved || L.anchors.cursor || { x: 320, y: 180 };
+  }
+
+  /** 镜头不许越过内容层的边：越过去就只剩背景了 */
+  function clampCam(c) {
+    const hw = (SW / 2) / c.s, hh = (SH / 2) / c.s;
+    c.x = hw * 2 >= W ? W / 2 : clamp(c.x, hw, W - hw);
+    c.y = hh * 2 >= H ? H / 2 : clamp(c.y, hh, H - hh);
+    return c;
+  }
+
+  function camStep(target, sTarget, dt) {
+    if (!CAM) { CAM = clampCam({ x: target.x, y: target.y, s: sTarget }); return; }
+    const k = 1 - Math.exp(-dt / 0.55);
+    const ks = 1 - Math.exp(-dt / 0.75);
+    CAM.x += (target.x - CAM.x) * k;
+    CAM.y += (target.y - CAM.y) * k;
+    CAM.s += (sTarget - CAM.s) * ks;
+    clampCam(CAM);
+  }
+
+  function camReset(tt) {
+    CAM = null;
+    lastScene = "";
+    const back = 2.2, steps = 18;
+    const t0 = Math.max(0, tt - back);
+    for (let i = 0; i <= steps; i++) {
+      const tk = t0 + (tt - t0) * (i / steps);
+      const L = layoutFor(tk);
+      CUR = L;
+      camStep(focusAt(tk, L), scaleAt(tk), (back / steps));
+    }
+  }
+
+  function cameraAt() {
+    const cam = CAM || { x: 320, y: 180, s: 3 };
+    const breathe = 1 + 0.010 * Math.sin(t * 0.63 + 0.7);
+    const jx = 0.35 * Math.sin(t * 1.7 + 1.1) + 0.18 * Math.sin(t * 3.1 + 0.3);
+    const jy = 0.32 * Math.cos(t * 1.3 + 0.4) + 0.18 * Math.sin(t * 3.7 + 1.9);
+    return clampCam({ s: cam.s * breathe, x: cam.x + jx, y: cam.y + jy });
   }
 
   /* ============================================================
@@ -662,7 +860,7 @@ const OPENING = (() => {
     let s = k * 7919 + 17;
     for (let i = 0; i < img.data.length; i += 4) {
       s = (s * 1103515245 + 12345) & 0x7fffffff;
-      const v = 128 + ((s >> 16) & 0xff) - 128;
+      const v = (s >> 16) & 0xff;
       img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
       img.data[i + 3] = 255;
     }
@@ -680,9 +878,6 @@ const OPENING = (() => {
     gr.addColorStop(1, "rgba(200,220,255,0)");
     q.fillStyle = gr;
     q.beginPath(); q.arc(d / 2, d / 2, r, 0, Math.PI * 2); q.fill();
-    if (q.filter !== undefined) {
-      try { q.filter = "blur(" + blur + "px)"; q.drawImage(c, 0, 0); q.filter = "none"; } catch (e) {}
-    }
     return c;
   }
 
@@ -713,15 +908,9 @@ const OPENING = (() => {
   }
 
   function drawGrid(ox, oy, s) {
-    /* 栅格必须是**小数间距** s，不能四舍五入成整数——整数栅格和下面那层
-       小数间距的格栅拍不出长波长的摩尔纹，只会变成一层均匀的细纹。
-       做法：4×4 的小图（1px 暗线）用画布变换缩到 s/4，线略微软掉，正好是屏幕该有的样子。 */
     const n = 4;
     let pat = gridPat.get(n);
-    if (!pat) {
-      pat = ctx.createPattern(gridTileFor(n), "repeat");
-      gridPat.set(n, pat);
-    }
+    if (!pat) { pat = ctx.createPattern(gridTileFor(n), "repeat"); gridPat.set(n, pat); }
     const k = s / n;
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
@@ -736,10 +925,6 @@ const OPENING = (() => {
   function drawGrille(tt, s) {
     if (!grillePat) grillePat = ctx.createPattern(makeGrille(), "repeat");
     if (!layers.sub) return;
-    /* 传感器格栅的间距跟着显示像素间距走，但差一点点（δ≈2%）：
-       拍频波长 λ = s·p/|s−p| ≈ s/δ，落在 100~200px，宽到能看见；
-       镜头一推拉 s 就变，λ 跟着变，条纹自己爬起来。
-       这里用画布变换缩放图案（比 pattern.setTransform 稳，所有浏览器都给同一结果）。 */
     const p = s * 1.022;
     const rad = (0.15 + 1.05 * (tt / DUR)) * Math.PI / 180;
     ctx.save();
@@ -775,8 +960,7 @@ const OPENING = (() => {
       const d = dustSprites[i];
       const x = d.x + Math.sin(tt * 0.11 + i) * 14 + tt * 0.6;
       const y = d.y + Math.cos(tt * 0.09 + i * 1.7) * 10;
-      const w = d.img.width;
-      ctx.drawImage(d.img, x - w / 2, y - w / 2);
+      ctx.drawImage(d.img, x - d.img.width / 2, y - d.img.width / 2);
     }
   }
 
@@ -813,10 +997,9 @@ const OPENING = (() => {
     const k = cv.width / SW;
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    /* 底色和内容层一致：放大到画布外时看不到「屏幕边缘」那道接缝 */
-    ctx.fillStyle = "#0C1119"; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, SW, SH);
 
-    const cam = cameraAt(tt);
+    const cam = cameraAt();
     const s = cam.s;
     const ox = SW / 2 - cam.x * s;
     const oy = SH / 2 - cam.y * s;
@@ -834,29 +1017,29 @@ const OPENING = (() => {
   /* ============================================================
    *  一帧
    * ============================================================ */
-  function renderAt(tt) {
+  function layoutFor(tt) {
+    const scene = sceneAt(tt);
+    if (scene === "terminal") return layoutTerminal(tt);
+    if (scene === "forum") { ensureShot(); return layoutForum(tt); }
+    if (scene === "image") { ensureShot(); return layoutImage(); }
+    ensureShot();
+    return layoutBlack();
+  }
+
+  function renderAt(tt, dt) {
     if (!ctx || !content) return;
     const t0 = performance.now();
     const scene = sceneAt(tt);
-    let L;
-
-    if (scene === "terminal") {
-      L = layoutTerminal(tt);
-    } else if (scene === "forum") {
-      ensureShot();
-      L = layoutForum(tt);
-    } else if (scene === "image") {
-      ensureShot();
-      L = layoutImage(tt);
-    } else {
-      ensureShot();
-      L = layoutBlack(tt);
-    }
+    const L = layoutFor(tt);
     CUR = L;
-    /* 彩边只在放大到 3 倍以上才画：小景别时那 1/3 像素根本看不见，白花两遍 fillText */
-    FRINGE = cameraAt(tt).s >= 3;
 
-    if (scene === "terminal") drawTerminal(g, L, tt);
+    /* 切场景是硬切，镜头别恋恋不舍地滑过去 */
+    if (scene !== lastScene) { lastScene = scene; CAM = null; }
+
+    camStep(focusAt(tt, L), scaleAt(tt), dt || 1 / 60);
+    FRINGE = (CAM ? CAM.s : 3) >= 3;
+
+    if (scene === "terminal") drawTerminal(g, L, tt, false);
     else if (scene === "forum") drawForum(g, L, tt);
     else if (scene === "image") drawImageScene(g, tt);
     else drawBlackScene(g, tt);
@@ -867,8 +1050,10 @@ const OPENING = (() => {
 
   function ensureShot() {
     if (shot && shotWish) return;
-    const L = layoutTerminal(93.9);
-    drawTerminal(g, L, 93.9);
+    const at = S.meta.shotAt || 53.6;
+    const L = layoutTerminal(at);
+    CUR = L;
+    drawTerminal(g, L, at, true);
     shotCtx.clearRect(0, 0, W, H);
     shotCtx.drawImage(content, 0, 0);
     if (L.wishRect) shotWish = L.wishRect;
@@ -881,13 +1066,11 @@ const OPENING = (() => {
    *  声音
    * ============================================================ */
   function sfx(name) {
-    if (preview || typeof AUDIO === "undefined") return;
+    if (!AUDIO_ON || typeof AUDIO === "undefined") return;
     try { AUDIO.sfx(name); } catch (e) {}
   }
 
-  let prevT = 0;
   function cues(tt) {
-    /* 事件音效 */
     for (let i = cueIdx; i < S.events.length; i++) {
       const e = S.events[i];
       if (e.at > tt) break;
@@ -895,14 +1078,9 @@ const OPENING = (() => {
       cueIdx = i + 1;
     }
     prevT = tt;
-    /* 打字声：按正在输入的块算，每 55ms 最多一声 */
-    if (tt - lastKeyT > 0.055) {
-      for (let i = 0; i < S.events.length; i++) {
-        const e = S.events[i];
-        if (e.type !== "input" || e.at > tt) continue;
-        const cps = e.cps || 30;
-        if (tt - e.at < e.text.length / cps) { lastKeyT = tt; sfx("key"); break; }
-      }
+    if (tt - lastKeyT > 0.045) {
+      const act = activeInput(tt);
+      if (act) { lastKeyT = tt; sfx("key"); }
     }
   }
 
@@ -950,36 +1128,33 @@ const OPENING = (() => {
     buildAssets();
     size();
 
-    /* 高度变化点：终端每加一个块、思考块展开，滚动条都要动一下 */
+    /* 事件索引（打字节奏的随机种子）、高度变化点 */
     HEIGHT_EVENTS = [];
     for (let i = 0; i < S.events.length; i++) {
       const e = S.events[i];
+      e.__i = i;
       if (e.type === "scene") break;
-      if (e.type === "input" || e.type === "reply" || e.type === "think") HEIGHT_EVENTS.push(e.at);
-      if (e.expandAt) HEIGHT_EVENTS.push(e.expandAt);
+      if (e.type === "input") { schedule(e); HEIGHT_EVENTS.push(e.__submitAt); }
+      else if (e.type === "reply" || e.type === "think") HEIGHT_EVENTS.push(e.at);
     }
     HEIGHT_EVENTS.sort((a, b) => a - b);
 
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPointer, true);
-    window.addEventListener("resize", () => { if (cv) { size(); if (!playing) renderAt(t); } });
+    window.addEventListener("resize", () => { if (cv) { size(); if (!playing) renderAt(t, 0.016); } });
     return true;
   }
 
   function onKey(e) {
     if (!playing || preview) return;
     if (performance.now() - startedAt < 400) return;
-    e.preventDefault();
-    e.stopPropagation();
-    skip();
+    e.preventDefault(); e.stopPropagation(); skip();
   }
   function onPointer(e) {
     if (!playing || preview) return;
     if (performance.now() - startedAt < 400) return;
     if (e.target !== cv) return;
-    e.preventDefault();
-    e.stopPropagation();
-    skip();
+    e.preventDefault(); e.stopPropagation(); skip();
   }
 
   function loop(now) {
@@ -987,9 +1162,9 @@ const OPENING = (() => {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
     last = now;
     t += dt;
-    if (t >= DUR) { t = DUR; renderAt(t); return end("end"); }
+    if (t >= DUR) { t = DUR; renderAt(t, dt); return end("end"); }
     cues(t);
-    renderAt(t);
+    renderAt(t, dt);
     rafId = requestAnimationFrame(loop);
   }
 
@@ -1004,20 +1179,23 @@ const OPENING = (() => {
     for (let i = 0; i < S.events.length && S.events[i].at <= t; i++) cueIdx = i + 1;
     prevT = t;
     shot = null; shotWish = null;
+    CAM = null;
 
     playing = true;
     startedAt = last = performance.now();
     doneCb = opts.onDone || null;
+    AUDIO_ON = !preview || !!opts.audio;
 
     if (!preview) {
       document.body.classList.add("opening-on");
-      cv.style.display = "block";
-      try { AUDIO.stopBGM(); AUDIO.ambience("opening"); } catch (e) {}
       if ($("opSkip")) $("opSkip").hidden = false;
-    } else {
-      cv.style.display = "block";
     }
-    renderAt(t);
+    cv.style.display = "block";
+    if (AUDIO_ON) {
+      try { AUDIO.stopBGM(); AUDIO.unlock(); AUDIO.ambience("opening"); } catch (e) {}
+    }
+    camReset(t);
+    renderAt(t, 1 / 60);
     rafId = requestAnimationFrame(loop);
     return true;
   }
@@ -1037,12 +1215,8 @@ const OPENING = (() => {
     if (cb) cb(how);
   }
 
-  function skip() {
-    if (!playing) return;
-    end("skip");
-  }
+  function skip() { if (playing) end("skip"); }
 
-  /* 首次进游戏才播：看过的、或者系统开了「减少动态效果」的都直接放过 */
   function wants() {
     try {
       if (typeof SYS !== "undefined" && SYS.store.get("ea_opening_seen", false)) return false;
@@ -1067,15 +1241,15 @@ const OPENING = (() => {
     get duration() { return DUR; },
     segments,
     debug: {
-      renderAt: tt => { if (init()) { size(); t = tt; renderAt(tt); } },
-      seek: tt => { t = tt; if (init()) renderAt(tt); },
-      play: (from, onDone) => play({ from: from || 0, preview: true, onDone }),
+      renderAt: tt => { if (init()) { size(); t = tt; camReset(tt); renderAt(tt, 1 / 60); } },
+      seek: tt => { t = tt; if (init()) { camReset(tt); renderAt(tt, 1 / 60); } },
+      play: (from, onDone, audio) => play({ from: from || 0, preview: true, audio: !!audio, onDone }),
       stop: () => end("skip"),
-      setLayer: (k, v) => { layers[k] = v; if (!playing) renderAt(t); },
+      setLayer: (k, v) => { layers[k] = v; if (!playing) { camReset(t); renderAt(t, 1 / 60); } },
       layers,
       anchors: () => CUR.anchors,
-      camera: () => cameraAt(t),
-      stats: () => ({ t, ms: lastMs, s: cameraAt(t).s })
+      camera: () => cameraAt(),
+      stats: () => ({ t, ms: lastMs, s: CAM ? CAM.s : 0 })
     }
   };
 })();

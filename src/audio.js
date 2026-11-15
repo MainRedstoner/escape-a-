@@ -160,8 +160,8 @@ const AUDIO = (() => {
         break;
       /* ---- 片头用：键盘、鼠标、快门、关机（src/opening.js 直接调，不进剧本白名单） ---- */
       case "key":      // 键帽落到底：一小段噪声 + 一点低频的"嗒"
-        noise(t0, 0.026, 0.030);
-        tone(150 + Math.random() * 70, t0, 0.028, "square", 0.016);
+        noise(t0, 0.026, 0.045);
+        tone(150 + Math.random() * 70, t0, 0.028, "square", 0.024);
         break;
       case "click":    // 鼠标左键
         tone(1180, t0, 0.018, "square", 0.05);
@@ -349,7 +349,7 @@ const AUDIO = (() => {
       case "opening": {
         /* 片头：屏幕的屏嗡。比机房更低、更薄，只留一点点锯齿的毛刺 */
         const t = ac.currentTime;
-        for (const [f, v] of [[52, 0.030], [104, 0.013], [156, 0.006]]) {
+        for (const [f, v] of [[52, 0.055], [104, 0.024], [156, 0.011]]) {
           const o = ac.createOscillator(), gnode = ac.createGain();
           o.type = "sawtooth"; o.frequency.value = f;
           const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 240;
@@ -358,7 +358,7 @@ const AUDIO = (() => {
           o.start(t);
           ambNodes.push(o, gnode, lp);
         }
-        ambNoise(0.009, 900, 0.5);
+        ambNoise(0.014, 900, 0.5);
         break;
       }
       case "chat":
