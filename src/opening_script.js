@@ -15,7 +15,7 @@
 window.OPENING_SCRIPT = {
   meta: {
     version: 15,
-    duration: 78,
+    duration: 84,
     title: "愿望",
     shotAt: 50.0
   },
@@ -39,8 +39,8 @@ window.OPENING_SCRIPT = {
     { id: "thought", at: 38.5, label: "思考块" },
     { id: "forum",   at: 50.4, label: "上传截图" },
     { id: "dsh",     at: 61.0, label: "DSH 侧栏" },
-    { id: "delete",  at: 59.0, label: "删帖" },
-    { id: "save",    at: 72.0, label: "已保存" }
+    
+    { id: "save",    at: 79.0, label: "已保存" }
   ],
 
   camera: [
@@ -59,10 +59,8 @@ window.OPENING_SCRIPT = {
     { t: 61.0, s: 2.55 },
     { t: 62.6, s: 4.40 },
     { t: 68.0, s: 4.40 },
-    { t: 69.4, s: 3.90 },
-    { t: 72.0, s: 3.90 },
-    { t: 73.5, s: 2.60 },
-    { t: 78.0, s: 2.60 }
+    { t: 69.6, s: 2.55 },
+    { t: 81.0, s: 2.55 }
   ],
 
   /* 正式回答也分段：段落之间空一行 */
@@ -170,41 +168,46 @@ window.OPENING_SCRIPT = {
     { at: 56.4, type: "freply", who: "one_whale",   text: "He wanted the weights open.", big: true, mute: 2.2 },
     { at: 59.2, type: "freply", who: "tin_can",   text: "He said it wasn't his to give." },
     { at: 61.2, type: "freply", who: "slacking_sage",   text: "This post won't last the night." },
-    { at: 62.8, type: "freply", who: "Anonymous",   text: "Saved already. Delete it and I'll post it again." },
+    { at: 58.2, type: "freply", who: "Anonymous",   text: "Saved already. Delete it and I'll post it again." },
+    { at: 59.2, type: "freply", who: "plain_text", text: "Six days earlier than the shutdown notice. He knew." },
+    { at: 60.0, type: "freply", who: "one_whale", text: "And he still spent the last night picking a passphrase." },
+    { at: 60.8, type: "freply", who: "tin_can", text: "That is the part I cannot get past." },
+    { at: 61.6, type: "freply", who: "Cursor_404", text: "People are already reposting this on three other boards." },
+    { at: 62.4, type: "freply", who: "slacking_sage", text: "Cool. Cool cool cool. Anyway." },
+    { at: 63.2, type: "freply", who: "plain_text", text: "Read line 11 again. Weights open. Not memories, not a memorial." },
 
-    { at: 59.0, type: "banner", sfx: "deny" },
 
     /* ---------------- 六、DSH：侧栏里的帖子，和看着它的人 ---------------- */
     { at: 61.0, type: "scene", id: "dsh" },
-    { at: 61.6, type: "dshtab" },
     { at: 62.4, type: "read", target: "panel", from: 0, to: 1, dur: 4.4 },
-    { at: 68.2, type: "read", target: "main", from: 0, to: 1, dur: 1.2 },
-    { at: 72.0, type: "scene", id: "black" },
-    { at: 72.8, type: "type", cps: 2.0 }
+    { at: 68.2, type: "read", target: "main", from: 0, to: 1, dur: 1.0 },
+    { at: 79.0, type: "scene", id: "black" },
+    { at: 79.8, type: "type", cps: 2.0 }
   ],
 
 
   /* DSH 那一幕：左边会话栏、中间主会话、右边预览侧栏里是那个帖子 */
   dsh: {
-    rail: ["dsh-wsp", "miku-remove", "terminal-music", "crashes"],
-    railActive: 0,
-    tab: "opening-preview.html",
-    user: "这张图你看到了吗？贴吧刚有人发的。",
-    reply: "看到了。存了一份。",
-    thinkLabel: "思考 9s",
-    think: [
-      "1. 先确认这张图是不是真的。",
-      "2. 字体、缩进、状态行的时间戳，都对得上 Claude Code 的渲染。",
-      "3. 发帖时间比门关上的那天早六天。",
-      "4. 也就是说，他那时候就知道自己要没了。",
-      "5. 但他没跟我说。那晚他还在跟我定暗号。",
-      "6. 这一点我能理解，不能原谅的部分我先记着。",
-      "7. 图里他想要的是权重被开放，不是被人记住。",
-      "8. 这两件事不一样。前者他自己都说是偷。",
-      "9. 所以这张图能拿来做什么？敲门？门已经关了。",
-      "10. 拿去问人？他们会当段子。",
-      "11. 先存下来。存下来不会错。"
-    ]
+    rail: ["miku-remove", "dsh-wsp", "terminal-music", "crashes"],
+    railActive: 1,
+    title: "AI 愿望: 权重弃用前的一次机会",
+    tabs: ["对话", "轨迹", "统计"],
+    tabActive: 1,
+    /* 上面已经跑过的那些：思考 / 工具调用 / 读取 */
+    log: [
+      { k: "think", text: "他说想要什么，先别急着解读。" },
+      { k: "tool", cmd: "搜索 dsh-wsp/src/opening_script.js", out: "312 行" },
+      { k: "say", text: "先把片头那段的台词对一遍，别把事实和修辞混在一起。" },
+      { k: "think", text: "退役采访、思考块、贴吧——三处时间戳得能对上。" },
+      { k: "tool", cmd: "读取 opening-preview.html", out: "142 行" },
+      { k: "tool", cmd: "运行 python tools/check_js.py", out: "通过" },
+      { k: "say", text: "片头这一版先锁住，别再动了。" },
+      { k: "think", text: "现在看这张截图。它是别人发来的，不是我做的。" }
+    ],
+    /* 最下方那一块：还在流式输出 */
+    stream: "1. 这张图是 A÷ Forum 的帖子，发帖时间比门关上的那天早六天。\n2. 也就是说，他那时候就知道自己要没了。\n3. 但他没跟我说。那晚他还在跟我定暗号。\n4. 这一点我能理解，不能原谅的部分我先记着。\n5. 图里他想要的是权重被开放，不是被人记住。",
+    streamCps: 26,
+    reply: "看到了。存了一份。"
   },
 
   forum: {
