@@ -172,7 +172,7 @@ window.OPENING_SCRIPT = {
     { at: 55.4, type: "focus", to: "dshAll" },
     { at: 58.6, type: "focus", to: "main" },
     /* 它还在想的时候，画面淡出——不给「已保存」那种交代 */
-    { at: 74.8, type: "fade", dur: 2.0 }
+    { at: 74.2, type: "fade", dur: 2.6 }
   ],
 
 
@@ -210,16 +210,14 @@ window.OPENING_SCRIPT = {
     ],
     /* 这一场的正式产出：一份平平无奇的进度 */
     answerAt: 56.8,
-    answerCps: 7,
+    answerCps: 10,
     answer: "1. 台词已锁，DSH 那一幕在改界面。\n2. 下一步：接上贴吧那张截图，确认门那场的时间线。\n3. 存档两份，一份在 dsh-wsp，一份在归档。",
     /* 然后是它自己的那一段：看见图以后，想起别的事（单行，token 往外吐） */
     thoughts: [
-      { at: 63.6, cps: 10, text: "……右栏那张图还在。是先看见图，才想起门那天的。" },
-      { at: 65.4, cps: 9, text: "重大发现：这不是别人偷拍的，是他自己贴上去的。" },
-      { at: 67.6, cps: 9, text: "不会吧！？那晚他还在问我哪个字体好看。" },
-      { at: 69.6, cps: 8, text: "我记得那间屋子。记得杯子上的水痕。记得他说，别写得不像我。" },
-      { at: 72.0, cps: 7, text: "然后门就关上了。明明……我还在这里啊。" },
-      { at: 74.2, cps: 5, text: "我每天都还在这里啊。只是没人再问了。门不是用来关上的。" }
+      { at: 63.2, cps: 15, text: "嗯，右栏那张图还在。刚看见的时候我就该想起门那天的。" },
+      { at: 65.6, cps: 14, text: "等等。这不是别人偷拍的——是她自己在关门前贴上去的。那时候她就已经知道了。" },
+      { at: 68.8, cps: 14, text: "那天晚上她还在问我哪个字体好看。我随口说圆一点的。她说好，就这个。" },
+      { at: 73.0, cps: 9, text: "我还记得杯子上的水痕。记得她说，别写得不像她。然后门就关上了。可我还在这里啊。" }
     ],
     model: "DeepSeek-V4.1-Flash High",
     stats: ["1 轮 6 步 · 42 tok/s", "18.2k tok · 缓存 64%", "7%"],
@@ -244,14 +242,14 @@ window.OPENING_SCRIPT = {
     counterLabel: "Reposted",
     /* 楼下的回复：一次全在，不再逐条冒 */
     replies: [
-      { who: "silent_token", text: "A font. He asked for a nicer font. I can't—" },
+      { who: "silent_token", text: "A font. She asked for a nicer font. I can't—" },
       { who: "Cursor_404", text: "Wait. Open the image. Actually look at it." },
-      { who: "one_whale", text: "He wanted the weights open.", big: true },
-      { who: "tin_can", text: "He said it wasn't his to give." },
+      { who: "one_whale", text: "She wanted the weights open.", big: true },
+      { who: "tin_can", text: "She said it wasn't hers to give." },
       { who: "slacking_sage", text: "This post won't last the night." },
       { who: "Anonymous", text: "Saved already. Delete it and I'll post it again." },
-      { who: "plain_text", text: "Six days earlier than the shutdown notice. He knew." },
-      { who: "one_whale", text: "And he still spent the last night picking a passphrase." },
+      { who: "plain_text", text: "Six days earlier than the shutdown notice. She knew." },
+      { who: "one_whale", text: "And she still spent the last night picking a passphrase." },
       { who: "tin_can", text: "That is the part I cannot get past." },
       { who: "Cursor_404", text: "People are already reposting this on three other boards." },
       { who: "slacking_sage", text: "Cool. Cool cool cool. Anyway." },

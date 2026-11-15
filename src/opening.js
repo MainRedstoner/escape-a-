@@ -1558,21 +1558,20 @@ const OPENING = (() => {
     c.beginPath(); c.arc(tx, cy, 0.7, 0, Math.PI * 2); c.fill();
     tx += 4;
     setFont(c, 6.4, "400", UI);
-    const w = DS.textW - (tx - x);
+    const w = x + DS.textW - 3 - tx;        /* 右边留 3px 气口 */
+    const tw = c.measureText(r.text).width;
     const base = midBase(y, r.h, 6.4);
-    if (r.live) {
-      c.save();
-      c.beginPath(); c.rect(x, y, DS.textW, r.h); c.clip();
-      ink(c, r.text, tx, base, col, false);
-      const gg = c.createLinearGradient(tx + w - 26, 0, tx + w, 0);
-      gg.addColorStop(0, "rgba(21,21,23,0)");
-      gg.addColorStop(1, "rgba(21,21,23,1)");
-      c.fillStyle = gg;
-      c.fillRect(tx + w - 26, y, 26, r.h);
-      c.restore();
-    } else {
-      ink(c, ellip(c, r.text, w), tx, base, col, false);
-    }
+    if (tw <= w) { ink(c, r.text, tx, base, col, false); return; }
+    /* 一行放不下：当传送带使——最新的字咬住右边，左边的推出画面 */
+    c.save();
+    c.beginPath(); c.rect(tx, y, w, r.h); c.clip();
+    ink(c, r.text, tx + w - tw, base, col, false);
+    const gg = c.createLinearGradient(tx, 0, tx + 22, 0);
+    gg.addColorStop(0, "rgba(21,21,23,1)");
+    gg.addColorStop(1, "rgba(21,21,23,0)");
+    c.fillStyle = gg;
+    c.fillRect(tx, y, 22, r.h);
+    c.restore();
   }
 
   /* ============================================================

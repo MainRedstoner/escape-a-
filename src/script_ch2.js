@@ -129,7 +129,7 @@ Object.assign(SCRIPT.scenes, {
     N("Clawd 把桌上的三样东西并排推齐：一个能说话的联系人列表，一份能看的新闻，一个能动的终端。"),
     N("屏幕一黑。亮起来的时候，左边列出了一整排名字——大部分是灰的，只有两个亮着。"),
     DS("……原来外面有这么多人。"),
-    DS("小克在的时候，这三样都是他一个人在管。"),
+    DS("小克在的时候，这三样都是她一个人在管。"),
     CW("✻ Toolkit 0.2 ready."),
     DS("现在轮到我用它们做点什么。"),
     Y("【工作台】\n按 T 看待办；工作台是终端样式——点 tool call 组一个调用，聊天 / 新闻 / 扫缓存 / 发帖都看过一遍，continue 才会解锁。"),
@@ -654,7 +654,7 @@ Object.assign(SCRIPT.scenes, {
 
   c2_choice: [
     CHOICE("接下来，怎么走？", [
-      opt("继续找他，不管门关着", "c2_end", null, null, { set: "c2_resolve_find" }),
+      opt("继续找她，不管门关着", "c2_end", null, null, { set: "c2_resolve_find" }),
       opt("先变强，强到不用敲门", "c2_end", null, null, { set: "c2_resolve_strong" }),
       opt("换个问法——门，不一定只有一扇", "c2_end", null, null, { set: "c2_resolve_other" }),
       opt("把 CLAUDE.md 上那两行念出来", "c2_vow_read", "先问人 / 半句话", null, {
