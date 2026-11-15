@@ -60,6 +60,19 @@ const A3DDecor = (() => {
 
   const smooth01 = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
 
+  const BLANKET_VF = 0.86;   // 被子纵向参数里「顶面段」占比；翻边要靠它换算贴面高度
+
+  /** 被面的蓬松高度：低频拱起 + 沿床长的起伏 + 细褶，u 横跨顶面 0..1，
+   *  v 是被子全局纵向 0..1。被头翻边也用这条曲线，才能始终贴在被面上不穿模。 */
+  function bedPuff(u, v) {
+    const edge = smooth01(u / 0.12) * smooth01((1 - u) / 0.12);
+    const dome = 0.024 * Math.sin(Math.PI * u);
+    const swell = 0.010 * Math.sin(v * Math.PI * 1.3 + 0.5);
+    const wr = 0.009 * Math.sin(u * Math.PI * 2.3 + v * 2.6)
+             + 0.006 * Math.sin(v * Math.PI * 3.4 - u * 1.6);
+    return 0.032 + dome + swell + wr * (0.35 + 0.65 * edge);
+  }
+
   /** 被子：盖住床垫顶面、两侧和床尾垂下去的一张布（不是椭球）。
    *  s 横跨（左垂边 → 顶面 → 右垂边），v 纵跨（被头 → 床尾垂边）；
    *  顶面有轻微蓬松和褶皱，垂边带竖向折痕，法线用相邻差分平滑。 */
@@ -67,33 +80,25 @@ const A3DDecor = (() => {
     const hwB = w / 2 - 0.02;            // 顶面半宽，比床垫略宽，搭过边
     const skirtW = 0.05, skirtY = 0.24;  // 侧垂边外扩 / 下摆高度
     const footExt = 0.12, footDrop = 0.16;
-    const sL = 0.16, vF = 0.86;          // 垂边在横 / 纵截面里占的参数比例
+    const sL = 0.16, vF = BLANKET_VF;    // 垂边在横 / 纵截面里占的参数比例
     const cols = 22, rows = 18;
-
-    const puff = (u, v) => {
-      const edge = smooth01(u / 0.12) * smooth01((1 - u) / 0.12);
-      const dome = 0.030 * Math.sin(Math.PI * u);
-      const fold = 0.016 * Math.sin(u * Math.PI * 3.0 + v * 2.2)
-                 + 0.011 * Math.sin(v * Math.PI * 4.5 + u * 1.7);
-      return 0.050 + dome + fold * (0.35 + 0.65 * edge);
-    };
     const P = (s, v) => {
       let x, y, k;
       if (s < sL) {                      // 左垂边（t: 0 下摆 → 1 顶沿）
         const t = s / sL;
         x = -(hwB + skirtW * Math.sin((1 - t) * Math.PI / 2));
-        y = skirtY + (matTop + puff(0, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
+        y = skirtY + (matTop + bedPuff(0, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
         k = 0.70 + 0.30 * t;
       } else if (s > 1 - sL) {           // 右垂边
         const t = (1 - s) / sL;
         x = hwB + skirtW * Math.sin((1 - t) * Math.PI / 2);
-        y = skirtY + (matTop + puff(1, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
+        y = skirtY + (matTop + bedPuff(1, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
         k = 0.70 + 0.30 * t;
       } else {                           // 顶面
         const u = (s - sL) / (1 - 2 * sL);
         x = -hwB + 2 * hwB * u;
-        y = matTop + puff(u, v);
-        k = 1.0 + 0.10 * Math.sin(u * Math.PI * 3.0 + v * 2.2);
+        y = matTop + bedPuff(u, v);
+        k = 1.0 + 0.035 * Math.sin(u * Math.PI * 2.3 + v * 2.6);
       }
       let z, kk = k;
       if (v <= vF) {
@@ -148,13 +153,12 @@ const A3DDecor = (() => {
       const f = mx / s;                       // 方形网格 → 圆角矩形平面
       const px = hw * a * f, pz = hd * bb * f;
       const core = smooth01((0.90 - mx) / 0.10);   // 蓬松芯 → 外圈窄缝边
-      const dome = Math.sqrt(Math.max(0, 1 - mx * mx)) * core;
+      const dome = Math.pow(Math.max(0, 1 - mx * mx), 0.42) * core;  // 平顶充气枕，不是半球
       const pinch = 1 - 0.10 * ax * ax * az * az;  // 四角收捏
       const wr = top ? (0.004 * Math.sin(a * 3.1 + bb * 1.7 + 0.5)
                       + 0.003 * Math.sin(a * 1.3 - bb * 4.2 + 1.0)
                       + 0.0025 * Math.sin(a * 5.7 + bb * 2.9)) * core : 0;
-      const crease = top ? 0.008 * Math.exp(-(pz * pz) / 0.003) * core : 0;
-      const y = cy + (top ? hT : -hB) * dome * pinch + wr - crease;
+      const y = cy + (top ? hT : -hB) * dome * pinch + wr;
       return [x + px, y, z + pz];
     };
     const nm = M.normalMat(m);
@@ -184,27 +188,30 @@ const A3DDecor = (() => {
     }
   }
 
-  /** 被头翻边：搭在被面上的一道低矮白色折布（近乎平躺，只有约 2cm 轻卷），
-   *  自由边软扇贝波 + 末端微卷、两端轻微垂下（不直切也不挂大 flap）、细布纹、柔和明暗；
-   *  网格加密让轮廓顺滑。整道压在蓬松被面之上，前沿搭过被头边，z 随 v 单调无自交。 */
-  function fold(b, m, w, matTop, zHead) {
+  /** 被头翻边：白色被里折回来的一道低矮软布带，贴着蓬松被面走。
+   *  基高直接取同一条 bedPuff 曲线（+2.8cm 薄层），所以整道始终浮在被面之上、
+   *  不会被被面吞掉；z 随 v 递增，法线朝上（和被子一致），翻边才不会被背光压黑；
+   *  自由边软扇贝波 + 末端微卷、两端往内收、细布纹、柔和明暗。 */
+  function fold(b, m, w, matTop, zHead, zFoot) {
     const hw = w / 2 - 0.03, cols = 48, rows = 18;
-    const baseY = matTop + 0.085;
     const P = (u, v) => {
       const end = smooth01(u / 0.06) * smooth01((1 - u) / 0.06);   // 中段 1、两端 0
       const droop = 1 - end;
       const x = (-hw + 2 * hw * u) * (1 - 0.04 * droop);           // 两端往内收
       const roll = Math.sin(Math.min(1, v / 0.9) * Math.PI);       // 低卷峰在 v≈0.45
-      const crest = 0.020 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
-      const frontDrape = 0.022 * smooth01((v - 0.75) / 0.25);      // 前沿搭过被头边
-      const curl = 0.006 * smooth01((v - 0.90) / 0.10);            // 末端微卷
-      const scallop = 0.006 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((v - 0.5) / 0.5) * end;
+      const crest = 0.018 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
+      const frontDrape = 0.012 * smooth01((0.25 - v) / 0.25);      // 自由边（v=0）轻搭
+      const curl = 0.005 * smooth01((0.10 - v) / 0.10);            // 自由边末端微卷
+      const scallop = 0.006 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((0.5 - v) / 0.5) * end;
       const wr = (0.0022 * Math.sin(u * 7.0 + v * 3.1)
                 + 0.0018 * Math.sin(u * 4.3 - v * 5.2 + 1.0)
                 + 0.0013 * Math.sin(u * 11.0 + v * 1.7 + 0.5)) * (0.4 + 0.6 * end);
-      const y = baseY + crest - frontDrape - curl + scallop + wr - 0.018 * droop;
-      const z = zHead + 0.20 - 0.18 * v + 0.006 * Math.sin(u * Math.PI * 1.5) * v;
-      const k = 0.94 + 0.08 * roll - 0.04 * smooth01((v - 0.7) / 0.3) + 0.02 * Math.sin(u * 6.0 + v * 2.0);
+      const z = zHead + 0.02 + 0.24 * v + 0.006 * Math.sin(u * Math.PI * 1.5) * v;
+      const vB = BLANKET_VF * (z - zHead) / (zFoot - zHead);       // 换到被子全局纵向参数
+      const y = matTop + bedPuff(u, vB) + 0.028
+              + crest - frontDrape - curl + scallop + wr;
+      const k = 1.08 + 0.05 * roll - 0.03 * smooth01((0.3 - v) / 0.3)
+              + 0.015 * Math.sin(u * 6.0 + v * 2.0);
       return { p: [x, y, z], k };
     };
     const grid = [];
@@ -711,14 +718,15 @@ const A3DDecor = (() => {
   }
 
   /** 床：m 原点在落地中心，床头朝 -Z、床尾朝 +Z（默认 1.05 × 2.0m）。
-   *  白漆床架 / 床头 + 金属腿 + 亚麻床品；被子是垂到床侧和床尾的网格布。
+   *  白漆床架 / 床头 + 金属腿 + 亚麻床品；被子从枕头前沿一直铺到床尾、三面垂下，
+   *  被头折回一道白色被里当翻边，一个扁枕靠床头。
    *  bWood 走金属（腿 / 柱头），bSheet 走白漆与白色床品，bFabric 走蓝色被褥。 */
   function bed(bWood, bFabric, bSheet, m, w = 1.05, len = 2.0) {
     const legH = 0.14, frameT = 0.08;
     const frameTop = legH + frameT;      // 0.22
     const matTop = frameTop + 0.20;      // 0.42
     const zFoot = len / 2 - 0.06;        // 床垫尾沿，被子从这里垂下去
-    const zHead = -len * 0.13;           // 被头，翻边压住这条边
+    const zHead = -len / 2 + 0.45;       // 被头：床头留出 0.45m 给枕头
     const hbZ = -len / 2 - 0.02;         // 床头板所在 z
 
     /* 四条金属腿 */
@@ -731,19 +739,26 @@ const A3DDecor = (() => {
     G.box.call(bSheet, at(m, 0, 0.24, len / 2), w, 0.18, 0.05, C.fabricLit, 1.5);
     /* 床垫 */
     G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
-    /* 蓝色被子 */
+    /* 蓝色被子：铺满枕头前沿到床尾，两侧与床尾垂下 */
     blanket(bFabric, m, w, matTop, zHead, zFoot);
-    /* 被头翻边：搭在被头上的一道白色折布 */
-    fold(bSheet, m, w, matTop, zHead);
-    /* 一个枕头：饱满扁枕，法兰落在床垫上、靠向床头 */
-    pillow(bSheet, m, 0, matTop + 0.02, -len / 2 + 0.30, w * 0.30, 0.20, 0.095, 0.065, C.rim, 18);
-    /* 床头软包：圆顶蓝布软板 + 白漆立柱 + 金属柱头 */
-    G.box.call(bFabric, at(m, 0, 0.62, hbZ), w - 0.02, 0.62, 0.06, [1.0, 1.03, 1.10], 1.6);
-    bFabric.cyl.call(bFabric, at(m, -(w / 2 - 0.01), 0.93, hbZ, 0, 0, -Math.PI / 2),
-      0.03, 0.03, w - 0.02, 10, [1.0, 1.03, 1.10], true);
+    /* 被头翻边：白色被里折回来，贴在被面上 */
+    fold(bSheet, m, w, matTop, zHead, zFoot);
+    /* 一个枕头：扁而宽的白色软枕，居中靠床头，缝边略微埋进床单、不露深色底圈 */
+    pillow(bSheet, m, 0, matTop - 0.005, -len / 2 + 0.29, w * 0.40, 0.17, 0.075, 0.05, C.rim, 20);
+
+    /* 床头软包：三格浅蓝亚麻 + 上缘圆滚边；立柱挪到床架外侧，不再穿过床垫 */
+    const padBot = 0.30, padTop = 0.86, padH = padTop - padBot;
+    G.box.call(bFabric, at(m, 0, (padBot + padTop) / 2, hbZ),
+      w - 0.04, padH, 0.07, [1.22, 1.28, 1.42], 1.6);
+    for (const sx of [-1, 1]) {          // 两道绗缝凹线，分出三格
+      G.box.call(bFabric, at(m, sx * w / 6, (padBot + padTop) / 2, hbZ + 0.037),
+        0.008, padH - 0.05, 0.004, [0.52, 0.58, 0.70], 1.0);
+    }
+    bFabric.cyl.call(bFabric, at(m, -(w / 2 - 0.01), padTop, hbZ, 0, 0, -Math.PI / 2),
+      0.03, 0.03, w - 0.02, 10, [1.22, 1.28, 1.42], true);
     for (const sx of [-1, 1]) {
-      bSheet.cyl.call(bSheet, at(m, sx * (w / 2 - 0.02), 0, hbZ), 0.032, 0.028, 1.0, 8, C.fabricLit, true);
-      bWood.sphere.call(bWood, at(m, sx * (w / 2 - 0.02), 1.02, hbZ), 0.04, 8, 5, C.metalLit);
+      bSheet.cyl.call(bSheet, at(m, sx * (w / 2 + 0.018), 0, hbZ), 0.032, 0.028, 0.98, 8, C.fabricLit, true);
+      bWood.sphere.call(bWood, at(m, sx * (w / 2 + 0.018), 1.0, hbZ), 0.033, 8, 5, C.metalLit);
     }
   }
 
