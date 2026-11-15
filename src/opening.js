@@ -594,11 +594,36 @@ const OPENING = (() => {
             const hot = hoverThought(L, tt);
             ink(c, "Thought for " + e.dur + "s", PAD + 2, y + 13, hot ? C.white : C.dim, false);
           } else {
-            /* ✻ Bloviating… (9s · thinking)  —— 跟真实 Claude Code 一样带个动词 */
+            /* ✻ Bloviating… (9s · thinking) —— 星号在闪、动词上有一道光带流过 */
             const verb = e.verb || "Thinking";
-            ink(c, "✻", PAD + 2, y + 13, C.logo, false);
-            ink(c, verb + "…", PAD + 18, y + 13, "#d79a6a", false);
-            ink(c, " (" + el + "s · thinking)", PAD + 18 + c.measureText(verb + "…").width, y + 13, C.dim, false);
+            const label = verb + "…";
+            setFont(c, 12);
+            ink(c, SPIN[Math.floor(tt * 6) % SPIN.length], PAD + 2, y + 13, C.logo, false);
+            const vx = PAD + 18;
+            const vw = c.measureText(label).width;
+            ink(c, label, vx, y + 13, "#d79a6a", FRINGE);
+            /* 浅色光带：从左往右慢慢扫 */
+            const p = (((tt * 0.42) % 1.6) / 1.6) * 1.5 - 0.25;
+            const g = c.createLinearGradient(vx, 0, vx + vw, 0);
+            let lastOff = -1;
+            const pts = [
+              [0, "rgba(255,238,215,0)"],
+              [clamp(p - 0.18, 0, 1), "rgba(255,238,215,0)"],
+              [clamp(p, 0, 1), "rgba(255,246,228,.95)"],
+              [clamp(p + 0.18, 0, 1), "rgba(255,238,215,0)"],
+              [1, "rgba(255,238,215,0)"]
+            ];
+            for (let i = 0; i < pts.length; i++) {
+              if (pts[i][0] <= lastOff) continue;
+              g.addColorStop(pts[i][0], pts[i][1]);
+              lastOff = pts[i][0];
+            }
+            c.save();
+            c.beginPath(); c.rect(vx, y - 2, vw, LH + 4); c.clip();
+            c.fillStyle = g;
+            c.fillText(label, vx, y + 13);
+            c.restore();
+            ink(c, " (" + el + "s · thinking)", vx + vw, y + 13, C.dim, false);
             /* ⎿ 一行 Tip */
             if (e.tip) {
               setFont(c, 11);
