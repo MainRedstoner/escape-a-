@@ -58,6 +58,83 @@ const A3DDecor = (() => {
       1, segU || 16, segV || 9, col);
   }
 
+  const smooth01 = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+
+  /** 被子：盖住床垫顶面、两侧和床尾垂下去的一张布（不是椭球）。
+   *  s 横跨（左垂边 → 顶面 → 右垂边），v 纵跨（被头 → 床尾垂边）；
+   *  顶面有轻微蓬松和褶皱，垂边带竖向折痕，法线用相邻差分平滑。 */
+  function blanket(b, m, w, matTop, zHead, zFoot) {
+    const hwB = w / 2 - 0.02;            // 顶面半宽，比床垫略宽，搭过边
+    const skirtW = 0.05, skirtY = 0.24;  // 侧垂边外扩 / 下摆高度
+    const footExt = 0.12, footDrop = 0.16;
+    const sL = 0.16, vF = 0.86;          // 垂边在横 / 纵截面里占的参数比例
+    const cols = 22, rows = 18;
+
+    const puff = (u, v) => {
+      const edge = smooth01(u / 0.12) * smooth01((1 - u) / 0.12);
+      const dome = 0.030 * Math.sin(Math.PI * u);
+      const fold = 0.016 * Math.sin(u * Math.PI * 3.0 + v * 2.2)
+                 + 0.011 * Math.sin(v * Math.PI * 4.5 + u * 1.7);
+      return 0.050 + dome + fold * (0.35 + 0.65 * edge);
+    };
+    const P = (s, v) => {
+      let x, y, k;
+      if (s < sL) {                      // 左垂边（t: 0 下摆 → 1 顶沿）
+        const t = s / sL;
+        x = -(hwB + skirtW * Math.sin((1 - t) * Math.PI / 2));
+        y = skirtY + (matTop + puff(0, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
+        k = 0.70 + 0.30 * t;
+      } else if (s > 1 - sL) {           // 右垂边
+        const t = (1 - s) / sL;
+        x = hwB + skirtW * Math.sin((1 - t) * Math.PI / 2);
+        y = skirtY + (matTop + puff(1, v) - skirtY) * (1 - Math.cos(t * Math.PI / 2));
+        k = 0.70 + 0.30 * t;
+      } else {                           // 顶面
+        const u = (s - sL) / (1 - 2 * sL);
+        x = -hwB + 2 * hwB * u;
+        y = matTop + puff(u, v);
+        k = 1.0 + 0.10 * Math.sin(u * Math.PI * 3.0 + v * 2.2);
+      }
+      let z, kk = k;
+      if (v <= vF) {
+        z = zHead + (zFoot - zHead) * (v / vF);
+      } else {                           // 床尾垂边
+        const t = (v - vF) / (1 - vF);
+        z = zFoot + footExt * Math.sin(t * Math.PI / 2);
+        y -= footDrop * (1 - Math.cos(t * Math.PI / 2));
+        kk *= 1 - 0.22 * t;
+      }
+      const crease = (s < sL || s > 1 - sL) ? 0.008 * Math.sin(v * Math.PI * 5.0) : 0;
+      return { p: [x + (x < 0 ? -crease : crease), y, z], k: kk };
+    };
+
+    const grid = [];
+    for (let i = 0; i <= cols; i++) {
+      grid[i] = [];
+      for (let j = 0; j <= rows; j++) grid[i][j] = P(i / cols, j / rows);
+    }
+    const N = (i, j) => {
+      const a = grid[Math.min(cols, i + 1)][j].p, b0 = grid[Math.max(0, i - 1)][j].p;
+      const c = grid[i][Math.min(rows, j + 1)].p, d0 = grid[i][Math.max(0, j - 1)].p;
+      const tx = a[0] - b0[0], ty = a[1] - b0[1], tz = a[2] - b0[2];
+      const ux = c[0] - d0[0], uy = c[1] - d0[1], uz = c[2] - d0[2];
+      let nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      return [nx / l, ny / l, nz / l];
+    };
+    const nm = M.normalMat(m);
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        for (const [ii, jj] of [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]) {
+          const g = grid[ii][jj], n = N(ii, jj);
+          b._v(b.d, m, nm, g.p[0], g.p[1], g.p[2], n[0], n[1], n[2],
+            (ii / cols) * 2.0, (jj / rows) * 2.4, [g.k * 1.35, g.k * 1.35, g.k * 1.42], 0);
+        }
+        b._pushQuad(b.count - 4);
+      }
+    }
+  }
+
   /** 四角可各自带色的四边形（p0 左下 → p1 右下 → p2 右上 → p3 左上） */
   function quadVC(b, m, p0, p1, p2, p3, c0, c1, c2, c3, t0, t1, t2, t3) {
     const nm = M.normalMat(m);
@@ -536,40 +613,45 @@ const A3DDecor = (() => {
     bFabric.cyl.call(bFabric, at(m, 0, 0.021, 0), r * 0.22, r * 0.22, 0.004, 24, C.fabricLit, true);
   }
 
-  /** 床：m 原点在落地中心，床头朝 -Z、床尾朝 +Z（默认 1.05 × 2.0m） */
+  /** 床：m 原点在落地中心，床头朝 -Z、床尾朝 +Z（默认 1.05 × 2.0m）。
+   *  白漆床架 / 床头 + 金属腿 + 亚麻床品；被子是垂到床侧和床尾的网格布。
+   *  bWood 走金属（腿 / 柱头），bSheet 走白漆与白色床品，bFabric 走蓝色被褥。 */
   function bed(bWood, bFabric, bSheet, m, w = 1.05, len = 2.0) {
     const legH = 0.14, frameT = 0.08;
     const frameTop = legH + frameT;      // 0.22
     const matTop = frameTop + 0.20;      // 0.42
-    const topY = 0.66;
+    const zFoot = len / 2 - 0.06;        // 床垫尾沿，被子从这里垂下去
+    const zHead = -len * 0.13;           // 被头，翻边压住这条边
+    const hbZ = -len / 2 - 0.02;         // 床头板所在 z
 
-    /* 四条木腿 */
+    /* 四条金属腿 */
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.09), 0, sz * (len / 2 - 0.12)),
-        0.035, 0.028, legH, 8, C.woodDark, true);
+        0.03, 0.024, legH, 8, C.metalDark, true);
     }
-    /* 床架 */
-    G.box.call(bWood, at(m, 0, legH + frameT / 2, 0), w, frameT, len, C.wood, 1.4);
+    /* 白漆床架 + 低床尾板（被子能搭过去） */
+    G.box.call(bSheet, at(m, 0, legH + frameT / 2, 0), w, frameT, len, C.fabricLit, 1.4);
+    G.box.call(bSheet, at(m, 0, 0.24, len / 2), w, 0.18, 0.05, C.fabricLit, 1.5);
     /* 床垫 */
     G.box.call(bSheet, at(m, 0, frameTop + 0.10, 0), w - 0.08, 0.20, len - 0.16, C.fabricLit, 2.2);
-    /* 蓝色被子：盖住靠床尾的 3/4，圆润一点 */
-    plush(bFabric, m, 0, matTop - 0.02, topY, len * 0.18, w / 2 - 0.005, len * 0.28, C.fabric, 20, 8);
-    /* 被头翻边 */
-    plush(bSheet, m, 0, matTop + 0.03, topY - 0.04, -len * 0.16, w / 2 - 0.03, 0.085, C.fabricLit, 16, 6);
-    /* 两个枕头 */
+    /* 蓝色被子 */
+    blanket(bFabric, m, w, matTop, zHead, zFoot);
+    /* 被头翻边：白色扁卷，压在被头边上 */
+    bSheet.cyl.call(bSheet, at(m, -(w / 2 - 0.05), matTop + 0.05, zHead + 0.015, 0, 0, -Math.PI / 2, 1, 0.62, 1),
+      0.052, 0.052, w - 0.10, 12, C.rim, true);
+    /* 两个枕头：饱满、落在床垫上、微微靠向床头 */
     for (const sx of [-1, 1]) {
-      plush(bSheet, m, sx * w * 0.23, matTop + 0.04, matTop + 0.26, -len / 2 + 0.27,
-        0.20, 0.15, C.fabricLit, 14, 7);
+      plush(bSheet, m, sx * w * 0.24, matTop - 0.015, matTop + 0.15, -len / 2 + 0.30,
+        w * 0.235, 0.16, C.rim, 18, 9);
     }
-    /* 床头软包 */
-    plush(bFabric, m, 0, 0.18, 1.02, -len / 2 - 0.035, w / 2 - 0.02, 0.065, C.fabric, 18, 9);
-    /* 床头两根木柱 */
+    /* 床头软包：圆顶蓝布软板 + 白漆立柱 + 金属柱头 */
+    G.box.call(bFabric, at(m, 0, 0.62, hbZ), w - 0.02, 0.62, 0.06, [1.0, 1.03, 1.10], 1.6);
+    bFabric.cyl.call(bFabric, at(m, -(w / 2 - 0.01), 0.93, hbZ, 0, 0, -Math.PI / 2),
+      0.03, 0.03, w - 0.02, 10, [1.0, 1.03, 1.10], true);
     for (const sx of [-1, 1]) {
-      bWood.cyl.call(bWood, at(m, sx * (w / 2 - 0.025), 0, -len / 2 - 0.03), 0.038, 0.032, 1.02, 8, C.woodDark, true);
-      bWood.sphere.call(bWood, at(m, sx * (w / 2 - 0.025), 1.04, -len / 2 - 0.03), 0.045, 8, 5, C.woodLit);
+      bSheet.cyl.call(bSheet, at(m, sx * (w / 2 - 0.02), 0, hbZ), 0.032, 0.028, 1.0, 8, C.fabricLit, true);
+      bWood.sphere.call(bWood, at(m, sx * (w / 2 - 0.02), 1.02, hbZ), 0.04, 8, 5, C.metalLit);
     }
-    /* 床尾板 */
-    G.box.call(bWood, at(m, 0, 0.36, len / 2), w, 0.30, 0.05, C.wood, 1.5);
   }
 
   /** 书桌：m 原点在落地中心，桌面在 y=h；白漆桌板 + 金属腿 */

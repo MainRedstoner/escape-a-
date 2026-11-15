@@ -1172,7 +1172,7 @@ const A3DWorlds = (() => {
           { name: "台灯", pos: [-1.0, 1.3, -2.9], col: [0.996, 0.847, 0.365], range: 3.4, inten: night ? 1.2 : 0 },
           { name: "显示器", pos: [monX, monY, monZ + 0.45], col: [0, 0.102, 0.341], range: 2.8, inten: night ? 1.0 : 1.33 },
           { name: "窗光", pos: [0, 1.9, zBack + 0.2], col: [0, 0.416, 1.0], range: 7.0, inten: night ? 0.3 : 0.1 },
-          { name: "床头灯", pos: [-1.4, 0.8, -3.15], col: [1.0, 0.678, 0.38], range: 4.2, inten: 0.88 }
+          { name: "床头灯", pos: [-1.5, 1.0, -3.05], col: [1.0, 0.72, 0.44], range: 4.6, inten: 1.2 }
         ]
       },
       shadow: { pos: [0, 2.4, -1.4], far: 9, index: 0, bias: 0.002, size: 2048 },
