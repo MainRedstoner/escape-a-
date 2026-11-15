@@ -600,18 +600,26 @@ const OPENING = (() => {
           c.fillRect(0, y - 4, W, bl.h + 8);
           setFont(c, 12);
           const bls = bodyLines(e);
-          if (sel && !selDrawn) {
-            c.fillStyle = C.sel;
-            c.fillRect(sel.x, sel.y, sel.w, sel.h);
-            selDrawn = true;
+          /* 选中矩形直接按这一行的绘制坐标算，不再绕锚点，保证严丝合缝 */
+          const down = eventAt("mousedown", tt);
+          let selLine = -1, selTo = 0;
+          if (down && down.line !== undefined) {
+            selLine = down.line;
+            const lw = c.measureText((bls[selLine] && bls[selLine][0]) || "").width;
+            const m = mousePos(L, tt);
+            const up = lastEvent("mouseup", tt);
+            selTo = up ? PAD + 26 + lw : clamp(m ? m.x : PAD + 26, PAD + 26, PAD + 26 + lw);
           }
           for (let k = 0; k < e.body.length; k++) {
             const txt = bls[k][0] || "";
-            const part = txt.slice(0, blobShown(e, k, tt, capture));
-            if (!part) continue;
+            if (!txt) continue;
             const yy = y + k * LH + 13;
+            if (k === selLine) {
+              c.fillStyle = C.sel;
+              c.fillRect(PAD + 26, y + k * LH + 1, selTo - (PAD + 26), LH - 2);
+            }
             if (k === 0) ink(c, "∴", PAD + 10, yy, "#8d9299", false);
-            ink(c, part, PAD + 26, yy, "#939ca6", FRINGE);
+            ink(c, txt, PAD + 26, yy, "#939ca6", FRINGE);
           }
         } else {
           const done = tt >= e.at + e.dur;
