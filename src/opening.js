@@ -946,7 +946,7 @@ const OPENING = (() => {
       const w = g.measureText(last).width;
       return {
         x: clamp(PAD + 18 + w / 2, 60, W - 60),
-        y: (L.anchors.cursor ? L.anchors.cursor.y : BOX_TOP + 21)
+        y: (L.anchors.cursor ? L.anchors.cursor.y : BOX_TOP + 21) - 26
       };
     }
     /* 思考中：盯着那句 Thought */
