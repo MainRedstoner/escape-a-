@@ -81,6 +81,7 @@ const OPENING = (() => {
   let playing = false, preview = false, AUDIO_ON = false;
   let t = 0, last = 0, rafId = 0, doneCb = null;
   let startedAt = 0, cueIdx = 0, prevT = 0, lastKeyT = -1, lastMs = 0;
+  let lastBlink = true, lastReveal = 0;
   const layers = { grid: true, sub: true, moire: true, bloom: true, dust: true, grain: true };
   let CUR = { anchors: {} };
   let CAM = null;                  // 平滑后的镜头 { x, y, s }
@@ -171,7 +172,9 @@ const OPENING = (() => {
       if (!w) continue;
       const cand = line ? line + " " + w : w;
       if (c.measureText(cand).width <= maxW) line = cand;
-      else { if (line) out.push(line); line = w; }
+      /* 换行时把那个空格留在行尾：lines.join("") 必须等于原文，
+         否则按「已经打了几个字」做流式截断时，每换一次行就会错位一个字 */
+      else { if (line) out.push(line + " "); line = w; }
     }
     if (line) out.push(line);
     return out;
@@ -431,7 +434,7 @@ const OPENING = (() => {
         c.fillStyle = C.white;
         c.fillRect(PAD + 18 + w + 1, BOX_TOP + 13, 7, 16);
       }
-    } else if (!capture && (tt < 4.6 || blinkOn(tt))) {
+    } else if (!capture && blinkOn(tt)) {
       c.fillStyle = C.white;
       c.fillRect(PAD + 18, BOX_TOP + 13, 7, 16);
     }
@@ -521,11 +524,14 @@ const OPENING = (() => {
           }
         } else {
           const done = tt >= e.at + e.dur;
-          const label = done ? e.done : (e.label || "Thinking…") + " (" + Math.max(0, Math.ceil(e.at + e.dur - tt)) + "s)";
+          /* 计时是往上数的：Thinking… (3s) → 4s … 到点变成 Thought for Ns，
+             N 就是实际用的秒数，跟前面数的那个数对得上 */
+          const el = Math.max(0, Math.floor(tt - e.at));
+          const label = done ? ("Thought for " + e.dur + "s") : ("Thinking… (" + el + "s)");
           setFont(c, 12);
           if (done) {
             const hot = hoverThought(L, tt);
-            ink(c, "Thought for " + e.dur + "s", PAD + 2, y + 13, hot ? C.white : C.dim, false);
+            ink(c, label, PAD + 2, y + 13, hot ? C.white : C.dim, false);
           } else {
             ink(c, SPIN[Math.floor(tt * 8) % SPIN.length], PAD + 2, y + 13, C.logo, false);
             ink(c, label, PAD + 18, y + 13, C.dim, false);
@@ -813,7 +819,17 @@ const OPENING = (() => {
     }
     /* 否则盯着最后一块内容（只有终端布局才有 base） */
     const lastB = L.blocks && L.blocks[L.blocks.length - 1];
-    if (lastB && typeof L.base === "number") return { x: 320, y: L.base + lastB.y + lastB.h / 2 };
+    if (lastB && typeof L.base === "number") {
+      /* 横向对准这段文字自己的中心，别死盯 320：正文靠左，盯中间会把句首切掉 */
+      let x = 320;
+      if (lastB.lines && lastB.lines.length) {
+        setFont(g, 13);
+        let wmax = 0;
+        for (let i = 0; i < lastB.lines.length; i++) wmax = Math.max(wmax, g.measureText(lastB.lines[i]).width);
+        x = PAD + (lastB.kind === "reply" ? 14 : 18) + wmax / 2;
+      }
+      return { x: x, y: L.base + lastB.y + lastB.h / 2 };
+    }
     return L.anchors.post || L.anchors.image || L.anchors.saved || L.anchors.cursor || { x: 320, y: 180 };
   }
 
@@ -1092,6 +1108,18 @@ const OPENING = (() => {
     try { AUDIO.sfx(name); } catch (e) {}
   }
 
+  /** 已经「流」出来的总字数：每多一个字，敲一下键盘 */
+  function revealCount(tt) {
+    let n = 0;
+    for (let i = 0; i < S.events.length; i++) {
+      const e = S.events[i];
+      if (e.type !== "input" && e.type !== "reply") continue;
+      if (e.at > tt) break;
+      n += typed(e, tt).length;
+    }
+    return n;
+  }
+
   function cues(tt) {
     for (let i = cueIdx; i < S.events.length; i++) {
       const e = S.events[i];
@@ -1100,10 +1128,19 @@ const OPENING = (() => {
       cueIdx = i + 1;
     }
     prevT = tt;
-    if (tt - lastKeyT > 0.045) {
-      const act = activeInput(tt);
-      if (act) { lastKeyT = tt; sfx("key"); }
+
+    /* 光标每亮一次，一声很轻的「嗒」 */
+    const b = blinkOn(tt);
+    if (b !== lastBlink) {
+      lastBlink = b;
+      if (b && sceneAt(tt) === "terminal") sfx("tick");
     }
+
+    /* 流式输出：多出来几个字就响几声（一帧最多补三下，免得糊成一片） */
+    const n = revealCount(tt);
+    const d = n - lastReveal;
+    if (d > 0) for (let i = 0; i < Math.min(d, 3); i++) sfx("key");
+    lastReveal = n;
   }
 
   /* ============================================================
@@ -1200,6 +1237,8 @@ const OPENING = (() => {
     cueIdx = 0;
     for (let i = 0; i < S.events.length && S.events[i].at <= t; i++) cueIdx = i + 1;
     prevT = t;
+    lastBlink = blinkOn(t);
+    lastReveal = revealCount(t);
     shot = null; shotWish = null;
     CAM = null;
 
