@@ -198,7 +198,6 @@ window.OPENING_SCRIPT = {
       { name: "ZCode" },
       { name: "zixishi" }
     ],
-    user: "没落石头呢",
     title: "定时任务 · 片头进度盘点",
     preset: "创造模式",
     tabs: ["对话", "轨迹"],

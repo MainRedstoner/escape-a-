@@ -1279,14 +1279,6 @@ const OPENING = (() => {
       }
     }
 
-    /* 栏脚：账户行 */
-    c.fillStyle = "#3b3f47";
-    c.beginPath(); c.arc(13, 343, 5, 0, Math.PI * 2); c.fill();
-    c.fillStyle = "#6d8bb5";
-    c.beginPath(); c.arc(13, 341.2, 2.1, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(13, 346.8, 3.6, Math.PI, Math.PI * 2); c.fill();
-    setFont(c, 7, "400", UI);
-    ink(c, D.user, 23, 345.6, DC.fg2, false);
   }
 
   /* ============================================================
