@@ -155,26 +155,43 @@ const OPENING = (() => {
     c.fillText(str, x, y);
   }
 
-  function wrapText(c, str, maxW) {
+  /* 终端是按列折行的（不是按单词），所以流式输出时只需要「已经出来的这些字」
+     重新排一遍——行只增不减，不会出现半行跳动。 */
+  function wrapChars(c, str, maxW) {
+    const out = [];
+    let line = "", w = 0;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      const cw = c.measureText(ch).width;
+      if (line && w + cw > maxW) { out.push(line); line = ""; w = 0; }
+      line += ch; w += cw;
+    }
+    if (line) out.push(line);
+    return out;
+  }
+
+  /* 提问那一带是「已经提交的整句」，按单词折行更好看；
+     回答是流式输出的，按列折（跟真终端一样，行只增不减）。 */
+  function wrapWords(c, str, maxW) {
     const out = [];
     let line = "";
     const words = str.split(" ");
     for (let i = 0; i < words.length; i++) {
-      let w = words[i];
-      /* 单个词就超宽（中文没有空格、或者长 URL）：按字硬拆 */
-      while (w && c.measureText(w).width > maxW) {
-        let head = "";
-        while (w.length && c.measureText(head + w[0]).width <= maxW) { head += w[0]; w = w.slice(1); }
-        if (!head) break;
-        if (line) { out.push(line); line = ""; }
-        out.push(head);
-      }
-      if (!w) continue;
+      const w = words[i];
       const cand = line ? line + " " + w : w;
-      if (c.measureText(cand).width <= maxW) line = cand;
-      /* 换行时把那个空格留在行尾：lines.join("") 必须等于原文，
-         否则按「已经打了几个字」做流式截断时，每换一次行就会错位一个字 */
-      else { if (line) out.push(line + " "); line = w; }
+      if (c.measureText(cand).width <= maxW) { line = cand; continue; }
+      if (line) { out.push(line + " "); line = w; }
+      else {
+        /* 单个词就超宽：按字硬拆 */
+        let rest = w;
+        while (rest && c.measureText(rest).width > maxW) {
+          let head = "";
+          while (rest.length && c.measureText(head + rest[0]).width <= maxW) { head += rest[0]; rest = rest.slice(1); }
+          if (!head) break;
+          out.push(head);
+        }
+        line = rest;
+      }
     }
     if (line) out.push(line);
     return out;
@@ -184,13 +201,13 @@ const OPENING = (() => {
     if (e.__lines) return e.__lines;
     setFont(g, 13);
     /* 折得比画面窄一点：镜头跟着走的时候，整行才不会被切掉 */
-    e.__lines = wrapText(g, e.text, 470);
+    e.__lines = (e.type === "input" ? wrapWords(g, e.text, 470) : wrapChars(g, e.text, 470));
     return e.__lines;
   }
   function bodyLines(e) {
     if (e.__blines) return e.__blines;
     setFont(g, 12);
-    e.__blines = e.body.map(b => wrapText(g, b, W - PAD * 2 - 40));
+    e.__blines = e.body.map(b => wrapChars(g, b, W - PAD * 2 - 40));
     return e.__blines;
   }
 
@@ -492,16 +509,12 @@ const OPENING = (() => {
         }
       } else if (bl.kind === "reply") {
         setFont(c, 13);
-        const shown = typed(bl.e, tt).length;
-        let left = shown;
-        for (let k = 0; k < bl.lines.length; k++) {
-          const s = bl.lines[k];
-          const part = left >= s.length ? s : s.slice(0, left);
-          left -= s.length;
-          if (!part) continue;
+        /* 流式输出：拿已经出来的那一段重新折行，行只增不减 */
+        const vl = wrapChars(c, typed(bl.e, tt), 470);
+        for (let k = 0; k < vl.length; k++) {
           const yy = y + k * LH + 13;
           if (k === 0) ink(c, "●", PAD, yy, C.bullet, false);
-          ink(c, part, PAD + 14, yy, C.text, FRINGE);
+          ink(c, vl[k], PAD + 14, yy, C.text, FRINGE);
         }
       } else if (bl.kind === "think") {
         const e = bl.e;
