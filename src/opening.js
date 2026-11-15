@@ -96,10 +96,11 @@ const OPENING = (() => {
     const ops = [];
     let tt = e.at;
     const base = 1 / (e.cps || 24);
+    const human = e.type === "input";        // 只有人打的字会打错、会停顿
     for (let i = 0; i < e.text.length; i++) {
       const ch = e.text[i];
       /* 打错：敲一个错字、停一下、退格、再敲对 */
-      if (i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
+      if (human && i > 5 && ch !== " " && e.text.length > 18 && rnd() < 0.025) {
         const wrong = "abcdefghijklmnopqrstuvwxyz"[Math.floor(rnd() * 26)];
         if (wrong !== ch) {
           ops.push({ at: tt, ch: wrong });
@@ -109,11 +110,14 @@ const OPENING = (() => {
         }
       }
       ops.push({ at: tt, ch });
-      let d = base * (0.45 + rnd() * 1.45);
-      if (ch === ",") d += 0.09 + rnd() * 0.13;
-      else if (ch === "." || ch === "?" || ch === "!") d += 0.15 + rnd() * 0.20;
-      else if (ch === "—") d += 0.12;
-      else if (ch === " ") d *= 0.72;
+      /* 模型的输出是匀的、快的：没有停顿、没有错字 */
+      let d = human ? base * (0.45 + rnd() * 1.45) : base * (0.9 + rnd() * 0.2);
+      if (human) {
+        if (ch === ",") d += 0.09 + rnd() * 0.13;
+        else if (ch === "." || ch === "?" || ch === "!") d += 0.15 + rnd() * 0.20;
+        else if (ch === "—") d += 0.12;
+        else if (ch === " ") d *= 0.72;
+      }
       tt += d;
     }
     e.__ops = ops;
@@ -797,14 +801,7 @@ const OPENING = (() => {
   }
 
   function focusAt(tt, L) {
-    /* 开场「拉远看全貌」那几秒由台本直接指定，不跟光标 */
-    let mode = "auto";
-    for (let i = 0; i < S.events.length; i++) {
-      const e = S.events[i];
-      if (e.type === "focus" && e.at <= tt) mode = e.mode;
-    }
-    if (mode === "screen") return { x: 320, y: 186 };
-    /* 选了字之后镜头就停在选中的那一行上，别跟着指针跑到行尾去 */
+    /* 拖选的时候镜头就停在选中的那一行上 */
     const down = eventAt("mousedown", tt);
     if (down) {
       const a = L.anchors.tl7, b = L.anchors.tl7e, m = mousePos(L, tt);
