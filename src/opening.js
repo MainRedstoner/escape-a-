@@ -305,11 +305,15 @@ const OPENING = (() => {
           blocks.push({ e: qo, kind: "input", y, h: qh, lines: qo.__lines });
           y += qh + 8;
 
-          const ro = { at: 0, cps: 10000, text: hs[h].a, __i: 901 + h * 2 };
-          ro.__lines = wrapChars(g, ro.text, 470);
-          const rh = ro.__lines.length * LH;
-          blocks.push({ e: ro, kind: "reply", y, h: rh, lines: ro.__lines });
-          y += rh + 6;
+          /* 正式回答按空行分段，段与段之间留一点呼吸 */
+          const paras = String(hs[h].a).split("\n\n");
+          for (let pi = 0; pi < paras.length; pi++) {
+            const ro = { at: 0, cps: 10000, text: paras[pi], __i: 901 + h * 2 };
+            ro.__lines = wrapChars(g, ro.text, 470);
+            const rh = ro.__lines.length * LH;
+            blocks.push({ e: ro, kind: "reply", y, h: rh, lines: ro.__lines, first: pi === 0 });
+            y += rh + (pi === paras.length - 1 ? 8 : 7);
+          }
         }
       }
     }
@@ -589,7 +593,7 @@ const OPENING = (() => {
         const vl = wrapChars(c, typed(bl.e, tt), 470);
         for (let k = 0; k < vl.length; k++) {
           const yy = y + k * LH + 13;
-          if (k === 0) ink(c, "●", PAD, yy, C.bullet, false);
+          if (k === 0 && bl.first !== false) ink(c, "●", PAD, yy, C.bullet, false);
           ink(c, vl[k], PAD + 14, yy, C.text, FRINGE);
         }
       } else if (bl.kind === "think") {
