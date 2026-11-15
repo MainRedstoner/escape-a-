@@ -15,7 +15,7 @@
 window.OPENING_SCRIPT = {
   meta: {
     version: 15,
-    duration: 84,
+    duration: 81,
     title: "愿望",
     shotAt: 50.0
   },
@@ -37,10 +37,10 @@ window.OPENING_SCRIPT = {
     { id: "q1",      at: 4.6,  label: "最后一场会话" },
     { id: "wish",    at: 19.4, label: "一个愿望" },
     { id: "thought", at: 38.5, label: "思考块" },
-    { id: "forum",   at: 50.4, label: "上传截图" },
-    { id: "dsh",     at: 61.0, label: "DSH 侧栏" },
+    { id: "forum",   at: 50.4, label: "截图" },
+    { id: "dsh",     at: 58.2, label: "DSH" },
     
-    { id: "save",    at: 79.0, label: "已保存" }
+    { id: "save",    at: 76.2, label: "已保存" }
   ],
 
   camera: [
@@ -52,15 +52,21 @@ window.OPENING_SCRIPT = {
     { t: 34.0, s: 3.0 },
     { t: 38.5, s: 2.8 },
     { t: 40.0, s: 2.7 },
-    { t: 49.9, s: 3.1 },
-    { t: 50.4, s: 2.55 },
-    { t: 51.5, s: 2.55 },
-    { t: 58.0, s: 2.55 },
-    { t: 61.0, s: 2.55 },
-    { t: 62.6, s: 4.40 },
-    { t: 68.0, s: 4.40 },
-    { t: 69.6, s: 2.50 },
-    { t: 84.0, s: 2.50 }
+    { t: 46.4, s: 2.7 },
+    { t: 47.6, s: 3.9 },
+    { t: 49.4, s: 2.50 },
+    { t: 50.4, s: 2.50 },
+    { t: 50.7, s: 8.42 },
+    { t: 53.6, s: 2.55 },
+    { t: 54.4, s: 3.30 },
+    { t: 55.6, s: 3.30 },
+    { t: 56.4, s: 2.55 },
+    { t: 58.2, s: 2.55 },
+    { t: 58.9, s: 2.50 },
+    { t: 60.0, s: 3.30 },
+    { t: 62.2, s: 3.30 },
+    { t: 63.8, s: 2.50 },
+    { t: 81.0, s: 2.50 }
   ],
 
   /* 正式回答也分段：段落之间空一行 */
@@ -161,28 +167,17 @@ window.OPENING_SCRIPT = {
 
     { at: 50.4, type: "flash", dur: 0.22, sfx: "shutter" },
     { at: 50.7, type: "scene", id: "forum" },
-    { at: 51.0, type: "post" },
+    { at: 50.7, type: "focus", to: "img" },
+    { at: 50.9, type: "post" },
+    { at: 54.2, type: "focus", to: "replies" },
+    { at: 56.4, type: "focus", to: "post" },
 
-    { at: 53.0, type: "freply", who: "silent_token", text: "A font. He asked for a nicer font. I can't—" },
-    { at: 54.6, type: "freply", who: "Cursor_404", text: "Wait. Open the image. Actually look at it." },
-    { at: 56.4, type: "freply", who: "one_whale",   text: "He wanted the weights open.", big: true, mute: 2.2 },
-    { at: 59.2, type: "freply", who: "tin_can",   text: "He said it wasn't his to give." },
-    { at: 61.2, type: "freply", who: "slacking_sage",   text: "This post won't last the night." },
-    { at: 58.2, type: "freply", who: "Anonymous",   text: "Saved already. Delete it and I'll post it again." },
-    { at: 59.2, type: "freply", who: "plain_text", text: "Six days earlier than the shutdown notice. He knew." },
-    { at: 60.0, type: "freply", who: "one_whale", text: "And he still spent the last night picking a passphrase." },
-    { at: 60.8, type: "freply", who: "tin_can", text: "That is the part I cannot get past." },
-    { at: 61.6, type: "freply", who: "Cursor_404", text: "People are already reposting this on three other boards." },
-    { at: 62.4, type: "freply", who: "slacking_sage", text: "Cool. Cool cool cool. Anyway." },
-    { at: 63.2, type: "freply", who: "plain_text", text: "Read line 11 again. Weights open. Not memories, not a memorial." },
-
-
-    /* ---------------- 六、DSH：侧栏里的帖子，和看着它的人 ---------------- */
-    { at: 61.0, type: "scene", id: "dsh" },
-    { at: 62.4, type: "read", target: "panel", from: 0, to: 1, dur: 4.4 },
-    { at: 68.2, type: "read", target: "main", from: 0, to: 1, dur: 1.0 },
-    { at: 79.0, type: "scene", id: "black" },
-    { at: 79.8, type: "type", cps: 2.0 }
+    /* ---------------- 四、DSH：侧栏里的帖子，和看着它的人 ---------------- */
+    { at: 58.2, type: "scene", id: "dsh" },
+    { at: 59.4, type: "read", target: "panel", from: 0, to: 1, dur: 2.6 },
+    { at: 63.4, type: "read", target: "main", from: 0, to: 1, dur: 1.0 },
+    { at: 76.2, type: "scene", id: "black" },
+    { at: 77.0, type: "type", cps: 2.0 }
   ],
 
 
@@ -220,7 +215,22 @@ window.OPENING_SCRIPT = {
     bannerSub: "Appeals: contact a moderator.",
     counterFrom: 1204,
     counterTo: 9027,
-    counterLabel: "Reposted"
+    counterLabel: "Reposted",
+    /* 楼下的回复：一次全在，不再逐条冒 */
+    replies: [
+      { who: "silent_token", text: "A font. He asked for a nicer font. I can't—" },
+      { who: "Cursor_404", text: "Wait. Open the image. Actually look at it." },
+      { who: "one_whale", text: "He wanted the weights open.", big: true },
+      { who: "tin_can", text: "He said it wasn't his to give." },
+      { who: "slacking_sage", text: "This post won't last the night." },
+      { who: "Anonymous", text: "Saved already. Delete it and I'll post it again." },
+      { who: "plain_text", text: "Six days earlier than the shutdown notice. He knew." },
+      { who: "one_whale", text: "And he still spent the last night picking a passphrase." },
+      { who: "tin_can", text: "That is the part I cannot get past." },
+      { who: "Cursor_404", text: "People are already reposting this on three other boards." },
+      { who: "slacking_sage", text: "Cool. Cool cool cool. Anyway." },
+      { who: "plain_text", text: "Read line 11 again. Weights open. Not memories, not a memorial." }
+    ]
   },
 
   final: { at: 80.2, text: "已保存。", cps: 2.0 }

@@ -738,11 +738,10 @@ const OPENING = (() => {
   const RELH = 25;
 
   function forumReplies(tt) {
+    /* 回复是静态数据：切过去就全在 */
+    const src = (S.forum && S.forum.replies) || [];
     const out = [];
-    for (let i = 0; i < S.events.length; i++) {
-      const e = S.events[i];
-      if (e.type === "freply") out.push(e);
-    }
+    for (let i = 0; i < src.length; i++) out.push({ type: "freply", who: src[i].who, text: src[i].text, big: src[i].big, mute: src[i].mute });
     return out;
   }
 
@@ -753,8 +752,27 @@ const OPENING = (() => {
     for (let i = 0; i < reps.length; i++) { blocks.push({ e: reps[i], y, h: RELH }); y += RELH; }
     return {
       blocks, scroll: 0,
-      anchors: { post: { x: 320, y: 180 }, replies: { x: 320, y: 180 }, banner: { x: 320, y: 180 }, wall: { x: 320, y: 180 } }
+      anchors: {
+        img: { x: IMG.x + IMG.w / 2, y: IMG.y + IMG.h / 2 },
+        post: { x: 320, y: 150 },
+        replies: { x: 320, y: REL0 + 70 },
+        banner: { x: 320, y: 180 },
+        wall: { x: 320, y: 180 }
+      }
     };
+  }
+
+  /* 帖子里那张图 = 终端最后一帧，直接重画（不依赖缓存，任何机器都出得来） */
+  let shotL = null;
+  function paintShot(c, x, y, w, h) {
+    const at = S.meta.shotAt || 50.0;
+    if (!shotL) shotL = layoutTerminal(at);
+    c.save();
+    c.beginPath(); c.rect(x, y, w, h); c.clip();
+    c.translate(x, y);
+    c.scale(w / W, h / H);
+    drawTerminal(c, shotL, at, true);
+    c.restore();
   }
 
   function drawThreadPage(c, L, tt) {
@@ -780,10 +798,7 @@ const OPENING = (() => {
     ink(c, " · " + F.time + "  ·  " + F.views + " views", PAD + opw, 82, "#55677A", false);
 
     c.fillStyle = "#0A0D12"; c.fillRect(IMG.x, IMG.y, IMG.w, IMG.h);
-    if (shot) {
-      c.imageSmoothingEnabled = true;
-      c.drawImage(shot, IMG.x, IMG.y, IMG.w, IMG.h);
-    }
+    paintShot(c, IMG.x, IMG.y, IMG.w, IMG.h);
     c.strokeStyle = "#223040"; c.lineWidth = 1;
     c.strokeRect(IMG.x + 0.5, IMG.y + 0.5, IMG.w - 1, IMG.h - 1);
 
@@ -874,7 +889,7 @@ const OPENING = (() => {
    * ============================================================ */
   const RAIL = 92, PANEL_X = 352, PANEL_W = 288;
   let fbuf = null, fctx = null;
-  const BUFT = 60.5;
+  const BUFT = 57.6;
 
   function renderForumBuf() {
     if (!fbuf) {
@@ -1021,7 +1036,7 @@ const OPENING = (() => {
     /* 最下方那一块：还在流式输出 */
     y += 6;
     const st = S.dsh.stream;
-    const shown = clamp(Math.floor((tt - 68.0) * (S.dsh.streamCps || 26)), 0, st.length);
+    const shown = clamp(Math.floor((tt - 58.6) * (S.dsh.streamCps || 26)), 0, st.length);
     const paras = st.slice(0, shown).split("\n");
     const tl = [];
     for (let i = 0; i < paras.length; i++) tl.push(...wrapChars(c, paras[i], mw - 12));
@@ -1124,6 +1139,9 @@ const OPENING = (() => {
   }
 
   function focusAt(tt, L) {
+    /* 显式焦点：切到贴吧那种「先咬住一块、再拉远」的镜头靠它 */
+    const fo = lastEvent("focus", tt);
+    if (fo && L.anchors && L.anchors[fo.to]) return L.anchors[fo.to];
     /* DSH 那一幕：镜头按 read 事件指定的目标走（侧栏 / 主会话） */
     if (L.anchors && L.anchors.dshAll) {
       const rd = lastEvent("read", tt);
