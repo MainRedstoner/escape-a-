@@ -333,9 +333,14 @@ const OPENING = (() => {
   function layoutTerminal(tt) {
     const b = blocksAt(tt);
     let scroll = scrollAt(tt);
-    /* 「往下读」：read 事件把某一行放到画面中间，靠它带着整块滚下去 */
-    const rd = lastEvent("read", tt);
-    if (rd) {
+    /* 「往下读」：read 事件把某一行放到画面正中；两个停靠点之间做 0.9 秒的插值，
+       滚动才是连续的，不会一格一格地跳 */
+    let rdIdx = -1;
+    for (let i = 0; i < S.events.length; i++) {
+      const e = S.events[i];
+      if (e.type === "read" && e.at <= tt) rdIdx = i;
+    }
+    if (rdIdx >= 0) {
       let wish = null;
       for (let i = 0; i < b.blocks.length; i++) {
         const x = b.blocks[i];
@@ -344,7 +349,14 @@ const OPENING = (() => {
       if (wish) {
         const viewH = VBOT - VTOP;
         const ms = Math.max(0, b.contentH - viewH);
-        scroll = clamp(wish.y + rd.line * LH + LH / 2 - viewH / 2, 0, ms);
+        const toLine = line => clamp(wish.y + line * LH + LH / 2 - viewH / 2, 0, ms);
+        const cur = S.events[rdIdx];
+        let prev = cur;
+        for (let i = rdIdx - 1; i >= 0; i--) {
+          if (S.events[i].type === "read") { prev = S.events[i]; break; }
+        }
+        const k = smoothstep((tt - cur.at) / 0.9);
+        scroll = lerp(toLine(prev.line), toLine(cur.line), k);
       }
     }
     const base = VTOP - scroll;
@@ -449,7 +461,8 @@ const OPENING = (() => {
   function selectionRect(L, tt) {
     const down = eventAt("mousedown", tt);
     if (!down) return null;
-    const a = selAnchor(L, "s"), b = selAnchor(L, "e");
+    const idx = down.line !== undefined ? down.line : (L.lastBody || 0);
+    const a = L.anchors["tl" + idx], b = L.anchors["tl" + idx + "e"];
     if (!a || !b) return null;
     const up = lastEvent("mouseup", tt);
     const m = mousePos(L, tt);
@@ -583,7 +596,7 @@ const OPENING = (() => {
         const e = bl.e;
         if (bl.expanded) {
           /* 展开后的思维链：整块一条灰底（跟真实 Claude Code 一样），字是暗灰的 */
-          c.fillStyle = "#33373d";
+          c.fillStyle = "#262c36";
           c.fillRect(0, y - 4, W, bl.h + 8);
           setFont(c, 12);
           const bls = bodyLines(e);
@@ -598,7 +611,7 @@ const OPENING = (() => {
             if (!part) continue;
             const yy = y + k * LH + 13;
             if (k === 0) ink(c, "∴", PAD + 10, yy, "#8d9299", false);
-            ink(c, part, PAD + 26, yy, "#9aa1a9", FRINGE);
+            ink(c, part, PAD + 26, yy, "#939ca6", FRINGE);
           }
         } else {
           const done = tt >= e.at + e.dur;
@@ -896,7 +909,8 @@ const OPENING = (() => {
     /* 拖选的时候镜头就停在选中的那一行上 */
     const down = eventAt("mousedown", tt);
     if (down) {
-      const a = selAnchor(L, "s"), b = selAnchor(L, "e"), m = mousePos(L, tt);
+      const idx = down.line !== undefined ? down.line : (L.lastBody || 0);
+      const a = L.anchors["tl" + idx], b = L.anchors["tl" + idx + "e"], m = mousePos(L, tt);
       if (a && b) {
         const x = m ? (a.x + clamp(m.x, a.x, b.x)) / 2 : (a.x + b.x) / 2;
         return { x: x, y: a.y };
@@ -955,8 +969,8 @@ const OPENING = (() => {
 
   function camStep(target, sTarget, dt) {
     if (!CAM) { CAM = clampCam({ x: target.x, y: target.y, s: sTarget }); return; }
-    const k = 1 - Math.exp(-dt / 0.55);
-    const ks = 1 - Math.exp(-dt / 0.75);
+    const k = 1 - Math.exp(-dt / 0.85);
+    const ks = 1 - Math.exp(-dt / 1.1);
     CAM.x += (target.x - CAM.x) * k;
     CAM.y += (target.y - CAM.y) * k;
     CAM.s += (sTarget - CAM.s) * ks;
