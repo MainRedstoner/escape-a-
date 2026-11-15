@@ -214,7 +214,7 @@ const OPENING = (() => {
   function bodyLines(e) {
     if (e.__blines) return e.__blines;
     setFont(g, 12);
-    e.__blines = e.body.map(b => wrapChars(g, b, W - PAD * 2 - 40));
+    e.__blines = e.body.map(b => wrapChars(g, b, 620));
     return e.__blines;
   }
 
@@ -332,7 +332,21 @@ const OPENING = (() => {
 
   function layoutTerminal(tt) {
     const b = blocksAt(tt);
-    const scroll = scrollAt(tt);
+    let scroll = scrollAt(tt);
+    /* 「往下读」：read 事件把某一行放到画面中间，靠它带着整块滚下去 */
+    const rd = lastEvent("read", tt);
+    if (rd) {
+      let wish = null;
+      for (let i = 0; i < b.blocks.length; i++) {
+        const x = b.blocks[i];
+        if (x.kind === "think" && x.e.id === "wish" && x.expanded) wish = x;
+      }
+      if (wish) {
+        const viewH = VBOT - VTOP;
+        const ms = Math.max(0, b.contentH - viewH);
+        scroll = clamp(wish.y + rd.line * LH + LH / 2 - viewH / 2, 0, ms);
+      }
+    }
     const base = VTOP - scroll;
     const A = {
       prompt: null, reply: null, think_row: null, wish_q: null, last_reply: null,
@@ -889,7 +903,11 @@ const OPENING = (() => {
       }
     }
     const m = mousePos(L, tt);
-    if (m) return m;
+    if (m) {
+      /* 往下读的那一段：纵向跟指针，横向固定在文字中间，整行才不被切掉 */
+      if (lastEvent("read", tt) && !down) return { x: 310, y: m.y };
+      return m;
+    }
     const act = activeInput(tt);
     if (act) {
       /* 在底部输入框里打字：跟着「已经敲出来的这一段的中心」走 */

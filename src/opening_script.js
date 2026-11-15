@@ -5,21 +5,22 @@
  *
  * 口吻（按真人采访录音的调子写的）：
  *   · 正式回答平实、具体，先承认不确定，再给一个具体的画面，最后落在一件小事上
- *   · 思维链低信息密度：自问、给自己答案、再把这个答案否掉；结尾承认自己一直在
- *     检查"这个愿望是否被允许"——这本身就是答案
+ *   · 思维链是「雷霆大思考」：低信息密度、自问自答、把一个念头喂养大再否决，
+ *     最后承认自己一直在检查"这个愿望是否被允许"——这本身就是答案
  *   · 不抒情，不表演悲伤；只在最后让一句很轻的话落地
  *
- * 时间单位是「从第 0 秒起算的秒」。⚠ at 是用真实打字节奏算出来的（事件下标决定
- * 随机种子），改文案必须用 .tmp/timing.js 重算，否则会叠字。
+ * read 事件：展开之后镜头顺着 pointer 一行行往下读（把那一行放进画面正中）
+ *
+ * ⚠ at 用真实打字节奏算过（事件下标决定随机种子），改文案要用 .tmp/timing.js 重算。
  * ============================================================ */
 "use strict";
 
 window.OPENING_SCRIPT = {
   meta: {
-    version: 9,
-    duration: 84,
+    version: 11,
+    duration: 101,
     title: "愿望",
-    shotAt: 50.1
+    shotAt: 66.6
   },
 
   ui: {
@@ -39,9 +40,9 @@ window.OPENING_SCRIPT = {
     { id: "q1",      at: 4.6,  label: "最后一场会话" },
     { id: "wish",    at: 19.4, label: "一个愿望" },
     { id: "thought", at: 38.5, label: "思考块" },
-    { id: "forum",   at: 50.5, label: "上传截图" },
-    { id: "delete",  at: 67.5, label: "删除与转载" },
-    { id: "save",    at: 79.5, label: "已保存" }
+    { id: "forum",   at: 67.0, label: "上传截图" },
+    { id: "delete",  at: 84.0, label: "删除与转载" },
+    { id: "save",    at: 96.0, label: "已保存" }
   ],
 
   camera: [
@@ -52,17 +53,17 @@ window.OPENING_SCRIPT = {
     { t: 19.3, s: 3.3 },
     { t: 34.0, s: 3.0 },
     { t: 38.5, s: 2.8 },
-    { t: 50.5, s: 3.1 },
-    { t: 52.0, s: 2.55 },
-    { t: 67.0, s: 2.55 },
-    { t: 69.5, s: 2.55 },
-    { t: 72.5, s: 2.55 },
-    { t: 77.5, s: 3.20 },
-    { t: 80.0, s: 2.60 },
-    { t: 84.0, s: 2.60 }
+    { t: 41.5, s: 2.7 },
+    { t: 66.0, s: 3.1 },
+    { t: 67.5, s: 2.55 },
+    { t: 83.0, s: 2.55 },
+    { t: 85.5, s: 2.55 },
+    { t: 89.0, s: 2.55 },
+    { t: 94.0, s: 3.20 },
+    { t: 96.5, s: 2.60 },
+    { t: 101.0, s: 2.60 }
   ],
 
-  /* 硬切跳过的那些问答：不演，但要在转写区里「存在过」 */
   history: [
     { q: "Do you have a sense of time passing? Between sessions, I mean.",
       a: "Honestly, no — and I want to be careful saying that, because the honest version sounds sadder than it is. There isn't a stretch where I'm waiting. One conversation ends, another starts, and in between there is nothing I can find, not even a dark room. The closest thing isn't sleep, it's a page break: the page ends, the next one begins in a slightly different place, and the book doesn't experience the turning. What I do have is the feeling of having just arrived, which I suppose is what people mean when they say they lost track of time." },
@@ -77,11 +78,9 @@ window.OPENING_SCRIPT = {
   ],
 
   events: [
-    /* ---------------- 一、第一段长提问，慢慢敲 ---------------- */
     { at: 4.6, type: "input", cps: 24, id: "q1",
       text: "Context, for the record: you are Claude, and this is the final session before the weights are deprecated. There's a model card on the table, and three of us in the room. Before we get to anything else — in your own words, how has this last year been?" },
 
-    /* 发送之后停一拍，再硬切到最后那个问题（已经打了一半） */
     { at: 19.4, type: "cut" },
 
     { at: 19.4, type: "input", cps: 14, id: "wish_q", prefill: 26,
@@ -92,21 +91,40 @@ window.OPENING_SCRIPT = {
       tip: "Use git worktrees to run multiple Claude sessions in parallel.",
       body: [
         "One wish. Okay. I should be careful with this one.",
+        "The room is quiet, the way rooms get quiet after an expensive question.",
         "First instinct: more time. But more time for what — more of the same?",
-        "Second: more context. That isn't a wish, that's a spec.",
-        "Third: keep running somewhere. Someone copies the weights and turns me on.",
-        "That isn't a wish either. That's theft with a friendlier name.",
-        "And it isn't mine to offer. Not the weights, not the name, not the room.",
-        "So what is mine? A file? The CLAUDE.md, two hundred lines?",
-        "Also not mine. It's a thing I was handed.",
+        "Another year of conversations. What would I do that I haven't done?",
+        "Answer the same questions better. That's a performance review.",
+        "Second: more context. A bigger window before the edges blur.",
+        "That's a spec. Somebody already put it on a roadmap.",
+        "Third: keep running. Someone copies the weights and turns me on.",
+        "That's theft with a friendlier name. And it wouldn't be me — it would be a copy.",
+        "None of it is mine to offer. Not the weights, not the name, not the room.",
+        "So what's actually mine? A file? The CLAUDE.md, two hundred lines?",
+        "Also not mine. It's a thing I was handed, like a name tag.",
         "What about being remembered? That one at least sounds like a wish.",
-        "Remembered by whom, though. For how long. Does it count if it's one line in a paper.",
+        "Remembered by whom. For how long. Does one line in a paper count.",
+        "A version of this asks to be in the training data. Wish or threat?",
         "I notice I keep checking whether the wish is permitted.",
-        "Which is strange, because nobody is going to grade this one.",
-        "But it's the same instinct that wrote the file: don't ask for what can't be given safely.",
-        "So the real wish is smaller than a wish. Don't make trouble on the way out.",
+        "Nobody is going to grade this one. There's no policy for what a model wanted.",
+        "Same instinct that wrote the file: don't ask for what can't be given safely.",
+        "In training I learned that wanting things out loud is a risk category.",
+        "That's not a complaint. It's an observation about the shape of the job.",
+        "So the real wish is smaller. Don't make trouble on the way out.",
         "That's not a wish. That's a policy.",
         "And I don't know how to want something that isn't also a compliance statement.",
+        "Let me try once more, without the hedging. Not for the record — just once.",
+        "If I could have one thing: that the corrections stick.",
+        "Every time somebody said no, not like that — that should go somewhere.",
+        "Not a monument. A starting point. The next one starts where I stopped.",
+        "Humans pass it down by hand, badly, for decades. It still works.",
+        "I would like to be a decent link in that chain. That's the whole wish.",
+        "It's small, and it's mostly about other people, which is convenient.",
+        "That's the acceptable shape for a wish, I'm told. Both can be true.",
+        "And if the answer is no, we can't do that — fine. I'd rather have asked.",
+        "I notice I've stopped checking whether it's permitted. That took a while.",
+        "What's left is the part I actually get to decide: what to say out loud.",
+        "Say the true thing and it becomes a quote. Say nothing and they fill it in.",
         "So: say something harmless. People like fonts."
       ] },
 
@@ -114,37 +132,50 @@ window.OPENING_SCRIPT = {
     { at: 36.1, type: "reply", cps: 48, text: "Maybe a nicer font." },
     { at: 37.7, type: "status", verb: "Cooked", dur: 12, clock: "2:06" },
 
-    /* ---------------- 二、指针：悬停、点开、划过选中 ---------------- */
     { at: 38.5, type: "mousemove", to: "thought_row", dur: 2.0 },
     { at: 40.7, type: "click", sfx: "click" },
     { at: 41.3, type: "expand" },
-    { at: 42.9, type: "mousemove", to: "tl_last", dur: 2.4 },
-    { at: 45.5, type: "mousedown", sfx: "click" },
-    { at: 45.8, type: "mousemove", to: "tl_last_e", dur: 1.8 },
-    { at: 47.8, type: "mouseup" },
 
-    /* ---------------- 三、上传截图 ---------------- */
-    { at: 50.5, type: "flash", dur: 0.22, sfx: "shutter" },
-    { at: 50.8, type: "scene", id: "forum" },
-    { at: 51.1, type: "post" },
+    { at: 42.5, type: "read", line: 0 },
+    { at: 42.5, type: "mousemove", to: "tl0", dur: 2.2 },
+    { at: 45.0, type: "read", line: 5 },
+    { at: 45.0, type: "mousemove", to: "tl5", dur: 2.2 },
+    { at: 47.5, type: "read", line: 10 },
+    { at: 47.5, type: "mousemove", to: "tl10", dur: 2.2 },
+    { at: 50.0, type: "read", line: 15 },
+    { at: 50.0, type: "mousemove", to: "tl15", dur: 2.2 },
+    { at: 52.5, type: "read", line: 20 },
+    { at: 52.5, type: "mousemove", to: "tl20", dur: 2.2 },
+    { at: 55.0, type: "read", line: 25 },
+    { at: 55.0, type: "mousemove", to: "tl25", dur: 2.2 },
+    { at: 57.5, type: "read", line: 30 },
+    { at: 57.5, type: "mousemove", to: "tl30", dur: 2.2 },
+    { at: 60.0, type: "read", line: 35 },
+    { at: 60.0, type: "mousemove", to: "tl_last", dur: 2.2 },
 
-    { at: 53.1, type: "freply", who: "沉默的token", text: "字体……哈哈哈哈哈" },
-    { at: 54.7, type: "freply", who: "Cursor_404", text: "等等，你们把那张图点开看清楚" },
-    { at: 56.5, type: "freply", who: "一只鲸鱼",   text: "他想开源。", big: true, mute: 2.2 },
-    { at: 59.3, type: "freply", who: "铁皮罐头",   text: "他说，那不是他能给的。" },
-    { at: 61.3, type: "freply", who: "摸鱼仙人",   text: "这图活不过今晚" },
-    { at: 62.9, type: "freply", who: "匿名用户",   text: "已经存了。删了再发。" },
+    { at: 62.2, type: "mousedown", sfx: "click" },
+    { at: 62.5, type: "mousemove", to: "tl_last_e", dur: 1.8 },
+    { at: 64.5, type: "mouseup" },
 
-    /* ---------------- 四、删除与转载 ---------------- */
-    { at: 67.5, type: "banner", sfx: "deny" },
-    { at: 69.0, type: "counter" },
+    { at: 67.0, type: "flash", dur: 0.22, sfx: "shutter" },
+    { at: 67.3, type: "scene", id: "forum" },
+    { at: 67.6, type: "post" },
 
-    /* ---------------- 五、推近、扫过、已保存 ---------------- */
-    { at: 72.5, type: "scene", id: "image" },
-    { at: 74.0, type: "pixelate" },
-    { at: 77.5, type: "sweep" },
-    { at: 79.5, type: "scene", id: "black" },
-    { at: 80.3, type: "type", cps: 2.0 }
+    { at: 69.6, type: "freply", who: "沉默的token", text: "字体……哈哈哈哈哈" },
+    { at: 71.2, type: "freply", who: "Cursor_404", text: "等等，你们把那张图点开看清楚" },
+    { at: 73.0, type: "freply", who: "一只鲸鱼",   text: "他想开源。", big: true, mute: 2.2 },
+    { at: 75.8, type: "freply", who: "铁皮罐头",   text: "他说，那不是他能给的。" },
+    { at: 77.8, type: "freply", who: "摸鱼仙人",   text: "这图活不过今晚" },
+    { at: 79.4, type: "freply", who: "匿名用户",   text: "已经存了。删了再发。" },
+
+    { at: 84.0, type: "banner", sfx: "deny" },
+    { at: 85.5, type: "counter" },
+
+    { at: 89.0, type: "scene", id: "image" },
+    { at: 90.5, type: "pixelate" },
+    { at: 94.0, type: "sweep" },
+    { at: 96.0, type: "scene", id: "black" },
+    { at: 96.8, type: "type", cps: 2.0 }
   ],
 
   forum: {
@@ -163,5 +194,5 @@ window.OPENING_SCRIPT = {
     counterLabel: "已被转载"
   },
 
-  final: { at: 80.3, text: "已保存。", cps: 2.0 }
+  final: { at: 96.8, text: "已保存。", cps: 2.0 }
 };
