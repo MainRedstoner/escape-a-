@@ -241,7 +241,7 @@ const OPENING = (() => {
 
   function blocksAt(tt) {
     const blocks = [];
-    let y = 0;
+    let y = 38;                       // 顶部先留出「Welcome to Claude Code」那两行
     for (let i = 0; i < S.events.length; i++) {
       const e = S.events[i];
       if (e.type === "scene") break;
@@ -325,16 +325,12 @@ const OPENING = (() => {
       }
     }
 
-    /* 光标：还有输入时在底部输入框里，否则在最后一块下面 */
+    /* 光标永远住在底部输入框里（跟真实 Claude Code 一样）：
+     * 打字时在已输入的文字后面，空闲时就在提示符后面闪。 */
     const act = activeInput(tt);
-    if (act) {
-      setFont(g, 13);
-      const str = typed(act, tt);
-      A.cursor = { x: PAD + 18 + g.measureText(str).width, y: BOX_TOP + 26 };
-    } else {
-      const lastB = b.blocks[b.blocks.length - 1];
-      A.cursor = { x: PAD + 18, y: lastB ? base + lastB.y + lastB.h + 10 : VTOP + 14 };
-    }
+    setFont(g, 13);
+    const typedW = act ? g.measureText(typed(act, tt)).width : 0;
+    A.cursor = { x: PAD + 18 + typedW, y: BOX_TOP + 21 };
 
     if (!A.prompt) A.prompt = A.cursor;
     if (!A.reply) A.reply = A.prompt;
@@ -413,26 +409,35 @@ const OPENING = (() => {
     ink(c, U.cwd, X, 64, C.dim, false);
   }
 
-  function drawBottomBox(c, L, tt, capture) {
+  function drawBottomBox(c, L, tt, capture, uiA) {
+    const a = uiA === undefined ? 1 : uiA;
+    c.save();
+    c.globalAlpha = a;
     c.fillStyle = C.rule;
     c.fillRect(0, BOX_TOP, W, 1);
+    c.restore();
 
     setFont(c, 13);
     const act = activeInput(tt);
+    c.save();
+    c.globalAlpha = a;
     ink(c, S.ui.prompt, PAD, BOX_TOP + 26, C.white, false);
+    c.restore();
     if (act) {
       const str = typed(act, tt);
       ink(c, str, PAD + 18, BOX_TOP + 26, C.white, FRINGE);
-      if (!capture && blinkOn(tt)) {
+      if (!capture) {
         const w = c.measureText(str).width;
         c.fillStyle = C.white;
         c.fillRect(PAD + 18 + w + 1, BOX_TOP + 13, 7, 16);
       }
-    } else if (!capture && blinkOn(tt)) {
+    } else if (!capture && (tt < 4.6 || blinkOn(tt))) {
       c.fillStyle = C.white;
       c.fillRect(PAD + 18, BOX_TOP + 13, 7, 16);
     }
 
+    c.save();
+    c.globalAlpha = a;
     c.fillStyle = C.rule;
     c.fillRect(0, BOX_BOT, W, 1);
 
@@ -441,13 +446,15 @@ const OPENING = (() => {
     ink(c, S.ui.hint, PAD, BAR_Y, C.accent, false);
     setFont(c, 10);
     ink(c, " " + S.ui.hint2, PAD + hw, BAR_Y, C.dim, false);
+    c.restore();
     void L;
   }
 
   function drawTerminal(c, L, tt, capture) {
     c.fillStyle = C.bg; c.fillRect(0, 0, W, H);
 
-    const uiA = smoothstep((tt - 3.2) / 6);
+    /* 界面元件在开头几秒慢慢显出来：先只有一颗光标，再拉远看见整个窗口 */
+    const uiA = smoothstep((tt - 2.0) / 4.5);
     c.save();
     c.globalAlpha = uiA;
     drawHeader(c);
@@ -459,6 +466,13 @@ const OPENING = (() => {
 
     const sel = selectionRect(L, tt);
     let selDrawn = false;
+
+    /* 会话开头的欢迎行：跟正文一起滚上去 */
+    setFont(c, 12);
+    ink(c, "✻", PAD, L.base + 13, C.logo, false);
+    ink(c, "Welcome to Claude Code", PAD + 16, L.base + 13, C.text, FRINGE);
+    setFont(c, 11);
+    ink(c, "/help for help, /status for your current setup", PAD + 16, L.base + 31, C.dim, false);
 
     for (let i = 0; i < L.blocks.length; i++) {
       const bl = L.blocks[i];
@@ -527,7 +541,7 @@ const OPENING = (() => {
     /* 光标（正文里没有输入时那颗不算，底部输入框里已经有了） */
     c.restore();
 
-    drawBottomBox(c, L, tt, capture);
+    drawBottomBox(c, L, tt, capture, uiA);
 
     /* 鼠标指针（截图里不该有鼠标） */
     if (!capture) {
@@ -770,7 +784,7 @@ const OPENING = (() => {
       const e = S.events[i];
       if (e.type === "focus" && e.at <= tt) mode = e.mode;
     }
-    if (mode === "screen") return { x: 320, y: 180 };
+    if (mode === "screen") return { x: 320, y: 186 };
     /* 选了字之后镜头就停在选中的那一行上，别跟着指针跑到行尾去 */
     const down = eventAt("mousedown", tt);
     if (down) {
@@ -783,7 +797,13 @@ const OPENING = (() => {
     const m = mousePos(L, tt);
     if (m) return m;
     const act = activeInput(tt);
-    if (act) return L.anchors.cursor;
+    if (act) {
+      /* 在底部输入框里打字：跟着「已经敲出来的这一段的中心」走，
+       * 不跟光标本身——光标是一个字一个字往右挪的，跟着它镜头会抽。 */
+      setFont(g, 13);
+      const w = g.measureText(typed(act, tt)).width;
+      return { x: clamp(PAD + 18 + w / 2, 60, W - 60), y: BOX_TOP + 21 };
+    }
     /* 思考中：盯着那句 Thought */
     for (let i = S.events.length - 1; i >= 0; i--) {
       const e = S.events[i];
@@ -797,11 +817,13 @@ const OPENING = (() => {
     return L.anchors.post || L.anchors.image || L.anchors.saved || L.anchors.cursor || { x: 320, y: 180 };
   }
 
-  /** 镜头不许越过内容层的边：越过去就只剩背景了 */
+  /** 镜头不许越过内容层的边：越过去就只剩背景了。
+   *  但高倍特写时允许往外探一点点（60px），否则贴着左边缘的光标永远对不正。 */
   function clampCam(c) {
     const hw = (SW / 2) / c.s, hh = (SH / 2) / c.s;
-    c.x = hw * 2 >= W ? W / 2 : clamp(c.x, hw, W - hw);
-    c.y = hh * 2 >= H ? H / 2 : clamp(c.y, hh, H - hh);
+    const mx = Math.min(hw, 60), my = Math.min(hh, 40);
+    c.x = hw * 2 >= W ? W / 2 : clamp(c.x, hw - mx, W - hw + mx);
+    c.y = hh * 2 >= H ? H / 2 : clamp(c.y, hh - my, H - hh + my);
     return c;
   }
 

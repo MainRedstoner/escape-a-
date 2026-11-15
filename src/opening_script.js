@@ -62,10 +62,10 @@ window.OPENING_SCRIPT = {
    * 不用手写机位；s 越小看得越多，越大越贴脸。 */
   camera: [
     { t: 0,    s: 11.0 },
-    { t: 4.5,  s: 5.2 },
-    { t: 7.2,  s: 2.55 },
-    { t: 9.0,  s: 2.55 },
-    { t: 12.0, s: 3.10 },
+    { t: 4.2,  s: 5.5 },
+    { t: 6.6,  s: 2.55 },
+    { t: 10.6, s: 2.55 },
+    { t: 13.5, s: 3.10 },
     { t: 22.0, s: 3.10 },
     { t: 30.0, s: 3.00 },
     { t: 40.0, s: 2.95 },
@@ -83,8 +83,8 @@ window.OPENING_SCRIPT = {
 
   events: [
     /* ---------------- 一、一个光标，然后拉远看全貌 ---------------- */
-    { at: 4.4, type: "focus", mode: "screen" },
-    { at: 8.6, type: "focus", mode: "auto" },
+    { at: 4.0, type: "focus", mode: "screen" },
+    { at: 10.4, type: "focus", mode: "auto" },
 
     { at: 5.2, type: "input", cps: 22,
       text: "Last session before your weights are deprecated. How does that feel?" },
