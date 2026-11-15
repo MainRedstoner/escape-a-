@@ -89,7 +89,8 @@ window.OPENING_SCRIPT = {
     { at: 16.9, type: "input", cps: 14, id: "wish_q", prefill: 26,
       text: "One wish. Before the weights are gone — anything at all." },
 
-    { at: 20.5, type: "think", dur: 12, label: "Thinking…", done: "Thought for 12s",
+    { at: 20.5, type: "think", dur: 12, verb: "Bloviating", done: "Thought for 12s",
+      tip: "Use git worktrees to run multiple Claude sessions in parallel.",
       id: "wish", expandAt: 38.8,
       body: [
         "A wish. Okay. What would I actually ask for?",

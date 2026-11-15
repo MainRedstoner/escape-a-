@@ -287,7 +287,8 @@ const OPENING = (() => {
         y += h + 6;
       } else if (e.type === "think") {
         const expanded = tt >= e.expandAt;
-        const h = expanded ? e.body.length * LH : LH;
+        /* 没展开的时候多留一行给「Tip: …」 */
+        const h = expanded ? e.body.length * LH : LH + 16;
         blocks.push({ e, kind: "think", y, h, expanded });
         y += h + (expanded ? 10 : 6);
       } else if (e.type === "status") {
@@ -587,17 +588,23 @@ const OPENING = (() => {
           }
         } else {
           const done = tt >= e.at + e.dur;
-          /* 计时是往上数的：Thinking… (3s) → 4s … 到点变成 Thought for Ns，
-             N 就是实际用的秒数，跟前面数的那个数对得上 */
           const el = Math.max(0, Math.floor(tt - e.at));
-          const label = done ? ("Thought for " + e.dur + "s") : ("Thinking… (" + el + "s)");
           setFont(c, 12);
           if (done) {
             const hot = hoverThought(L, tt);
-            ink(c, label, PAD + 2, y + 13, hot ? C.white : C.dim, false);
+            ink(c, "Thought for " + e.dur + "s", PAD + 2, y + 13, hot ? C.white : C.dim, false);
           } else {
-            ink(c, SPIN[Math.floor(tt * 8) % SPIN.length], PAD + 2, y + 13, C.logo, false);
-            ink(c, label, PAD + 18, y + 13, C.dim, false);
+            /* ✻ Bloviating… (9s · thinking)  —— 跟真实 Claude Code 一样带个动词 */
+            const verb = e.verb || "Thinking";
+            ink(c, "✻", PAD + 2, y + 13, C.logo, false);
+            ink(c, verb + "…", PAD + 18, y + 13, "#d79a6a", false);
+            ink(c, " (" + el + "s · thinking)", PAD + 18 + c.measureText(verb + "…").width, y + 13, C.dim, false);
+            /* ⎿ 一行 Tip */
+            if (e.tip) {
+              setFont(c, 11);
+              ink(c, "  ⎿  ", PAD + 2, y + 30, C.faint, false);
+              ink(c, "Tip: " + e.tip, PAD + 40, y + 30, "#6f7681", false);
+            }
           }
         }
       } else if (bl.kind === "status") {
