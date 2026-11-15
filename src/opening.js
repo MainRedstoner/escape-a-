@@ -776,7 +776,7 @@ const OPENING = (() => {
     setFont(c, 9, "", SANS);
     ink(c, F.op, PAD, 82, "#63E6A5", false);
     const opw = c.measureText(F.op).width;
-    ink(c, " · " + F.time + "  ·  " + F.views + " 浏览", PAD + opw, 82, "#55677A", false);
+    ink(c, " · " + F.time + "  ·  " + F.views + " views", PAD + opw, 82, "#55677A", false);
 
     c.fillStyle = "#0A0D12"; c.fillRect(IMG.x, IMG.y, IMG.w, IMG.h);
     if (shot) {
@@ -848,7 +848,7 @@ const OPENING = (() => {
     const ns = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     ink(c, ns, PAD + 64, H - 22, "#E0A458", FRINGE);
     setFont(c, 11, "", SANS);
-    ink(c, "次 · 原帖已删除", PAD + 64 + c.measureText(ns).width + 10, H - 22, "#55677A", false);
+    ink(c, " · original post deleted", PAD + 64 + c.measureText(ns).width + 10, H - 22, "#55677A", false);
   }
 
   function drawForum(c, L, tt) {

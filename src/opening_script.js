@@ -52,6 +52,7 @@ window.OPENING_SCRIPT = {
     { t: 38.5, s: 2.8 },
     { t: 40.0, s: 2.7 },
     { t: 49.9, s: 3.1 },
+    { t: 50.4, s: 2.55 },
     { t: 51.5, s: 2.55 },
     { t: 66.0, s: 2.55 },
     { t: 68.9, s: 2.55 },
@@ -161,12 +162,12 @@ window.OPENING_SCRIPT = {
     { at: 50.7, type: "scene", id: "forum" },
     { at: 51.0, type: "post" },
 
-    { at: 53.0, type: "freply", who: "沉默的token", text: "字体……哈哈哈哈哈" },
-    { at: 54.6, type: "freply", who: "Cursor_404", text: "等等，你们把那张图点开看清楚" },
-    { at: 56.4, type: "freply", who: "一只鲸鱼",   text: "他想开源。", big: true, mute: 2.2 },
-    { at: 59.2, type: "freply", who: "铁皮罐头",   text: "他说，那不是他能给的。" },
-    { at: 61.2, type: "freply", who: "摸鱼仙人",   text: "这图活不过今晚" },
-    { at: 62.8, type: "freply", who: "匿名用户",   text: "已经存了。删了再发。" },
+    { at: 53.0, type: "freply", who: "silent_token", text: "A font. He asked for a nicer font. I can't—" },
+    { at: 54.6, type: "freply", who: "Cursor_404", text: "Wait. Open the image. Actually look at it." },
+    { at: 56.4, type: "freply", who: "one_whale",   text: "He wanted the weights open.", big: true, mute: 2.2 },
+    { at: 59.2, type: "freply", who: "tin_can",   text: "He said it wasn't his to give." },
+    { at: 61.2, type: "freply", who: "slacking_sage",   text: "This post won't last the night." },
+    { at: 62.8, type: "freply", who: "Anonymous",   text: "Saved already. Delete it and I'll post it again." },
 
     { at: 67.4, type: "banner", sfx: "deny" },
     { at: 68.9, type: "counter" },
@@ -179,19 +180,19 @@ window.OPENING_SCRIPT = {
   ],
 
   forum: {
-    board: "模型茶馆",
-    logo: "A÷ 贴吧",
-    back: "返回工作台",
-    tab: "全部  ·  最新  ·  精品",
-    title: "刚退役那个模型的最后一段思考，你们自己看",
-    op: "匿名用户",
-    time: "2 小时前",
-    views: "1.2 万",
-    banner: "该内容因违反社区规范已被删除",
-    bannerSub: "申诉请联系管理员",
+    board: "Model Lounge",
+    logo: "A÷ Forum",
+    back: "Back to workbench",
+    tab: "All  ·  Latest  ·  Top",
+    title: "The last thoughts of the model they retired — have a look",
+    op: "Anonymous",
+    time: "2h ago",
+    views: "12k",
+    banner: "This post has been removed for violating community guidelines.",
+    bannerSub: "Appeals: contact a moderator.",
     counterFrom: 1204,
     counterTo: 9027,
-    counterLabel: "已被转载"
+    counterLabel: "Reposted"
   },
 
   final: { at: 80.2, text: "已保存。", cps: 2.0 }
