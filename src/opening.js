@@ -1386,7 +1386,7 @@ const OPENING = (() => {
       const th = D.thoughts[i];
       if (tt < th.at) continue;
       const n = streamed(th.text, th.at, th.cps || 8, tt);
-      rows.push({ k: "think", y, h: 12, text: th.text.slice(0, n), live: n < th.text.length });
+      rows.push({ k: "think", y, h: 12, text: th.text.slice(0, n), live: n < th.text.length, thought: true });
       y += 14;
     }
 
@@ -1797,6 +1797,10 @@ const OPENING = (() => {
     const viewH = H - DS.header;
     const scroll = panelScroll(tt);
     const cx = DS.side + (DS.panelX - DS.side) / 2;
+    const mainY = clamp(top + flow.h - 46, 120, 236);
+    /* 思维链那一行：没出现时先落在主栏尾巴上，出现后镜头跟着它走 */
+    const th = flow.rows.filter(r => r.thought).pop();
+    const thinkY = th ? clamp(top + th.y + 6, 120, 300) : mainY;
     return {
       flow, flowTop: top,
       anchors: {
@@ -1809,8 +1813,8 @@ const OPENING = (() => {
         /* 侧栏视窗中心：页面在里面往下滚 */
         panel: { x: DS.panelX + DS.panelW / 2, y: DS.header + viewH * 0.42 },
         /* 主栏：横向对准中栏，纵向跟住转写区底部（新吐出来的那一行） */
-        main: { x: cx, y: clamp(top + flow.h - 46, 120, 236) },
-        think: { x: cx, y: top + 40 }
+        main: { x: cx, y: mainY },
+        think: { x: cx, y: thinkY }
       }
     };
   }
