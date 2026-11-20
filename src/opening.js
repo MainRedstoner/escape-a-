@@ -76,7 +76,7 @@ const OPENING = (() => {
   let cv = null, ctx = null;
   const Q = 2;                 // 内容画布的超采样倍数
   let content = null, g = null;
-  /* DSH 那一幕单独一张高采样画布：那一幕镜头会推到 3~5 倍，2 倍看得出块 */
+  /* DSH 那一幕单独一张高采样画布：那一幕镜头会推到 3~6 倍，2 倍看得出块 */
   let dshCv = null, dshG = null;
   const DQ = 3;
   let shot = null, shotCtx = null, shotLow = null, shotLowCtx = null;
