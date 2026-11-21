@@ -248,30 +248,43 @@ const A3DDecor = (() => {
     strip(b, m, seamPts, seamOff, [0.48, 0.52, 0.62], true);
   }
 
-  /** 被头翻边：白色被里折回来的一道低矮软布带，贴着蓬松被面走。
-   *  基高直接取同一条 bedPuff 曲线（+3.8cm 薄层），所以整道始终浮在被面之上、
-   *  不会被被面吞掉；z 随 v 递增，法线朝上（和被子一致），翻边才不会被背光压黑；
-   *  自由边软扇贝波 + 末端微卷、两端往内收、细布纹、柔和明暗。 */
+  /** 被头翻边：v=0 是压到枕头下的折根，v=1 是朝床尾卷回去的自由边底面。
+   *  顶面只比被面高约 1~3cm；最后 1/4 参数绕成半椭圆截面的卷边，
+   *  顶面、圆唇和底面共用一张网格，避免另贴管子产生接缝或悬浮感。 */
   function fold(b, m, w, matTop, zHead, zFoot) {
-    const hw = w / 2 - 0.03, cols = 48, rows = 18;
+    const hw = w / 2 - 0.035, cols = 48, rows = 32, topEnd = 0.75;
     const P = (u, v) => {
-      const end = smooth01(u / 0.06) * smooth01((1 - u) / 0.06);   // 中段 1、两端 0
-      const droop = 1 - end;
-      const x = (-hw + 2 * hw * u) * (1 - 0.04 * droop);           // 两端往内收
-      const roll = Math.sin(Math.min(1, v / 0.9) * Math.PI);       // 低卷峰在 v≈0.45
-      const crest = 0.018 * roll * (0.88 + 0.12 * Math.sin(u * Math.PI * 2.0 + 0.7));
-      const frontDrape = 0.012 * smooth01((0.25 - v) / 0.25);      // 自由边（v=0）轻搭
-      const curl = 0.005 * smooth01((0.10 - v) / 0.10);            // 自由边末端微卷
-      const scallop = 0.006 * Math.sin(u * Math.PI * 2.5 + 0.3) * smooth01((0.5 - v) / 0.5) * end;
-      const wr = (0.0022 * Math.sin(u * 7.0 + v * 3.1)
-                + 0.0018 * Math.sin(u * 4.3 - v * 5.2 + 1.0)
-                + 0.0013 * Math.sin(u * 11.0 + v * 1.7 + 0.5)) * (0.4 + 0.6 * end);
-      const z = zHead + 0.02 + 0.24 * v + 0.006 * Math.sin(u * Math.PI * 1.5) * v;
-      const vB = BLANKET_VF * (z - zHead) / (zFoot - zHead);       // 换到被子全局纵向参数
-      const y = matTop + bedPuff(u, vB) + 0.038
-              + crest - frontDrape - curl + scallop + wr;
-      const k = 1.08 + 0.05 * roll - 0.03 * smooth01((0.3 - v) / 0.3)
-              + 0.015 * Math.sin(u * 6.0 + v * 2.0);
+      const end = smooth01(u / 0.07) * smooth01((1 - u) / 0.07);
+      const side = 1 - end;
+      if (v > topEnd) {
+        /* 自由边不是一条深色贴片，而是布本身的厚度：前半圈朝床尾鼓起，
+         * 后半圈回到被面上方；两端卷边略薄，顺势收进被子侧沿。 */
+        const q = P(u, topEnd);
+        const a = (v - topEnd) / (1 - topEnd) * Math.PI;
+        const ry = 0.0045 * (1 - 0.55 * side);
+        q.p[1] -= ry * (1 - Math.cos(a));
+        q.p[2] += 0.009 * (1 - 0.25 * side) * Math.sin(a);
+        q.k -= 0.09 * smooth01((a - Math.PI * 0.45) / (Math.PI * 0.55));
+        return q;
+      }
+      const t = v / topEnd;
+      const corner = side * smooth01((t - 0.58) / 0.42);
+      const x = -hw + 2 * hw * u - Math.sign(u - 0.5) * 0.018 * corner;
+      const wave = 0.0035 * Math.sin(u * TAU + 0.3)
+                 + 0.0015 * Math.sin(u * TAU * 2.0 - 0.4);
+      const z = zHead - 0.012 + 0.252 * t + wave * smooth01(t) - 0.012 * side * t * t;
+      const vB = BLANKET_VF * Math.max(0, z - zHead) / (zFoot - zHead);
+      const loft = 0.010 + 0.018 * Math.pow(Math.sin(Math.PI * t), 0.85);
+      /* 中央微卷、两端变薄下沉：侧边不能跟中央一样翘，否则会像一张硬纸。 */
+      const curl = 0.006 * smooth01((t - 0.80) / 0.20) * (0.30 + 0.70 * end);
+      const tuck = 0.004 * side * smooth01(t);
+      const cross = 0.003 * Math.sin(u * TAU + 0.4) * Math.sin(Math.PI * t);
+      const wr = (0.0016 * Math.sin(u * 7.0 + t * 3.1)
+                + 0.0012 * Math.sin(u * 4.3 - t * 5.2 + 1.0))
+               * (0.35 + 0.65 * end) * Math.sin(Math.PI * t);
+      const y = matTop + bedPuff(u, vB) + loft + curl - tuck + cross + wr;
+      const k = 1.05 + 0.035 * Math.sin(Math.PI * t) - 0.025 * side
+              - 0.035 * (1 - smooth01(t / 0.12));
       return { p: [x, y, z], k };
     };
     const grid = [];
@@ -284,7 +297,7 @@ const A3DDecor = (() => {
       const c = grid[i][Math.min(rows, j + 1)].p, d0 = grid[i][Math.max(0, j - 1)].p;
       const tx = a[0] - b0[0], ty = a[1] - b0[1], tz = a[2] - b0[2];
       const ux = c[0] - d0[0], uy = c[1] - d0[1], uz = c[2] - d0[2];
-      let nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
+      const nx = uy * tz - uz * ty, ny = uz * tx - ux * tz, nz = ux * ty - uy * tx;
       const l = Math.hypot(nx, ny, nz) || 1;
       return [nx / l, ny / l, nz / l];
     };
@@ -297,18 +310,14 @@ const A3DDecor = (() => {
       }
       b._pushQuad(b.count - 4);
     }
-    /* 自由边折口：朝被头探出的小卷边（原来向下 1.8cm 会插进被面）+ 内缘细缝线。
-     *  自由边附近坡度大、N() 法线会往下倾，所以两条统一沿 +Y 抬离；
-     *  缝线的带宽改沿 fold 表面方向，保证整条与折面平行、恒定间距。 */
-    const lipPts = [], lipOff = [], seamP = [], seamO = [];
+    /* 一道贴近自由边的细缝线；带宽只有约 2mm，不再用深色粗条冒充翻边厚度。 */
+    const seamP = [], seamO = [], seamRow = Math.floor(rows * topEnd) - 2;
     for (let i = 0; i <= cols; i++) {
-      const q0 = grid[i][0].p, q1 = grid[i][1].p, q2 = grid[i][2].p;
-      lipPts.push(lift(q0, [0, 1, 0], SURF_LIFT)); lipOff.push([0, -0.005, -0.012]);
-      seamP.push(lift(q1, [0, 1, 0], SURF_LIFT));
-      seamO.push([q2[0] - q1[0], q2[1] - q1[1], q2[2] - q1[2]]);
+      const q0 = grid[i][seamRow].p, q1 = grid[i][seamRow + 1].p;
+      seamP.push(lift(q0, N(i, seamRow), SURF_LIFT));
+      seamO.push([(q1[0] - q0[0]) * 0.22, (q1[1] - q0[1]) * 0.22, (q1[2] - q0[2]) * 0.22]);
     }
-    strip(b, m, lipPts, lipOff, [0.60, 0.64, 0.74], false);
-    strip(b, m, seamP, seamO, [0.54, 0.58, 0.68], true);
+    strip(b, m, seamP, seamO, [0.82, 0.84, 0.90], true);
   }
 
   /** 四角可各自带色的四边形（p0 左下 → p1 右下 → p2 右上 → p3 左上） */
