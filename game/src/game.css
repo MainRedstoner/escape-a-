@@ -4,6 +4,13 @@
  * 全部作用域带 gf- 前缀（git fix），以后打进视觉小说也不会和主线样式打架。
  * ============================================================ */
 
+/* 刘海 / 圆角 / 手势条：touch.js 读这几个值把按键摆进安全区 */
+:root {
+  --gf-sa-left: env(safe-area-inset-left, 0px);
+  --gf-sa-right: env(safe-area-inset-right, 0px);
+  --gf-sa-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 #gf-app {
   position: fixed;
   inset: 0;
@@ -26,7 +33,7 @@
   display: flex;
   gap: 14px;
   align-items: center;
-  padding: 8px 12px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
   font-size: 13px;
   letter-spacing: .02em;
   background: linear-gradient(180deg, rgba(5,7,10,.92), rgba(5,7,10,0));
@@ -270,7 +277,7 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
 .gf-tjoy {
   position: absolute;               /* left/top/transform 由 touch.js 按布局写入 */
   transform-origin: 50% 50%;
-  width: 104px; height: 104px; border-radius: 50%;
+  width: calc(104px * var(--gf-tk, 1)); height: calc(104px * var(--gf-tk, 1)); border-radius: 50%;
   border: 1px solid rgba(124,243,176,.4);
   background: rgba(10,16,13,.5);
   pointer-events: auto; touch-action: none;
@@ -322,8 +329,8 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   -webkit-tap-highlight-color: transparent;
   padding: 0;
 }
-.gf-tbtn.gf-act { width: 66px; height: 56px; font-size: 15px; }
-.gf-tbtn.gf-mini { width: 38px; height: 34px; font-size: 13px; opacity: .85; }
+.gf-tbtn.gf-act { width: calc(66px * var(--gf-tk, 1)); height: calc(56px * var(--gf-tk, 1)); font-size: calc(15px * var(--gf-tk, 1)); }
+.gf-tbtn.gf-mini { width: calc(38px * var(--gf-tk, 1)); height: calc(34px * var(--gf-tk, 1)); font-size: calc(13px * var(--gf-tk, 1)); opacity: .85; }
 .gf-tbtn.gf-hold { background: rgba(28,58,43,.9); border-color: #7cf3b0; }
 .gf-tbtn.gf-commit { color: #ffd479; border-color: rgba(255,212,121,.55); }
 .gf-tbtn.gf-commit.gf-hold { border-color: #ffd479; }
@@ -368,7 +375,7 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   width: 22ch; font-size: 10.5px;
 }
 #gf-app.gf-touch #gf-toasts { top: 30%; }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   #gf-app.gf-touch #gf-log { display: none; }
   /* 窄屏 HUD 收成一行：藏起次要统计（测试 / commit / 回档 / 图层），
    * 关名截断，目标框下移到单行 HUD 之下，避免叠字 */
@@ -379,5 +386,5 @@ button.gf-btn:disabled { opacity: .4; cursor: not-allowed; }
   #gf-app.gf-touch #gf-hud > span:nth-child(8) { display: none; }
   #gf-app.gf-touch #gf-hud .gf-lvl { max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #gf-app.gf-touch #gf-hud .gf-badge { padding: 0 4px; font-size: 10px; }
-  #gf-app.gf-touch #gf-objective { top: 34px; max-width: 74vw; }
+  #gf-app.gf-touch #gf-objective { top: 34px; max-width: 66vw; font-size: 11.5px; line-height: 1.45; max-height: 5.4em; overflow: hidden; }
 }

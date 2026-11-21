@@ -152,7 +152,8 @@
   #touchCtl{position:absolute;inset:0;z-index:7;pointer-events:none;touch-action:none;}
   body.clean #touchCtl{display:none;}
   #joyBase{
-    position:absolute;left:14px;bottom:18px;width:104px;height:104px;border-radius:50%;
+    position:absolute;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));
+    width:clamp(84px,24vmin,104px);height:clamp(84px,24vmin,104px);border-radius:50%;
     border:1px solid rgba(70,83,106,.8);background:rgba(8,11,16,.45);
     pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
     -webkit-tap-highlight-color:transparent;
@@ -163,9 +164,9 @@
     border-radius:50%;background:rgba(201,210,222,.28);border:1px solid rgba(201,210,222,.5);
     pointer-events:none;
   }
-  #touchSide{position:absolute;right:14px;bottom:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+  #touchSide{position:absolute;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
   #touchSide .tbtn{
-    width:58px;height:46px;border-radius:8px;border:1px solid rgba(70,83,106,.8);
+    width:clamp(50px,14vmin,58px);height:clamp(40px,11vmin,46px);border-radius:8px;border:1px solid rgba(70,83,106,.8);
     background:rgba(8,11,16,.55);color:var(--text);font-family:inherit;font-size:15px;
     pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
     -webkit-tap-highlight-color:transparent;padding:0;
@@ -543,11 +544,12 @@ function setFov(v, flash) {
 function moveFP(dt) {
   if (!fp) return;
   const v = fpVectors();
-  let fx = 0, fy = 0, fz = 0;
-  if (held.w) { fx += v.f[0]; fy += v.f[1]; fz += v.f[2]; }
-  if (held.s) { fx -= v.f[0]; fy -= v.f[1]; fz -= v.f[2]; }
-  if (held.d) { fx += v.r[0]; fz += v.r[2]; }
-  if (held.a) { fx -= v.r[0]; fz -= v.r[2]; }
+  /* 键盘是阶跃、摇杆是模拟量，两边先合成一根前后 / 左右轴再算位移 */
+  const fwd = (held.w ? 1 : 0) - (held.s ? 1 : 0) + (held.jy || 0);
+  const side = (held.d ? 1 : 0) - (held.a ? 1 : 0) + (held.jx || 0);
+  let fx = v.f[0] * fwd + v.r[0] * side;
+  let fy = v.f[1] * fwd;
+  let fz = v.f[2] * fwd + v.r[2] * side;
   if (held.e) fy += 1;
   if (held.q) fy -= 1;
   const len = Math.hypot(fx, fy, fz);
@@ -1594,16 +1596,18 @@ boot();
     const len = Math.hypot(dx, dy) || 1;
     const cl = Math.min(len, R * 0.62);        // 摇杆头最多拉到 62%，留点视觉余量
     knob.style.transform = "translate(" + (dx / len * cl) + "px," + (dy / len * cl) + "px)";
-    const nx = dx / len, ny = dy / len;
-    held.w = ny < -0.32; held.s = ny > 0.32;   // 死区内不算，防手抖漂移
-    held.a = nx < -0.32; held.d = nx > 0.32;
+    /* 模拟量：推多远走多快。0.14 死区防手抖，死区外线性映射到 0~1 */
+    const mag = cl / (R * 0.62);
+    const thr = mag > 0.14 ? (mag - 0.14) / 0.86 : 0;
+    held.jx = (dx / len) * thr;
+    held.jy = -(dy / len) * thr;               // 屏幕向上推 = 前进
   }
   function joyEnd(e) {
     if (e.pointerId !== joyId) return;
     joyId = null;
     base.classList.remove("on");
     knob.style.transform = "translate(0,0)";
-    held.w = held.a = held.s = held.d = false;
+    held.jx = 0; held.jy = 0;
   }
   base.addEventListener("pointerdown", e => {
     if (joyId != null) return;

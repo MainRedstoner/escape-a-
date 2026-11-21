@@ -7,9 +7,12 @@
  * moveVec，与键盘共用键位表，打乱事件按同一张方向表旋转向量；横版上推跳、
  * 下拉下穿由 Input 按滞回合成 up/down。
  *
- * 每个控件独立绝对定位（中心锚点百分比 + 缩放），因此带一个**布局调试**：
+ * 每个控件独立绝对定位（中心锚点百分比 + 缩放），尺寸 / 间距乘 unit()（小屏一起缩），
+ * 并让开 env(safe-area-inset-*) 那圈刘海与手势条。因此带一个**布局调试**：
  * 点右上「布局」（或 ?layout=1）进入编辑，手机上直接拖动改位置、滑杆调大小，
  * 存 localStorage 的 ea_bugfix_touchlayout（只碰 ea_bugfix_* 前缀，不进世界快照）。
+ * 对外还给 render.js 一个 safeCenter()：控件没遮住的那块矩形，玩家就摆在那儿。
+ * 调试键（判定箱 / 布局入口）只在 ?debug=1 ?layout=1 时挂出来，手机屏幕别塞调试件。
  * 检测到触屏（或 ?touch=1 强开）才挂出来；不碰存档进度、不碰世界状态。
  * ============================================================ */
 "use strict";
@@ -26,11 +29,13 @@ window.GTOUCH = (() => {
     { id: "commit", kind: "act", code: "Space", label: "commit", title: "落 commit（空格）", cls: "commit" },
     { id: "revert", kind: "mini", code: "KeyU", label: "回", title: "回档（U）" },
     { id: "help", kind: "mini", code: "KeyO", label: "图", title: "图鉴（O）" },
-    { id: "box", kind: "mini", code: "KeyB", label: "箱", title: "判定箱显隐（调试）" },
+    { id: "box", kind: "mini", code: "KeyB", label: "箱", title: "判定箱显隐（调试）", debug: true },
     { id: "menu", kind: "mini", code: "Escape", label: "菜", title: "菜单（Esc）" }
   ];
   const LAYOUT_KEY = "ea_bugfix_touchlayout";
   const SCALE_MIN = 0.6, SCALE_MAX = 1.8;
+  /* 调试用控件（判定箱 / 布局入口）只在 ?debug=1 ?layout=1 时出现，别占手机屏幕 */
+  const DBG = /[?&](debug|layout)=1/.test(window.location.search || "");
 
   const JOY_DEAD = 0.28;     // 死区（占可拉半径的比例），防手心搭上去就乱走
   const RING_R = 48;         // 速度环半径（viewBox 104 坐标）
@@ -46,18 +51,34 @@ window.GTOUCH = (() => {
   let bar = null, barName = null, barSize = null;
 
   /* ---------------- 布局存取 ---------------- */
-  /* 默认摆位复刻原来的「左下摇杆 + 右下 2x2 大键 + 上一排小键」，
-   * 用像素从边缘推再转百分比，任何屏幕都不重叠、不出界。 */
+  /* 控件基准尺寸：小屏按 vmin 一起缩，大屏封顶 1 —— 像素摆位与 CSS 用同一个 --gf-tk */
+  function unit() {
+    const w = host ? host.clientWidth || window.innerWidth : window.innerWidth;
+    const h = host ? host.clientHeight || window.innerHeight : window.innerHeight;
+    return U.clamp(Math.min(w, h) / 420, 0.72, 1);
+  }
+  /* 刘海 / 手势条：CSS 把 env() 落到 --gf-sa-*，这里读成像素，摆位别钻进安全区 */
+  function sa(kind) {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gf-sa-" + kind));
+    return isFinite(v) ? v : 0;
+  }
+  /* 默认摆位复刻「左下摇杆 + 右下 2x2 大键 + 上一排小键」，
+   * 尺寸与间距都乘 unit()，再从安全区边缘推出像素，最后转百分比 —— 任何屏幕都不重叠、不出界。 */
   function defaultLayout() {
     const W = host.clientWidth || window.innerWidth;
     const H = host.clientHeight || window.innerHeight;
+    const u = unit(), sl = sa("left"), sr = sa("right"), sb = sa("bottom");
     const px = (x, y) => ({ x: x / W * 100, y: y / H * 100, s: 1 });
+    const rowB = H - sb - 38 * u, rowA = H - sb - 100 * u, rowMini = H - sb - 151 * u;
+    const colB = W - sr - 43 * u, colA = W - sr - 115 * u;
+    /* 小键一排：调试开关关掉「箱」后剩 3 个，整体右移收拢，别留一个空位 */
+    const mini = DBG ? [158, 115, 72, 29] : [122, 79, 36];
     return {
-      joy: px(64, H - 64),
-      fix: px(W - 115, H - 100), test: px(W - 43, H - 100),
-      log: px(W - 115, H - 38), commit: px(W - 43, H - 38),
-      revert: px(W - 158, H - 151), help: px(W - 115, H - 151),
-      box: px(W - 72, H - 151), menu: px(W - 29, H - 151)
+      joy: px(sl + 64 * u, H - sb - 64 * u),
+      fix: px(colA, rowA), test: px(colB, rowA),
+      log: px(colA, rowB), commit: px(colB, rowB),
+      revert: px(W - sr - mini[0] * u, rowMini), help: px(W - sr - mini[1] * u, rowMini),
+      box: px(W - sr - (DBG ? mini[2] : 72) * u, rowMini), menu: px(W - sr - mini[mini.length - 1] * u, rowMini)
     };
   }
   function loadLayout() {
@@ -83,8 +104,34 @@ window.GTOUCH = (() => {
     el.style.left = v.x + "%";
     el.style.top = v.y + "%";
     el.style.transform = "translate(-50%,-50%) scale(" + v.s + ")";
+    safeBox = null;
   }
   function applyAll() { for (const c of CONTROLS) applyOne(c.id); }
+
+  /* ---------------- 视野安全区 ----------------
+   * 控件占掉左下 / 右下一块，玩家搁在画面正中就会被按键压住。
+   * 这里算「没被控件遮住的矩形」的中心，render.js 把玩家摆到那儿。
+   * 只在布局 / 尺寸变化后重算一次，逐帧读会拖慢合成。 */
+  let safeBox = null;
+  function safeCenter() {
+    if (!inited || editing) return null;
+    if (safeBox) return safeBox;
+    const W = host.clientWidth, H = host.clientHeight;
+    if (!W || !H) return null;
+    let left = 0, right = W, top = H;
+    for (const c of CONTROLS) {
+      const el = els[c.id], v = layout && layout[c.id];
+      if (!el || !v || !el.offsetWidth) continue;      // 调试键没挂出来 / 弹窗收起时跳过
+      const hw = el.offsetWidth * v.s / 2, hh = el.offsetHeight * v.s / 2;
+      const x = v.x / 100 * W, y = v.y / 100 * H;
+      top = Math.min(top, y - hh);
+      if (c.kind === "joy") left = Math.max(left, x + hw);
+      else right = Math.min(right, x - hw);
+    }
+    if (right <= left) { left = 0; right = W; }        // 横屏挤到重叠时不硬抠，退回整幅宽
+    safeBox = { x: (left + right) / 2, y: Math.max(0, top) / 2, w: right - left, h: Math.max(0, top) };
+    return safeBox;
+  }
 
   /* ---------------- 控件 ---------------- */
   function makeBtn(def) {
@@ -186,7 +233,7 @@ window.GTOUCH = (() => {
   /* ---------------- 布局编辑（拖拽 / 缩放） ---------------- */
   function select(id) {
     sel = id;
-    for (const c of CONTROLS) els[c.id].classList.toggle("gf-sel", c.id === id);
+    for (const c of CONTROLS) if (els[c.id]) els[c.id].classList.toggle("gf-sel", c.id === id);
     const def = CONTROLS.filter(c => c.id === id)[0];
     if (barName) barName.textContent = def ? def.label : id;
     if (barSize) barSize.value = Math.round(layout[id].s * 100);
@@ -217,6 +264,7 @@ window.GTOUCH = (() => {
   }
   function setEditing(on) {
     editing = !!on;
+    safeBox = null;
     if (host) host.classList.toggle("gf-edit", editing);
     if (bar) bar.style.display = editing ? "flex" : "none";
     if (editing) {
@@ -265,20 +313,23 @@ window.GTOUCH = (() => {
     host = document.createElement("div");
     host.id = "gf-touch";
     for (const c of CONTROLS) {
+      if (c.debug && !DBG) continue;         // 调试键不进手机布局
       const el = c.kind === "joy" ? makeJoy() : makeBtn(c);
       el.dataset.tid = c.id;
       els[c.id] = el;
       wireDrag(el, c.id);
       host.appendChild(el);
     }
-    const entry = document.createElement("button");
-    entry.type = "button";
-    entry.id = "gf-tlayout";
-    entry.textContent = "布局";
-    entry.title = "调试：编辑触屏键位布局（拖动 / 调大小）";
-    entry.addEventListener("pointerdown", e => { e.preventDefault(); setEditing(!editing); });
-    host.appendChild(entry);
-    host.appendChild(buildBar());
+    if (DBG) {                               // 「布局」入口也是调试工具，平时别占右上角
+      const entry = document.createElement("button");
+      entry.type = "button";
+      entry.id = "gf-tlayout";
+      entry.textContent = "布局";
+      entry.title = "调试：编辑触屏键位布局（拖动 / 调大小）";
+      entry.addEventListener("pointerdown", e => { e.preventDefault(); setEditing(!editing); });
+      host.appendChild(entry);
+      host.appendChild(buildBar());
+    }
     return host;
   }
 
@@ -290,10 +341,15 @@ window.GTOUCH = (() => {
     inited = true;
     app.classList.add("gf-touch");
     app.appendChild(build());
+    host.style.setProperty("--gf-tk", unit().toFixed(3));   // CSS 尺寸与 JS 摆位共用一个基准
     layout = loadLayout();
     applyAll();
     /* 没存过布局时跟随窗口尺寸重算默认摆位（转屏 / 改窗口不跑偏） */
-    window.addEventListener("resize", () => { if (!saved && !editing) { layout = defaultLayout(); applyAll(); } });
+    window.addEventListener("resize", () => {
+      if (host) host.style.setProperty("--gf-tk", unit().toFixed(3));
+      safeBox = null;
+      if (!saved && !editing) { layout = defaultLayout(); applyAll(); }
+    });
     const note = document.getElementById("gf-touch-note");
     if (note) note.style.display = "";       // 标题页那句触屏说明
     if (/[?&]layout=1/.test(window.location.search)) setEditing(true);
@@ -314,5 +370,5 @@ window.GTOUCH = (() => {
     window.addEventListener("touchstart", enable, { once: true, passive: true });
   }
 
-  return { init, enable, setEditing, get editing() { return editing; }, get layout() { return layout; } };
+  return { init, enable, setEditing, safeCenter, get editing() { return editing; }, get layout() { return layout; } };
 })();
