@@ -50,7 +50,10 @@ window.RENDER = (() => {
     time += dt;
     updateParticles(dt);
     landK = Math.max(0, landK - dt * 7);
-    const want = Math.max(26, Math.min(56, Math.floor(view.w / 24)));
+    /* 竖屏手机：地图比屏幕矮时把地块放大到铺满高度，否则下半屏是一条黑边，
+     * 玩家还贴在上半屏顶端、正对着摇杆和按键。桌面宽屏仍按宽度定，结果不变。 */
+    const fitH = W.h ? Math.ceil(view.h / W.h) : 0;
+    const want = U.clamp(Math.max(Math.floor(view.w / 24), fitH), 26, 56);
     TS = want;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, view.w, view.h);
@@ -58,13 +61,16 @@ window.RENDER = (() => {
     ctx.fillRect(0, 0, view.w, view.h);
 
     const cols = Math.ceil(view.w / TS) + 2, rowsN = Math.ceil(view.h / TS) + 2;
+    /* 触屏时控件压住左下 / 右下，玩家要摆进「没被遮住」那块的中心，别让人物躲在摇杆后面 */
+    const safe = window.GTOUCH && window.GTOUCH.safeCenter ? window.GTOUCH.safeCenter() : null;
+    const cx = safe ? safe.x : view.w / 2, cy = safe ? safe.y : view.h / 2;
     /* 横版给一点水平前瞻，跑起来不至于贴着屏幕中央；垂直方向留死区 */
     const lead = W.mode === "side" ? U.clamp(W.player.vx * 0.18, -1.6, 1.6) : 0;
-    const targetX = (W.player.x + lead) * TS - view.w / 2;
-    let targetY = W.player.y * TS - view.h / 2;
+    const targetX = (W.player.x + lead) * TS - cx;
+    let targetY = W.player.y * TS - cy;
     if (W.mode === "side" && cam.init) {
-      const dy = W.player.y * TS - (cam.y + view.h / 2);
-      if (Math.abs(dy) > TS * 1.3) targetY = W.player.y * TS - view.h / 2 - Math.sign(dy) * TS * 1.3;
+      const dy = W.player.y * TS - (cam.y + cy);
+      if (Math.abs(dy) > TS * 1.3) targetY = W.player.y * TS - cy - Math.sign(dy) * TS * 1.3;
       else targetY = cam.y;
     }
     const maxX = Math.max(0, W.w * TS - view.w), maxY = Math.max(0, W.h * TS - view.h);
